@@ -1,4 +1,4 @@
-import { getRolFromAccessToken, hasRhOperativeViewerContext } from "../auth/jwt.ts";
+import { hasRhOperativeViewerContext } from "../auth/jwt.ts";
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
@@ -23,7 +23,7 @@ import { renderEval360Empleados } from "../evaluacion360/views/empleados.ts";
 import { renderEval360Evaluaciones } from "../evaluacion360/views/evaluaciones.ts";
 import { renderEval360Reportes } from "../evaluacion360/views/reportes.ts";
 import { renderEval360Resultados } from "../evaluacion360/views/resultados.ts";
-import { htmlAccessDenied, RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
+import { BTN_PRIMARY, htmlAccessDenied, RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   activarEval360Campana,
@@ -33,6 +33,7 @@ import {
   fetchEval360Campanas,
   type CampanaApi,
 } from "../api/evaluacion360.ts";
+import { openCampanaWizard } from "../evaluacion360/campanaWizard.ts";
 
 const PAGE_SHELL = RH_DASHBOARD_PAGE_SHELL;
 
@@ -126,7 +127,8 @@ function renderCampanasReal(campanas: CampanaApi[]): string {
           </div>
         </div>
         <div class="px-5 py-12 text-center text-sm text-text-muted">
-          Aún no hay campañas. Crea la primera desde el asistente de nueva campaña.
+          <p>Aún no hay campañas.</p>
+          <button type="button" class="${BTN_PRIMARY} mt-4" data-action="e360-open-modal">Nueva campaña</button>
         </div>
       </div>`;
   }
@@ -155,7 +157,10 @@ function renderCampanasReal(campanas: CampanaApi[]): string {
           <h2 class="text-sm font-semibold text-text-primary">Campañas de evaluación</h2>
           <p class="mt-0.5 text-xs text-text-muted">${campanas.length} campañas registradas</p>
         </div>
-        <button type="button" class="text-xs font-semibold text-accent hover:underline" data-action="e360-campanas-refresh">Actualizar</button>
+        <div class="flex items-center gap-3">
+          <button type="button" class="text-xs font-semibold text-accent hover:underline" data-action="e360-campanas-refresh">Actualizar</button>
+          <button type="button" class="${BTN_PRIMARY}" data-action="e360-open-modal">Nueva campaña</button>
+        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="min-w-full text-left">
@@ -325,11 +330,16 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
       });
     });
 
-    pageRoot.querySelector('[data-action="e360-open-modal"]')?.addEventListener("click", () => {
-      if (state.view !== "campanas") {
-        window.location.hash = `${EVAL360_BASE_HASH}/campanas`;
-      }
-      window.alert("El asistente guiado de creación de campañas se habilita en la próxima entrega.");
+    pageRoot.querySelectorAll('[data-action="e360-open-modal"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (state.view !== "campanas") {
+          window.location.hash = `${EVAL360_BASE_HASH}/campanas`;
+          return;
+        }
+        openCampanaWizard(pageRoot, () => {
+          void loadCampanas(true);
+        });
+      });
     });
 
     pageRoot.querySelector('[data-action="e360-campanas-refresh"]')?.addEventListener("click", () => {
