@@ -1,7 +1,6 @@
 """Ciclo de aprobación de horas extra: gerente regional + director (en paralelo)."""
 
 import uuid
-from datetime import date
 
 import pytest
 import pytest_asyncio
@@ -16,9 +15,16 @@ from app.models.horas_extra import (
     HorasExtraSolicitud,
     HorasExtraSolicitudDetalle,
 )
+from app.utils.business_time import business_today
 from tests.conftest import auth_headers, make_empleado
 
 NOMINAS = "/api/v1/nominas"
+
+
+def _semana_capturable() -> int:
+    """Semana ISO dentro de la ventana permitida (la actual), calculada
+    relativa a hoy para que el test no caduque con el paso del tiempo."""
+    return business_today().isocalendar()[1]
 
 
 async def _reset_horas_extra(db):
@@ -62,7 +68,6 @@ async def _crear_solicitud_via_api(client, db, registrante, area, sub, cc):
         db,
         rol="empleado",
         email=f"op_{uuid.uuid4().hex[:6]}@leoni.test",
-        no_empleado=f"OP-{uuid.uuid4().hex[:5]}",
         nombre="Operativo",
         lider_id=registrante.empleado_id,
     )
@@ -73,7 +78,7 @@ async def _crear_solicitud_via_api(client, db, registrante, area, sub, cc):
 
     headers = await auth_headers(client, registrante)
     payload = {
-        "semana": 24,
+        "semana": _semana_capturable(),
         "tipo": "planeado",
         "motivo": "Cobertura",
         "empleados": [
