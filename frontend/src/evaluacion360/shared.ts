@@ -67,6 +67,7 @@ export function campanaEstadoBadge(estado: CampanaEstado): string {
     en_progreso: { cls: "border-amber-200 bg-amber-50 text-amber-900", dot: "bg-amber-500", label: "En progreso" },
     finalizada: { cls: "border-emerald-200 bg-emerald-50 text-emerald-900", dot: "bg-emerald-500", label: "Finalizada" },
     cerrada: { cls: "border-slate-200 bg-slate-100 text-slate-700", dot: "bg-slate-500", label: "Cerrada" },
+    cancelada: { cls: "border-red-200 bg-red-50 text-red-900", dot: "bg-red-500", label: "Cancelada" },
   };
   const b = map[estado];
   return `<span class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold ${b.cls}"><span class="size-1.5 shrink-0 rounded-full ${b.dot}" aria-hidden="true"></span>${b.label}</span>`;

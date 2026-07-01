@@ -306,7 +306,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
         group="Level Up",
         nav_item_ids=("evaluacion-360",),
         hash_prefixes=("#/level-up/evaluacion-360",),
-        api_prefixes=(),
+        api_prefixes=("/api/v1/evaluacion-360",),
     ),
     "capacidades": RhModuleDef(
         key="capacidades",
@@ -345,6 +345,9 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/comedor/accesos/primera-fecha-permitida",
     "/api/v1/comedor/registro",
     "/api/v1/bono-productividad",
+    # Evaluacion 360: responder evaluaciones es self-service (cualquier evaluador).
+    "/api/v1/evaluacion-360/mis-evaluaciones",
+    "/api/v1/evaluacion-360/evaluaciones",
 )
 
 
