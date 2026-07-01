@@ -23,6 +23,12 @@ import {
   type Vista360TableTabId,
 } from "../components/vista360/tabs.ts";
 import { renderVista360TablaMount } from "../components/vista360/vista360RegistrosTabla.ts";
+import {
+  fetchEval360CursosSugeridos,
+  fetchEval360ResumenEmpleado,
+  generarEval360Pdi,
+  type ResumenEmpleadoApi,
+} from "../api/evaluacion360.ts";
 import { vista360TimelineHtml } from "../components/vista360/timeline.ts";
 import { loadEmpleadoVista360, type EmpleadoIncidenciasMetricas } from "../hooks/useVista360.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
@@ -43,6 +49,7 @@ const VISTA360_TAB_IDS: Vista360TabId[] = [
   "beneficios",
   "capacidades",
   "plan_desarrollo",
+  "evaluacion360",
   "actas",
   "registros-comedor",
 ];
@@ -281,6 +288,139 @@ function isTableTab(tab: Vista360TabId): tab is Vista360TableTabId {
   return tab === "incidencias" || tab === "actas" || tab === "registros-comedor";
 }
 
+// ── Panel Evaluación 360° (carga bajo demanda) ────────────────────────────────
+function renderEval360PanelPlaceholder(): string {
+  return `<div id="v360-eval360-mount" data-loaded="0">
+    <div class="h-40 animate-pulse rounded-xl bg-slate-100"></div>
+  </div>`;
+}
+
+function e360Fmt(n: number | null | undefined): string {
+  return n == null ? "—" : Number(n).toFixed(1);
+}
+
+function e360BrechaBadge(estado: string | null): string {
+  const map: Record<string, string> = {
+    cumple: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    riesgo: "border-amber-200 bg-amber-50 text-amber-800",
+    brecha: "border-red-200 bg-red-50 text-red-800",
+  };
+  const labels: Record<string, string> = { cumple: "Cumple", riesgo: "Riesgo", brecha: "Brecha" };
+  if (!estado) return "—";
+  return `<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${map[estado] ?? ""}">${labels[estado] ?? estado}</span>`;
+}
+
+function renderEval360PanelContent(resumen: ResumenEmpleadoApi, cursos: Awaited<ReturnType<typeof fetchEval360CursosSugeridos>>): string {
+  if (!resumen.tiene_datos) {
+    return `<div class="rounded-xl border border-slate-200 bg-white px-5 py-12 text-center text-sm text-text-muted">
+      Este colaborador aún no tiene resultados de Evaluación 360°.
+    </div>`;
+  }
+  const comp = resumen.competencias
+    .map(
+      (c) => `
+    <tr class="border-b border-slate-100">
+      <td class="px-3 py-2 text-sm font-medium text-text-primary">${escapeHtml(c.competencia_nombre ?? "—")}</td>
+      <td class="px-3 py-2 text-center text-sm tabular-nums text-slate-600">${e360Fmt(c.nivel_esperado)}</td>
+      <td class="px-3 py-2 text-center text-sm tabular-nums text-slate-600">${e360Fmt(c.promedio_general)}</td>
+      <td class="px-3 py-2 text-center">${e360BrechaBadge(c.estado_brecha)}</td>
+    </tr>`,
+    )
+    .join("");
+
+  const evol = resumen.evolucion.length
+    ? resumen.evolucion
+        .map(
+          (e) => `<div class="flex items-center justify-between border-b border-slate-100 py-1.5 text-sm">
+        <span class="text-text-primary">${escapeHtml(e.campana_nombre)}</span>
+        <span class="font-semibold tabular-nums text-leoni-blue">${e360Fmt(e.calificacion_general)}</span>
+      </div>`,
+        )
+        .join("")
+    : '<p class="text-sm text-text-muted">Sin historial previo.</p>';
+
+  const cursosHtml = cursos.length
+    ? cursos
+        .map(
+          (g) => `
+      <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+        <p class="text-xs font-semibold text-text-primary">${escapeHtml(g.competencia_nombre ?? "—")} ${e360BrechaBadge(g.estado_brecha)}</p>
+        ${
+          g.cursos.length
+            ? `<ul class="mt-1.5 space-y-1">${g.cursos.map((c) => `<li class="text-sm text-slate-700">• ${escapeHtml(c.nombre)}${c.modalidad ? ` <span class="text-xs text-text-muted">(${escapeHtml(c.modalidad)})</span>` : ""}</li>`).join("")}</ul>`
+            : '<p class="mt-1 text-xs text-text-muted">Sin cursos asociados en el catálogo.</p>'
+        }
+      </div>`,
+        )
+        .join("")
+    : '<p class="text-sm text-text-muted">Sin brechas que sugieran cursos.</p>';
+
+  return `
+    <div class="space-y-5">
+      <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-xs font-medium text-text-muted">${escapeHtml(resumen.campana_nombre ?? "Evaluación 360°")}</p>
+          <p class="mt-0.5 text-3xl font-bold tabular-nums text-leoni-blue">${e360Fmt(resumen.calificacion_general)}</p>
+          <p class="text-xs text-text-muted">Calificación general (última campaña)</p>
+        </div>
+        <button type="button" data-e360-generar-pdi data-participante="${resumen.participante_id ?? ""}" class="inline-flex items-center justify-center rounded-lg bg-leoni-blue px-3 py-2 text-sm font-semibold text-white hover:bg-leoni-blue/90">Generar plan de desarrollo</button>
+      </div>
+      <div class="grid gap-5 lg:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+          <h3 class="mb-3 text-sm font-semibold text-text-primary">Competencias y brechas</h3>
+          <div class="overflow-x-auto"><table class="min-w-full text-left"><thead><tr class="text-xs font-semibold uppercase tracking-wide text-text-muted"><th class="px-3 py-2">Competencia</th><th class="px-3 py-2 text-center">Esperado</th><th class="px-3 py-2 text-center">Obtenido</th><th class="px-3 py-2 text-center">Estado</th></tr></thead><tbody>${comp}</tbody></table></div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5">
+          <h3 class="mb-3 text-sm font-semibold text-text-primary">Evolución histórica</h3>
+          ${evol}
+        </div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <h3 class="mb-3 text-sm font-semibold text-text-primary">Cursos sugeridos por brecha</h3>
+        <div class="grid gap-3 sm:grid-cols-2">${cursosHtml}</div>
+      </div>
+    </div>`;
+}
+
+async function loadEval360Panel(
+  root: HTMLElement,
+  empleadoId: number,
+  signal: AbortSignal,
+): Promise<void> {
+  const mount = root.querySelector<HTMLElement>("#v360-eval360-mount");
+  if (!mount || mount.dataset.loaded === "1") return;
+  mount.dataset.loaded = "1";
+  const resumen = await fetchEval360ResumenEmpleado(empleadoId);
+  if (signal.aborted || !mount.isConnected) return;
+  if (!resumen) {
+    mount.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">No se pudo cargar la Evaluación 360°.</div>`;
+    return;
+  }
+  const cursos = resumen.tiene_datos && resumen.participante_id
+    ? await fetchEval360CursosSugeridos(resumen.participante_id)
+    : [];
+  if (signal.aborted || !mount.isConnected) return;
+  mount.innerHTML = renderEval360PanelContent(resumen, cursos);
+
+  mount.querySelector<HTMLButtonElement>("[data-e360-generar-pdi]")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    const pid = Number(btn.dataset.participante);
+    if (!pid) return;
+    btn.disabled = true;
+    btn.textContent = "Generando…";
+    const res = await generarEval360Pdi(pid);
+    btn.disabled = false;
+    btn.textContent = "Generar plan de desarrollo";
+    window.alert(
+      res
+        ? res.creados > 0
+          ? `Se crearon ${res.creados} acciones de desarrollo (ver pestaña Plan de desarrollo).`
+          : "No hay nuevas brechas: el plan ya está actualizado."
+        : "No se pudo generar el plan de desarrollo.",
+    );
+  });
+}
+
 function renderVista360Content(
   data: UsuarioVista360,
   activeTab: Vista360TabId,
@@ -430,6 +570,7 @@ function renderVista360Content(
     panel("beneficios", beneficiosInner) +
     panel("capacidades", capacidadesInner) +
     panel("plan_desarrollo", planDesarrolloInner) +
+    panel("evaluacion360", renderEval360PanelPlaceholder()) +
     panel("actas", renderVista360TablaMount("actas")) +
     panel("registros-comedor", renderVista360TablaMount("registros-comedor"));
 
@@ -555,8 +696,10 @@ export function mountEmployeeVista360(
       signal,
       (tab) => {
         if (isTableTab(tab)) tablasLoader?.loadTab(tab);
+        if (tab === "evaluacion360") void loadEval360Panel(v360Root, empleadoId, signal);
       },
     );
+    if (initialTab === "evaluacion360") void loadEval360Panel(v360Root, empleadoId, signal);
   }
 
   if (isRh && modalHost && v360Root) {

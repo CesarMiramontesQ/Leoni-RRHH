@@ -487,6 +487,131 @@ async def test_procesar_recordatorios_marca_vencidas(client: AsyncClient, db):
     assert "vencida" in estados
 
 
+async def _campana_con_brecha(client, db, headers, evaluado, comp, valor=2):
+    """Crea, activa, responde autoevaluación con valor bajo (brecha) y cierra."""
+    res = await client.post(
+        "/api/v1/evaluacion-360/campanas",
+        json=_campana_payload(comp.id, [evaluado.empleado_id]),
+        headers=headers,
+    )
+    campana_id = res.json()["id"]
+    await client.post(f"/api/v1/evaluacion-360/campanas/{campana_id}/activar", headers=headers)
+    ev_headers = await auth_headers(client, evaluado)
+    auto = next(
+        e for e in (await client.get("/api/v1/evaluacion-360/mis-evaluaciones", headers=ev_headers)).json()
+        if e["tipo_evaluador"] == "autoevaluacion"
+    )
+    detalle = (await client.get(f"/api/v1/evaluacion-360/evaluaciones/{auto['id']}", headers=ev_headers)).json()
+    preg = detalle["competencias"][0]["preguntas"]
+    await client.post(
+        f"/api/v1/evaluacion-360/evaluaciones/{auto['id']}/enviar",
+        json={"respuestas": [{"pregunta_id": p["pregunta_id"], "valor": valor} for p in preg]},
+        headers=ev_headers,
+    )
+    await client.post(f"/api/v1/evaluacion-360/campanas/{campana_id}/cerrar", headers=headers)
+    parts = (await client.get(f"/api/v1/evaluacion-360/campanas/{campana_id}/participantes", headers=headers)).json()
+    return campana_id, parts[0]["id"]
+
+
+@pytest.mark.asyncio
+async def test_cursos_sugeridos_por_brecha(client: AsyncClient, db):
+    from app.models.talento import Capacitacion
+
+    rh = await make_empleado(db, rol="rh", email="e360_cur@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Comunicación efectiva")
+    # Curso asociado a la competencia (por id).
+    db.add(Capacitacion(
+        nombre="Curso de Comunicación", duracion_horas=8, modalidad="online",
+        competencias_asociadas=[comp.id], activo=True,
+    ))
+    await db.flush()
+    evaluado = await make_empleado(db, rol="empleado", email="e360_cur_ev@leoni.test")
+    _campana_id, pid = await _campana_con_brecha(client, db, headers, evaluado, comp, valor=2)
+
+    res = await client.get(f"/api/v1/evaluacion-360/participantes/{pid}/cursos-sugeridos", headers=headers)
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert len(data) >= 1
+    assert data[0]["estado_brecha"] in ("riesgo", "brecha")
+    assert any(c["nombre"] == "Curso de Comunicación" for c in data[0]["cursos"])
+
+
+@pytest.mark.asyncio
+async def test_generar_pdi_desde_brechas(client: AsyncClient, db):
+    from sqlalchemy import select as sa_select
+
+    from app.models.talento import PlanDesarrolloIndividual
+
+    rh = await make_empleado(db, rol="rh", email="e360_pdi@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Resolución de problemas")
+    evaluado = await make_empleado(db, rol="empleado", email="e360_pdi_ev@leoni.test")
+    _campana_id, pid = await _campana_con_brecha(client, db, headers, evaluado, comp, valor=1)
+
+    res = await client.post(f"/api/v1/evaluacion-360/participantes/{pid}/generar-pdi", headers=headers)
+    assert res.status_code == 200, res.text
+    assert res.json()["creados"] >= 1
+
+    filas = (await db.execute(
+        sa_select(PlanDesarrolloIndividual).where(
+            PlanDesarrolloIndividual.empleado_id == evaluado.empleado_id
+        )
+    )).scalars().all()
+    assert len(filas) >= 1
+
+    # Idempotente: segunda llamada no duplica.
+    res2 = await client.post(f"/api/v1/evaluacion-360/participantes/{pid}/generar-pdi", headers=headers)
+    assert res2.json()["creados"] == 0
+
+
+@pytest.mark.asyncio
+async def test_resumen_empleado_para_perfil(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="e360_resu@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Trabajo en equipo")
+    evaluado = await make_empleado(db, rol="empleado", email="e360_resu_ev@leoni.test")
+    await _campana_con_brecha(client, db, headers, evaluado, comp, valor=3)
+
+    res = await client.get(f"/api/v1/evaluacion-360/empleados/{evaluado.empleado_id}/resumen", headers=headers)
+    assert res.status_code == 200, res.text
+    resumen = res.json()
+    assert resumen["tiene_datos"] is True
+    assert resumen["calificacion_general"] is not None
+    assert len(resumen["competencias"]) >= 1
+    assert len(resumen["evolucion"]) >= 1
+
+    # Empleado sin evaluaciones → tiene_datos False.
+    otro = await make_empleado(db, rol="empleado", email="e360_resu_no@leoni.test")
+    res = await client.get(f"/api/v1/evaluacion-360/empleados/{otro.empleado_id}/resumen", headers=headers)
+    assert res.status_code == 200
+    assert res.json()["tiene_datos"] is False
+
+
+@pytest.mark.asyncio
+async def test_9box_set_y_matriz(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="e360_9b@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Liderazgo estratégico")
+    evaluado = await make_empleado(db, rol="empleado", email="e360_9b_ev@leoni.test")
+    campana_id, pid = await _campana_con_brecha(client, db, headers, evaluado, comp, valor=5)
+
+    # Fijar potencial alto manualmente.
+    res = await client.put(
+        f"/api/v1/evaluacion-360/participantes/{pid}/9box",
+        json={"potencial": 5}, headers=headers,
+    )
+    assert res.status_code == 200, res.text
+
+    res = await client.get(f"/api/v1/evaluacion-360/campanas/{campana_id}/9box", headers=headers)
+    assert res.status_code == 200, res.text
+    box = res.json()
+    assert box["escala_max"] == 5
+    total_celdas = sum(len(c["empleados"]) for c in box["celdas"])
+    assert total_celdas >= 1
+    assert sum(s["cantidad"] for s in box["segmentos"]) >= 1
+
+
 @pytest.mark.asyncio
 async def test_empleado_no_puede_gestionar_campanas(client: AsyncClient, db):
     empleado = await make_empleado(db, rol="empleado", email="e360_noauth@leoni.test")

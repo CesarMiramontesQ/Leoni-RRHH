@@ -7,6 +7,7 @@ import { escapeHtml } from "../../ui/uiUtils.ts";
 import { BTN_SECONDARY, FIELD_INPUT } from "../../ui/uiTokens.ts";
 import type {
   CampanaApi,
+  NineBoxApi,
   ParticipanteApi,
   ReporteIndividualApi,
 } from "../../api/evaluacion360.ts";
@@ -30,6 +31,61 @@ export interface ResultadosProps {
   participanteId: number | null;
   reporte: ReporteIndividualApi | null;
   loading: boolean;
+  nineBox: NineBoxApi | null;
+}
+
+const SEG_COLOR: Record<string, string> = {
+  sobresaliente: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  estable: "bg-blue-50 text-blue-800 border-blue-200",
+  desarrollo: "bg-amber-50 text-amber-800 border-amber-200",
+  riesgo: "bg-red-50 text-red-800 border-red-200",
+};
+
+export function renderNineBox(box: NineBoxApi): string {
+  type Band = "bajo" | "medio" | "alto";
+  const filas: Band[] = ["alto", "medio", "bajo"]; // desempeño (Y)
+  const cols: Band[] = ["bajo", "medio", "alto"]; // potencial (X)
+  const cellBg: Record<string, string> = {
+    "alto-alto": "bg-emerald-50", "alto-medio": "bg-emerald-50/60", "medio-alto": "bg-emerald-50/60",
+    "bajo-bajo": "bg-red-50", "bajo-medio": "bg-amber-50/50", "medio-bajo": "bg-amber-50/50",
+  };
+  const lookup = new Map<string, { clasificacion: string; empleados: string[] }>();
+  for (const c of box.celdas) lookup.set(`${c.desempeno}-${c.potencial}`, c);
+
+  const grid = filas
+    .map((d) => {
+      const cells = cols
+        .map((p) => {
+          const key = `${d}-${p}`;
+          const cell = lookup.get(key);
+          const bg = cellBg[key] ?? "bg-white";
+          const nombres = cell?.empleados ?? [];
+          return `<div class="min-h-[92px] rounded-lg border border-slate-200 ${bg} p-2">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(cell?.clasificacion ?? "")}</p>
+            <div class="mt-1 flex flex-wrap gap-1">${nombres.slice(0, 6).map((n) => `<span class="rounded bg-white/80 px-1.5 py-0.5 text-[11px] text-text-primary shadow-sm">${escapeHtml(n)}</span>`).join("")}${nombres.length > 6 ? `<span class="text-[11px] text-text-muted">+${nombres.length - 6}</span>` : ""}</div>
+          </div>`;
+        })
+        .join("");
+      return `<div class="grid grid-cols-3 gap-2">${cells}</div>`;
+    })
+    .join('<div class="h-2"></div>');
+
+  const segs = box.segmentos
+    .map(
+      (s) => `<div class="rounded-lg border px-3 py-2 text-center ${SEG_COLOR[s.segmento] ?? "bg-slate-50 border-slate-200"}">
+      <p class="text-lg font-bold tabular-nums">${s.cantidad}</p>
+      <p class="text-[11px] font-medium">${escapeHtml(s.label)}</p>
+    </div>`,
+    )
+    .join("");
+
+  return renderSurfaceCard(
+    "Matriz 9-Box y detección de talento",
+    "Desempeño (vertical) × Potencial (horizontal). El potencial se ajusta por participante.",
+    `<div class="grid gap-2 text-[11px] text-text-muted"><div class="grid grid-cols-3 gap-2 text-center"><span>Potencial bajo</span><span>Potencial medio</span><span>Potencial alto</span></div></div>
+     <div class="mt-1">${grid}</div>
+     <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">${segs}</div>`,
+  );
 }
 
 function externoDeCompetencia(promedioPorTipo: Record<string, number> | null): number {
@@ -110,13 +166,15 @@ function renderToolbar(props: ResultadosProps): string {
 export function renderResultadosReal(props: ResultadosProps): string {
   const toolbar = renderToolbar(props);
 
+  const nineBoxCard = props.nineBox ? `<div class="mt-5">${renderNineBox(props.nineBox)}</div>` : "";
+
   if (props.loading) {
-    return `${toolbar}<div class="mt-5 h-64 animate-pulse rounded-xl bg-slate-100"></div>`;
+    return `${toolbar}${nineBoxCard}<div class="mt-5 h-64 animate-pulse rounded-xl bg-slate-100"></div>`;
   }
   if (!props.reporte) {
-    return `${toolbar}
+    return `${toolbar}${nineBoxCard}
       <div class="mt-5 rounded-xl border border-border bg-white px-5 py-16 text-center text-sm text-text-muted">
-        Selecciona una campaña y un colaborador para ver su reporte individual.
+        Selecciona un colaborador para ver su reporte individual, o revisa la matriz 9-Box de la campaña.
       </div>`;
   }
 
@@ -169,6 +227,7 @@ export function renderResultadosReal(props: ResultadosProps): string {
 
   return `
     ${toolbar}
+    ${nineBoxCard}
     <div class="mt-5 rounded-xl border border-border bg-white p-5">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div class="flex size-16 shrink-0 items-center justify-center rounded-full bg-accent-light text-lg font-bold text-accent" aria-hidden="true">${escapeHtml(iniciales)}</div>

@@ -515,3 +515,69 @@ export async function createEval360Plantilla(
   if (!res.ok) return null;
   return res.json();
 }
+
+// ── Fase 4: capacitación / PDI / perfil ───────────────────────────────────────
+export interface CursoSugeridoApi {
+  competencia_id: number;
+  competencia_nombre: string | null;
+  brecha: number | null;
+  estado_brecha: string | null;
+  cursos: { id: number; nombre: string; modalidad: string | null; duracion_horas: number | null }[];
+}
+
+export interface ResumenEmpleadoApi {
+  empleado_id: number;
+  tiene_datos: boolean;
+  participante_id: number | null;
+  campana_nombre: string | null;
+  calificacion_general: number | null;
+  competencias: ResultadoCompetenciaApi[];
+  evolucion: EvolucionPuntoApi[];
+}
+
+export async function fetchEval360ResumenEmpleado(
+  empleadoId: number,
+): Promise<ResumenEmpleadoApi | null> {
+  const res = await fetchWithAuth(`${BASE}/empleados/${empleadoId}/resumen`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchEval360CursosSugeridos(
+  participanteId: number,
+): Promise<CursoSugeridoApi[]> {
+  const res = await fetchWithAuth(`${BASE}/participantes/${participanteId}/cursos-sugeridos`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function generarEval360Pdi(
+  participanteId: number,
+): Promise<{ creados: number; competencias: string[] } | null> {
+  const res = await fetchWithAuth(`${BASE}/participantes/${participanteId}/generar-pdi`, {
+    method: "POST",
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+// ── Fase 5: 9-Box ─────────────────────────────────────────────────────────────
+export interface NineBoxCeldaApi {
+  desempeno: "bajo" | "medio" | "alto";
+  potencial: "bajo" | "medio" | "alto";
+  clasificacion: string;
+  empleados: string[];
+}
+
+export interface NineBoxApi {
+  campana_id: number;
+  escala_max: number;
+  celdas: NineBoxCeldaApi[];
+  segmentos: { segmento: string; label: string; cantidad: number }[];
+}
+
+export async function fetchEval360NineBox(campanaId: number): Promise<NineBoxApi | null> {
+  const res = await fetchWithAuth(`${BASE}/campanas/${campanaId}/9box`);
+  if (!res.ok) return null;
+  return res.json();
+}

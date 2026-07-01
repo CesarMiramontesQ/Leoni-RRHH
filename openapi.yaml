@@ -12043,6 +12043,52 @@ paths:
       parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
       responses:
         "200": { description: Resultado del participante, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/cursos-sugeridos:
+    get:
+      tags: [Evaluación 360]
+      summary: Cursos sugeridos por brecha de competencia (integración Capacitación)
+      operationId: eval360_cursos_sugeridos
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Cursos por competencia con brecha, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/generar-pdi:
+    post:
+      tags: [Evaluación 360]
+      summary: Generar Plan de Desarrollo Individual desde las brechas (idempotente)
+      operationId: eval360_generar_pdi
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Acciones de PDI creadas, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/empleados/{empleado_id}/resumen:
+    get:
+      tags: [Evaluación 360]
+      summary: Resumen 360 del empleado (para la pestaña del perfil)
+      operationId: eval360_resumen_empleado
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: empleado_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Resumen (calificación, competencias, evolución), content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/9box:
+    get:
+      tags: [Evaluación 360]
+      summary: Matriz 9-Box y segmentos de talento de la campaña
+      operationId: eval360_get_9box
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Celdas 9-Box y segmentos, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/9box:
+    put:
+      tags: [Evaluación 360]
+      summary: Fijar desempeño/potencial del participante (9-Box)
+      operationId: eval360_set_9box
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Resultado actualizado, content: { application/json: { schema: { type: object } } } }
   /api/v1/evaluacion-360/participantes/{participante_id}/reporte:
     get:
       tags: [Evaluación 360]

@@ -21,7 +21,7 @@ usa flush() (via el repositorio).
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from io import BytesIO
 from typing import Optional, Sequence
@@ -54,7 +54,12 @@ from app.models.evaluacion360 import (
     Eval360Respuesta,
     Eval360Resultado,
 )
-from app.models.talento import Competencia, PerfilFunciones
+from app.models.talento import (
+    Capacitacion,
+    Competencia,
+    PerfilFunciones,
+    PlanDesarrolloIndividual,
+)
 from app.repositories.evaluacion360_repository import Evaluacion360Repository
 from app.schemas.evaluacion360 import (
     CampanaAvance,
@@ -91,11 +96,19 @@ from app.schemas.evaluacion360 import (
     PlantillaCreate,
     PlantillaResponse,
     PlantillaUpdate,
+    CursoSugeridoItem,
+    CursoSugeridoPorCompetencia,
+    GenerarPdiResultado,
+    NineBoxCelda,
+    NineBoxResponse,
+    NineBoxUpdate,
     RecordatoriosResultado,
     ReporteIndividualResponse,
     ResultadoCompetencia,
     ResultadoParticipanteResponse,
+    ResumenEmpleadoResponse,
     SugerenciaEvaluadorResponse,
+    TalentoSegmentoResumen,
 )
 from app.services.notificacion_service import NotificacionService
 from app.utils.audit_logger import audit_background
@@ -278,10 +291,13 @@ class Evaluacion360Service:
         page_size: int = 10,
         estado: Optional[str] = None,
         search: Optional[str] = None,
+        tipo: Optional[str] = None,
     ) -> CampanaListResponse:
         filters = [Eval360Campana.activo.is_(True)]
         if estado:
             filters.append(Eval360Campana.estado == estado)
+        if tipo:
+            filters.append(Eval360Campana.tipo == tipo)
         if search:
             filters.append(Eval360Campana.nombre.ilike(f"%{search}%"))
         campanas, total = await self.repo.list_campanas(filters, page, page_size)
@@ -1151,6 +1167,237 @@ class Evaluacion360Service:
         await self.db.flush()
         return RecordatoriosResultado(
             recordatorios_enviados=enviados, vencidas_marcadas=vencidas
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Fase 4: Capacitación / PDI / perfil del empleado
+    # ══════════════════════════════════════════════════════════════════════════
+    async def _gaps_participante(self, participante_id: int) -> list[Eval360Resultado]:
+        participante = await self.repo.get_participante(participante_id)
+        if not participante:
+            raise NotFoundError("Participante no encontrado")
+        campana = await self.repo.get_campana_detalle(participante.campana_id)
+        await self._calcular_resultados_participante(participante, campana)
+        await self.db.flush()
+        resultados = await self.repo.list_resultados_participante(participante_id)
+        return [
+            r for r in resultados
+            if r.competencia_id and r.estado_brecha in ("riesgo", "brecha")
+        ]
+
+    def _curso_asociado(self, assoc, comp_id: int, comp_nombre: Optional[str]) -> bool:
+        nombre = (comp_nombre or "").strip().lower()
+        for a in assoc or []:
+            if isinstance(a, bool):
+                continue
+            if isinstance(a, int) and a == comp_id:
+                return True
+            if isinstance(a, str):
+                if a.strip() == str(comp_id):
+                    return True
+                if nombre and a.strip().lower() == nombre:
+                    return True
+            if isinstance(a, dict):
+                if a.get("id") == comp_id:
+                    return True
+                if nombre and str(a.get("nombre", "")).strip().lower() == nombre:
+                    return True
+        return False
+
+    async def get_cursos_sugeridos(
+        self, participante_id: int
+    ) -> list[CursoSugeridoPorCompetencia]:
+        gaps = await self._gaps_participante(participante_id)
+        if not gaps:
+            return []
+        comp_nombres = await self._competencia_nombres([r.competencia_id for r in gaps])
+        caps = (
+            await self.db.execute(
+                select(Capacitacion).where(Capacitacion.activo.is_(True))
+            )
+        ).scalars().all()
+        out: list[CursoSugeridoPorCompetencia] = []
+        for r in gaps:
+            nombre = comp_nombres.get(r.competencia_id)
+            cursos = [
+                CursoSugeridoItem(
+                    id=c.id, nombre=c.nombre, modalidad=c.modalidad,
+                    duracion_horas=c.duracion_horas,
+                )
+                for c in caps
+                if self._curso_asociado(c.competencias_asociadas, r.competencia_id, nombre)
+            ]
+            out.append(CursoSugeridoPorCompetencia(
+                competencia_id=r.competencia_id,
+                competencia_nombre=nombre,
+                brecha=_f(r.brecha),
+                estado_brecha=r.estado_brecha,
+                cursos=cursos,
+            ))
+        return out
+
+    async def generar_pdi(
+        self, participante_id: int, current_user: Empleado
+    ) -> GenerarPdiResultado:
+        gaps = await self._gaps_participante(participante_id)
+        participante = await self.repo.get_participante(participante_id)
+        comp_nombres = await self._competencia_nombres([r.competencia_id for r in gaps])
+        existentes = set((
+            await self.db.execute(
+                select(PlanDesarrolloIndividual.competencia_id).where(
+                    PlanDesarrolloIndividual.empleado_id == participante.empleado_id
+                )
+            )
+        ).scalars().all())
+        hoy = date.today()
+        creados = 0
+        comps: list[str] = []
+        for r in gaps:
+            if r.competencia_id in existentes:
+                continue
+            nombre = comp_nombres.get(r.competencia_id, "competencia")
+            self.db.add(PlanDesarrolloIndividual(
+                empleado_id=participante.empleado_id,
+                competencia_id=r.competencia_id,
+                accion=f"Plan de desarrollo para {nombre}"[:300],
+                tipo="capacitacion",
+                fecha_inicio=hoy,
+                fecha_fin=hoy + timedelta(days=90),
+                responsable="RH",
+                estado="pendiente",
+                prioridad="alta" if r.estado_brecha == "brecha" else "media",
+                recursos="Generado automáticamente desde Evaluación 360°",
+                creado_por=current_user.empleado_id,
+            ))
+            creados += 1
+            comps.append(nombre)
+        await self.db.flush()
+        return GenerarPdiResultado(creados=creados, competencias=comps)
+
+    async def get_resumen_empleado(self, empleado_id: int) -> ResumenEmpleadoResponse:
+        participante = await self.repo.get_ultimo_participante_empleado(empleado_id)
+        if not participante:
+            return ResumenEmpleadoResponse(empleado_id=empleado_id, tiene_datos=False)
+        campana = await self.repo.get_campana(participante.campana_id)
+        base = await self._resultado_participante(participante.id)
+        evolucion: list[EvolucionPunto] = []
+        for _part, camp, res in await self.repo.list_resultados_globales_empleado(empleado_id):
+            evolucion.append(EvolucionPunto(
+                campana_id=camp.id, campana_nombre=camp.nombre,
+                fecha=camp.fecha_cierre, calificacion_general=_f(res.calificacion_general),
+            ))
+        return ResumenEmpleadoResponse(
+            empleado_id=empleado_id,
+            tiene_datos=True,
+            participante_id=participante.id,
+            campana_nombre=campana.nombre if campana else None,
+            calificacion_general=base.calificacion_general,
+            competencias=base.competencias,
+            evolucion=evolucion,
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Fase 5: Matriz 9-Box / detección de talento
+    # ══════════════════════════════════════════════════════════════════════════
+    def _band(self, value: float, vmax: float) -> str:
+        """Clasifica un valor en bajo/medio/alto (umbrales 50% y 75% de la escala)."""
+        if value < vmax * 0.5:
+            return "bajo"
+        if value < vmax * 0.75:
+            return "medio"
+        return "alto"
+
+    _NINEBOX_LABELS = {
+        ("alto", "alto"): "Estrella",
+        ("alto", "medio"): "Alto desempeño",
+        ("alto", "bajo"): "Especialista",
+        ("medio", "alto"): "Alto potencial",
+        ("medio", "medio"): "Colaborador clave",
+        ("medio", "bajo"): "Desempeño sólido",
+        ("bajo", "alto"): "Enigma / potencial",
+        ("bajo", "medio"): "En desarrollo",
+        ("bajo", "bajo"): "Riesgo",
+    }
+
+    def _segmento_talento(self, d_band: str, p_band: str) -> str:
+        if d_band == "alto" and p_band in ("alto", "medio"):
+            return "sobresaliente"
+        if d_band == "bajo" and p_band == "bajo":
+            return "riesgo"
+        if p_band == "alto":
+            return "desarrollo"
+        return "estable"
+
+    async def set_9box(
+        self, participante_id: int, data: NineBoxUpdate
+    ) -> ResultadoParticipanteResponse:
+        participante = await self.repo.get_participante(participante_id)
+        if not participante:
+            raise NotFoundError("Participante no encontrado")
+        res = await self.repo.get_resultado_global(participante_id)
+        if not res:
+            campana = await self.repo.get_campana_detalle(participante.campana_id)
+            await self._calcular_resultados_participante(participante, campana)
+            await self.db.flush()
+            res = await self.repo.get_resultado_global(participante_id)
+        if not res:
+            raise DomainValidationError("El participante no tiene resultados calculados")
+        if data.desempeno is not None:
+            res.desempeno = data.desempeno
+        if data.potencial is not None:
+            res.potencial = data.potencial
+        await self.db.flush()
+        return await self._resultado_participante(participante_id)
+
+    async def get_9box(self, campana_id: int) -> NineBoxResponse:
+        campana = await self.repo.get_campana_detalle(campana_id)
+        if not campana or not campana.activo:
+            raise NotFoundError("Campana no encontrada")
+        escala = await self._escala_de_campana(campana)
+        vmax = float(escala.valor_max) if escala else 5.0
+        await self._calcular_resultados_campana(campana)
+        await self.db.flush()
+
+        participantes = await self.repo.list_participantes(campana_id)
+        celdas: dict[tuple[str, str], list[str]] = {}
+        segmentos: dict[str, int] = {
+            "sobresaliente": 0, "estable": 0, "desarrollo": 0, "riesgo": 0,
+        }
+        for p in participantes:
+            res = await self.repo.get_resultado_global(p.id)
+            if not res:
+                continue
+            desemp = _f(res.desempeno)
+            if desemp is None:
+                desemp = _f(res.calificacion_general)
+            if desemp is None:
+                continue
+            pot = _f(res.potencial)
+            d_band = self._band(desemp, vmax)
+            p_band = self._band(pot, vmax) if pot is not None else "medio"
+            nombre = p.empleado.nombre if p.empleado else f"#{p.empleado_id}"
+            celdas.setdefault((d_band, p_band), []).append(nombre)
+            segmentos[self._segmento_talento(d_band, p_band)] += 1
+
+        celdas_out = [
+            NineBoxCelda(
+                desempeno=d, potencial=pot,
+                clasificacion=self._NINEBOX_LABELS.get((d, pot), ""),
+                empleados=nombres,
+            )
+            for (d, pot), nombres in celdas.items()
+        ]
+        seg_labels = {
+            "sobresaliente": "Sobresaliente", "estable": "Estable",
+            "desarrollo": "En desarrollo", "riesgo": "En riesgo",
+        }
+        segmentos_out = [
+            TalentoSegmentoResumen(segmento=k, label=seg_labels[k], cantidad=v)
+            for k, v in segmentos.items()
+        ]
+        return NineBoxResponse(
+            campana_id=campana_id, escala_max=vmax,
+            celdas=celdas_out, segmentos=segmentos_out,
         )
 
     # ══════════════════════════════════════════════════════════════════════════

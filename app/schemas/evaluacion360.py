@@ -508,3 +508,64 @@ class PlantillaResponse(BaseModel):
 class RecordatoriosResultado(BaseModel):
     recordatorios_enviados: int = 0
     vencidas_marcadas: int = 0
+
+
+# ── Fase 4: capacitación / PDI / perfil ──────────────────────────────────────
+
+
+class CursoSugeridoItem(BaseModel):
+    id: int
+    nombre: str
+    modalidad: Optional[str] = None
+    duracion_horas: Optional[int] = None
+
+
+class CursoSugeridoPorCompetencia(BaseModel):
+    competencia_id: int
+    competencia_nombre: Optional[str] = None
+    brecha: Optional[float] = None
+    estado_brecha: Optional[str] = None
+    cursos: list[CursoSugeridoItem] = Field(default_factory=list)
+
+
+class GenerarPdiResultado(BaseModel):
+    creados: int = 0
+    competencias: list[str] = Field(default_factory=list)
+
+
+class ResumenEmpleadoResponse(BaseModel):
+    empleado_id: int
+    tiene_datos: bool = False
+    participante_id: Optional[int] = None
+    campana_nombre: Optional[str] = None
+    calificacion_general: Optional[float] = None
+    competencias: list[ResultadoCompetencia] = Field(default_factory=list)
+    evolucion: list[EvolucionPunto] = Field(default_factory=list)
+
+
+# ── Fase 5: 9-Box / talento ──────────────────────────────────────────────────
+
+
+class NineBoxUpdate(BaseModel):
+    desempeno: Optional[float] = Field(None, ge=0, le=100)
+    potencial: Optional[float] = Field(None, ge=0, le=100)
+
+
+class NineBoxCelda(BaseModel):
+    desempeno: Literal["bajo", "medio", "alto"]
+    potencial: Literal["bajo", "medio", "alto"]
+    clasificacion: str
+    empleados: list[str] = Field(default_factory=list)
+
+
+class TalentoSegmentoResumen(BaseModel):
+    segmento: str
+    label: str
+    cantidad: int
+
+
+class NineBoxResponse(BaseModel):
+    campana_id: int
+    escala_max: float
+    celdas: list[NineBoxCelda] = Field(default_factory=list)
+    segmentos: list[TalentoSegmentoResumen] = Field(default_factory=list)

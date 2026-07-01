@@ -32,9 +32,11 @@ import {
   descargarEval360Export,
   duplicarEval360Campana,
   fetchEval360Campanas,
+  fetchEval360NineBox,
   fetchEval360Participantes,
   fetchEval360Reporte,
   type CampanaApi,
+  type NineBoxApi,
   type ParticipanteApi,
   type ReporteIndividualApi,
 } from "../api/evaluacion360.ts";
@@ -55,6 +57,7 @@ interface State {
   resParticipanteId: number | null;
   resReporte: ReporteIndividualApi | null;
   resLoading: boolean;
+  resNineBox: NineBoxApi | null;
 }
 
 function forbiddenHtml(): string {
@@ -221,6 +224,7 @@ function renderViewContent(state: State): string {
         participanteId: state.resParticipanteId,
         reporte: state.resReporte,
         loading: state.resLoading,
+        nineBox: state.resNineBox,
       });
     case "reportes":
       return renderEval360Reportes();
@@ -267,6 +271,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     resParticipanteId: null,
     resReporte: null,
     resLoading: false,
+    resNineBox: null,
   };
 
   mountAppShell(container, {
@@ -298,8 +303,12 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     state.resParticipantes = null;
     state.resParticipanteId = null;
     state.resReporte = null;
+    state.resNineBox = null;
     paint();
     state.resParticipantes = await fetchEval360Participantes(campanaId);
+    if (!signal.aborted && state.view === "resultados") paint();
+    // Matriz 9-Box de la campaña (no bloquea la lista de participantes).
+    state.resNineBox = await fetchEval360NineBox(campanaId);
     if (!signal.aborted && state.view === "resultados") paint();
   }
 

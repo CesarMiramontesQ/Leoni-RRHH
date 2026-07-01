@@ -33,6 +33,10 @@ from app.schemas.evaluacion360 import (
     MiEvaluacionResumen,
     ParticipanteResponse,
     PreguntaCreate,
+    CursoSugeridoPorCompetencia,
+    GenerarPdiResultado,
+    NineBoxResponse,
+    NineBoxUpdate,
     PlantillaCreate,
     PlantillaResponse,
     PlantillaUpdate,
@@ -41,6 +45,7 @@ from app.schemas.evaluacion360 import (
     RecordatoriosResultado,
     ReporteIndividualResponse,
     ResultadoParticipanteResponse,
+    ResumenEmpleadoResponse,
     SugerenciaEvaluadorResponse,
 )
 from app.services.evaluacion360_service import Evaluacion360Service
@@ -268,11 +273,12 @@ async def list_campanas(
     page_size: int = Query(10, ge=1, le=100),
     estado: str | None = Query(None),
     search: str | None = Query(None),
+    tipo: str | None = Query(None, description="evaluacion_360 | desempeno | objetivos"),
     current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: Evaluacion360Service = Depends(_svc),
 ):
     return await svc.list_campanas(
-        page=page, page_size=page_size, estado=estado, search=search
+        page=page, page_size=page_size, estado=estado, search=search, tipo=tipo
     )
 
 
@@ -429,3 +435,55 @@ async def export_resultados_campana(
     output = await svc.export_resultados_campana(campana_id, formato)
     media, disp = _export_headers(f"resultados_360_{campana_id}", formato)
     return StreamingResponse(output, media_type=media, headers={"Content-Disposition": disp})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Fase 4: Capacitación / PDI / perfil del empleado
+# ══════════════════════════════════════════════════════════════════════════════
+@router.get("/participantes/{participante_id}/cursos-sugeridos", response_model=list[CursoSugeridoPorCompetencia])
+async def cursos_sugeridos(
+    participante_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_cursos_sugeridos(participante_id)
+
+
+@router.post("/participantes/{participante_id}/generar-pdi", response_model=GenerarPdiResultado)
+async def generar_pdi(
+    participante_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.generar_pdi(participante_id, current_user)
+
+
+@router.get("/empleados/{empleado_id}/resumen", response_model=ResumenEmpleadoResponse)
+async def resumen_empleado(
+    empleado_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_resumen_empleado(empleado_id)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Fase 5: Matriz 9-Box / talento
+# ══════════════════════════════════════════════════════════════════════════════
+@router.get("/campanas/{campana_id}/9box", response_model=NineBoxResponse)
+async def get_9box(
+    campana_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_9box(campana_id)
+
+
+@router.put("/participantes/{participante_id}/9box", response_model=ResultadoParticipanteResponse)
+async def set_9box(
+    participante_id: int,
+    data: NineBoxUpdate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.set_9box(participante_id, data)

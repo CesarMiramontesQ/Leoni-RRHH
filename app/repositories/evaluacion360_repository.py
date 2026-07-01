@@ -256,6 +256,39 @@ class Evaluacion360Repository(BaseRepository[Eval360Campana]):
         )
         return [(row[0], row[1]) for row in result.all()]
 
+    async def get_ultimo_participante_empleado(
+        self, empleado_id: int
+    ) -> Optional[Eval360Participante]:
+        """Participante más reciente del empleado con resultados calculados."""
+        result = await self.db.execute(
+            select(Eval360Participante)
+            .join(Eval360Campana, Eval360Participante.campana_id == Eval360Campana.id)
+            .join(
+                Eval360Resultado,
+                (Eval360Resultado.participante_id == Eval360Participante.id)
+                & (Eval360Resultado.competencia_id.is_(None)),
+            )
+            .where(Eval360Participante.empleado_id == empleado_id)
+            .options(
+                selectinload(Eval360Participante.empleado),
+                selectinload(Eval360Participante.evaluaciones),
+            )
+            .order_by(Eval360Campana.id.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_resultado_global(
+        self, participante_id: int
+    ) -> Optional[Eval360Resultado]:
+        result = await self.db.execute(
+            select(Eval360Resultado).where(
+                Eval360Resultado.participante_id == participante_id,
+                Eval360Resultado.competencia_id.is_(None),
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def list_resultados_globales_empleado(
         self, empleado_id: int
     ) -> Sequence[tuple[Eval360Participante, Eval360Campana, Eval360Resultado]]:
