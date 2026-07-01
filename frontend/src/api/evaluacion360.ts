@@ -231,6 +231,17 @@ export interface DashboardApi {
   distribucion_calificaciones: { label: string; valor: number }[];
 }
 
+export interface PlantillaApi {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  escala_id: number | null;
+  activo: boolean;
+  competencias: CampanaCompetenciaApi[];
+  evaluador_tipos: CampanaEvaluadorTipoApi[];
+  config: Record<string, unknown> | null;
+}
+
 // ── Payloads de creacion ──────────────────────────────────────────────────────
 export interface CampanaCompetenciaIn {
   competencia_id: number;
@@ -475,4 +486,32 @@ export async function enviarEvaluacion(
   });
   const data = res.ok ? await res.json() : null;
   return { ok: res.ok, status: res.status, data };
+}
+
+// ── Plantillas ────────────────────────────────────────────────────────────────
+export async function fetchEval360Plantillas(): Promise<PlantillaApi[]> {
+  const res = await fetchWithAuth(`${BASE}/plantillas`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export interface PlantillaCreatePayload {
+  nombre: string;
+  descripcion?: string | null;
+  escala_id?: number | null;
+  competencias: CampanaCompetenciaIn[];
+  evaluador_tipos: CampanaEvaluadorTipoIn[];
+  config?: Record<string, unknown> | null;
+}
+
+export async function createEval360Plantilla(
+  payload: PlantillaCreatePayload,
+): Promise<PlantillaApi | null> {
+  const res = await fetchWithAuth(`${BASE}/plantillas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
 }

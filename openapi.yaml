@@ -11831,6 +11831,56 @@ paths:
       parameters: [ { name: pregunta_id, in: path, required: true, schema: { type: integer } } ]
       responses:
         "204": { description: Pregunta desactivada }
+  /api/v1/evaluacion-360/plantillas:
+    get:
+      tags: [Evaluación 360]
+      summary: Listar plantillas reutilizables de campaña
+      operationId: eval360_list_plantillas
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Plantillas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Evaluación 360]
+      summary: Crear plantilla (competencias, evaluadores, configuración)
+      operationId: eval360_create_plantilla
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Plantilla creada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/plantillas/{plantilla_id}:
+    get:
+      tags: [Evaluación 360]
+      summary: Detalle de plantilla
+      operationId: eval360_get_plantilla
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: plantilla_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Plantilla, content: { application/json: { schema: { type: object } } } }
+    put:
+      tags: [Evaluación 360]
+      summary: Actualizar plantilla
+      operationId: eval360_update_plantilla
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: plantilla_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Plantilla actualizada, content: { application/json: { schema: { type: object } } } }
+    delete:
+      tags: [Evaluación 360]
+      summary: Eliminar plantilla (soft delete)
+      operationId: eval360_delete_plantilla
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: plantilla_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Plantilla eliminada }
+  /api/v1/evaluacion-360/recordatorios/procesar:
+    post:
+      tags: [Evaluación 360]
+      summary: Procesar recordatorios y marcar evaluaciones vencidas (también corre por scheduler diario)
+      operationId: eval360_procesar_recordatorios
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Conteo de recordatorios enviados y vencidas marcadas, content: { application/json: { schema: { type: object } } } }
   /api/v1/evaluacion-360/mis-evaluaciones:
     get:
       tags: [Evaluación 360]

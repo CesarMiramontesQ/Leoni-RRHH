@@ -396,6 +396,97 @@ async def test_export_reporte_y_resultados(client: AsyncClient, db):
     assert res.content[:2] == b"PK"
 
 
+def _plantilla_payload(comp_id: int) -> dict:
+    return {
+        "nombre": "Plantilla Administrativos",
+        "descripcion": "Base para roles administrativos",
+        "competencias": [
+            {"competencia_id": comp_id, "peso": 100, "num_preguntas": 2,
+             "nivel_esperado": 3, "obligatoria": True, "orden": 0},
+        ],
+        "evaluador_tipos": [
+            {"tipo": "autoevaluacion", "peso": 30, "activo": True},
+            {"tipo": "jefe", "peso": 70, "activo": True},
+        ],
+        "config": {"anonima": True, "comentarios_obligatorios": False,
+                   "permitir_borradores": True, "mostrar_progreso": True},
+    }
+
+
+@pytest.mark.asyncio
+async def test_plantilla_crud_y_aplicar(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="e360_pl@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Apego a valores")
+
+    # Crear plantilla.
+    res = await client.post("/api/v1/evaluacion-360/plantillas", json=_plantilla_payload(comp.id), headers=headers)
+    assert res.status_code == 201, res.text
+    plantilla = res.json()
+    assert len(plantilla["competencias"]) == 1
+    assert len(plantilla["evaluador_tipos"]) == 2
+    plantilla_id = plantilla["id"]
+
+    # Listar.
+    res = await client.get("/api/v1/evaluacion-360/plantillas", headers=headers)
+    assert res.status_code == 200
+    assert any(p["id"] == plantilla_id for p in res.json())
+
+    # Crear campaña desde plantilla (sin competencias/evaluadores explícitos).
+    empleado = await make_empleado(db, rol="empleado", email="e360_pl_ev@leoni.test")
+    res = await client.post(
+        "/api/v1/evaluacion-360/campanas",
+        json={"nombre": "Campaña desde plantilla", "plantilla_id": plantilla_id,
+              "empleado_ids": [empleado.empleado_id]},
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    camp = res.json()
+    assert len(camp["competencias"]) == 1
+    assert len(camp["evaluador_tipos"]) == 2
+    # Config heredada de la plantilla (anónima).
+    assert camp["config"]["anonima"] is True
+
+
+@pytest.mark.asyncio
+async def test_procesar_recordatorios_marca_vencidas(client: AsyncClient, db):
+    from datetime import date, timedelta
+
+    from app.models.evaluacion360 import Eval360Evaluacion
+    from app.services.evaluacion360_service import Evaluacion360Service
+
+    rh = await make_empleado(db, rol="rh", email="e360_rec@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Inteligencia emocional")
+    evaluado = await make_empleado(db, rol="empleado", email="e360_rec_ev@leoni.test")
+    res = await client.post(
+        "/api/v1/evaluacion-360/campanas",
+        json=_campana_payload(comp.id, [evaluado.empleado_id]),
+        headers=headers,
+    )
+    campana_id = res.json()["id"]
+    await client.post(f"/api/v1/evaluacion-360/campanas/{campana_id}/activar", headers=headers)
+
+    # Forzar fecha límite vencida en todas las evaluaciones de la campaña.
+    from sqlalchemy import update as sa_update
+    await db.execute(
+        sa_update(Eval360Evaluacion)
+        .where(Eval360Evaluacion.campana_id == campana_id)
+        .values(fecha_limite=date.today() - timedelta(days=1))
+    )
+    await db.flush()
+
+    resultado = await Evaluacion360Service(db).procesar_recordatorios()
+    assert resultado.vencidas_marcadas >= 1
+
+    # Las evaluaciones quedaron marcadas como vencidas.
+    from sqlalchemy import select
+    estados = (await db.execute(
+        select(Eval360Evaluacion.estado).where(Eval360Evaluacion.campana_id == campana_id)
+    )).scalars().all()
+    assert "vencida" in estados
+
+
 @pytest.mark.asyncio
 async def test_empleado_no_puede_gestionar_campanas(client: AsyncClient, db):
     empleado = await make_empleado(db, rol="empleado", email="e360_noauth@leoni.test")

@@ -47,6 +47,9 @@ from app.models.evaluacion360 import (
     Eval360Escala,
     Eval360Evaluacion,
     Eval360Participante,
+    Eval360Plantilla,
+    Eval360PlantillaCompetencia,
+    Eval360PlantillaEvaluadorTipo,
     Eval360Pregunta,
     Eval360Respuesta,
     Eval360Resultado,
@@ -61,6 +64,9 @@ from app.schemas.evaluacion360 import (
     CampanaEvaluadorTipoResponse,
     CampanaListResponse,
     CampanaResponse,
+    CampanaCompetenciaIn,
+    CampanaConfigIn,
+    CampanaEvaluadorTipoIn,
     CampanaUpdate,
     ComentarioIn,
     ComentarioReporte,
@@ -82,6 +88,10 @@ from app.schemas.evaluacion360 import (
     PreguntaEvaluacion,
     PreguntaResponse,
     PreguntaUpdate,
+    PlantillaCreate,
+    PlantillaResponse,
+    PlantillaUpdate,
+    RecordatoriosResultado,
     ReporteIndividualResponse,
     ResultadoCompetencia,
     ResultadoParticipanteResponse,
@@ -316,6 +326,36 @@ class Evaluacion360Service:
         self, data: CampanaCreate, current_user: Empleado, background_tasks: BackgroundTasks
     ) -> CampanaDetalleResponse:
         self._validar_fechas(data.fecha_inicio, data.fecha_cierre)
+
+        # Aplicar plantilla: si se indica plantilla_id y no se enviaron
+        # competencias/evaluadores/escala/config, se copian de la plantilla.
+        competencias = data.competencias
+        evaluador_tipos = data.evaluador_tipos
+        escala_id = data.escala_id
+        config = data.config
+        if data.plantilla_id:
+            plantilla = await self.repo.get_plantilla(data.plantilla_id)
+            if not plantilla:
+                raise NotFoundError("Plantilla no encontrada")
+            if not competencias:
+                competencias = [
+                    CampanaCompetenciaIn(
+                        competencia_id=c.competencia_id, peso=_f(c.peso) or 0.0,
+                        num_preguntas=c.num_preguntas, nivel_esperado=c.nivel_esperado,
+                        obligatoria=c.obligatoria, orden=c.orden,
+                    )
+                    for c in plantilla.competencias
+                ]
+            if not evaluador_tipos:
+                evaluador_tipos = [
+                    CampanaEvaluadorTipoIn(tipo=t.tipo, peso=_f(t.peso) or 0.0, activo=t.activo)
+                    for t in plantilla.evaluador_tipos
+                ]
+            if escala_id is None:
+                escala_id = plantilla.escala_id
+            if config is None and plantilla.config:
+                config = CampanaConfigIn(**plantilla.config)
+
         campana = Eval360Campana(
             nombre=data.nombre,
             descripcion=data.descripcion,
@@ -323,17 +363,17 @@ class Evaluacion360Service:
             fecha_inicio=data.fecha_inicio,
             fecha_cierre=data.fecha_cierre,
             tipo=data.tipo or "evaluacion_360",
-            escala_id=data.escala_id,
+            escala_id=escala_id,
             plantilla_id=data.plantilla_id,
             estado="borrador",
-            config=data.config.model_dump(mode="json") if data.config else None,
+            config=config.model_dump(mode="json") if config else None,
             created_by=current_user.empleado_id,
         )
         self.db.add(campana)
         await self.db.flush()
 
-        await self._sync_competencias(campana, data.competencias)
-        await self._sync_evaluador_tipos(campana, data.evaluador_tipos)
+        await self._sync_competencias(campana, competencias)
+        await self._sync_evaluador_tipos(campana, evaluador_tipos)
         await self._sync_participantes(campana, data.empleado_ids)
         await self.db.flush()
 
@@ -457,6 +497,24 @@ class Evaluacion360Service:
         campana.estado = "cerrada"
         campana.updated_by = current_user.empleado_id
         await self.db.flush()
+
+        # Notificar a los evaluados que su resultado está disponible.
+        config = await self.get_or_create_config()
+        for p in await self.repo.list_participantes(campana_id):
+            asunto, cuerpo = self._texto_correo(
+                config, "finalizada",
+                asunto_def="Tu Evaluación 360° ha finalizado",
+                cuerpo_def=(
+                    f"La campaña '{campana.nombre}' ha finalizado. "
+                    f"Tus resultados ya están disponibles."
+                ),
+                campana=campana.nombre,
+            )
+            await self._enviar_a_empleado(
+                p.empleado_id, asunto, cuerpo,
+                metadata={"campana_id": campana.id, "evento": "finalizada"},
+            )
+
         audit_background(
             background_tasks, self.db, "CAMPANA_CERRAR", AUDIT_MODULE,
             usuario_id=current_user.empleado_id, entidad_id=campana.id,
@@ -935,6 +993,167 @@ class Evaluacion360Service:
         return output
 
     # ══════════════════════════════════════════════════════════════════════════
+    # Plantillas
+    # ══════════════════════════════════════════════════════════════════════════
+    async def list_plantillas(self) -> list[PlantillaResponse]:
+        plantillas = await self.repo.list_plantillas(solo_activas=True)
+        return [await self._plantilla_to_response(p) for p in plantillas]
+
+    async def get_plantilla(self, plantilla_id: int) -> PlantillaResponse:
+        plantilla = await self.repo.get_plantilla(plantilla_id)
+        if not plantilla or not plantilla.activo:
+            raise NotFoundError("Plantilla no encontrada")
+        return await self._plantilla_to_response(plantilla)
+
+    async def create_plantilla(
+        self, data: PlantillaCreate, current_user: Empleado
+    ) -> PlantillaResponse:
+        plantilla = Eval360Plantilla(
+            nombre=data.nombre,
+            descripcion=data.descripcion,
+            escala_id=data.escala_id,
+            config=data.config.model_dump(mode="json") if data.config else None,
+            created_by=current_user.empleado_id,
+        )
+        self.db.add(plantilla)
+        await self.db.flush()
+        self._sync_plantilla_hijos(plantilla, data.competencias, data.evaluador_tipos)
+        await self.db.flush()
+        return await self.get_plantilla(plantilla.id)
+
+    async def update_plantilla(
+        self, plantilla_id: int, data: PlantillaUpdate, current_user: Empleado
+    ) -> PlantillaResponse:
+        plantilla = await self.repo.get_plantilla(plantilla_id)
+        if not plantilla or not plantilla.activo:
+            raise NotFoundError("Plantilla no encontrada")
+        payload = data.model_dump(exclude_unset=True)
+        for field in ("nombre", "descripcion", "escala_id", "activo"):
+            if field in payload:
+                setattr(plantilla, field, payload[field])
+        if "config" in payload and data.config is not None:
+            plantilla.config = data.config.model_dump(mode="json")
+        if data.competencias is not None or data.evaluador_tipos is not None:
+            for c in list(plantilla.competencias):
+                await self.db.delete(c)
+            for t in list(plantilla.evaluador_tipos):
+                await self.db.delete(t)
+            await self.db.flush()
+            self._sync_plantilla_hijos(
+                plantilla,
+                data.competencias or [],
+                data.evaluador_tipos or [],
+            )
+        plantilla.updated_by = current_user.empleado_id
+        await self.db.flush()
+        return await self.get_plantilla(plantilla.id)
+
+    async def delete_plantilla(self, plantilla_id: int) -> None:
+        plantilla = await self.repo.get_plantilla(plantilla_id)
+        if not plantilla or not plantilla.activo:
+            raise NotFoundError("Plantilla no encontrada")
+        plantilla.activo = False
+        await self.db.flush()
+
+    def _sync_plantilla_hijos(
+        self, plantilla: Eval360Plantilla, competencias, evaluador_tipos
+    ) -> None:
+        for c in competencias:
+            self.db.add(Eval360PlantillaCompetencia(
+                plantilla_id=plantilla.id, competencia_id=c.competencia_id,
+                peso=c.peso, num_preguntas=c.num_preguntas,
+                nivel_esperado=c.nivel_esperado, obligatoria=c.obligatoria, orden=c.orden,
+            ))
+        for t in evaluador_tipos:
+            self.db.add(Eval360PlantillaEvaluadorTipo(
+                plantilla_id=plantilla.id, tipo=t.tipo, peso=t.peso, activo=t.activo,
+            ))
+
+    async def _plantilla_to_response(self, plantilla: Eval360Plantilla) -> PlantillaResponse:
+        comp_nombres = await self._competencia_nombres(
+            [c.competencia_id for c in plantilla.competencias]
+        )
+        return PlantillaResponse(
+            id=plantilla.id,
+            nombre=plantilla.nombre,
+            descripcion=plantilla.descripcion,
+            escala_id=plantilla.escala_id,
+            activo=plantilla.activo,
+            config=plantilla.config,
+            competencias=[
+                CampanaCompetenciaResponse(
+                    competencia_id=c.competencia_id,
+                    competencia_nombre=comp_nombres.get(c.competencia_id),
+                    peso=_f(c.peso) or 0.0, num_preguntas=c.num_preguntas,
+                    nivel_esperado=c.nivel_esperado, obligatoria=c.obligatoria, orden=c.orden,
+                )
+                for c in sorted(plantilla.competencias, key=lambda x: (x.orden or 0, x.id))
+            ],
+            evaluador_tipos=[
+                CampanaEvaluadorTipoResponse(tipo=t.tipo, peso=_f(t.peso) or 0.0, activo=t.activo)
+                for t in plantilla.evaluador_tipos
+            ],
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Recordatorios automáticos (invocado por APScheduler)
+    # ══════════════════════════════════════════════════════════════════════════
+    async def procesar_recordatorios(self) -> RecordatoriosResultado:
+        """Marca evaluaciones vencidas y envía recordatorios según config.dias_antes."""
+        config = await self.get_or_create_config()
+        dias_antes = [3, 1, 0]
+        if isinstance(config.recordatorios, dict):
+            valor = config.recordatorios.get("dias_antes")
+            if isinstance(valor, list) and valor:
+                dias_antes = [int(v) for v in valor]
+
+        hoy = date.today()
+        enviados = 0
+        vencidas = 0
+        pendientes = await self.repo.list_evaluaciones_pendientes_con_limite()
+        for ev, campana in pendientes:
+            dias = (ev.fecha_limite - hoy).days
+            if dias < 0:
+                ev.estado = "vencida"
+                vencidas += 1
+                asunto, cuerpo = self._texto_correo(
+                    config, "vencida",
+                    asunto_def="Evaluación 360° vencida",
+                    cuerpo_def=(
+                        f"La evaluación de la campaña '{campana.nombre}' venció el "
+                        f"{ev.fecha_limite.isoformat()}."
+                    ),
+                    campana=campana.nombre,
+                )
+                if ev.evaluador_empleado_id:
+                    await self._enviar_a_empleado(
+                        ev.evaluador_empleado_id, asunto, cuerpo,
+                        target_url="#/mis-evaluaciones",
+                        metadata={"campana_id": campana.id, "evento": "vencida"},
+                    )
+            elif dias in dias_antes:
+                enviados += 1
+                asunto, cuerpo = self._texto_correo(
+                    config, "recordatorio",
+                    asunto_def="Recordatorio: Evaluación 360° pendiente",
+                    cuerpo_def=(
+                        f"Tienes una evaluación pendiente en '{campana.nombre}'. "
+                        f"Fecha límite: {ev.fecha_limite.isoformat()}."
+                    ),
+                    campana=campana.nombre,
+                )
+                if ev.evaluador_empleado_id:
+                    await self._enviar_a_empleado(
+                        ev.evaluador_empleado_id, asunto, cuerpo,
+                        target_url="#/mis-evaluaciones",
+                        metadata={"campana_id": campana.id, "evento": "recordatorio"},
+                    )
+        await self.db.flush()
+        return RecordatoriosResultado(
+            recordatorios_enviados=enviados, vencidas_marcadas=vencidas
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
     # Dashboard
     # ══════════════════════════════════════════════════════════════════════════
     async def get_dashboard(self) -> DashboardResponse:
@@ -1154,24 +1373,79 @@ class Evaluacion360Service:
     async def _notificar_evaluadores(
         self, campana: Eval360Campana, evaluaciones: list[Eval360Evaluacion]
     ) -> None:
+        """Invitación (in-app + email) a cada evaluador al activar la campaña."""
+        config = await self.get_or_create_config()
         destinatarios = {
             e.evaluador_empleado_id for e in evaluaciones if e.evaluador_empleado_id
         }
         for emp_id in destinatarios:
-            try:
-                await self.notificaciones.enviar(
-                    destinatario_id=emp_id,
-                    asunto="Evaluacion 360 asignada",
-                    cuerpo=(
-                        f"Tienes evaluaciones pendientes en la campana "
-                        f"'{campana.nombre}'."
-                    ),
-                    canal="in_app",
-                    target_url="#/level-up/evaluacion-360/mis-evaluaciones",
-                    metadata={"campana_id": campana.id},
-                )
-            except Exception:  # pragma: no cover - notificacion no debe romper flujo
-                logger.exception("Fallo notificando evaluador %s", emp_id)
+            asunto, cuerpo = self._texto_correo(
+                config, "invitacion",
+                asunto_def="Evaluación 360° asignada",
+                cuerpo_def=(
+                    f"Tienes evaluaciones pendientes en la campaña "
+                    f"'{campana.nombre}'. Ingresa a la plataforma para responderlas."
+                ),
+                campana=campana.nombre,
+            )
+            await self._enviar_a_empleado(
+                emp_id, asunto, cuerpo,
+                target_url="#/mis-evaluaciones",
+                metadata={"campana_id": campana.id, "evento": "invitacion"},
+            )
+
+    # SMTP aún no configurado en este entorno: las notificaciones de correo
+    # quedan preparadas (plantillas + _texto_correo) pero se entregan solo
+    # in-app. Cuando se habilite SMTP, cambiar EVAL360_EMAIL_HABILITADO a True.
+    EVAL360_EMAIL_HABILITADO = False
+
+    async def _enviar_a_empleado(
+        self, empleado_id: int, asunto: str, cuerpo: str,
+        target_url: str | None = None, metadata: Optional[dict] = None,
+    ) -> None:
+        """Notifica al empleado (in-app; email opcional cuando SMTP esté activo).
+
+        Nunca propaga errores: una falla de notificación no debe romper el flujo.
+        """
+        try:
+            email = None
+            canal = "in_app"
+            if self.EVAL360_EMAIL_HABILITADO:
+                empleado = await self._get_empleado(empleado_id)
+                email = getattr(empleado, "email", None) if empleado else None
+                canal = "ambos" if email else "in_app"
+            await self.notificaciones.enviar(
+                destinatario_id=empleado_id,
+                asunto=asunto,
+                cuerpo=cuerpo,
+                canal=canal,
+                email_destino=email,
+                target_url=target_url,
+                metadata=metadata,
+            )
+        except Exception:  # pragma: no cover - notificacion no debe romper flujo
+            logger.exception("Fallo notificando empleado %s", empleado_id)
+
+    def _texto_correo(
+        self, config: Eval360Config, evento: str, *,
+        asunto_def: str, cuerpo_def: str, **ctx,
+    ) -> tuple[str, str]:
+        """Devuelve (asunto, cuerpo) usando overrides de config.plantillas_correo.
+
+        Las plantillas admiten placeholders tipo {campana}, {evaluado}.
+        """
+        asunto, cuerpo = asunto_def, cuerpo_def
+        plantillas = config.plantillas_correo or {}
+        tpl = plantillas.get(evento) if isinstance(plantillas, dict) else None
+        if isinstance(tpl, dict):
+            asunto = tpl.get("asunto") or asunto
+            cuerpo = tpl.get("cuerpo") or cuerpo
+        try:
+            asunto = asunto.format(**ctx)
+            cuerpo = cuerpo.format(**ctx)
+        except (KeyError, IndexError, ValueError):
+            pass
+        return asunto, cuerpo
 
     async def _get_evaluacion_editable(
         self, evaluacion_id: int, current_user: Empleado

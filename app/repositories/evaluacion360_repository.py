@@ -24,6 +24,7 @@ from app.models.evaluacion360 import (
     Eval360Escala,
     Eval360Evaluacion,
     Eval360Participante,
+    Eval360Plantilla,
     Eval360Pregunta,
     Eval360Respuesta,
     Eval360Resultado,
@@ -297,3 +298,43 @@ class Evaluacion360Repository(BaseRepository[Eval360Campana]):
             select(func.count(func.distinct(Eval360Participante.empleado_id)))
         )
         return result.scalar_one()
+
+    # ── Plantillas ────────────────────────────────────────────────────────────
+    async def list_plantillas(self, solo_activas: bool = True) -> Sequence[Eval360Plantilla]:
+        query = select(Eval360Plantilla).options(
+            selectinload(Eval360Plantilla.competencias),
+            selectinload(Eval360Plantilla.evaluador_tipos),
+        ).order_by(Eval360Plantilla.id.desc())
+        if solo_activas:
+            query = query.where(Eval360Plantilla.activo.is_(True))
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
+    async def get_plantilla(self, plantilla_id: int) -> Optional[Eval360Plantilla]:
+        result = await self.db.execute(
+            select(Eval360Plantilla)
+            .where(Eval360Plantilla.id == plantilla_id)
+            .options(
+                selectinload(Eval360Plantilla.competencias),
+                selectinload(Eval360Plantilla.evaluador_tipos),
+            )
+        )
+        return result.scalar_one_or_none()
+
+    # ── Recordatorios ─────────────────────────────────────────────────────────
+    async def list_evaluaciones_pendientes_con_limite(
+        self,
+    ) -> Sequence[tuple[Eval360Evaluacion, Eval360Campana]]:
+        """Evaluaciones no completadas, con evaluador y fecha límite, de campañas vigentes."""
+        result = await self.db.execute(
+            select(Eval360Evaluacion, Eval360Campana)
+            .join(Eval360Campana, Eval360Evaluacion.campana_id == Eval360Campana.id)
+            .where(
+                Eval360Campana.activo.is_(True),
+                Eval360Campana.estado.in_(["activa", "en_progreso"]),
+                Eval360Evaluacion.estado.in_(["pendiente", "en_progreso"]),
+                Eval360Evaluacion.evaluador_empleado_id.isnot(None),
+                Eval360Evaluacion.fecha_limite.isnot(None),
+            )
+        )
+        return [(row[0], row[1]) for row in result.all()]

@@ -55,7 +55,7 @@ import app.models.level_up  # noqa: F401
 import app.models.cursos_catalogo  # noqa: F401
 import app.models.vacaciones  # noqa: F401
 import app.models.turnos_empleados  # noqa: F401
-import app.models.evaluacion360  # noqa: F401
+import app.models.evaluacion360  # noqa: F401  (incluye plantillas)
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password

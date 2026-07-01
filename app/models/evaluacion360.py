@@ -111,6 +111,8 @@ class Eval360Config(Base):
     )
     # {"dias_antes": [3, 1, 0]}
     recordatorios: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # {"invitacion": {"asunto": ..., "cuerpo": ...}, "recordatorio": {...}, ...}
+    plantillas_correo: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -573,3 +575,93 @@ class Eval360Resultado(Base):
             f"<Eval360Resultado participante_id={self.participante_id} "
             f"competencia_id={self.competencia_id} promedio={self.promedio_general}>"
         )
+
+
+class Eval360Plantilla(Base):
+    """Plantilla reutilizable de campana (Administrativos, Operativos, etc.)."""
+
+    __tablename__ = "levelup_eval360_plantilla"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(255), nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    escala_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_eval360_escala.id"), nullable=True
+    )
+    config: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.empleado_id"), nullable=True
+    )
+    updated_by: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.empleado_id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    competencias: Mapped[List["Eval360PlantillaCompetencia"]] = relationship(
+        "Eval360PlantillaCompetencia",
+        back_populates="plantilla",
+        cascade="all, delete-orphan",
+    )
+    evaluador_tipos: Mapped[List["Eval360PlantillaEvaluadorTipo"]] = relationship(
+        "Eval360PlantillaEvaluadorTipo",
+        back_populates="plantilla",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Eval360Plantilla id={self.id} nombre={self.nombre}>"
+
+
+class Eval360PlantillaCompetencia(Base):
+    __tablename__ = "levelup_eval360_plantilla_competencia"
+    __table_args__ = (
+        UniqueConstraint(
+            "plantilla_id", "competencia_id",
+            name="uq_levelup_eval360_plantilla_competencia",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    plantilla_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_eval360_plantilla.id", ondelete="CASCADE"), nullable=False
+    )
+    competencia_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_competencias.id"), nullable=False
+    )
+    peso: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False, default=0)
+    num_preguntas: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    nivel_esperado: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    obligatoria: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    orden: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+
+    plantilla: Mapped["Eval360Plantilla"] = relationship(
+        "Eval360Plantilla", back_populates="competencias"
+    )
+
+
+class Eval360PlantillaEvaluadorTipo(Base):
+    __tablename__ = "levelup_eval360_plantilla_evaluador_tipo"
+    __table_args__ = (
+        UniqueConstraint(
+            "plantilla_id", "tipo",
+            name="uq_levelup_eval360_plantilla_evaluador_tipo",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    plantilla_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_eval360_plantilla.id", ondelete="CASCADE"), nullable=False
+    )
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False)
+    peso: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False, default=0)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    plantilla: Mapped["Eval360Plantilla"] = relationship(
+        "Eval360Plantilla", back_populates="evaluador_tipos"
+    )

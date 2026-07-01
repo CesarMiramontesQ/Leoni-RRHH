@@ -88,6 +88,7 @@ class ConfigUpdate(BaseModel):
         Literal["mensual", "trimestral", "semestral", "anual", "manual"]
     ] = None
     recordatorios: Optional[dict] = None
+    plantillas_correo: Optional[dict] = None
 
     @field_validator("pesos_evaluadores")
     @classmethod
@@ -112,6 +113,7 @@ class ConfigResponse(BaseModel):
     pesos_evaluadores: Optional[dict[str, float]] = None
     frecuencia_sugerida: str
     recordatorios: Optional[dict] = None
+    plantillas_correo: Optional[dict] = None
 
 
 # ── Banco de preguntas ────────────────────────────────────────────────────────
@@ -462,3 +464,47 @@ class DashboardResponse(BaseModel):
     competencias_oportunidad: list[DashboardSeriePunto] = Field(default_factory=list)
     avance_por_campana: list[CampanaAvance] = Field(default_factory=list)
     distribucion_calificaciones: list[DashboardSeriePunto] = Field(default_factory=list)
+
+
+# ── Plantillas ────────────────────────────────────────────────────────────────
+
+
+class PlantillaCreate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    nombre: str = Field(..., min_length=3, max_length=255)
+    descripcion: Optional[str] = None
+    escala_id: Optional[int] = None
+    competencias: list[CampanaCompetenciaIn] = Field(default_factory=list)
+    evaluador_tipos: list[CampanaEvaluadorTipoIn] = Field(default_factory=list)
+    config: Optional[CampanaConfigIn] = None
+
+
+class PlantillaUpdate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    nombre: Optional[str] = Field(None, min_length=3, max_length=255)
+    descripcion: Optional[str] = None
+    escala_id: Optional[int] = None
+    competencias: Optional[list[CampanaCompetenciaIn]] = None
+    evaluador_tipos: Optional[list[CampanaEvaluadorTipoIn]] = None
+    config: Optional[CampanaConfigIn] = None
+    activo: Optional[bool] = None
+
+
+class PlantillaResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    escala_id: Optional[int] = None
+    activo: bool
+    competencias: list[CampanaCompetenciaResponse] = Field(default_factory=list)
+    evaluador_tipos: list[CampanaEvaluadorTipoResponse] = Field(default_factory=list)
+    config: Optional[dict] = None
+
+
+class RecordatoriosResultado(BaseModel):
+    recordatorios_enviados: int = 0
+    vencidas_marcadas: int = 0

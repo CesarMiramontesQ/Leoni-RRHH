@@ -33,8 +33,12 @@ from app.schemas.evaluacion360 import (
     MiEvaluacionResumen,
     ParticipanteResponse,
     PreguntaCreate,
+    PlantillaCreate,
+    PlantillaResponse,
+    PlantillaUpdate,
     PreguntaResponse,
     PreguntaUpdate,
+    RecordatoriosResultado,
     ReporteIndividualResponse,
     ResultadoParticipanteResponse,
     SugerenciaEvaluadorResponse,
@@ -154,6 +158,63 @@ async def delete_pregunta(
     svc: Evaluacion360Service = Depends(_svc),
 ):
     await svc.delete_pregunta(pregunta_id)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Plantillas
+# ══════════════════════════════════════════════════════════════════════════════
+@router.get("/plantillas", response_model=list[PlantillaResponse])
+async def list_plantillas(
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.list_plantillas()
+
+
+@router.post("/plantillas", response_model=PlantillaResponse, status_code=status.HTTP_201_CREATED)
+async def create_plantilla(
+    data: PlantillaCreate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.create_plantilla(data, current_user)
+
+
+@router.get("/plantillas/{plantilla_id}", response_model=PlantillaResponse)
+async def get_plantilla(
+    plantilla_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_plantilla(plantilla_id)
+
+
+@router.put("/plantillas/{plantilla_id}", response_model=PlantillaResponse)
+async def update_plantilla(
+    plantilla_id: int,
+    data: PlantillaUpdate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.update_plantilla(plantilla_id, data, current_user)
+
+
+@router.delete("/plantillas/{plantilla_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_plantilla(
+    plantilla_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    await svc.delete_plantilla(plantilla_id)
+
+
+@router.post("/recordatorios/procesar", response_model=RecordatoriosResultado)
+async def procesar_recordatorios(
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    """Ejecuta manualmente el ciclo de recordatorios/vencimientos (también corre por scheduler)."""
+    return await svc.procesar_recordatorios()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
