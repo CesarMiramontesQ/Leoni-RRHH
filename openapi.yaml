@@ -11734,3 +11734,262 @@ paths:
           description: Ya respondiste la encuesta de esta sesión
         "422":
           description: Encuesta no activa o empleado no asistente
+
+  # ── Evaluación 360 (Level Up) ────────────────────────────────────────────────
+  /api/v1/evaluacion-360/dashboard:
+    get:
+      tags: [Evaluación 360]
+      summary: Dashboard ejecutivo (KPIs, series de gráficas)
+      operationId: eval360_dashboard
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: KPIs y series, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Requiere rol RH }
+  /api/v1/evaluacion-360/config:
+    get:
+      tags: [Evaluación 360]
+      summary: Obtener configuración global (lazy-init)
+      operationId: eval360_get_config
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Configuración, content: { application/json: { schema: { type: object } } } }
+    put:
+      tags: [Evaluación 360]
+      summary: Actualizar configuración global (valida pesos = 100%)
+      operationId: eval360_update_config
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Configuración actualizada, content: { application/json: { schema: { type: object } } } }
+        "422": { description: Pesos inválidos }
+  /api/v1/evaluacion-360/escalas:
+    get:
+      tags: [Evaluación 360]
+      summary: Listar escalas Likert
+      operationId: eval360_list_escalas
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Escalas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Evaluación 360]
+      summary: Crear escala Likert
+      operationId: eval360_create_escala
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Escala creada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/escalas/{escala_id}:
+    put:
+      tags: [Evaluación 360]
+      summary: Actualizar escala
+      operationId: eval360_update_escala
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: escala_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Escala actualizada, content: { application/json: { schema: { type: object } } } }
+    delete:
+      tags: [Evaluación 360]
+      summary: Desactivar escala (soft delete)
+      operationId: eval360_delete_escala
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: escala_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Escala desactivada }
+  /api/v1/evaluacion-360/preguntas:
+    get:
+      tags: [Evaluación 360]
+      summary: Listar banco de preguntas (opcional por competencia)
+      operationId: eval360_list_preguntas
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: competencia_id, in: query, required: false, schema: { type: integer } } ]
+      responses:
+        "200": { description: Preguntas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Evaluación 360]
+      summary: Crear pregunta conductual ligada a una competencia
+      operationId: eval360_create_pregunta
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Pregunta creada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/preguntas/{pregunta_id}:
+    put:
+      tags: [Evaluación 360]
+      summary: Actualizar pregunta
+      operationId: eval360_update_pregunta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: pregunta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Pregunta actualizada, content: { application/json: { schema: { type: object } } } }
+    delete:
+      tags: [Evaluación 360]
+      summary: Desactivar pregunta (soft delete)
+      operationId: eval360_delete_pregunta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: pregunta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Pregunta desactivada }
+  /api/v1/evaluacion-360/mis-evaluaciones:
+    get:
+      tags: [Evaluación 360]
+      summary: Evaluaciones asignadas al usuario actual (self-service)
+      operationId: eval360_mis_evaluaciones
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: estado, in: query, required: false, schema: { type: string } } ]
+      responses:
+        "200": { description: Lista de evaluaciones, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/evaluacion-360/evaluaciones/{evaluacion_id}:
+    get:
+      tags: [Evaluación 360]
+      summary: Detalle de una evaluación (competencias, preguntas, escala)
+      operationId: eval360_evaluacion_detalle
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: evaluacion_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Detalle, content: { application/json: { schema: { type: object } } } }
+        "403": { description: No es el evaluador asignado }
+  /api/v1/evaluacion-360/evaluaciones/{evaluacion_id}/borrador:
+    put:
+      tags: [Evaluación 360]
+      summary: Guardar borrador de respuestas
+      operationId: eval360_guardar_borrador
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: evaluacion_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Borrador guardado, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/evaluaciones/{evaluacion_id}/enviar:
+    post:
+      tags: [Evaluación 360]
+      summary: Enviar evaluación (valida completitud y comentarios obligatorios)
+      operationId: eval360_enviar_evaluacion
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: evaluacion_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Evaluación enviada, content: { application/json: { schema: { type: object } } } }
+        "422": { description: Faltan respuestas o comentarios obligatorios }
+  /api/v1/evaluacion-360/campanas:
+    get:
+      tags: [Evaluación 360]
+      summary: Listar campañas (paginado, filtros)
+      operationId: eval360_list_campanas
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, required: false, schema: { type: integer, default: 10 } }
+        - { name: estado, in: query, required: false, schema: { type: string } }
+        - { name: search, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: Listado paginado, content: { application/json: { schema: { type: object } } } }
+    post:
+      tags: [Evaluación 360]
+      summary: Crear campaña (competencias, tipos de evaluador, participantes)
+      operationId: eval360_create_campana
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Campaña creada, content: { application/json: { schema: { type: object } } } }
+        "422": { description: Pesos de evaluadores ≠ 100% u otra validación }
+  /api/v1/evaluacion-360/campanas/{campana_id}:
+    get:
+      tags: [Evaluación 360]
+      summary: Detalle de campaña
+      operationId: eval360_get_campana
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Detalle, content: { application/json: { schema: { type: object } } } }
+    put:
+      tags: [Evaluación 360]
+      summary: Actualizar campaña (solo borrador)
+      operationId: eval360_update_campana
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Campaña actualizada, content: { application/json: { schema: { type: object } } } }
+        "409": { description: Solo se editan campañas en borrador }
+    delete:
+      tags: [Evaluación 360]
+      summary: Eliminar campaña (soft delete)
+      operationId: eval360_delete_campana
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Campaña eliminada }
+  /api/v1/evaluacion-360/campanas/{campana_id}/duplicar:
+    post:
+      tags: [Evaluación 360]
+      summary: Duplicar campaña
+      operationId: eval360_duplicar_campana
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "201": { description: Campaña duplicada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/activar:
+    post:
+      tags: [Evaluación 360]
+      summary: Activar campaña (genera evaluaciones y notifica evaluadores)
+      operationId: eval360_activar_campana
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Campaña activada, content: { application/json: { schema: { type: object } } } }
+        "422": { description: Sin participantes o pesos ≠ 100% }
+  /api/v1/evaluacion-360/campanas/{campana_id}/cerrar:
+    post:
+      tags: [Evaluación 360]
+      summary: Cerrar campaña (calcula resultados)
+      operationId: eval360_cerrar_campana
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Campaña cerrada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/cancelar:
+    post:
+      tags: [Evaluación 360]
+      summary: Cancelar campaña
+      operationId: eval360_cancelar_campana
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Campaña cancelada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/participantes:
+    get:
+      tags: [Evaluación 360]
+      summary: Participantes (evaluados) de la campaña con su avance
+      operationId: eval360_list_participantes
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Participantes, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/sugerir-evaluadores:
+    post:
+      tags: [Evaluación 360]
+      summary: Previsualizar evaluadores sugeridos (jefe/pares/subordinados/auto)
+      operationId: eval360_sugerir_evaluadores
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Sugerencias, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/resultados:
+    get:
+      tags: [Evaluación 360]
+      summary: Resultados consolidados por participante
+      operationId: eval360_resultados_campana
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Resultados, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/resultado:
+    get:
+      tags: [Evaluación 360]
+      summary: Reporte individual de un participante (radar, brechas, fortalezas)
+      operationId: eval360_resultado_participante
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Reporte individual, content: { application/json: { schema: { type: object } } } }

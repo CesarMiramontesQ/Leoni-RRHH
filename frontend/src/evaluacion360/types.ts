@@ -9,7 +9,7 @@ export type Eval360ViewId =
   | "reportes"
   | "configuracion";
 
-export type CampanaEstado = "borrador" | "activa" | "en_progreso" | "finalizada" | "cerrada";
+export type CampanaEstado = "borrador" | "activa" | "en_progreso" | "finalizada" | "cerrada" | "cancelada";
 
 export type EvaluacionEstado = "pendiente" | "en_progreso" | "completada";
 

@@ -146,6 +146,7 @@ export type AppShellNavItemId =
   | "sesiones"
   | "encuestas"
   | "mis-encuestas"
+  | "mis-evaluaciones"
   | "level-up"
   | "nominas"
   | "horas-extra"
@@ -159,6 +160,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "solicitudes",
   "comedor",
   "mis-encuestas",
+  "mis-evaluaciones",
 ]);
 
 /** Rol con menú lateral plano (sin hubs ni submenús). */
@@ -323,6 +325,7 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/mis-encuestas")) return true;
+  if (h.startsWith("#/mis-evaluaciones")) return true;
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith("#/metricas")) return false;
   return false;

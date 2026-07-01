@@ -257,6 +257,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountMisEncuestas(container, signal);
       return;
     }
+    if (h.startsWith("#/mis-evaluaciones")) {
+      void import("./pages/misEvaluaciones.ts").then(({ mountMisEvaluaciones }) => {
+        mountMisEvaluaciones(container, signal);
+      });
+      return;
+    }
     if (h.startsWith("#/encuestas")) {
       mountEncuestas(container);
       return;
