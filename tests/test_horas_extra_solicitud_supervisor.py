@@ -13,7 +13,12 @@ from app.models.horas_extra import (
     HorasExtraMotivo,
     HorasExtraSolicitud,
 )
+from app.utils.business_time import business_today
 from tests.conftest import auth_headers, make_clasificacion_administrativo, make_empleado
+
+# Semana ISO dentro de la ventana permitida (la actual), calculada relativa a
+# hoy para que estos tests no caduquen con el paso del tiempo.
+SEMANA_CAPTURABLE = business_today().isocalendar()[1]
 
 
 @pytest_asyncio.fixture
@@ -52,7 +57,7 @@ async def _seed_catalogo_horas_extra(db):
 
 def _payload_base(empleado_id: int) -> dict:
     return {
-        "semana": 24,
+        "semana": SEMANA_CAPTURABLE,
         "tipo": "planeado",
         "motivo": "Cobertura turno",
         "empleados": [
@@ -215,7 +220,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
     crear = await client.post("/api/v1/horas-extra/solicitudes", headers=headers, json=payload)
     assert crear.status_code == 201
     data = crear.json()
-    assert data["semana"] == 24
+    assert data["semana"] == SEMANA_CAPTURABLE
     assert data["total_horas_general"] == 2
     assert data["total_empleados"] == 1
     assert data["estado"] == "pendiente"
@@ -236,7 +241,7 @@ async def test_horas_extra_solicitud_supervisor_crea_y_lista_solo_propias(
     body = lista.json()
     assert body["total"] == 1
     assert len(body["items"]) == 1
-    assert body["items"][0]["semana"] == 24
+    assert body["items"][0]["semana"] == SEMANA_CAPTURABLE
     assert body["items"][0]["total_horas_general"] == 2
 
 
