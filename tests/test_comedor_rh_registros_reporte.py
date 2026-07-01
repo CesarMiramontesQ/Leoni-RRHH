@@ -3,11 +3,18 @@
 from datetime import date, timedelta
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 
-from tests.conftest import auth_headers, make_empleado
+from tests.conftest import auth_headers, make_empleado, reset_comedor_transaccional
 
 URL = "/api/v1/comedor/accesos/rh/registros-reporte"
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_comedor_global(db):
+    """Aísla los conteos globales de comedor de la contaminación entre tests."""
+    await reset_comedor_transaccional(db)
 
 
 @pytest.mark.asyncio

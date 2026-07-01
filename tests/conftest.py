@@ -310,6 +310,34 @@ async def link_turno_comedor_empleado(
     await db.flush()
 
 
+async def reset_comedor_transaccional(db: AsyncSession) -> None:
+    """Limpia las tablas mutables de comedor (registros/accesos/códigos).
+
+    Los endpoints RH de comedor agregan sobre estado **global**; como las
+    llamadas API hacen commit sobre la conexión SQLite compartida, los registros
+    creados por un test contaminan los conteos globales de otro. Las pruebas que
+    asertan estado global invocan este reset (autouse) para partir de cero.
+    """
+    from sqlalchemy import delete
+
+    from app.models.comedor import (
+        ComedorAcceso,
+        ComedorCodigoExterno,
+        ComedorExternoCorrelativo,
+        ComedorRegistro,
+    )
+
+    # Orden respetando FKs: accesos → registros; códigos y correlativo son independientes.
+    for model in (
+        ComedorAcceso,
+        ComedorRegistro,
+        ComedorCodigoExterno,
+        ComedorExternoCorrelativo,
+    ):
+        await db.execute(delete(model))
+    await db.flush()
+
+
 async def make_clasificacion_administrativo(db: AsyncSession):
     """Catálogo Administrativo (código A) para pruebas de Home Office."""
     from app.models.catalogos import ClasificacionEmpleado
