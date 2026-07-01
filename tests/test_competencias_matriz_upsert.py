@@ -14,7 +14,11 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.competencia_repository import CompetenciaRequisitoRepository
-from tests.conftest_talento import make_competencia, make_puesto_perfil
+from tests.conftest_talento import (
+    get_default_grado,
+    make_competencia,
+    make_puesto_perfil,
+)
 
 
 # ===========================================================================
@@ -28,10 +32,12 @@ async def test_upsert_crea_nuevo_requisito(db: AsyncSession):
     perfil = await make_puesto_perfil(db, nombre="Operador Upsert Nuevo")
     comp = await make_competencia(db, nombre="Soldadura Upsert", categoria="tecnica")
 
+    grado = await get_default_grado(db)
     repo = CompetenciaRequisitoRepository(db)
     resultado = await repo.upsert(
         competencia_id=comp.id,
         puesto_perfil_id=perfil.id,
+        grado_id=grado.id,
         nivel_requerido=3,
     )
 
@@ -53,12 +59,14 @@ async def test_upsert_actualiza_nivel(db: AsyncSession):
     perfil = await make_puesto_perfil(db, nombre="Tecnico Upsert Actualiza")
     comp = await make_competencia(db, nombre="Metrologia Upsert", categoria="tecnica")
 
+    grado = await get_default_grado(db)
     repo = CompetenciaRequisitoRepository(db)
 
     # Crear con nivel 2
     original = await repo.upsert(
         competencia_id=comp.id,
         puesto_perfil_id=perfil.id,
+        grado_id=grado.id,
         nivel_requerido=2,
     )
     original_id = original.id
@@ -67,6 +75,7 @@ async def test_upsert_actualiza_nivel(db: AsyncSession):
     actualizado = await repo.upsert(
         competencia_id=comp.id,
         puesto_perfil_id=perfil.id,
+        grado_id=grado.id,
         nivel_requerido=4,
     )
 
@@ -85,12 +94,14 @@ async def test_upsert_nivel_cero_mantiene_registro(db: AsyncSession):
     perfil = await make_puesto_perfil(db, nombre="Inspector Upsert Cero")
     comp = await make_competencia(db, nombre="5S Upsert Cero", categoria="tecnica")
 
+    grado = await get_default_grado(db)
     repo = CompetenciaRequisitoRepository(db)
 
     # Crear con nivel 3
     original = await repo.upsert(
         competencia_id=comp.id,
         puesto_perfil_id=perfil.id,
+        grado_id=grado.id,
         nivel_requerido=3,
     )
     original_id = original.id
@@ -99,6 +110,7 @@ async def test_upsert_nivel_cero_mantiene_registro(db: AsyncSession):
     resultado = await repo.upsert(
         competencia_id=comp.id,
         puesto_perfil_id=perfil.id,
+        grado_id=grado.id,
         nivel_requerido=0,
     )
 
@@ -106,7 +118,7 @@ async def test_upsert_nivel_cero_mantiene_registro(db: AsyncSession):
     assert resultado.nivel_requerido == 0
 
     # Verificar que el registro sigue existiendo en DB
-    verificacion = await repo.get_by_pair(comp.id, perfil.id)
+    verificacion = await repo.get_by_pair(comp.id, perfil.id, grado.id)
     assert verificacion is not None
     assert verificacion.nivel_requerido == 0
 
@@ -122,12 +134,14 @@ async def test_upsert_nivel_cero_nuevo_crea_registro(db: AsyncSession):
     perfil = await make_puesto_perfil(db, nombre="Lider Upsert Cero Nuevo")
     comp = await make_competencia(db, nombre="Liderazgo Upsert Cero", categoria="blanda")
 
+    grado = await get_default_grado(db)
     repo = CompetenciaRequisitoRepository(db)
 
     # Upsert nivel 0 sobre par que no existe — debe crearse
     resultado = await repo.upsert(
         competencia_id=comp.id,
         puesto_perfil_id=perfil.id,
+        grado_id=grado.id,
         nivel_requerido=0,
     )
 
@@ -136,7 +150,7 @@ async def test_upsert_nivel_cero_nuevo_crea_registro(db: AsyncSession):
     assert resultado.nivel_requerido == 0
 
     # Confirmar persistencia
-    verificacion = await repo.get_by_pair(comp.id, perfil.id)
+    verificacion = await repo.get_by_pair(comp.id, perfil.id, grado.id)
     assert verificacion is not None
     assert verificacion.id == resultado.id
 
@@ -153,11 +167,16 @@ async def test_list_by_puesto_includes_nivel_cero(db: AsyncSession):
     comp_a = await make_competencia(db, nombre="Competencia Nivel3", categoria="tecnica")
     comp_b = await make_competencia(db, nombre="Competencia Nivel0", categoria="blanda")
 
+    grado = await get_default_grado(db)
     repo = CompetenciaRequisitoRepository(db)
 
     # Crear uno con nivel 3 y otro con nivel 0
-    await repo.upsert(competencia_id=comp_a.id, puesto_perfil_id=perfil.id, nivel_requerido=3)
-    await repo.upsert(competencia_id=comp_b.id, puesto_perfil_id=perfil.id, nivel_requerido=0)
+    await repo.upsert(
+        competencia_id=comp_a.id, puesto_perfil_id=perfil.id, grado_id=grado.id, nivel_requerido=3
+    )
+    await repo.upsert(
+        competencia_id=comp_b.id, puesto_perfil_id=perfil.id, grado_id=grado.id, nivel_requerido=0
+    )
 
     requisitos = await repo.list_by_puesto(perfil.id)
 

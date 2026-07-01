@@ -14,7 +14,7 @@ from tests.conftest_talento import make_competencia, make_tipo_competencia
 @pytest.mark.asyncio
 async def test_crear_competencia(client: AsyncClient, db: AsyncSession):
     rh = await make_empleado(db, rol="rh", email="cat_crear@leoni.test")
-    tipo = await make_tipo_competencia(db, nombre="Tipo Soldadura", grupo="tecnica")
+    tipo = await make_tipo_competencia(db, nombre="Tipo Soldadura", categoria="tecnica")
     headers = await auth_headers(client, rh)
 
     payload = {
@@ -36,7 +36,7 @@ async def test_crear_competencia(client: AsyncClient, db: AsyncSession):
 @pytest.mark.asyncio
 async def test_crear_competencia_duplicada(client: AsyncClient, db: AsyncSession):
     rh = await make_empleado(db, rol="rh", email="cat_dup@leoni.test")
-    tipo = await make_tipo_competencia(db, nombre="Tipo Dup Cat", grupo="blanda")
+    tipo = await make_tipo_competencia(db, nombre="Tipo Dup Cat", categoria="blanda")
     headers = await auth_headers(client, rh)
 
     payload = {
@@ -87,7 +87,7 @@ async def test_actualizar_competencia(client: AsyncClient, db: AsyncSession):
 @pytest.mark.asyncio
 async def test_crear_competencia_con_tipo(client: AsyncClient, db: AsyncSession):
     rh = await make_empleado(db, rol="rh", email="cat_tipo@leoni.test")
-    tipo = await make_tipo_competencia(db, nombre="Informática Test", grupo="tecnica")
+    tipo = await make_tipo_competencia(db, nombre="Informática Test", categoria="tecnica")
     headers = await auth_headers(client, rh)
 
     payload = {

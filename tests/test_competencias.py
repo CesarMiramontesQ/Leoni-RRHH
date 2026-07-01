@@ -20,10 +20,12 @@ from sqlalchemy import update
 from app.models.empleados import Empleado
 from tests.conftest import auth_headers, make_empleado
 from tests.conftest_talento import (
+    get_default_grado,
     make_area,
     make_competencia,
     make_competencia_requisito,
     make_puesto_perfil,
+    make_tipo_competencia,
 )
 
 
@@ -48,11 +50,16 @@ COMPETENCIA_PAYLOAD = {
 async def test_create_competencia_success(client: AsyncClient, db):
     """RH crea competencia exitosamente → 201."""
     rh = await make_empleado(db, rol="rh", email="comp_create@leoni.test")
+    tipo = await make_tipo_competencia(db, nombre="Tipo Lean", categoria="tecnica")
     headers = await auth_headers(client, rh)
 
     response = await client.post(
         "/api/v1/competencias",
-        json=COMPETENCIA_PAYLOAD,
+        json={
+            "nombre": "Lean Manufacturing",
+            "tipo_competencia_id": tipo.id,
+            "descripcion": "Metodologia de manufactura esbelta",
+        },
         headers=headers,
     )
 
@@ -72,9 +79,14 @@ async def test_create_competencia_success(client: AsyncClient, db):
 async def test_create_competencia_duplicate(client: AsyncClient, db):
     """Crear competencia con nombre+categoria duplicado → 409."""
     rh = await make_empleado(db, rol="rh", email="comp_dup@leoni.test")
+    tipo = await make_tipo_competencia(db, nombre="Tipo Dup", categoria="blanda")
     headers = await auth_headers(client, rh)
 
-    payload = {"nombre": "Competencia Unica Dup", "categoria": "blanda", "descripcion": "Test"}
+    payload = {
+        "nombre": "Competencia Unica Dup",
+        "tipo_competencia_id": tipo.id,
+        "descripcion": "Test",
+    }
 
     # Crear la primera
     r1 = await client.post("/api/v1/competencias", json=payload, headers=headers)
@@ -329,6 +341,7 @@ async def test_get_matriz_by_area(client: AsyncClient, db):
 async def test_update_matriz_bulk(client: AsyncClient, db):
     """Bulk update de la matriz crea/actualiza requisitos correctamente."""
     area = await make_area(db, descripcion="Area Bulk")
+    await get_default_grado(db)  # el bulk update resuelve el grado por orden=1
     rh = await make_empleado(db, rol="rh", email="comp_bulk@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -411,6 +424,12 @@ async def test_get_resumen_area(client: AsyncClient, db):
     perfil = await make_puesto_perfil(db, nombre="Tecnico Resumen", area_id=area.area_id)
     comp = await make_competencia(db, nombre="Electronica Resumen", categoria="tecnica", area_id=area.area_id)
     await make_competencia_requisito(db, competencia_id=comp.id, puesto_perfil_id=perfil.id, nivel_requerido=3)
+
+    # El cumplimiento requiere al menos un empleado activo en el área
+    # (si total_empleados == 0, el resumen devuelve 0.0 por definición).
+    empleado_area = await make_empleado(db, rol="empleado", email="resumen_op@leoni.test")
+    empleado_area.area_id = area.area_id
+    await db.flush()
 
     response = await client.get(
         f"/api/v1/competencias/resumen-area?area_id={area.area_id}",

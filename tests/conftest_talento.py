@@ -239,7 +239,11 @@ async def make_tipo_competencia(
     uid = uuid.uuid4().hex[:6]
     _nombre = nombre or f"Tipo Test {uid}"
     if grupo_competencia_id is None:
-        grupo = await make_grupo_competencia(db)
+        # El nombre del grupo determina la categoría derivada por
+        # categoria_desde_grupo_nombre ("tecnica"/"blanda"), usada al crear
+        # competencias vía API. Se nombra según la categoría solicitada.
+        grupo_nombre = "Técnica" if categoria == "tecnica" else "Habilidad blanda"
+        grupo = await make_grupo_competencia(db, nombre=f"{grupo_nombre} {uid}")
         grupo_competencia_id = grupo.id
     tipo = TipoCompetencia(
         nombre=_nombre,
