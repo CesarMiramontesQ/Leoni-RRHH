@@ -17,7 +17,12 @@ from unittest.mock import AsyncMock, patch
 from httpx import AsyncClient
 
 from tests.conftest import auth_headers, make_empleado
-from tests.conftest_talento import make_area, make_nivel_puesto, make_puesto_perfil
+from tests.conftest_talento import (
+    make_area,
+    make_nivel_puesto,
+    make_perfil_funciones,
+    make_puesto_perfil,
+)
 
 
 # Payload valido reutilizable — nivel_id se asigna en cada test
@@ -465,8 +470,6 @@ async def test_resumen_tarjetas_with_profiles(client: AsyncClient, db):
 @pytest.mark.asyncio
 async def test_resumen_tarjetas_personas_count(client: AsyncClient, db):
     """Resumen tarjetas cuenta personas asignadas correctamente."""
-    from app.models.talento import PerfilFunciones
-
     area = await make_area(db, descripcion="Area Personas")
     rh = await make_empleado(db, rol="rh", email="pp_tarj_pers@leoni.test")
     headers = await auth_headers(client, rh)
@@ -480,13 +483,12 @@ async def test_resumen_tarjetas_personas_count(client: AsyncClient, db):
         emp = await make_empleado(
             db, rol="empleado", email=f"pp_tarj_emp{i}@leoni.test"
         )
-        asignacion = PerfilFunciones(
+        await make_perfil_funciones(
+            db,
             puesto_perfil_id=perfil.id,
             empleado_id=emp.id,
             departamento="Produccion",
-            activo=True,
         )
-        db.add(asignacion)
     await db.flush()
 
     response = await client.get(
