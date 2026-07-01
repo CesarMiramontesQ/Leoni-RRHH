@@ -11987,9 +11987,48 @@ paths:
   /api/v1/evaluacion-360/participantes/{participante_id}/resultado:
     get:
       tags: [Evaluación 360]
-      summary: Reporte individual de un participante (radar, brechas, fortalezas)
+      summary: Resultado consolidado de un participante (radar, brechas, fortalezas)
       operationId: eval360_resultado_participante
       security: [ { BearerAuth: [] } ]
       parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
       responses:
+        "200": { description: Resultado del participante, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/reporte:
+    get:
+      tags: [Evaluación 360]
+      summary: Reporte individual completo (auto vs externo, comentarios, evolución)
+      operationId: eval360_reporte_individual
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
         "200": { description: Reporte individual, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/reporte/export:
+    get:
+      tags: [Evaluación 360]
+      summary: Exportar el reporte individual (PDF o Excel)
+      operationId: eval360_export_reporte_individual
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: participante_id, in: path, required: true, schema: { type: integer } }
+        - { name: formato, in: query, required: false, schema: { type: string, enum: [pdf, excel], default: pdf } }
+      responses:
+        "200":
+          description: Archivo binario (PDF/XLSX)
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/resultados/export:
+    get:
+      tags: [Evaluación 360]
+      summary: Exportar resultados de la campaña (PDF o Excel)
+      operationId: eval360_export_resultados_campana
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: campana_id, in: path, required: true, schema: { type: integer } }
+        - { name: formato, in: query, required: false, schema: { type: string, enum: [pdf, excel], default: pdf } }
+      responses:
+        "200":
+          description: Archivo binario (PDF/XLSX)
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } }

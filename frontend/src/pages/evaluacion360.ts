@@ -9,7 +9,7 @@ import {
   mountEval360RhDashboardCharts,
 } from "../evaluacion360/charts.ts";
 import { EMPTY_EVAL360_FILTERS, readEval360FiltersFromDom } from "../evaluacion360/filters.ts";
-import { MOCK_EVALUACIONES, RADAR_COMPETENCIAS } from "../evaluacion360/mockData.ts";
+import { MOCK_EVALUACIONES } from "../evaluacion360/mockData.ts";
 import { EVAL360_BASE_HASH, parseEval360ViewFromHash, renderEval360SubNav } from "../evaluacion360/subNav.ts";
 import type { Campana360, Eval360Filters, Eval360ViewId } from "../evaluacion360/types.ts";
 import { campanaEstadoBadge, renderAvanceBar } from "../evaluacion360/shared.ts";
@@ -22,16 +22,21 @@ import {
 import { renderEval360Empleados } from "../evaluacion360/views/empleados.ts";
 import { renderEval360Evaluaciones } from "../evaluacion360/views/evaluaciones.ts";
 import { renderEval360Reportes } from "../evaluacion360/views/reportes.ts";
-import { renderEval360Resultados } from "../evaluacion360/views/resultados.ts";
+import { mapReporteToChartComps, renderResultadosReal } from "../evaluacion360/views/resultadosReal.ts";
 import { BTN_PRIMARY, htmlAccessDenied, RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   activarEval360Campana,
   cancelarEval360Campana,
   cerrarEval360Campana,
+  descargarEval360Export,
   duplicarEval360Campana,
   fetchEval360Campanas,
+  fetchEval360Participantes,
+  fetchEval360Reporte,
   type CampanaApi,
+  type ParticipanteApi,
+  type ReporteIndividualApi,
 } from "../api/evaluacion360.ts";
 import { openCampanaWizard } from "../evaluacion360/campanaWizard.ts";
 
@@ -44,6 +49,12 @@ interface State {
   search: string;
   campanas: CampanaApi[] | null; // null = aún no cargadas
   campanasError: boolean;
+  // Resultados
+  resCampanaId: number | null;
+  resParticipantes: ParticipanteApi[] | null;
+  resParticipanteId: number | null;
+  resReporte: ReporteIndividualApi | null;
+  resLoading: boolean;
 }
 
 function forbiddenHtml(): string {
@@ -203,7 +214,14 @@ function renderViewContent(state: State): string {
     case "evaluaciones":
       return renderEval360Evaluaciones(MOCK_EVALUACIONES);
     case "resultados":
-      return renderEval360Resultados();
+      return renderResultadosReal({
+        campanas: state.campanas,
+        campanaId: state.resCampanaId,
+        participantes: state.resParticipantes,
+        participanteId: state.resParticipanteId,
+        reporte: state.resReporte,
+        loading: state.resLoading,
+      });
     case "reportes":
       return renderEval360Reportes();
     case "configuracion":
@@ -218,7 +236,9 @@ function mountViewCharts(root: HTMLElement, state: State): void {
     const data = getDashboardChartData({ filters: state.filters });
     mountEval360RhDashboardCharts(root, data.competenciasDept);
   } else if (state.view === "resultados") {
-    mountEval360ResultadosCharts(root, RADAR_COMPETENCIAS);
+    if (state.resReporte) {
+      mountEval360ResultadosCharts(root, mapReporteToChartComps(state.resReporte));
+    }
   } else if (state.view === "reportes") {
     mountEval360ReportesCharts(root);
   }
@@ -242,6 +262,11 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     search: "",
     campanas: null,
     campanasError: false,
+    resCampanaId: null,
+    resParticipantes: null,
+    resParticipanteId: null,
+    resReporte: null,
+    resLoading: false,
   };
 
   mountAppShell(container, {
@@ -265,7 +290,27 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
       state.campanasError = true;
       state.campanas = [];
     }
-    if (!signal.aborted && state.view === "campanas") paint();
+    if (!signal.aborted && (state.view === "campanas" || state.view === "resultados")) paint();
+  }
+
+  async function loadResParticipantes(campanaId: number): Promise<void> {
+    state.resCampanaId = campanaId;
+    state.resParticipantes = null;
+    state.resParticipanteId = null;
+    state.resReporte = null;
+    paint();
+    state.resParticipantes = await fetchEval360Participantes(campanaId);
+    if (!signal.aborted && state.view === "resultados") paint();
+  }
+
+  async function loadResReporte(participanteId: number): Promise<void> {
+    state.resParticipanteId = participanteId;
+    state.resReporte = null;
+    state.resLoading = true;
+    paint();
+    state.resReporte = await fetchEval360Reporte(participanteId);
+    state.resLoading = false;
+    if (!signal.aborted && state.view === "resultados") paint();
   }
 
   async function ejecutarAccionCampana(
@@ -301,7 +346,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     if (content) {
       runChartsAfterLayout(content, () => mountViewCharts(content as HTMLElement, state), { isStale });
     }
-    if (state.view === "campanas") void loadCampanas();
+    if (state.view === "campanas" || state.view === "resultados") void loadCampanas();
     bindEvents();
   }
 
@@ -358,6 +403,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     const idOf = (btn: Element): number => Number(btn.getAttribute("data-id"));
     pageRoot.querySelectorAll('[data-action="e360-campana-ver"]').forEach((btn) => {
       btn.addEventListener("click", () => {
+        void loadResParticipantes(idOf(btn));
         window.location.hash = `${EVAL360_BASE_HASH}/resultados`;
       });
     });
@@ -383,6 +429,32 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
         if (!window.confirm("¿Cancelar la campaña? Esta acción no calcula resultados.")) return;
         void ejecutarAccionCampana(cancelarEval360Campana, idOf(btn), "No se pudo cancelar la campaña.");
       });
+    });
+
+    // Resultados: selectores de campaña/participante y exportación.
+    pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-res-campana"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) void loadResParticipantes(id);
+    });
+    pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-res-participante"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) void loadResReporte(id);
+    });
+    pageRoot.querySelector('[data-action="e360-export-pdf"]')?.addEventListener("click", () => {
+      if (state.resParticipanteId) {
+        void descargarEval360Export(
+          `/participantes/${state.resParticipanteId}/reporte/export?formato=pdf`,
+          `reporte_360_${state.resParticipanteId}.pdf`,
+        );
+      }
+    });
+    pageRoot.querySelector('[data-action="e360-export-excel"]')?.addEventListener("click", () => {
+      if (state.resParticipanteId) {
+        void descargarEval360Export(
+          `/participantes/${state.resParticipanteId}/reporte/export?formato=excel`,
+          `reporte_360_${state.resParticipanteId}.xlsx`,
+        );
+      }
     });
   }
 

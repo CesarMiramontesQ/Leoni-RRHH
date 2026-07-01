@@ -321,6 +321,81 @@ async def test_resultados_y_brechas(client: AsyncClient, db):
 # ══════════════════════════════════════════════════════════════════════════════
 # Permisos
 # ══════════════════════════════════════════════════════════════════════════════
+async def _campana_respondida_y_cerrada(client, db, headers, evaluado, comp):
+    """Helper: crea campaña, activa, responde autoevaluación 5/5 y cierra."""
+    res = await client.post(
+        "/api/v1/evaluacion-360/campanas",
+        json=_campana_payload(comp.id, [evaluado.empleado_id]),
+        headers=headers,
+    )
+    campana_id = res.json()["id"]
+    await client.post(f"/api/v1/evaluacion-360/campanas/{campana_id}/activar", headers=headers)
+    ev_headers = await auth_headers(client, evaluado)
+    auto = next(
+        e for e in (await client.get("/api/v1/evaluacion-360/mis-evaluaciones", headers=ev_headers)).json()
+        if e["tipo_evaluador"] == "autoevaluacion"
+    )
+    detalle = (await client.get(f"/api/v1/evaluacion-360/evaluaciones/{auto['id']}", headers=ev_headers)).json()
+    preg = detalle["competencias"][0]["preguntas"]
+    await client.post(
+        f"/api/v1/evaluacion-360/evaluaciones/{auto['id']}/enviar",
+        json={
+            "respuestas": [{"pregunta_id": p["pregunta_id"], "valor": 5} for p in preg],
+            "comentarios": [{"competencia_id": comp.id, "texto": "Excelente desempeño", "tipo": "fortaleza"}],
+        },
+        headers=ev_headers,
+    )
+    await client.post(f"/api/v1/evaluacion-360/campanas/{campana_id}/cerrar", headers=headers)
+    return campana_id
+
+
+@pytest.mark.asyncio
+async def test_reporte_individual(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="e360_rep@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Servicio")
+    evaluado = await make_empleado(db, rol="empleado", email="e360_rep_ev@leoni.test")
+    campana_id = await _campana_respondida_y_cerrada(client, db, headers, evaluado, comp)
+
+    parts = (await client.get(f"/api/v1/evaluacion-360/campanas/{campana_id}/participantes", headers=headers)).json()
+    pid = parts[0]["id"]
+    res = await client.get(f"/api/v1/evaluacion-360/participantes/{pid}/reporte", headers=headers)
+    assert res.status_code == 200, res.text
+    rep = res.json()
+    assert rep["calificacion_general"] is not None
+    assert rep["promedio_autoevaluacion"] == 5
+    assert len(rep["comentarios"]) == 1
+    assert rep["comentarios"][0]["tipo_evaluador"] == "autoevaluacion"
+    # Evolución: al menos la campaña actual.
+    assert any(e["campana_id"] == campana_id for e in rep["evolucion"])
+
+
+@pytest.mark.asyncio
+async def test_export_reporte_y_resultados(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="e360_exp@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Responsabilidad")
+    evaluado = await make_empleado(db, rol="empleado", email="e360_exp_ev@leoni.test")
+    campana_id = await _campana_respondida_y_cerrada(client, db, headers, evaluado, comp)
+    pid = (await client.get(f"/api/v1/evaluacion-360/campanas/{campana_id}/participantes", headers=headers)).json()[0]["id"]
+
+    # Reporte individual PDF y Excel.
+    res = await client.get(f"/api/v1/evaluacion-360/participantes/{pid}/reporte/export?formato=pdf", headers=headers)
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert res.content[:4] == b"%PDF"
+
+    res = await client.get(f"/api/v1/evaluacion-360/participantes/{pid}/reporte/export?formato=excel", headers=headers)
+    assert res.status_code == 200
+    assert "spreadsheetml" in res.headers["content-type"]
+    assert res.content[:2] == b"PK"  # xlsx = zip
+
+    # Resultados de campaña Excel.
+    res = await client.get(f"/api/v1/evaluacion-360/campanas/{campana_id}/resultados/export?formato=excel", headers=headers)
+    assert res.status_code == 200
+    assert res.content[:2] == b"PK"
+
+
 @pytest.mark.asyncio
 async def test_empleado_no_puede_gestionar_campanas(client: AsyncClient, db):
     empleado = await make_empleado(db, rol="empleado", email="e360_noauth@leoni.test")

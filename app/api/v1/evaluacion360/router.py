@@ -11,6 +11,7 @@ Convenciones:
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -34,6 +35,7 @@ from app.schemas.evaluacion360 import (
     PreguntaCreate,
     PreguntaResponse,
     PreguntaUpdate,
+    ReporteIndividualResponse,
     ResultadoParticipanteResponse,
     SugerenciaEvaluadorResponse,
 )
@@ -324,3 +326,45 @@ async def resultado_participante(
     svc: Evaluacion360Service = Depends(_svc),
 ):
     return await svc.get_resultado_participante(participante_id)
+
+
+@router.get("/participantes/{participante_id}/reporte", response_model=ReporteIndividualResponse)
+async def reporte_individual(
+    participante_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_reporte_individual(participante_id)
+
+
+def _export_headers(nombre: str, formato: str) -> tuple[str, str]:
+    if formato == "excel":
+        return (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            f"attachment; filename={nombre}.xlsx",
+        )
+    return ("application/pdf", f"attachment; filename={nombre}.pdf")
+
+
+@router.get("/participantes/{participante_id}/reporte/export")
+async def export_reporte_individual(
+    participante_id: int,
+    formato: str = Query("pdf", description="pdf o excel"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    output = await svc.export_reporte_individual(participante_id, formato)
+    media, disp = _export_headers(f"reporte_360_{participante_id}", formato)
+    return StreamingResponse(output, media_type=media, headers={"Content-Disposition": disp})
+
+
+@router.get("/campanas/{campana_id}/resultados/export")
+async def export_resultados_campana(
+    campana_id: int,
+    formato: str = Query("pdf", description="pdf o excel"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    output = await svc.export_resultados_campana(campana_id, formato)
+    media, disp = _export_headers(f"resultados_360_{campana_id}", formato)
+    return StreamingResponse(output, media_type=media, headers={"Content-Disposition": disp})

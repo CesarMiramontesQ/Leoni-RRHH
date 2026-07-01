@@ -395,6 +395,39 @@ class ResultadoParticipanteResponse(BaseModel):
     oportunidades: list[str] = Field(default_factory=list)
 
 
+class ComentarioReporte(BaseModel):
+    tipo_evaluador: Optional[TipoEvaluador] = None
+    competencia_id: Optional[int] = None
+    competencia_nombre: Optional[str] = None
+    texto: str
+    tipo: str = "general"
+
+
+class EvolucionPunto(BaseModel):
+    campana_id: int
+    campana_nombre: str
+    fecha: Optional[date] = None
+    calificacion_general: Optional[float] = None
+
+
+class ReporteIndividualResponse(BaseModel):
+    participante_id: int
+    empleado_id: int
+    empleado_nombre: Optional[str] = None
+    puesto: Optional[str] = None
+    area: Optional[str] = None
+    campana_id: int
+    campana_nombre: Optional[str] = None
+    calificacion_general: Optional[float] = None
+    promedio_autoevaluacion: Optional[float] = None
+    promedio_externo: Optional[float] = None
+    competencias: list[ResultadoCompetencia] = Field(default_factory=list)
+    fortalezas: list[str] = Field(default_factory=list)
+    oportunidades: list[str] = Field(default_factory=list)
+    comentarios: list[ComentarioReporte] = Field(default_factory=list)
+    evolucion: list[EvolucionPunto] = Field(default_factory=list)
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 

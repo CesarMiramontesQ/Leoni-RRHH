@@ -240,6 +240,38 @@ class Evaluacion360Repository(BaseRepository[Eval360Campana]):
             await self.db.delete(r)
         await self.db.flush()
 
+    async def list_comentarios_participante(
+        self, participante_id: int
+    ) -> Sequence[tuple[Eval360Comentario, str]]:
+        """Comentarios de todas las evaluaciones de un participante + tipo_evaluador."""
+        result = await self.db.execute(
+            select(Eval360Comentario, Eval360Evaluacion.tipo_evaluador)
+            .join(
+                Eval360Evaluacion,
+                Eval360Comentario.evaluacion_id == Eval360Evaluacion.id,
+            )
+            .where(Eval360Evaluacion.participante_id == participante_id)
+            .where(Eval360Evaluacion.estado == "completada")
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
+    async def list_resultados_globales_empleado(
+        self, empleado_id: int
+    ) -> Sequence[tuple[Eval360Participante, Eval360Campana, Eval360Resultado]]:
+        """Fila resumen (competencia_id NULL) por campana para un empleado, para evolucion."""
+        result = await self.db.execute(
+            select(Eval360Participante, Eval360Campana, Eval360Resultado)
+            .join(Eval360Campana, Eval360Participante.campana_id == Eval360Campana.id)
+            .join(
+                Eval360Resultado,
+                (Eval360Resultado.participante_id == Eval360Participante.id)
+                & (Eval360Resultado.competencia_id.is_(None)),
+            )
+            .where(Eval360Participante.empleado_id == empleado_id)
+            .order_by(Eval360Campana.fecha_cierre, Eval360Campana.id)
+        )
+        return [(row[0], row[1], row[2]) for row in result.all()]
+
     # ── Helpers de agregacion para dashboard ──────────────────────────────────
     async def count_campanas_por_estado(self, estados: list[str]) -> int:
         result = await self.db.execute(

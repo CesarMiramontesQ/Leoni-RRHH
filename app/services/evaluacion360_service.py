@@ -21,8 +21,9 @@ usa flush() (via el repositorio).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
+from io import BytesIO
 from typing import Optional, Sequence
 
 from fastapi import BackgroundTasks
@@ -62,12 +63,14 @@ from app.schemas.evaluacion360 import (
     CampanaResponse,
     CampanaUpdate,
     ComentarioIn,
+    ComentarioReporte,
     CompetenciaEvaluacion,
     ConfigResponse,
     ConfigUpdate,
     DashboardKpis,
     DashboardResponse,
     DashboardSeriePunto,
+    EvolucionPunto,
     EscalaCreate,
     EscalaResponse,
     EscalaUpdate,
@@ -79,6 +82,7 @@ from app.schemas.evaluacion360 import (
     PreguntaEvaluacion,
     PreguntaResponse,
     PreguntaUpdate,
+    ReporteIndividualResponse,
     ResultadoCompetencia,
     ResultadoParticipanteResponse,
     SugerenciaEvaluadorResponse,
@@ -102,6 +106,13 @@ def _f(value) -> Optional[float]:
     if isinstance(value, Decimal):
         return float(value)
     return float(value)
+
+
+def _fmt(value) -> str:
+    """Formatea un número (o None) para celdas de PDF."""
+    if value is None:
+        return "—"
+    return f"{float(value):.2f}"
 
 
 class Evaluacion360Service:
@@ -681,6 +692,247 @@ class Evaluacion360Service:
         await self._calcular_resultados_participante(participante, campana)
         await self.db.flush()
         return await self._resultado_participante(participante_id)
+
+    async def get_reporte_individual(
+        self, participante_id: int
+    ) -> ReporteIndividualResponse:
+        """Reporte individual completo: promedios, brechas, comentarios y evolucion."""
+        participante = await self.repo.get_participante(participante_id)
+        if not participante:
+            raise NotFoundError("Participante no encontrado")
+        campana = await self.repo.get_campana_detalle(participante.campana_id)
+        await self._calcular_resultados_participante(participante, campana)
+        await self.db.flush()
+
+        base = await self._resultado_participante(participante_id)
+
+        # Promedios auto vs externo (media entre competencias).
+        autos = [c.autoevaluacion for c in base.competencias if c.autoevaluacion is not None]
+        externos: list[float] = []
+        for c in base.competencias:
+            if c.promedio_por_tipo:
+                vals = [v for t, v in c.promedio_por_tipo.items() if t != "autoevaluacion"]
+                if vals:
+                    externos.append(sum(vals) / len(vals))
+        promedio_auto = round(sum(autos) / len(autos), 2) if autos else None
+        promedio_externo = round(sum(externos) / len(externos), 2) if externos else None
+
+        # Comentarios agrupados por competencia/tipo.
+        comp_nombres = await self._competencia_nombres(
+            [c.competencia_id for c in campana.competencias]
+        )
+        comentarios: list[ComentarioReporte] = []
+        for com, tipo in await self.repo.list_comentarios_participante(participante_id):
+            comentarios.append(ComentarioReporte(
+                tipo_evaluador=tipo,
+                competencia_id=com.competencia_id,
+                competencia_nombre=comp_nombres.get(com.competencia_id) if com.competencia_id else None,
+                texto=com.texto,
+                tipo=com.tipo,
+            ))
+
+        # Evolucion historica (calificacion global por campana del empleado).
+        evolucion: list[EvolucionPunto] = []
+        for part, camp, res in await self.repo.list_resultados_globales_empleado(
+            participante.empleado_id
+        ):
+            evolucion.append(EvolucionPunto(
+                campana_id=camp.id,
+                campana_nombre=camp.nombre,
+                fecha=camp.fecha_cierre,
+                calificacion_general=_f(res.calificacion_general),
+            ))
+
+        return ReporteIndividualResponse(
+            participante_id=participante_id,
+            empleado_id=participante.empleado_id,
+            empleado_nombre=participante.empleado.nombre if participante.empleado else None,
+            puesto=self._puesto_nombre(participante.empleado),
+            area=self._area_nombre(participante.empleado),
+            campana_id=campana.id,
+            campana_nombre=campana.nombre,
+            calificacion_general=base.calificacion_general,
+            promedio_autoevaluacion=promedio_auto,
+            promedio_externo=promedio_externo,
+            competencias=base.competencias,
+            fortalezas=base.fortalezas,
+            oportunidades=base.oportunidades,
+            comentarios=comentarios,
+            evolucion=evolucion,
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Exportacion (PDF / Excel)
+    # ══════════════════════════════════════════════════════════════════════════
+    async def export_reporte_individual(self, participante_id: int, formato: str) -> BytesIO:
+        rep = await self.get_reporte_individual(participante_id)
+        if formato == "excel":
+            return self._reporte_individual_excel(rep)
+        return self._reporte_individual_pdf(rep)
+
+    async def export_resultados_campana(self, campana_id: int, formato: str) -> BytesIO:
+        resultados = await self.get_resultados_campana(campana_id)
+        campana = await self.repo.get_campana(campana_id)
+        nombre = campana.nombre if campana else "Campaña"
+        if formato == "excel":
+            return self._resultados_campana_excel(nombre, resultados)
+        return self._resultados_campana_pdf(nombre, resultados)
+
+    def _reporte_individual_excel(self, rep: ReporteIndividualResponse) -> BytesIO:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reporte 360"
+        ws.cell(row=1, column=1, value="Reporte Evaluación 360°").font = Font(bold=True, size=14)
+        ws.cell(row=2, column=1, value="Colaborador")
+        ws.cell(row=2, column=2, value=rep.empleado_nombre or "—")
+        ws.cell(row=3, column=1, value="Puesto")
+        ws.cell(row=3, column=2, value=rep.puesto or "—")
+        ws.cell(row=4, column=1, value="Campaña")
+        ws.cell(row=4, column=2, value=rep.campana_nombre or "—")
+        ws.cell(row=5, column=1, value="Calificación general")
+        ws.cell(row=5, column=2, value=rep.calificacion_general)
+        ws.cell(row=6, column=1, value="Autoevaluación / Externo")
+        ws.cell(row=6, column=2, value=f"{rep.promedio_autoevaluacion} / {rep.promedio_externo}")
+
+        headers = ["Competencia", "Promedio", "Autoevaluación", "Nivel esperado", "Brecha", "Estado"]
+        r = 8
+        for col, h in enumerate(headers, 1):
+            ws.cell(row=r, column=col, value=h).font = Font(bold=True)
+        for c in rep.competencias:
+            r += 1
+            ws.cell(row=r, column=1, value=c.competencia_nombre or "—")
+            ws.cell(row=r, column=2, value=c.promedio_general)
+            ws.cell(row=r, column=3, value=c.autoevaluacion)
+            ws.cell(row=r, column=4, value=c.nivel_esperado)
+            ws.cell(row=r, column=5, value=c.brecha)
+            ws.cell(row=r, column=6, value=c.estado_brecha)
+
+        r += 2
+        ws.cell(row=r, column=1, value="Comentarios").font = Font(bold=True)
+        for com in rep.comentarios:
+            r += 1
+            ws.cell(row=r, column=1, value=com.competencia_nombre or "General")
+            ws.cell(row=r, column=2, value=com.tipo_evaluador or "")
+            ws.cell(row=r, column=3, value=com.texto)
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
+
+    def _reporte_individual_pdf(self, rep: ReporteIndividualResponse) -> BytesIO:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        output = BytesIO()
+        doc = SimpleDocTemplate(output, pagesize=A4)
+        styles = getSampleStyleSheet()
+        el = []
+        el.append(Paragraph("Reporte Evaluación 360°", styles["Title"]))
+        el.append(Paragraph(f"Colaborador: {rep.empleado_nombre or '—'}", styles["Normal"]))
+        el.append(Paragraph(f"Puesto: {rep.puesto or '—'}", styles["Normal"]))
+        el.append(Paragraph(f"Campaña: {rep.campana_nombre or '—'}", styles["Normal"]))
+        el.append(Paragraph(
+            f"Calificación general: {rep.calificacion_general}  ·  "
+            f"Auto: {rep.promedio_autoevaluacion}  ·  Externo: {rep.promedio_externo}",
+            styles["Normal"],
+        ))
+        el.append(Spacer(1, 12))
+
+        data = [["Competencia", "Prom.", "Auto", "Esperado", "Brecha", "Estado"]]
+        for c in rep.competencias:
+            data.append([
+                (c.competencia_nombre or "—")[:32],
+                _fmt(c.promedio_general), _fmt(c.autoevaluacion),
+                _fmt(c.nivel_esperado), _fmt(c.brecha), c.estado_brecha or "—",
+            ])
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0A1628")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ]))
+        el.append(table)
+
+        if rep.comentarios:
+            el.append(Spacer(1, 12))
+            el.append(Paragraph("Comentarios", styles["Heading3"]))
+            for com in rep.comentarios:
+                etiqueta = com.competencia_nombre or "General"
+                el.append(Paragraph(
+                    f"<b>{etiqueta}</b> ({com.tipo_evaluador or 's/d'}): {com.texto}",
+                    styles["Normal"],
+                ))
+        doc.build(el)
+        output.seek(0)
+        return output
+
+    def _resultados_campana_excel(
+        self, nombre: str, resultados: list[ResultadoParticipanteResponse]
+    ) -> BytesIO:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Resultados"
+        ws.cell(row=1, column=1, value=f"Resultados — {nombre}").font = Font(bold=True, size=14)
+        headers = ["Colaborador", "Puesto", "Calificación general", "Fortalezas", "Oportunidades"]
+        for col, h in enumerate(headers, 1):
+            ws.cell(row=3, column=col, value=h).font = Font(bold=True)
+        for i, r in enumerate(resultados, 4):
+            ws.cell(row=i, column=1, value=r.empleado_nombre or "—")
+            ws.cell(row=i, column=2, value=r.puesto or "—")
+            ws.cell(row=i, column=3, value=r.calificacion_general)
+            ws.cell(row=i, column=4, value=", ".join(r.fortalezas))
+            ws.cell(row=i, column=5, value=", ".join(r.oportunidades))
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
+
+    def _resultados_campana_pdf(
+        self, nombre: str, resultados: list[ResultadoParticipanteResponse]
+    ) -> BytesIO:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        output = BytesIO()
+        doc = SimpleDocTemplate(output, pagesize=landscape(A4))
+        styles = getSampleStyleSheet()
+        el = [Paragraph(f"Resultados 360° — {nombre}", styles["Title"]),
+              Paragraph(f"Fecha: {date.today().isoformat()}", styles["Normal"]),
+              Spacer(1, 12)]
+        data = [["Colaborador", "Puesto", "Calif. general", "Fortalezas", "Oportunidades"]]
+        for r in resultados:
+            data.append([
+                (r.empleado_nombre or "—")[:28],
+                (r.puesto or "—")[:24],
+                _fmt(r.calificacion_general),
+                ", ".join(r.fortalezas)[:40],
+                ", ".join(r.oportunidades)[:40],
+            ])
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0A1628")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ]))
+        el.append(table)
+        doc.build(el)
+        output.seek(0)
+        return output
 
     # ══════════════════════════════════════════════════════════════════════════
     # Dashboard

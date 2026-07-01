@@ -178,6 +178,39 @@ export interface ResultadoParticipanteApi {
   oportunidades: string[];
 }
 
+export interface ComentarioReporteApi {
+  tipo_evaluador: TipoEvaluadorApi | null;
+  competencia_id: number | null;
+  competencia_nombre: string | null;
+  texto: string;
+  tipo: string;
+}
+
+export interface EvolucionPuntoApi {
+  campana_id: number;
+  campana_nombre: string;
+  fecha: string | null;
+  calificacion_general: number | null;
+}
+
+export interface ReporteIndividualApi {
+  participante_id: number;
+  empleado_id: number;
+  empleado_nombre: string | null;
+  puesto: string | null;
+  area: string | null;
+  campana_id: number;
+  campana_nombre: string | null;
+  calificacion_general: number | null;
+  promedio_autoevaluacion: number | null;
+  promedio_externo: number | null;
+  competencias: ResultadoCompetenciaApi[];
+  fortalezas: string[];
+  oportunidades: string[];
+  comentarios: ComentarioReporteApi[];
+  evolucion: EvolucionPuntoApi[];
+}
+
 export interface DashboardApi {
   kpis: {
     campanas_activas: number;
@@ -375,6 +408,33 @@ export async function fetchEval360ResultadoParticipante(
   const res = await fetchWithAuth(`${BASE}/participantes/${participanteId}/resultado`);
   if (!res.ok) return null;
   return res.json();
+}
+
+export async function fetchEval360Reporte(
+  participanteId: number,
+): Promise<ReporteIndividualApi | null> {
+  const res = await fetchWithAuth(`${BASE}/participantes/${participanteId}/reporte`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** Descarga un export (PDF/Excel) autenticado disparando el guardado del archivo. */
+export async function descargarEval360Export(
+  path: string,
+  filename: string,
+): Promise<boolean> {
+  const res = await fetchWithAuth(`${BASE}${path}`);
+  if (!res.ok) return false;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return true;
 }
 
 // ── Mis Evaluaciones (self-service) ───────────────────────────────────────────
