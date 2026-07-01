@@ -4736,6 +4736,21 @@ components:
           type: string
           nullable: true
 
+    EmpleadoDisponibleResponse:
+      type: object
+      required: [id, no_empleado, nombre]
+      properties:
+        id:
+          type: integer
+        no_empleado:
+          type: integer
+        nombre:
+          type: string
+        area:
+          allOf:
+            - $ref: "#/components/schemas/AreaResponse"
+          nullable: true
+
     PerfilCualificacionResponse:
       type: object
       required: [id, puesto_perfil_id, created_at, updated_at]
@@ -10808,6 +10823,46 @@ paths:
           description: Solo puedes cancelar tus propias inscripciones
         "409":
           description: Ya esta cancelada
+
+  # ── Talento — Perfil de Funciones (buscar empleados para asignar) ──
+  /api/v1/perfiles/empleados-disponibles:
+    get:
+      tags: [Talento - Perfil Funciones]
+      summary: Buscar empleados activos sin asignación de perfil
+      description: >-
+        Buscador del modal "Asignar empleado". Devuelve empleados activos que no
+        tienen una asignación de perfil activa, filtrando por nombre o número de
+        empleado (mínimo 2 caracteres). Accesible con el módulo "puestos" (bypass
+        por módulo del guard de rol).
+      operationId: buscar_empleados_disponibles_perfil
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Nombre o número de empleado (mínimo 2 caracteres)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        "200":
+          description: Empleados disponibles (lista vacía si q < 2 caracteres)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmpleadoDisponibleResponse"
+        "403":
+          description: Sin módulo "puestos" ni rol suficiente
 
   # ── Talento — Perfil de Funciones (cualificaciones) ───────────────
   /api/v1/perfiles/{perfil_id}/cualificaciones:
