@@ -4,14 +4,17 @@ import { hasRhModule } from "../auth/rhModulePermissions.ts";
 
 import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
 import {
+  alertError,
   badgeApproved,
   badgeChangesRequested,
   badgePending,
+  badgeRejected,
   FIELD_FOCUS,
   MODAL_OVERLAY,
   MODAL_PANEL,
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
@@ -20,8 +23,9 @@ import {
   RH_TABLE_HEAD,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
+import { inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 import { deletePerfilAsignacion, getAsignacionGap, getAsignacionTareasExtra } from "../api/puestos.ts";
-import { getCursosPuesto, getCursosExtra } from "../api/cursos.ts";
+import { getCursosPuesto } from "../api/cursos.ts";
 import { mountAsignarEmpleadoModal } from "../components/puestos/asignarEmpleadoModal.ts";
 import { mountTareasExtraModal } from "../components/puestos/tareasExtraModal.ts";
 import { mountCursosExtraModal } from "../components/puestos/cursosExtraModal.ts";
@@ -314,10 +318,15 @@ function renderHero(perfil: PerfilHeader, metrics: PageMetrics, showAsignar: boo
           </button>
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <span class="inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-1 font-mono text-xs font-semibold text-slate-700 shadow-sm">${escapeHtml(perfil.codigo)}</span>
+            ${
+              perfil.nivel
+                ? `<span class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm"><span class="font-medium text-blue-500/80">Nivel</span>${escapeHtml(nivelLabel(perfil.nivel))}</span>`
+                : ""
+            }
           </div>
           <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(perfil.nombre)}</h1>
           <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-text-secondary">
-            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(perfil.area_nombre)}</strong> · ${escapeHtml(nivelLabel(perfil.nivel))}</span></span>
+            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${escapeHtml(perfil.area_nombre)}</strong></span></span>
             <span class="inline-flex items-center gap-1.5">${ICON_USERS}<span><strong class="font-semibold tabular-nums text-text-primary">${metrics.total}</strong> empleado${metrics.total !== 1 ? "s" : ""} asignado${metrics.total !== 1 ? "s" : ""}</span></span>
           </div>
         </div>
@@ -885,7 +894,7 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
         codigo: perfilJson.codigo ?? "",
         nombre: perfilJson.nombre ?? "",
         area_nombre: perfilJson.area_nombre ?? "",
-        nivel: perfilJson.nivel ?? "",
+        nivel: perfilJson.nivel_nombre ?? "",
       };
 
       asignaciones = await asigRes.json();
@@ -906,21 +915,39 @@ async function openDetalleModal(
   asignacionId: number,
   nombreEmpleado: string,
 ): Promise<void> {
+  const iniciales = inicialesDesdeNombreDisplay(nombreEmpleado);
+  const skeletonBar = (w: string) => `<div class="h-3 ${w} rounded bg-slate-100"></div>`;
+  const skeletonCard = `<div class="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
+    <div class="h-3 w-32 rounded bg-slate-100"></div>
+    ${skeletonBar("w-full")}${skeletonBar("w-5/6")}${skeletonBar("w-2/3")}
+  </div>`;
+
   host.innerHTML = `
     <div id="detalle-overlay" class="ppe-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
       <div class="ppe-modal-panel ${MODAL_PANEL} max-w-2xl max-h-[90vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="detalle-title">
-        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 shrink-0">
-          <div>
-            <h2 id="detalle-title" class="text-lg font-semibold text-text-primary">Detalle del empleado</h2>
-            <p class="text-xs text-text-muted mt-0.5">${escapeHtml(nombreEmpleado)}</p>
+        <header class="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 shrink-0 sm:px-6">
+          <div class="flex min-w-0 items-center gap-3">
+            <span class="flex size-11 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700 ring-1 ring-blue-200/70" aria-hidden="true">${escapeHtml(iniciales)}</span>
+            <div class="min-w-0">
+              <h2 id="detalle-title" class="truncate text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(nombreEmpleado)}</h2>
+              <p class="mt-0.5 text-xs text-text-muted">Detalle de asignación de perfil</p>
+            </div>
           </div>
-          <button type="button" id="detalle-close" class="${RH_LISTADO_BTN_GHOST} !p-1.5" aria-label="Cerrar">
+          <button type="button" id="detalle-close" class="${RH_LISTADO_BTN_GHOST} !p-1.5 shrink-0" aria-label="Cerrar">
             <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
+        </header>
+        <div id="detalle-body" class="flex-1 overflow-y-auto bg-slate-50/60 px-5 py-5 sm:px-6">
+          <div class="space-y-4" aria-hidden="true">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              ${Array.from({ length: 4 }, () => `<div class="rounded-lg border border-slate-200 bg-white p-3 space-y-2"><div class="h-5 w-10 rounded bg-slate-100"></div><div class="h-2.5 w-16 rounded bg-slate-100"></div></div>`).join("")}
+            </div>
+            ${skeletonCard}${skeletonCard}
+          </div>
         </div>
-        <div id="detalle-body" class="flex-1 overflow-y-auto px-5 py-4">
-          <p class="text-sm text-text-muted">Cargando...</p>
-        </div>
+        <footer class="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3.5 shrink-0 sm:px-6">
+          <button type="button" id="detalle-footer-close" class="${RH_LISTADO_BTN_SECONDARY}">Cerrar</button>
+        </footer>
       </div>
     </div>`;
 
@@ -938,6 +965,7 @@ async function openDetalleModal(
     if (e.target === overlay) close();
   });
   host.querySelector("#detalle-close")!.addEventListener("click", close);
+  host.querySelector("#detalle-footer-close")!.addEventListener("click", close);
   document.addEventListener("keydown", function esc(e) {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -947,21 +975,40 @@ async function openDetalleModal(
   });
 
   try {
-    const [gap, tareasExtra, cursosAsignados, cursosExtra] = await Promise.all([
+    const [gap, tareasExtra, cursosAsignados] = await Promise.all([
       getAsignacionGap(perfilId, asignacionId),
       getAsignacionTareasExtra(perfilId, asignacionId),
       getCursosPuesto(perfilId),
-      getCursosExtra(perfilId, asignacionId),
     ]);
 
     const r = gap.resumen;
+
+    // ── Helpers de presentación (solo markup) ──────────────────────────────
+    const plural = (n: number, s = "s") => (n !== 1 ? s : "");
+    const countPill = (text: string) =>
+      `<span class="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">${escapeHtml(text)}</span>`;
+    const emptyState = (text: string) =>
+      `<p class="py-3 text-center text-xs text-slate-400">${escapeHtml(text)}</p>`;
+    const statCard = (value: string, label: string) =>
+      `<div class="rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+        <div class="text-lg font-semibold leading-none text-text-primary">${value}</div>
+        <div class="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-500">${escapeHtml(label)}</div>
+      </div>`;
+    const sectionCard = (title: string, pill: string, inner: string) =>
+      `<section class="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+          <h3 class="text-sm font-semibold text-text-primary">${escapeHtml(title)}</h3>
+          ${pill}
+        </div>
+        <div class="px-4 py-2">${inner}</div>
+      </section>`;
+    const fechaPill = (fecha: string) =>
+      `<span class="ml-2 inline-flex rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200/70">${escapeHtml(new Date(fecha + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" }))}</span>`;
+
     const cualRows = gap.gap_cualificaciones
       .map((g) => {
-        let badge: string;
-        if (g.cumple === true) badge = `<span class="text-emerald-600 text-xs font-medium">Cumple</span>`;
-        else if (g.cumple === false) badge = `<span class="text-red-600 text-xs font-medium">No cumple</span>`;
-        else badge = `<span class="text-amber-600 text-xs font-medium">Pendiente</span>`;
-        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(g.situacion_deseada)}</td><td class="py-1.5 text-right">${badge}</td></tr>`;
+        const badge = g.cumple === true ? badgeApproved("Cumple") : g.cumple === false ? badgeRejected("No cumple") : badgePending("Pendiente");
+        return `<tr class="border-t border-slate-100 first:border-t-0"><td class="py-2 pr-3 text-sm text-text-primary">${escapeHtml(g.situacion_deseada)}</td><td class="py-2 text-right">${badge}</td></tr>`;
       })
       .join("");
 
@@ -973,57 +1020,57 @@ async function openDetalleModal(
             ? "4"
             : "0"
           : String(nivel);
-        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(g.competencia_nombre)}</td><td class="py-1.5 text-right text-xs font-medium text-slate-600">${g.evaluado ? `${nivelDisplay}/4` : '<span class="text-amber-600">Pendiente</span>'}</td></tr>`;
+        const val = g.evaluado
+          ? `<span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">${nivelDisplay}/4</span>`
+          : badgePending("Pendiente");
+        return `<tr class="border-t border-slate-100 first:border-t-0"><td class="py-2 pr-3 text-sm text-text-primary">${escapeHtml(g.competencia_nombre)}</td><td class="py-2 text-right">${val}</td></tr>`;
       })
-      .join("");
-
-    const tareasRows = tareasExtra
-      .map((t) => `<li class="text-sm text-text-primary">${escapeHtml(t.tarea_catalogo_nombre)}</li>`)
       .join("");
 
     const cursosRows = cursosAsignados
       .map((c) => {
         const oblig = c.obligatorio ? `<span class="ml-2 inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200/70">Obligatorio</span>` : "";
-        const sesion = c.sesion_fecha ? `<span class="ml-2 inline-flex rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200/70">${escapeHtml(new Date(c.sesion_fecha + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" }))}</span>` : "";
-        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}${oblig}${sesion}</td></tr>`;
+        const sesion = c.sesion_fecha ? fechaPill(c.sesion_fecha) : "";
+        return `<tr class="border-t border-slate-100 first:border-t-0"><td class="py-2 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}${oblig}${sesion}</td></tr>`;
       })
       .join("");
 
-    const cursosExtraRows = cursosExtra
-      .map((c) => {
-        const sesion = c.sesion_fecha ? `<span class="ml-2 inline-flex rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 ring-1 ring-blue-200/70">${escapeHtml(new Date(c.sesion_fecha + "T00:00:00").toLocaleDateString("es-MX", { day: "numeric", month: "short" }))}</span>` : "";
-        return `<tr class="border-b border-slate-100"><td class="py-1.5 pr-3 text-sm text-text-primary">${escapeHtml(c.curso_nombre ?? `Curso #${c.curso_id}`)}${sesion}</td></tr>`;
-      })
+    const tareasRows = tareasExtra
+      .map((t) => `<li class="border-t border-slate-100 py-2 text-sm text-text-primary first:border-t-0">${escapeHtml(t.tarea_catalogo_nombre)}</li>`)
       .join("");
+
+    const table = (rows: string) => `<table class="w-full">${rows}</table>`;
 
     body.innerHTML = `
-      <div class="space-y-5">
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary mb-2">Cualificaciones</h3>
-          <p class="text-xs text-slate-500 mb-2">${r.evaluadas_cualificaciones}/${r.total_cualificaciones} evaluadas</p>
-          ${cualRows ? `<table class="w-full">${cualRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin cualificaciones</p>`}
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          ${statCard(`${r.evaluadas_cualificaciones}/${r.total_cualificaciones}`, "Cualif. evaluadas")}
+          ${statCard(`${r.evaluadas_competencias}/${r.total_competencias}`, "Comp. evaluadas")}
+          ${statCard(String(cursosAsignados.length), "Cursos puesto")}
+          ${statCard(String(tareasExtra.length), "Tareas extra")}
         </div>
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary mb-2">Competencias</h3>
-          <p class="text-xs text-slate-500 mb-2">${r.evaluadas_competencias}/${r.total_competencias} evaluadas</p>
-          ${compRows ? `<table class="w-full">${compRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin competencias</p>`}
-        </div>
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary mb-2">Cursos del puesto</h3>
-          <p class="text-xs text-slate-500 mb-2">${cursosAsignados.length} curso${cursosAsignados.length !== 1 ? "s" : ""}</p>
-          ${cursosRows ? `<table class="w-full">${cursosRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin cursos asignados al puesto</p>`}
-        </div>
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary mb-2">Cursos extra (individual)</h3>
-          <p class="text-xs text-slate-500 mb-2">${cursosExtra.length} curso${cursosExtra.length !== 1 ? "s" : ""} extra</p>
-          ${cursosExtraRows ? `<table class="w-full">${cursosExtraRows}</table>` : `<p class="text-xs text-slate-400 italic">Sin cursos extra asignados</p>`}
-        </div>
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary mb-2">Tareas extra</h3>
-          ${tareasRows ? `<ul class="list-disc pl-4 space-y-1">${tareasRows}</ul>` : `<p class="text-xs text-slate-400 italic">Sin tareas extra asignadas</p>`}
-        </div>
+        ${sectionCard(
+          "Cualificaciones",
+          countPill(`${r.evaluadas_cualificaciones}/${r.total_cualificaciones} evaluadas`),
+          cualRows ? table(cualRows) : emptyState("Sin cualificaciones"),
+        )}
+        ${sectionCard(
+          "Competencias",
+          countPill(`${r.evaluadas_competencias}/${r.total_competencias} evaluadas`),
+          compRows ? table(compRows) : emptyState("Sin competencias"),
+        )}
+        ${sectionCard(
+          "Cursos del puesto",
+          countPill(`${cursosAsignados.length} curso${plural(cursosAsignados.length)}`),
+          cursosRows ? table(cursosRows) : emptyState("Sin cursos asignados al puesto"),
+        )}
+        ${sectionCard(
+          "Tareas extra",
+          countPill(`${tareasExtra.length} tarea${plural(tareasExtra.length)}`),
+          tareasRows ? `<ul>${tareasRows}</ul>` : emptyState("Sin tareas extra asignadas"),
+        )}
       </div>`;
   } catch {
-    body.innerHTML = `<p class="text-sm text-red-600">Error al cargar detalle</p>`;
+    body.innerHTML = alertError("No se pudo cargar el detalle del empleado");
   }
 }
