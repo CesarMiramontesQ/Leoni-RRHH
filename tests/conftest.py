@@ -127,6 +127,15 @@ async def db(engine) -> AsyncGenerator[AsyncSession, None]:
         finally:
             await session.rollback()
 
+    # Aislamiento entre tests: la conexión SQLite en memoria es única (StaticPool)
+    # y compartida; las llamadas API hacen commit, por lo que un rollback de la
+    # sesión NO deshace lo committeado. Se vacían todas las tablas al terminar el
+    # test (con las sesiones ya cerradas, sin conflicto multi-sesión) para que el
+    # siguiente parta de un estado limpio.
+    async with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
+
 
 # ---------------------------------------------------------------------------
 # HTTP client con DB override
@@ -339,8 +348,25 @@ async def reset_comedor_transaccional(db: AsyncSession) -> None:
 
 
 async def make_clasificacion_administrativo(db: AsyncSession):
-    """Catálogo Administrativo (código A) para pruebas de Home Office."""
+    """Catálogo Administrativo (código A) para pruebas de Home Office.
+
+    Idempotente: usa un ``clasificacion_id`` fijo (901). Como las llamadas API
+    de otros tests hacen commit sobre la conexión SQLite compartida, ese registro
+    puede persistir entre tests; se reutiliza si ya existe para evitar violar la
+    unicidad de ``clasificacion_id``.
+    """
+    from sqlalchemy import select
+
     from app.models.catalogos import ClasificacionEmpleado
+
+    existing = await db.execute(
+        select(ClasificacionEmpleado).where(
+            ClasificacionEmpleado.clasificacion_id == 901
+        )
+    )
+    cl = existing.scalar_one_or_none()
+    if cl is not None:
+        return cl
 
     cl = ClasificacionEmpleado(
         clasificacion_id=901,
