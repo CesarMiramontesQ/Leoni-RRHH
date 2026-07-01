@@ -15,6 +15,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import ConflictError, DomainValidationError, ForbiddenError, NotFoundError
 from app.models.empleados import Empleado
 from app.models.talento import (
@@ -51,6 +52,7 @@ from app.services.metodo_calificacion_competencia_service import (
     MetodoCalificacionCompetenciaService,
 )
 from app.schemas.perfil_funciones import (
+    EmpleadoDisponibleResponse,
     PerfilCompetenciaCreate,
     PerfilCompetenciaResponse,
     PerfilCompetenciaSyncItem,
@@ -705,6 +707,17 @@ class PerfilFuncionesService:
     # ══════════════════════════════════════════════════════════════════════════
     # ASIGNACIONES
     # ══════════════════════════════════════════════════════════════════════════
+
+    async def buscar_empleados_disponibles(
+        self, q: str, limit: int = 10
+    ) -> list[EmpleadoDisponibleResponse]:
+        """Empleados activos sin asignación de perfil que matchean ``q`` (min 2 chars)."""
+        if not q or len(q.strip()) < 2:
+            return []
+        empleados = await self.asignacion_repo.buscar_empleados_disponibles(
+            q, settings.ESTADOS_ACTIVOS_IDS, limit
+        )
+        return [EmpleadoDisponibleResponse.model_validate(e) for e in empleados]
 
     async def listar_asignaciones(self, perfil_id: int) -> list[PerfilFuncionesResponse]:
         await self._get_perfil_or_404(perfil_id)

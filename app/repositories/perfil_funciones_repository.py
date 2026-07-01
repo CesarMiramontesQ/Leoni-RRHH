@@ -6,10 +6,11 @@ Maneja: PerfilTarea, PerfilCualificacion,
         PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia.
 """
 
-from sqlalchemy import distinct, select
+from sqlalchemy import String, cast, distinct, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.empleados import Empleado
 from app.models.talento import (
     CualificacionCatalogo,
     GradoPuesto,
@@ -141,6 +142,41 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
             .where(PerfilFunciones.id == id, PerfilFunciones.activo.is_(True))
         )
         return result.scalar_one_or_none()
+
+    async def buscar_empleados_disponibles(
+        self, q: str, estados_activos: list[int], limit: int = 10
+    ) -> list[Empleado]:
+        """Empleados activos sin asignación de perfil activa que matchean ``q``.
+
+        Filtra por nombre o ``no_empleado`` (reusa la normalización de
+        ``UsuarioRepository`` con ``cast`` para evitar el error de tipos en Postgres,
+        ver memoria migracion-bono-no-empleado-integer). Excluye empleados con una
+        fila activa en ``levelup_perfil_funciones``.
+        """
+        from app.repositories.usuario_repository import UsuarioRepository
+
+        stmt = (
+            select(Empleado)
+            .options(selectinload(Empleado.area))
+            .where(Empleado.estado_id.in_(estados_activos))
+        )
+        for token in UsuarioRepository._normalize_search_text(q).split(" "):
+            if not token:
+                continue
+            term = f"%{token}%"
+            stmt = stmt.where(
+                or_(
+                    UsuarioRepository._normalized_sql(Empleado.nombre).ilike(term),
+                    UsuarioRepository._normalized_sql(cast(Empleado.no_empleado, String)).ilike(term),
+                )
+            )
+        asignacion_activa = select(PerfilFunciones.id).where(
+            PerfilFunciones.empleado_id == Empleado.empleado_id,
+            PerfilFunciones.activo.is_(True),
+        )
+        stmt = stmt.where(~asignacion_activa.exists()).order_by(Empleado.nombre).limit(limit)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
     async def get_active_by_empleado_and_perfil(
         self, empleado_id: int, puesto_perfil_id: int
