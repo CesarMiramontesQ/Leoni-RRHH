@@ -354,6 +354,24 @@ export async function createEval360Pregunta(payload: {
   return res.json();
 }
 
+export async function updateEval360Pregunta(
+  id: number,
+  payload: { texto?: string; orden?: number | null; activo?: boolean },
+): Promise<PreguntaApi | null> {
+  const res = await fetchWithAuth(`${BASE}/preguntas/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function deleteEval360Pregunta(id: number): Promise<boolean> {
+  const res = await fetchWithAuth(`${BASE}/preguntas/${id}`, { method: "DELETE" });
+  return res.ok;
+}
+
 // ── Campanas ──────────────────────────────────────────────────────────────────
 export async function fetchEval360Campanas(params: {
   page?: number;

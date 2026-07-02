@@ -10,6 +10,7 @@ export const EVAL360_VIEWS: ReadonlyArray<{ id: Eval360ViewId; label: string; ha
   { id: "evaluaciones", label: "Evaluaciones", hash: `${EVAL360_BASE_HASH}/evaluaciones` },
   { id: "resultados", label: "Resultados", hash: `${EVAL360_BASE_HASH}/resultados` },
   { id: "reportes", label: "Reportes", hash: `${EVAL360_BASE_HASH}/reportes` },
+  { id: "preguntas", label: "Banco de preguntas", hash: `${EVAL360_BASE_HASH}/preguntas` },
   { id: "configuracion", label: "Configuración", hash: `${EVAL360_BASE_HASH}/configuracion` },
 ];
 
@@ -21,6 +22,7 @@ export function parseEval360ViewFromHash(hash: string): Eval360ViewId {
   if (h.startsWith(`${EVAL360_BASE_HASH}/evaluaciones`)) return "evaluaciones";
   if (h.startsWith(`${EVAL360_BASE_HASH}/resultados`)) return "resultados";
   if (h.startsWith(`${EVAL360_BASE_HASH}/reportes`)) return "reportes";
+  if (h.startsWith(`${EVAL360_BASE_HASH}/preguntas`)) return "preguntas";
   if (h.startsWith(`${EVAL360_BASE_HASH}/configuracion`)) return "configuracion";
   return "dashboard";
 }

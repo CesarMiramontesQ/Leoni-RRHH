@@ -7,6 +7,7 @@ export type Eval360ViewId =
   | "evaluaciones"
   | "resultados"
   | "reportes"
+  | "preguntas"
   | "configuracion";
 
 export type CampanaEstado = "borrador" | "activa" | "en_progreso" | "finalizada" | "cerrada" | "cancelada";

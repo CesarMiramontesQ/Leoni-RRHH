@@ -13,6 +13,7 @@ import {
   renderEval360RhDashboard,
   renderEval360RhHeader,
 } from "../evaluacion360/views/dashboardRh.ts";
+import { renderEval360BancoPreguntas } from "../evaluacion360/views/bancoPreguntas.ts";
 import { renderEval360Empleados } from "../evaluacion360/views/empleados.ts";
 import { renderEval360Evaluaciones } from "../evaluacion360/views/evaluaciones.ts";
 import { renderEval360Reportes } from "../evaluacion360/views/reportes.ts";
@@ -27,6 +28,8 @@ import {
   duplicarEval360Campana,
   fetchEval360Campanas,
   fetchEval360CompetenciasCatalogo,
+  createEval360Pregunta,
+  deleteEval360Pregunta,
   fetchEval360Config,
   fetchEval360Dashboard,
   fetchEval360EmpleadosEvaluados,
@@ -34,7 +37,9 @@ import {
   fetchEval360Evaluaciones,
   fetchEval360NineBox,
   fetchEval360Participantes,
+  fetchEval360Preguntas,
   fetchEval360Reporte,
+  updateEval360Pregunta,
   type CampanaApi,
   type CompetenciaCatalogoApi,
   type ConfigApi,
@@ -43,6 +48,7 @@ import {
   type EscalaApi,
   type EvaluacionRhApi,
   type NineBoxApi,
+  type PreguntaApi,
   type ParticipanteApi,
   type ReporteIndividualApi,
 } from "../api/evaluacion360.ts";
@@ -82,6 +88,12 @@ interface State {
   repCampanaId: number | null;
   repNineBox: NineBoxApi | null;
   repNineBoxLoading: boolean;
+  // Banco de preguntas
+  pregCatalogo: CompetenciaCatalogoApi[] | null;
+  pregCompetenciaId: number | null;
+  preguntas: PreguntaApi[] | null;
+  pregLoading: boolean;
+  pregEditandoId: number | null;
 }
 
 function forbiddenHtml(): string {
@@ -258,6 +270,14 @@ function renderViewContent(state: State): string {
         nineBoxLoading: state.repNineBoxLoading,
         dashboard: state.dashboard,
       });
+    case "preguntas":
+      return renderEval360BancoPreguntas({
+        catalogo: state.pregCatalogo,
+        competenciaId: state.pregCompetenciaId,
+        preguntas: state.preguntas,
+        loading: state.pregLoading,
+        editandoId: state.pregEditandoId,
+      });
     case "configuracion":
       return renderEval360Configuracion({
         catalogo: state.cfgLoaded ? (state.cfgCatalogo ?? []) : null,
@@ -314,6 +334,11 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     repCampanaId: null,
     repNineBox: null,
     repNineBoxLoading: false,
+    pregCatalogo: null,
+    pregCompetenciaId: null,
+    preguntas: null,
+    pregLoading: false,
+    pregEditandoId: null,
   };
 
   mountAppShell(container, {
@@ -377,6 +402,76 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     state.evaluacionesLoaded = true;
     state.evaluaciones = await fetchEval360Evaluaciones();
     if (!signal.aborted && state.view === "evaluaciones") paint();
+  }
+
+  async function loadBancoCatalogo(force = false): Promise<void> {
+    if (state.pregCatalogo !== null && !force) return;
+    state.pregCatalogo = await fetchEval360CompetenciasCatalogo();
+    if (!signal.aborted && state.view === "preguntas") paint();
+  }
+
+  async function loadPreguntas(competenciaId: number): Promise<void> {
+    state.pregCompetenciaId = competenciaId;
+    state.preguntas = null;
+    state.pregEditandoId = null;
+    state.pregLoading = true;
+    paint();
+    state.preguntas = await fetchEval360Preguntas(competenciaId);
+    state.pregLoading = false;
+    if (!signal.aborted && state.view === "preguntas") paint();
+  }
+
+  async function refrescarPreguntas(): Promise<void> {
+    if (state.pregCompetenciaId == null) return;
+    state.preguntas = await fetchEval360Preguntas(state.pregCompetenciaId);
+    // Refrescar contador de preguntas del catálogo.
+    await loadBancoCatalogo(true);
+    if (!signal.aborted && state.view === "preguntas") paint();
+  }
+
+  async function crearPregunta(): Promise<void> {
+    if (state.pregCompetenciaId == null) return;
+    const texto = pageRoot.querySelector<HTMLTextAreaElement>('[data-input="e360-preg-nueva-texto"]')?.value.trim() ?? "";
+    if (texto.length < 3) {
+      window.alert("La pregunta debe tener al menos 3 caracteres.");
+      return;
+    }
+    const ordenRaw = pageRoot.querySelector<HTMLInputElement>('[data-input="e360-preg-nueva-orden"]')?.value ?? "";
+    const orden = ordenRaw ? Number(ordenRaw) : null;
+    const res = await createEval360Pregunta({ competencia_id: state.pregCompetenciaId, texto, orden });
+    if (res === null) {
+      window.alert("No se pudo crear la pregunta.");
+      return;
+    }
+    await refrescarPreguntas();
+  }
+
+  async function guardarPregunta(id: number): Promise<void> {
+    const texto = pageRoot.querySelector<HTMLTextAreaElement>('[data-input="e360-preg-edit-texto"]')?.value.trim() ?? "";
+    if (texto.length < 3) {
+      window.alert("La pregunta debe tener al menos 3 caracteres.");
+      return;
+    }
+    const activo = pageRoot.querySelector<HTMLInputElement>('[data-input="e360-preg-edit-activa"]')?.checked ?? true;
+    const ordenRaw = pageRoot.querySelector<HTMLInputElement>('[data-input="e360-preg-edit-orden"]')?.value ?? "";
+    const orden = ordenRaw ? Number(ordenRaw) : null;
+    const res = await updateEval360Pregunta(id, { texto, activo, orden });
+    if (res === null) {
+      window.alert("No se pudo guardar la pregunta.");
+      return;
+    }
+    state.pregEditandoId = null;
+    await refrescarPreguntas();
+  }
+
+  async function borrarPregunta(id: number): Promise<void> {
+    if (!window.confirm("¿Borrar esta pregunta del banco?")) return;
+    const ok = await deleteEval360Pregunta(id);
+    if (!ok) {
+      window.alert("No se pudo borrar la pregunta.");
+      return;
+    }
+    await refrescarPreguntas();
   }
 
   async function loadRepNineBox(campanaId: number): Promise<void> {
@@ -455,6 +550,7 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
       void loadCampanas();
       void loadDashboard();
     }
+    if (state.view === "preguntas") void loadBancoCatalogo();
     bindEvents();
   }
 
@@ -543,6 +639,33 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-rep-campana"]')?.addEventListener("change", (e) => {
       const id = Number((e.target as HTMLSelectElement).value);
       if (id) void loadRepNineBox(id);
+    });
+
+    // Banco de preguntas: selector de competencia + CRUD.
+    pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-preg-competencia"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) void loadPreguntas(id);
+    });
+    pageRoot.querySelector('[data-action="e360-preg-add"]')?.addEventListener("click", () => {
+      void crearPregunta();
+    });
+    pageRoot.querySelectorAll('[data-action="e360-preg-editar"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.pregEditandoId = idOf(btn);
+        paint();
+      });
+    });
+    pageRoot.querySelector('[data-action="e360-preg-cancelar"]')?.addEventListener("click", () => {
+      state.pregEditandoId = null;
+      paint();
+    });
+    pageRoot.querySelector('[data-action="e360-preg-guardar"]')?.addEventListener("click", (e) => {
+      void guardarPregunta(idOf(e.currentTarget as Element));
+    });
+    pageRoot.querySelectorAll('[data-action="e360-preg-borrar"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        void borrarPregunta(idOf(btn));
+      });
     });
 
     // Resultados: selectores de campaña/participante y exportación.
