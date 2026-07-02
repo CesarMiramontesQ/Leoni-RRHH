@@ -22,8 +22,10 @@ import {
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
+  SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 
 // ── Constantes ────────────────────────────────────────────────────────────
@@ -48,6 +50,14 @@ const CAT_CHIP_VARIANTS = [
 ] as const;
 
 // ── Tipos y helpers ───────────────────────────────────────────────────────
+
+type TipoFilter = "" | "principal" | "complemento";
+
+type CatalogoFilters = {
+  text: string;
+  categoria: string;
+  tipo: TipoFilter;
+};
 
 type CatalogoStats = {
   total: number;
@@ -81,14 +91,35 @@ function computeCatalogoStats(items: TareaCatalogo[]): CatalogoStats {
   };
 }
 
-function filterItems(items: TareaCatalogo[], filterText: string): TareaCatalogo[] {
-  const q = filterText.trim().toLowerCase();
-  if (!q) return items;
-  return items.filter(
-    (t) =>
-      t.nombre.toLowerCase().includes(q) ||
-      (t.categoria?.toLowerCase().includes(q) ?? false),
-  );
+function distinctCategorias(items: TareaCatalogo[]): string[] {
+  const seen = new Map<string, string>();
+  for (const t of items) {
+    const label = t.categoria?.trim();
+    if (label) {
+      const key = label.toLowerCase();
+      if (!seen.has(key)) seen.set(key, label);
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, "es"));
+}
+
+function hasActiveFilters(filters: CatalogoFilters): boolean {
+  return !!(filters.text.trim() || filters.categoria || filters.tipo);
+}
+
+function filterItems(items: TareaCatalogo[], filters: CatalogoFilters): TareaCatalogo[] {
+  const q = filters.text.trim().toLowerCase();
+  const cat = filters.categoria.trim().toLowerCase();
+  const tipo = filters.tipo;
+  return items.filter((t) => {
+    if (q && !(t.nombre.toLowerCase().includes(q) || (t.categoria?.toLowerCase().includes(q) ?? false))) {
+      return false;
+    }
+    if (cat && (t.categoria?.trim().toLowerCase() ?? "") !== cat) return false;
+    if (tipo === "principal" && t.es_complemento) return false;
+    if (tipo === "complemento" && !t.es_complemento) return false;
+    return true;
+  });
 }
 
 function paginateList<T>(items: readonly T[], page: number): PaginatedList<T> {
@@ -221,42 +252,85 @@ function renderKpis(stats: CatalogoStats): string {
   </div>`;
 }
 
-function renderFilters(filterText: string): string {
+function renderFilters(filters: CatalogoFilters, categorias: string[]): string {
+  const catOpts = categorias
+    .map(
+      (c) =>
+        `<option value="${escapeHtml(c)}" ${filters.categoria.toLowerCase() === c.toLowerCase() ? "selected" : ""}>${escapeHtml(c)}</option>`,
+    )
+    .join("");
+
   return `
-  <section class="${RH_LISTADO_SURFACE} tc-filters p-4 sm:p-5" aria-label="Búsqueda de tareas">
+  <section class="${RH_LISTADO_SURFACE} tc-filters p-4 sm:p-5" aria-label="Búsqueda y filtros de tareas">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div class="min-w-0 flex-1 lg:max-w-xl">
-        <label for="tarea-catalogo-search" class="${RH_LISTADO_LABEL}">Buscar tarea</label>
-        <div class="relative">
-          <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">${ICON_SEARCH}</span>
-          <input
-            type="search"
-            id="tarea-catalogo-search"
-            data-action="catalogo-filter"
-            autocomplete="off"
-            placeholder="Nombre o categoría…"
-            value="${escapeHtml(filterText)}"
-            class="tc-search-input block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
-          />
+      <div class="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(9rem,1fr)_minmax(9rem,1fr)] sm:items-end">
+        <div class="min-w-0">
+          <label for="tarea-catalogo-search" class="${RH_LISTADO_LABEL}">Buscar tarea</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">${ICON_SEARCH}</span>
+            <input
+              type="search"
+              id="tarea-catalogo-search"
+              data-action="catalogo-filter"
+              autocomplete="off"
+              placeholder="Nombre o categoría…"
+              value="${escapeHtml(filters.text)}"
+              class="tc-search-input block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}"
+            />
+          </div>
+        </div>
+        <div class="min-w-0">
+          <label for="tarea-catalogo-cat" class="${RH_LISTADO_LABEL}">Categoría</label>
+          <div class="grid grid-cols-1">
+            <select id="tarea-catalogo-cat" data-action="filter-categoria" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+              <option value="" ${filters.categoria === "" ? "selected" : ""}>Todas las categorías</option>
+              ${catOpts}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </div>
+        <div class="min-w-0">
+          <label for="tarea-catalogo-tipo" class="${RH_LISTADO_LABEL}">Tipo</label>
+          <div class="grid grid-cols-1">
+            <select id="tarea-catalogo-tipo" data-action="filter-tipo" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+              <option value="" ${filters.tipo === "" ? "selected" : ""}>Todos los tipos</option>
+              <option value="principal" ${filters.tipo === "principal" ? "selected" : ""}>Principal</option>
+              <option value="complemento" ${filters.tipo === "complemento" ? "selected" : ""}>Complementaria</option>
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </div>
       </div>
-      <button type="button" data-action="add-tarea" class="${RH_LISTADO_BTN_PRIMARY} tc-btn-nueva w-full shrink-0 sm:w-auto">
+      <button type="button" data-action="add-tarea" class="${RH_LISTADO_BTN_PRIMARY} tc-btn-nueva w-full shrink-0 sm:w-auto lg:self-end">
         ${ICON_PLUS}<span>Nueva tarea</span>
       </button>
     </div>
   </section>`;
 }
 
-function renderResultsBar(filterText: string, filteredCount: number, totalCount: number): string {
-  const q = filterText.trim();
-  const text = q
-    ? `<strong class="font-semibold tabular-nums text-text-primary">${filteredCount}</strong> resultado${filteredCount !== 1 ? "s" : ""} para <span class="font-medium text-text-primary">"${escapeHtml(q)}"</span>`
+function renderResultsBar(filters: CatalogoFilters, filteredCount: number, totalCount: number): string {
+  const active = hasActiveFilters(filters);
+  const text = active
+    ? `<strong class="font-semibold tabular-nums text-text-primary">${filteredCount}</strong> de <strong class="tabular-nums text-text-primary">${totalCount}</strong> tarea${totalCount !== 1 ? "s" : ""}`
     : `<strong class="font-semibold tabular-nums text-text-primary">${filteredCount}</strong> tarea${filteredCount !== 1 ? "s" : ""} en catálogo`;
+
+  const chips: string[] = [];
+  if (filters.text.trim()) chips.push(`Búsqueda: "${escapeHtml(filters.text.trim())}"`);
+  if (filters.categoria) chips.push(`Categoría: ${escapeHtml(filters.categoria)}`);
+  if (filters.tipo) chips.push(`Tipo: ${filters.tipo === "principal" ? "Principal" : "Complementaria"}`);
 
   return `
   <div class="tc-results-bar flex flex-wrap items-center justify-between gap-2 px-1" aria-live="polite">
-    <p class="text-sm text-text-secondary">${text}</p>
-    ${q && filteredCount < totalCount ? `<button type="button" data-action="clear-search" class="${RH_LISTADO_BTN_GHOST} !px-2.5 !py-1.5 text-xs">Limpiar búsqueda</button>` : ""}
+    <div class="flex flex-wrap items-center gap-2">
+      <p class="text-sm text-text-secondary">${text}</p>
+      ${chips
+        .map(
+          (c) =>
+            `<span class="inline-flex items-center rounded-full border border-blue-200/80 bg-blue-50/80 px-2.5 py-0.5 text-xs font-medium text-blue-900">${c}</span>`,
+        )
+        .join("")}
+    </div>
+    ${active ? `<button type="button" data-action="clear-search" class="${RH_LISTADO_BTN_GHOST} !px-2.5 !py-1.5 text-xs">Limpiar filtros</button>` : ""}
   </div>`;
 }
 
@@ -342,22 +416,22 @@ function renderEmptyCatalog(): string {
   </div>`;
 }
 
-function renderNoResults(filterText: string): string {
+function renderNoResults(): string {
   return `
   <div class="${RH_LISTADO_SURFACE} tc-empty px-6 py-12 text-center">
     <p class="text-sm font-semibold text-text-primary">Sin resultados</p>
-    <p class="mt-1.5 text-xs text-text-muted">No hay tareas que coincidan con "${escapeHtml(filterText.trim())}".</p>
-    <button type="button" data-action="clear-search" class="${RH_LISTADO_BTN_GHOST} mx-auto mt-4 text-xs">Limpiar búsqueda</button>
+    <p class="mt-1.5 text-xs text-text-muted">No hay tareas que coincidan con los filtros aplicados.</p>
+    <button type="button" data-action="clear-search" class="${RH_LISTADO_BTN_GHOST} mx-auto mt-4 text-xs">Limpiar filtros</button>
   </div>`;
 }
 
 function renderCatalogoTable(
   filtered: TareaCatalogo[],
-  filterText: string,
+  filters: CatalogoFilters,
   listPage: number,
 ): string {
   if (filtered.length === 0) {
-    return filterText.trim() ? renderNoResults(filterText) : renderEmptyCatalog();
+    return hasActiveFilters(filters) ? renderNoResults() : renderEmptyCatalog();
   }
 
   const pg = paginateList(filtered, listPage);
@@ -383,11 +457,11 @@ function renderCatalogoTable(
 
 function renderReadyContent(
   items: TareaCatalogo[],
-  filterText: string,
+  filters: CatalogoFilters,
   listPage: number,
 ): string {
   const stats = computeCatalogoStats(items);
-  const filtered = filterItems(items, filterText);
+  const filtered = filterItems(items, filters);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE) || 1);
   const safePage = Math.min(Math.max(1, listPage), totalPages);
 
@@ -396,9 +470,9 @@ function renderReadyContent(
       ? renderEmptyCatalog()
       : `
     <div class="tc-content-stack flex flex-col gap-4 sm:gap-5">
-      ${renderFilters(filterText)}
-      ${items.length > 0 ? renderResultsBar(filterText, filtered.length, items.length) : ""}
-      ${renderCatalogoTable(filtered, filterText, safePage)}
+      ${renderFilters(filters, distinctCategorias(items))}
+      ${items.length > 0 ? renderResultsBar(filters, filtered.length, items.length) : ""}
+      ${renderCatalogoTable(filtered, filters, safePage)}
     </div>`;
 
   return `
@@ -410,10 +484,13 @@ function renderReadyContent(
   </div>`;
 }
 
-function renderModal(editing: TareaCatalogo | null): string {
+function renderModal(editing: TareaCatalogo | null, categorias: string[]): string {
   const isEdit = !!editing;
   const nombre = editing?.nombre ?? "";
   const categoria = editing?.categoria ?? "";
+  const categoriaOpts = categorias
+    .map((c) => `<option value="${escapeHtml(c)}"></option>`)
+    .join("");
   const es_complemento = editing?.es_complemento ?? false;
   const title = isEdit ? "Editar tarea" : "Nueva tarea";
   const subtitle = isEdit
@@ -436,10 +513,12 @@ function renderModal(editing: TareaCatalogo | null): string {
               placeholder="Descripción de la tarea" />
           </div>
           <div>
-            <label for="tarea-modal-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="text-text-muted font-normal">(opcional)</span></label>
+            <label for="tarea-modal-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="text-text-muted font-normal">(opcional — elige una existente o escribe una nueva)</span></label>
             <input id="tarea-modal-categoria" name="categoria" type="text" value="${escapeHtml(categoria)}"
+              list="tarea-modal-categoria-list" autocomplete="off"
               class="${FIELD_INPUT}"
               placeholder="Ej. logística, calidad, seguridad…" />
+            <datalist id="tarea-modal-categoria-list">${categoriaOpts}</datalist>
           </div>
           <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-3">
             <input id="tarea-modal-complemento" name="es_complemento" type="checkbox" ${es_complemento ? "checked" : ""}
@@ -480,7 +559,7 @@ function renderDeleteConfirm(tarea: TareaCatalogo): string {
 export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal): void {
   let status: "loading" | "ready" | "error" = "loading";
   let items: TareaCatalogo[] = [];
-  let filterText = "";
+  const filters: CatalogoFilters = { text: "", categoria: "", tipo: "" };
   let listPage = 1;
   let errorMessage: string | null = null;
   let editingTarea: TareaCatalogo | null = null;
@@ -512,10 +591,10 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
       return;
     }
 
-    inner.innerHTML = renderReadyContent(items, filterText, listPage);
+    inner.innerHTML = renderReadyContent(items, filters, listPage);
 
     const modalHost = container.querySelector("#tarea-modal-host");
-    if (modalHost) modalHost.innerHTML = showModal ? renderModal(editingTarea) : "";
+    if (modalHost) modalHost.innerHTML = showModal ? renderModal(editingTarea, distinctCategorias(items)) : "";
 
     const deleteHost = container.querySelector("#tarea-delete-host");
     if (deleteHost) deleteHost.innerHTML = deletingTarea ? renderDeleteConfirm(deletingTarea) : "";
@@ -527,7 +606,7 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
     try {
       items = await getTareasCatalogo({ page_size: 200 });
       status = "ready";
-      const filteredCount = filterItems(items, filterText).length;
+      const filteredCount = filterItems(items, filters).length;
       const totalPages = Math.max(1, Math.ceil(filteredCount / PAGE_SIZE) || 1);
       listPage = Math.min(listPage, totalPages);
     } catch (e) {
@@ -563,7 +642,9 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
       }
 
       if (action === "clear-search") {
-        filterText = "";
+        filters.text = "";
+        filters.categoria = "";
+        filters.tipo = "";
         listPage = 1;
         paint();
         return;
@@ -650,10 +731,30 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
       if (target.id === "tarea-catalogo-search") {
         if (searchTimer) clearTimeout(searchTimer);
         searchTimer = setTimeout(() => {
-          filterText = (target as HTMLInputElement).value;
+          filters.text = (target as HTMLInputElement).value;
           listPage = 1;
           paint();
         }, 250);
+      }
+    },
+    { signal },
+  );
+
+  container.addEventListener(
+    "change",
+    (e) => {
+      if (signal.aborted) return;
+      const target = e.target as HTMLElement;
+      if (target.id === "tarea-catalogo-cat") {
+        filters.categoria = (target as HTMLSelectElement).value;
+        listPage = 1;
+        paint();
+        return;
+      }
+      if (target.id === "tarea-catalogo-tipo") {
+        filters.tipo = (target as HTMLSelectElement).value as TipoFilter;
+        listPage = 1;
+        paint();
       }
     },
     { signal },
