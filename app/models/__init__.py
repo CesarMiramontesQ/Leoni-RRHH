@@ -94,6 +94,9 @@ from app.models.evaluacion360 import (
     Eval360Respuesta,
     Eval360Comentario,
     Eval360Resultado,
+    Eval360Plantilla,
+    Eval360PlantillaCompetencia,
+    Eval360PlantillaEvaluadorTipo,
 )
 
 __all__ = [
@@ -192,4 +195,7 @@ __all__ = [
     "Eval360Respuesta",
     "Eval360Comentario",
     "Eval360Resultado",
+    "Eval360Plantilla",
+    "Eval360PlantillaCompetencia",
+    "Eval360PlantillaEvaluadorTipo",
 ]

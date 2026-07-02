@@ -11,12 +11,15 @@ Convenciones:
 """
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.evaluacion360 import (
+    EmpleadoEvaluadoItem,
+    EvaluacionRhItem,
     CampanaCreate,
     CampanaDetalleResponse,
     CampanaListResponse,
@@ -32,9 +35,20 @@ from app.schemas.evaluacion360 import (
     MiEvaluacionResumen,
     ParticipanteResponse,
     PreguntaCreate,
+    CompetenciaCatalogoItem,
+    CursoSugeridoPorCompetencia,
+    GenerarPdiResultado,
+    NineBoxResponse,
+    NineBoxUpdate,
+    PlantillaCreate,
+    PlantillaResponse,
+    PlantillaUpdate,
     PreguntaResponse,
     PreguntaUpdate,
+    RecordatoriosResultado,
+    ReporteIndividualResponse,
     ResultadoParticipanteResponse,
+    ResumenEmpleadoResponse,
     SugerenciaEvaluadorResponse,
 )
 from app.services.evaluacion360_service import Evaluacion360Service
@@ -117,6 +131,15 @@ async def delete_escala(
 # ══════════════════════════════════════════════════════════════════════════════
 # Banco de preguntas
 # ══════════════════════════════════════════════════════════════════════════════
+@router.get("/competencias-catalogo", response_model=list[CompetenciaCatalogoItem])
+async def competencias_catalogo(
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    """Catálogo de competencias (bajo el prefijo 360; no requiere el módulo competencias)."""
+    return await svc.list_competencias_catalogo()
+
+
 @router.get("/preguntas", response_model=list[PreguntaResponse])
 async def list_preguntas(
     competencia_id: int | None = Query(None),
@@ -152,6 +175,63 @@ async def delete_pregunta(
     svc: Evaluacion360Service = Depends(_svc),
 ):
     await svc.delete_pregunta(pregunta_id)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Plantillas
+# ══════════════════════════════════════════════════════════════════════════════
+@router.get("/plantillas", response_model=list[PlantillaResponse])
+async def list_plantillas(
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.list_plantillas()
+
+
+@router.post("/plantillas", response_model=PlantillaResponse, status_code=status.HTTP_201_CREATED)
+async def create_plantilla(
+    data: PlantillaCreate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.create_plantilla(data, current_user)
+
+
+@router.get("/plantillas/{plantilla_id}", response_model=PlantillaResponse)
+async def get_plantilla(
+    plantilla_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_plantilla(plantilla_id)
+
+
+@router.put("/plantillas/{plantilla_id}", response_model=PlantillaResponse)
+async def update_plantilla(
+    plantilla_id: int,
+    data: PlantillaUpdate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.update_plantilla(plantilla_id, data, current_user)
+
+
+@router.delete("/plantillas/{plantilla_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_plantilla(
+    plantilla_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    await svc.delete_plantilla(plantilla_id)
+
+
+@router.post("/recordatorios/procesar", response_model=RecordatoriosResultado)
+async def procesar_recordatorios(
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    """Ejecuta manualmente el ciclo de recordatorios/vencimientos (también corre por scheduler)."""
+    return await svc.procesar_recordatorios()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -205,11 +285,12 @@ async def list_campanas(
     page_size: int = Query(10, ge=1, le=100),
     estado: str | None = Query(None),
     search: str | None = Query(None),
+    tipo: str | None = Query(None, description="evaluacion_360 | desempeno | objetivos"),
     current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: Evaluacion360Service = Depends(_svc),
 ):
     return await svc.list_campanas(
-        page=page, page_size=page_size, estado=estado, search=search
+        page=page, page_size=page_size, estado=estado, search=search, tipo=tipo
     )
 
 
@@ -290,6 +371,29 @@ async def cancelar_campana(
     return await svc.cancelar_campana(campana_id, current_user, background_tasks)
 
 
+@router.get("/empleados-evaluados", response_model=list[EmpleadoEvaluadoItem])
+async def empleados_evaluados(
+    campana_id: int | None = Query(None),
+    estado: str | None = Query(None, description="pendiente | en_progreso | completada"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    """Listado global de empleados evaluados (una fila por participante-campaña)."""
+    return await svc.list_empleados_evaluados(campana_id=campana_id, estado=estado)
+
+
+@router.get("/evaluaciones", response_model=list[EvaluacionRhItem])
+async def list_evaluaciones_rh(
+    campana_id: int | None = Query(None),
+    estado: str | None = Query(None, description="pendiente | en_progreso | completada | vencida"),
+    tipo: str | None = Query(None, description="autoevaluacion | jefe | par | subordinado | cliente_interno | cliente_externo"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    """Listado RH de evaluaciones asignadas en todas las campañas."""
+    return await svc.list_evaluaciones_rh(campana_id=campana_id, estado=estado, tipo=tipo)
+
+
 @router.get("/campanas/{campana_id}/participantes", response_model=list[ParticipanteResponse])
 async def list_participantes(
     campana_id: int,
@@ -324,3 +428,97 @@ async def resultado_participante(
     svc: Evaluacion360Service = Depends(_svc),
 ):
     return await svc.get_resultado_participante(participante_id)
+
+
+@router.get("/participantes/{participante_id}/reporte", response_model=ReporteIndividualResponse)
+async def reporte_individual(
+    participante_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_reporte_individual(participante_id)
+
+
+def _export_headers(nombre: str, formato: str) -> tuple[str, str]:
+    if formato == "excel":
+        return (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            f"attachment; filename={nombre}.xlsx",
+        )
+    return ("application/pdf", f"attachment; filename={nombre}.pdf")
+
+
+@router.get("/participantes/{participante_id}/reporte/export")
+async def export_reporte_individual(
+    participante_id: int,
+    formato: str = Query("pdf", description="pdf o excel"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    output = await svc.export_reporte_individual(participante_id, formato)
+    media, disp = _export_headers(f"reporte_360_{participante_id}", formato)
+    return StreamingResponse(output, media_type=media, headers={"Content-Disposition": disp})
+
+
+@router.get("/campanas/{campana_id}/resultados/export")
+async def export_resultados_campana(
+    campana_id: int,
+    formato: str = Query("pdf", description="pdf o excel"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    output = await svc.export_resultados_campana(campana_id, formato)
+    media, disp = _export_headers(f"resultados_360_{campana_id}", formato)
+    return StreamingResponse(output, media_type=media, headers={"Content-Disposition": disp})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Fase 4: Capacitación / PDI / perfil del empleado
+# ══════════════════════════════════════════════════════════════════════════════
+@router.get("/participantes/{participante_id}/cursos-sugeridos", response_model=list[CursoSugeridoPorCompetencia])
+async def cursos_sugeridos(
+    participante_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_cursos_sugeridos(participante_id)
+
+
+@router.post("/participantes/{participante_id}/generar-pdi", response_model=GenerarPdiResultado)
+async def generar_pdi(
+    participante_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.generar_pdi(participante_id, current_user)
+
+
+@router.get("/empleados/{empleado_id}/resumen", response_model=ResumenEmpleadoResponse)
+async def resumen_empleado(
+    empleado_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_resumen_empleado(empleado_id)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Fase 5: Matriz 9-Box / talento
+# ══════════════════════════════════════════════════════════════════════════════
+@router.get("/campanas/{campana_id}/9box", response_model=NineBoxResponse)
+async def get_9box(
+    campana_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.get_9box(campana_id)
+
+
+@router.put("/participantes/{participante_id}/9box", response_model=ResultadoParticipanteResponse)
+async def set_9box(
+    participante_id: int,
+    data: NineBoxUpdate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    return await svc.set_9box(participante_id, data)

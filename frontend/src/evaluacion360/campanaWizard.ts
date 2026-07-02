@@ -3,13 +3,16 @@
 // Autónomo: monta su propio overlay, gestiona su estado y, al crear la campaña,
 // invoca onCreated() y se desmonta. No depende del paint() de la página.
 
-import { getCompetencias } from "../api/competencias.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import {
   createEval360Campana,
+  createEval360Plantilla,
+  fetchEval360CompetenciasCatalogo,
   fetchEval360Escalas,
+  fetchEval360Plantillas,
   type CampanaCreatePayload,
   type EscalaApi,
+  type PlantillaApi,
   type TipoEvaluadorApi,
 } from "../api/evaluacion360.ts";
 import { BTN_GHOST, BTN_PRIMARY, BTN_SECONDARY, FIELD_INPUT, FIELD_TEXTAREA, MODAL_OVERLAY } from "../ui/uiTokens.ts";
@@ -60,8 +63,9 @@ interface WizardState {
     fecha_limite: string;
   };
   // catálogos / búsqueda
-  catalogo: { id: number; nombre: string }[] | null;
+  catalogo: { id: number; nombre: string; num_preguntas: number }[] | null;
   escalas: EscalaApi[] | null;
+  plantillas: PlantillaApi[] | null;
   busqueda: string;
   resultados: ParticipanteSel[];
   buscando: boolean;
@@ -106,6 +110,7 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
     },
     catalogo: null,
     escalas: null,
+    plantillas: null,
     busqueda: "",
     resultados: [],
     buscando: false,
@@ -140,12 +145,10 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
 
   async function ensureCatalogo(): Promise<void> {
     if (st.catalogo !== null) return;
-    try {
-      const comps = await getCompetencias({ page_size: 300 });
-      st.catalogo = comps.map((c) => ({ id: c.id, nombre: c.nombre }));
-    } catch {
-      st.catalogo = [];
-    }
+    const comps = await fetchEval360CompetenciasCatalogo();
+    st.catalogo = comps.map((c) => ({
+      id: c.id, nombre: c.nombre, num_preguntas: c.num_preguntas,
+    }));
     render();
   }
 
@@ -154,6 +157,72 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
     st.escalas = await fetchEval360Escalas();
     if (st.escala_id === null && st.escalas.length > 0) st.escala_id = st.escalas[0].id;
     render();
+  }
+
+  async function ensurePlantillas(): Promise<void> {
+    if (st.plantillas !== null) return;
+    st.plantillas = await fetchEval360Plantillas();
+    render();
+  }
+
+  function aplicarPlantilla(id: number): void {
+    const pl = st.plantillas?.find((p) => p.id === id);
+    if (!pl) return;
+    st.competencias = pl.competencias.map((c) => ({
+      competencia_id: c.competencia_id,
+      nombre: c.competencia_nombre ?? `#${c.competencia_id}`,
+      peso: c.peso,
+      num_preguntas: c.num_preguntas,
+      nivel_esperado: c.nivel_esperado,
+      obligatoria: c.obligatoria,
+    }));
+    for (const t of TIPOS) st.evaluadores[t.tipo] = { activo: false, peso: 0 };
+    for (const t of pl.evaluador_tipos) {
+      st.evaluadores[t.tipo] = { activo: t.activo, peso: t.peso };
+    }
+    if (pl.escala_id != null) st.escala_id = pl.escala_id;
+    const cfg = (pl.config ?? {}) as Record<string, unknown>;
+    st.cfg = {
+      anonima: Boolean(cfg.anonima),
+      comentarios_obligatorios: Boolean(cfg.comentarios_obligatorios),
+      permitir_borradores: cfg.permitir_borradores !== false,
+      mostrar_progreso: cfg.mostrar_progreso !== false,
+      fecha_limite: typeof cfg.fecha_limite === "string" ? cfg.fecha_limite : "",
+    };
+    st.error = null;
+    render();
+  }
+
+  async function guardarComoPlantilla(): Promise<void> {
+    if (st.competencias.length === 0) {
+      st.error = "Agrega competencias antes de guardar la plantilla.";
+      render();
+      return;
+    }
+    const nombre = window.prompt("Nombre de la plantilla:", st.nombre || "Nueva plantilla");
+    if (!nombre) return;
+    const res = await createEval360Plantilla({
+      nombre: nombre.trim(),
+      escala_id: st.escala_id,
+      competencias: st.competencias.map((c, i) => ({
+        competencia_id: c.competencia_id, peso: Number(c.peso) || 0,
+        num_preguntas: c.num_preguntas, nivel_esperado: c.nivel_esperado,
+        obligatoria: c.obligatoria, orden: i,
+      })),
+      evaluador_tipos: TIPOS.map((t) => ({
+        tipo: t.tipo, peso: Number(st.evaluadores[t.tipo].peso) || 0,
+        activo: st.evaluadores[t.tipo].activo,
+      })),
+      config: {
+        anonima: st.cfg.anonima,
+        comentarios_obligatorios: st.cfg.comentarios_obligatorios,
+        permitir_borradores: st.cfg.permitir_borradores,
+        mostrar_progreso: st.cfg.mostrar_progreso,
+      },
+    });
+    st.plantillas = null;
+    window.alert(res ? "Plantilla guardada." : "No se pudo guardar la plantilla.");
+    void ensurePlantillas();
   }
 
   async function buscarEmpleados(): Promise<void> {
@@ -246,7 +315,18 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
   }
 
   function stepInfo(): string {
+    const plOpts =
+      st.plantillas === null
+        ? '<option>Cargando…</option>'
+        : [`<option value="">Sin plantilla (configurar manualmente)</option>`]
+            .concat(st.plantillas.map((p) => `<option value="${p.id}">${escapeHtml(p.nombre)}</option>`))
+            .join("");
     return `
+      <div class="mb-4 rounded-lg border border-dashed border-border bg-slate-50/60 p-3">
+        <label class="mb-1 block text-xs font-medium text-text-muted">Usar plantilla (opcional)</label>
+        <select data-wz-select="plantilla" class="${FIELD_INPUT}">${plOpts}</select>
+        <p class="mt-1 text-[11px] text-text-muted">Prellena competencias, evaluadores y configuración desde una plantilla guardada.</p>
+      </div>
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="sm:col-span-2">
           <label class="mb-1 block text-xs font-medium text-text-muted">Nombre de la campaña *</label>
@@ -272,13 +352,25 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
   }
 
   function stepCompetencias(): string {
+    // Catálogo vacío → aviso claro (no hay competencias activas en el sistema).
+    if (st.catalogo !== null && st.catalogo.length === 0) {
+      return `
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-center">
+          <p class="text-sm font-semibold text-amber-900">No hay competencias disponibles</p>
+          <p class="mt-1 text-sm text-amber-800">El módulo reutiliza el catálogo de competencias existente. Pide a RH crear competencias (módulo <span class="font-medium">Competencias</span>) y, en Ajustes de Evaluación 360°, registrar preguntas por competencia. Luego vuelve a crear la campaña.</p>
+        </div>`;
+    }
+    const disponibles = (st.catalogo ?? []).filter(
+      (c) => !st.competencias.some((s) => s.competencia_id === c.id),
+    );
     const opciones =
       st.catalogo === null
         ? '<option>Cargando…</option>'
-        : st.catalogo
-            .filter((c) => !st.competencias.some((s) => s.competencia_id === c.id))
-            .map((c) => `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`)
-            .join("");
+        : disponibles.length === 0
+          ? '<option value="">Todas las competencias ya están agregadas</option>'
+          : disponibles
+              .map((c) => `<option value="${c.id}">${escapeHtml(c.nombre)}${c.num_preguntas === 0 ? " · ⚠ sin preguntas" : ` · ${c.num_preguntas} preg.`}</option>`)
+              .join("");
     const filas = st.competencias
       .map(
         (c, idx) => `
@@ -429,6 +521,7 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
         <div class="sticky bottom-0 flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4">
           <button type="button" class="${BTN_GHOST} ${st.step === 1 ? "invisible" : ""}" data-wz="prev">Anterior</button>
           <div class="flex gap-2">
+            ${st.step >= 4 ? `<button type="button" class="${BTN_GHOST}" data-wz="guardar-plantilla">Guardar como plantilla</button>` : ""}
             <button type="button" class="${BTN_SECONDARY}" data-wz="close">Cancelar</button>
             ${
               st.step < PASOS.length
@@ -439,6 +532,7 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
         </div>
       </div>`;
     bind();
+    if (st.step === 1) void ensurePlantillas();
     if (st.step === 2) void ensureCatalogo();
     if (st.step === 5) void ensureEscalas();
   }
@@ -492,6 +586,10 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
     });
     overlay.querySelector<HTMLSelectElement>('[data-wz-select="escala"]')?.addEventListener("change", (e) => {
       st.escala_id = Number((e.target as HTMLSelectElement).value);
+    });
+    overlay.querySelector<HTMLSelectElement>('[data-wz-select="plantilla"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) aplicarPlantilla(id);
     });
     overlay.querySelector<HTMLInputElement>('[data-wz-input="busqueda"]')?.addEventListener("input", (e) => {
       st.busqueda = (e.target as HTMLInputElement).value;
@@ -549,6 +647,9 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
       case "del-emp":
         st.participantes = st.participantes.filter((p) => p.empleado_id !== Number(target.dataset.id));
         render();
+        break;
+      case "guardar-plantilla":
+        void guardarComoPlantilla();
         break;
       case "submit":
         void submit();

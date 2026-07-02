@@ -21,12 +21,13 @@ usa flush() (via el repositorio).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from io import BytesIO
 from typing import Optional, Sequence
 
 from fastapi import BackgroundTasks
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -46,11 +47,19 @@ from app.models.evaluacion360 import (
     Eval360Escala,
     Eval360Evaluacion,
     Eval360Participante,
+    Eval360Plantilla,
+    Eval360PlantillaCompetencia,
+    Eval360PlantillaEvaluadorTipo,
     Eval360Pregunta,
     Eval360Respuesta,
     Eval360Resultado,
 )
-from app.models.talento import Competencia, PerfilFunciones
+from app.models.talento import (
+    Capacitacion,
+    Competencia,
+    PerfilFunciones,
+    PlanDesarrolloIndividual,
+)
 from app.repositories.evaluacion360_repository import Evaluacion360Repository
 from app.schemas.evaluacion360 import (
     CampanaAvance,
@@ -60,14 +69,22 @@ from app.schemas.evaluacion360 import (
     CampanaEvaluadorTipoResponse,
     CampanaListResponse,
     CampanaResponse,
+    CampanaCompetenciaIn,
+    CampanaConfigIn,
+    EmpleadoEvaluadoItem,
+    EvaluacionRhItem,
+    CampanaEvaluadorTipoIn,
     CampanaUpdate,
     ComentarioIn,
+    ComentarioReporte,
+    CompetenciaCatalogoItem,
     CompetenciaEvaluacion,
     ConfigResponse,
     ConfigUpdate,
     DashboardKpis,
     DashboardResponse,
     DashboardSeriePunto,
+    EvolucionPunto,
     EscalaCreate,
     EscalaResponse,
     EscalaUpdate,
@@ -79,9 +96,22 @@ from app.schemas.evaluacion360 import (
     PreguntaEvaluacion,
     PreguntaResponse,
     PreguntaUpdate,
+    PlantillaCreate,
+    PlantillaResponse,
+    PlantillaUpdate,
+    CursoSugeridoItem,
+    CursoSugeridoPorCompetencia,
+    GenerarPdiResultado,
+    NineBoxCelda,
+    NineBoxResponse,
+    NineBoxUpdate,
+    RecordatoriosResultado,
+    ReporteIndividualResponse,
     ResultadoCompetencia,
     ResultadoParticipanteResponse,
+    ResumenEmpleadoResponse,
     SugerenciaEvaluadorResponse,
+    TalentoSegmentoResumen,
 )
 from app.services.notificacion_service import NotificacionService
 from app.utils.audit_logger import audit_background
@@ -102,6 +132,13 @@ def _f(value) -> Optional[float]:
     if isinstance(value, Decimal):
         return float(value)
     return float(value)
+
+
+def _fmt(value) -> str:
+    """Formatea un número (o None) para celdas de PDF."""
+    if value is None:
+        return "—"
+    return f"{float(value):.2f}"
 
 
 class Evaluacion360Service:
@@ -208,6 +245,33 @@ class Evaluacion360Service:
     # ══════════════════════════════════════════════════════════════════════════
     # Banco de preguntas
     # ══════════════════════════════════════════════════════════════════════════
+    async def list_competencias_catalogo(self) -> list[CompetenciaCatalogoItem]:
+        """Catálogo de competencias activas para el wizard (bajo el prefijo 360,
+        para no exigir el módulo `competencias`). Incluye el nº de preguntas."""
+        competencias = (
+            await self.db.execute(
+                select(Competencia)
+                .where(Competencia.activo.is_(True))
+                .order_by(Competencia.nombre)
+            )
+        ).scalars().all()
+        conteos: dict[int, int] = {}
+        for row in (
+            await self.db.execute(
+                select(Eval360Pregunta.competencia_id, func.count())
+                .where(Eval360Pregunta.activo.is_(True))
+                .group_by(Eval360Pregunta.competencia_id)
+            )
+        ).all():
+            conteos[row[0]] = row[1]
+        return [
+            CompetenciaCatalogoItem(
+                id=c.id, nombre=c.nombre, categoria=c.categoria,
+                num_preguntas=conteos.get(c.id, 0),
+            )
+            for c in competencias
+        ]
+
     async def list_preguntas(
         self, competencia_id: Optional[int] = None
     ) -> list[PreguntaResponse]:
@@ -257,10 +321,13 @@ class Evaluacion360Service:
         page_size: int = 10,
         estado: Optional[str] = None,
         search: Optional[str] = None,
+        tipo: Optional[str] = None,
     ) -> CampanaListResponse:
         filters = [Eval360Campana.activo.is_(True)]
         if estado:
             filters.append(Eval360Campana.estado == estado)
+        if tipo:
+            filters.append(Eval360Campana.tipo == tipo)
         if search:
             filters.append(Eval360Campana.nombre.ilike(f"%{search}%"))
         campanas, total = await self.repo.list_campanas(filters, page, page_size)
@@ -305,6 +372,36 @@ class Evaluacion360Service:
         self, data: CampanaCreate, current_user: Empleado, background_tasks: BackgroundTasks
     ) -> CampanaDetalleResponse:
         self._validar_fechas(data.fecha_inicio, data.fecha_cierre)
+
+        # Aplicar plantilla: si se indica plantilla_id y no se enviaron
+        # competencias/evaluadores/escala/config, se copian de la plantilla.
+        competencias = data.competencias
+        evaluador_tipos = data.evaluador_tipos
+        escala_id = data.escala_id
+        config = data.config
+        if data.plantilla_id:
+            plantilla = await self.repo.get_plantilla(data.plantilla_id)
+            if not plantilla:
+                raise NotFoundError("Plantilla no encontrada")
+            if not competencias:
+                competencias = [
+                    CampanaCompetenciaIn(
+                        competencia_id=c.competencia_id, peso=_f(c.peso) or 0.0,
+                        num_preguntas=c.num_preguntas, nivel_esperado=c.nivel_esperado,
+                        obligatoria=c.obligatoria, orden=c.orden,
+                    )
+                    for c in plantilla.competencias
+                ]
+            if not evaluador_tipos:
+                evaluador_tipos = [
+                    CampanaEvaluadorTipoIn(tipo=t.tipo, peso=_f(t.peso) or 0.0, activo=t.activo)
+                    for t in plantilla.evaluador_tipos
+                ]
+            if escala_id is None:
+                escala_id = plantilla.escala_id
+            if config is None and plantilla.config:
+                config = CampanaConfigIn(**plantilla.config)
+
         campana = Eval360Campana(
             nombre=data.nombre,
             descripcion=data.descripcion,
@@ -312,17 +409,17 @@ class Evaluacion360Service:
             fecha_inicio=data.fecha_inicio,
             fecha_cierre=data.fecha_cierre,
             tipo=data.tipo or "evaluacion_360",
-            escala_id=data.escala_id,
+            escala_id=escala_id,
             plantilla_id=data.plantilla_id,
             estado="borrador",
-            config=data.config.model_dump(mode="json") if data.config else None,
+            config=config.model_dump(mode="json") if config else None,
             created_by=current_user.empleado_id,
         )
         self.db.add(campana)
         await self.db.flush()
 
-        await self._sync_competencias(campana, data.competencias)
-        await self._sync_evaluador_tipos(campana, data.evaluador_tipos)
+        await self._sync_competencias(campana, competencias)
+        await self._sync_evaluador_tipos(campana, evaluador_tipos)
         await self._sync_participantes(campana, data.empleado_ids)
         await self.db.flush()
 
@@ -446,6 +543,24 @@ class Evaluacion360Service:
         campana.estado = "cerrada"
         campana.updated_by = current_user.empleado_id
         await self.db.flush()
+
+        # Notificar a los evaluados que su resultado está disponible.
+        config = await self.get_or_create_config()
+        for p in await self.repo.list_participantes(campana_id):
+            asunto, cuerpo = self._texto_correo(
+                config, "finalizada",
+                asunto_def="Tu Evaluación 360° ha finalizado",
+                cuerpo_def=(
+                    f"La campaña '{campana.nombre}' ha finalizado. "
+                    f"Tus resultados ya están disponibles."
+                ),
+                campana=campana.nombre,
+            )
+            await self._enviar_a_empleado(
+                p.empleado_id, asunto, cuerpo,
+                metadata={"campana_id": campana.id, "evento": "finalizada"},
+            )
+
         audit_background(
             background_tasks, self.db, "CAMPANA_CERRAR", AUDIT_MODULE,
             usuario_id=current_user.empleado_id, entidad_id=campana.id,
@@ -489,6 +604,70 @@ class Evaluacion360Service:
                 evaluaciones_total=total,
                 evaluaciones_completadas=completadas,
                 avance=round(completadas / total * 100, 1) if total else 0.0,
+            ))
+        return out
+
+    async def list_empleados_evaluados(
+        self,
+        campana_id: Optional[int] = None,
+        estado: Optional[str] = None,
+    ) -> list[EmpleadoEvaluadoItem]:
+        """Listado global de empleados evaluados (una fila por participante-campaña)."""
+        filas = await self.repo.list_empleados_evaluados(campana_id=campana_id, estado=estado)
+        out: list[EmpleadoEvaluadoItem] = []
+        for participante, campana, resultado in filas:
+            total = len(participante.evaluaciones)
+            completadas = sum(1 for e in participante.evaluaciones if e.estado == "completada")
+            emp = participante.empleado
+            out.append(EmpleadoEvaluadoItem(
+                participante_id=participante.id,
+                empleado_id=participante.empleado_id,
+                nombre=emp.nombre if emp else None,
+                no_empleado=emp.no_empleado if emp else None,
+                puesto=self._puesto_nombre(emp),
+                area=self._area_nombre(emp),
+                campana_id=campana.id,
+                campana_nombre=campana.nombre,
+                estado=participante.estado,
+                calificacion_general=(
+                    float(resultado.calificacion_general)
+                    if resultado and resultado.calificacion_general is not None
+                    else None
+                ),
+                evaluaciones_total=total,
+                evaluaciones_completadas=completadas,
+                avance=round(completadas / total * 100, 1) if total else 0.0,
+            ))
+        return out
+
+    async def list_evaluaciones_rh(
+        self,
+        campana_id: Optional[int] = None,
+        estado: Optional[str] = None,
+        tipo: Optional[str] = None,
+    ) -> list[EvaluacionRhItem]:
+        """Listado RH de evaluaciones asignadas (todas las campañas)."""
+        filas = await self.repo.list_evaluaciones_rh(
+            campana_id=campana_id, estado=estado, tipo=tipo
+        )
+        out: list[EvaluacionRhItem] = []
+        for ev, campana in filas:
+            evaluado = ev.participante.empleado if ev.participante else None
+            evaluador_nombre = (
+                ev.evaluador.nombre if ev.evaluador else ev.evaluador_nombre
+            )
+            out.append(EvaluacionRhItem(
+                id=ev.id,
+                campana_id=ev.campana_id,
+                campana_nombre=campana.nombre,
+                evaluado_nombre=evaluado.nombre if evaluado else None,
+                evaluador_nombre=evaluador_nombre,
+                tipo_evaluador=ev.tipo_evaluador,
+                estado=ev.estado,
+                fecha_asignacion=(
+                    ev.fecha_asignacion.date().isoformat() if ev.fecha_asignacion else None
+                ),
+                fecha_limite=ev.fecha_limite.isoformat() if ev.fecha_limite else None,
             ))
         return out
 
@@ -681,6 +860,639 @@ class Evaluacion360Service:
         await self._calcular_resultados_participante(participante, campana)
         await self.db.flush()
         return await self._resultado_participante(participante_id)
+
+    async def get_reporte_individual(
+        self, participante_id: int
+    ) -> ReporteIndividualResponse:
+        """Reporte individual completo: promedios, brechas, comentarios y evolucion."""
+        participante = await self.repo.get_participante(participante_id)
+        if not participante:
+            raise NotFoundError("Participante no encontrado")
+        campana = await self.repo.get_campana_detalle(participante.campana_id)
+        await self._calcular_resultados_participante(participante, campana)
+        await self.db.flush()
+
+        base = await self._resultado_participante(participante_id)
+
+        # Promedios auto vs externo (media entre competencias).
+        autos = [c.autoevaluacion for c in base.competencias if c.autoevaluacion is not None]
+        externos: list[float] = []
+        for c in base.competencias:
+            if c.promedio_por_tipo:
+                vals = [v for t, v in c.promedio_por_tipo.items() if t != "autoevaluacion"]
+                if vals:
+                    externos.append(sum(vals) / len(vals))
+        promedio_auto = round(sum(autos) / len(autos), 2) if autos else None
+        promedio_externo = round(sum(externos) / len(externos), 2) if externos else None
+
+        # Comentarios agrupados por competencia/tipo.
+        comp_nombres = await self._competencia_nombres(
+            [c.competencia_id for c in campana.competencias]
+        )
+        comentarios: list[ComentarioReporte] = []
+        for com, tipo in await self.repo.list_comentarios_participante(participante_id):
+            comentarios.append(ComentarioReporte(
+                tipo_evaluador=tipo,
+                competencia_id=com.competencia_id,
+                competencia_nombre=comp_nombres.get(com.competencia_id) if com.competencia_id else None,
+                texto=com.texto,
+                tipo=com.tipo,
+            ))
+
+        # Evolucion historica (calificacion global por campana del empleado).
+        evolucion: list[EvolucionPunto] = []
+        for part, camp, res in await self.repo.list_resultados_globales_empleado(
+            participante.empleado_id
+        ):
+            evolucion.append(EvolucionPunto(
+                campana_id=camp.id,
+                campana_nombre=camp.nombre,
+                fecha=camp.fecha_cierre,
+                calificacion_general=_f(res.calificacion_general),
+            ))
+
+        return ReporteIndividualResponse(
+            participante_id=participante_id,
+            empleado_id=participante.empleado_id,
+            empleado_nombre=participante.empleado.nombre if participante.empleado else None,
+            puesto=self._puesto_nombre(participante.empleado),
+            area=self._area_nombre(participante.empleado),
+            campana_id=campana.id,
+            campana_nombre=campana.nombre,
+            calificacion_general=base.calificacion_general,
+            promedio_autoevaluacion=promedio_auto,
+            promedio_externo=promedio_externo,
+            competencias=base.competencias,
+            fortalezas=base.fortalezas,
+            oportunidades=base.oportunidades,
+            comentarios=comentarios,
+            evolucion=evolucion,
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Exportacion (PDF / Excel)
+    # ══════════════════════════════════════════════════════════════════════════
+    async def export_reporte_individual(self, participante_id: int, formato: str) -> BytesIO:
+        rep = await self.get_reporte_individual(participante_id)
+        if formato == "excel":
+            return self._reporte_individual_excel(rep)
+        return self._reporte_individual_pdf(rep)
+
+    async def export_resultados_campana(self, campana_id: int, formato: str) -> BytesIO:
+        resultados = await self.get_resultados_campana(campana_id)
+        campana = await self.repo.get_campana(campana_id)
+        nombre = campana.nombre if campana else "Campaña"
+        if formato == "excel":
+            return self._resultados_campana_excel(nombre, resultados)
+        return self._resultados_campana_pdf(nombre, resultados)
+
+    def _reporte_individual_excel(self, rep: ReporteIndividualResponse) -> BytesIO:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reporte 360"
+        ws.cell(row=1, column=1, value="Reporte Evaluación 360°").font = Font(bold=True, size=14)
+        ws.cell(row=2, column=1, value="Colaborador")
+        ws.cell(row=2, column=2, value=rep.empleado_nombre or "—")
+        ws.cell(row=3, column=1, value="Puesto")
+        ws.cell(row=3, column=2, value=rep.puesto or "—")
+        ws.cell(row=4, column=1, value="Campaña")
+        ws.cell(row=4, column=2, value=rep.campana_nombre or "—")
+        ws.cell(row=5, column=1, value="Calificación general")
+        ws.cell(row=5, column=2, value=rep.calificacion_general)
+        ws.cell(row=6, column=1, value="Autoevaluación / Externo")
+        ws.cell(row=6, column=2, value=f"{rep.promedio_autoevaluacion} / {rep.promedio_externo}")
+
+        headers = ["Competencia", "Promedio", "Autoevaluación", "Nivel esperado", "Brecha", "Estado"]
+        r = 8
+        for col, h in enumerate(headers, 1):
+            ws.cell(row=r, column=col, value=h).font = Font(bold=True)
+        for c in rep.competencias:
+            r += 1
+            ws.cell(row=r, column=1, value=c.competencia_nombre or "—")
+            ws.cell(row=r, column=2, value=c.promedio_general)
+            ws.cell(row=r, column=3, value=c.autoevaluacion)
+            ws.cell(row=r, column=4, value=c.nivel_esperado)
+            ws.cell(row=r, column=5, value=c.brecha)
+            ws.cell(row=r, column=6, value=c.estado_brecha)
+
+        r += 2
+        ws.cell(row=r, column=1, value="Comentarios").font = Font(bold=True)
+        for com in rep.comentarios:
+            r += 1
+            ws.cell(row=r, column=1, value=com.competencia_nombre or "General")
+            ws.cell(row=r, column=2, value=com.tipo_evaluador or "")
+            ws.cell(row=r, column=3, value=com.texto)
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
+
+    def _reporte_individual_pdf(self, rep: ReporteIndividualResponse) -> BytesIO:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        output = BytesIO()
+        doc = SimpleDocTemplate(output, pagesize=A4)
+        styles = getSampleStyleSheet()
+        el = []
+        el.append(Paragraph("Reporte Evaluación 360°", styles["Title"]))
+        el.append(Paragraph(f"Colaborador: {rep.empleado_nombre or '—'}", styles["Normal"]))
+        el.append(Paragraph(f"Puesto: {rep.puesto or '—'}", styles["Normal"]))
+        el.append(Paragraph(f"Campaña: {rep.campana_nombre or '—'}", styles["Normal"]))
+        el.append(Paragraph(
+            f"Calificación general: {rep.calificacion_general}  ·  "
+            f"Auto: {rep.promedio_autoevaluacion}  ·  Externo: {rep.promedio_externo}",
+            styles["Normal"],
+        ))
+        el.append(Spacer(1, 12))
+
+        data = [["Competencia", "Prom.", "Auto", "Esperado", "Brecha", "Estado"]]
+        for c in rep.competencias:
+            data.append([
+                (c.competencia_nombre or "—")[:32],
+                _fmt(c.promedio_general), _fmt(c.autoevaluacion),
+                _fmt(c.nivel_esperado), _fmt(c.brecha), c.estado_brecha or "—",
+            ])
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0A1628")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ]))
+        el.append(table)
+
+        if rep.comentarios:
+            el.append(Spacer(1, 12))
+            el.append(Paragraph("Comentarios", styles["Heading3"]))
+            for com in rep.comentarios:
+                etiqueta = com.competencia_nombre or "General"
+                el.append(Paragraph(
+                    f"<b>{etiqueta}</b> ({com.tipo_evaluador or 's/d'}): {com.texto}",
+                    styles["Normal"],
+                ))
+        doc.build(el)
+        output.seek(0)
+        return output
+
+    def _resultados_campana_excel(
+        self, nombre: str, resultados: list[ResultadoParticipanteResponse]
+    ) -> BytesIO:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Resultados"
+        ws.cell(row=1, column=1, value=f"Resultados — {nombre}").font = Font(bold=True, size=14)
+        headers = ["Colaborador", "Puesto", "Calificación general", "Fortalezas", "Oportunidades"]
+        for col, h in enumerate(headers, 1):
+            ws.cell(row=3, column=col, value=h).font = Font(bold=True)
+        for i, r in enumerate(resultados, 4):
+            ws.cell(row=i, column=1, value=r.empleado_nombre or "—")
+            ws.cell(row=i, column=2, value=r.puesto or "—")
+            ws.cell(row=i, column=3, value=r.calificacion_general)
+            ws.cell(row=i, column=4, value=", ".join(r.fortalezas))
+            ws.cell(row=i, column=5, value=", ".join(r.oportunidades))
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
+
+    def _resultados_campana_pdf(
+        self, nombre: str, resultados: list[ResultadoParticipanteResponse]
+    ) -> BytesIO:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        output = BytesIO()
+        doc = SimpleDocTemplate(output, pagesize=landscape(A4))
+        styles = getSampleStyleSheet()
+        el = [Paragraph(f"Resultados 360° — {nombre}", styles["Title"]),
+              Paragraph(f"Fecha: {date.today().isoformat()}", styles["Normal"]),
+              Spacer(1, 12)]
+        data = [["Colaborador", "Puesto", "Calif. general", "Fortalezas", "Oportunidades"]]
+        for r in resultados:
+            data.append([
+                (r.empleado_nombre or "—")[:28],
+                (r.puesto or "—")[:24],
+                _fmt(r.calificacion_general),
+                ", ".join(r.fortalezas)[:40],
+                ", ".join(r.oportunidades)[:40],
+            ])
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0A1628")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ]))
+        el.append(table)
+        doc.build(el)
+        output.seek(0)
+        return output
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Plantillas
+    # ══════════════════════════════════════════════════════════════════════════
+    async def list_plantillas(self) -> list[PlantillaResponse]:
+        plantillas = await self.repo.list_plantillas(solo_activas=True)
+        return [await self._plantilla_to_response(p) for p in plantillas]
+
+    async def get_plantilla(self, plantilla_id: int) -> PlantillaResponse:
+        plantilla = await self.repo.get_plantilla(plantilla_id)
+        if not plantilla or not plantilla.activo:
+            raise NotFoundError("Plantilla no encontrada")
+        return await self._plantilla_to_response(plantilla)
+
+    async def create_plantilla(
+        self, data: PlantillaCreate, current_user: Empleado
+    ) -> PlantillaResponse:
+        plantilla = Eval360Plantilla(
+            nombre=data.nombre,
+            descripcion=data.descripcion,
+            escala_id=data.escala_id,
+            config=data.config.model_dump(mode="json") if data.config else None,
+            created_by=current_user.empleado_id,
+        )
+        self.db.add(plantilla)
+        await self.db.flush()
+        self._sync_plantilla_hijos(plantilla, data.competencias, data.evaluador_tipos)
+        await self.db.flush()
+        return await self.get_plantilla(plantilla.id)
+
+    async def update_plantilla(
+        self, plantilla_id: int, data: PlantillaUpdate, current_user: Empleado
+    ) -> PlantillaResponse:
+        plantilla = await self.repo.get_plantilla(plantilla_id)
+        if not plantilla or not plantilla.activo:
+            raise NotFoundError("Plantilla no encontrada")
+        payload = data.model_dump(exclude_unset=True)
+        for field in ("nombre", "descripcion", "escala_id", "activo"):
+            if field in payload:
+                setattr(plantilla, field, payload[field])
+        if "config" in payload and data.config is not None:
+            plantilla.config = data.config.model_dump(mode="json")
+        if data.competencias is not None or data.evaluador_tipos is not None:
+            for c in list(plantilla.competencias):
+                await self.db.delete(c)
+            for t in list(plantilla.evaluador_tipos):
+                await self.db.delete(t)
+            await self.db.flush()
+            self._sync_plantilla_hijos(
+                plantilla,
+                data.competencias or [],
+                data.evaluador_tipos or [],
+            )
+        plantilla.updated_by = current_user.empleado_id
+        await self.db.flush()
+        return await self.get_plantilla(plantilla.id)
+
+    async def delete_plantilla(self, plantilla_id: int) -> None:
+        plantilla = await self.repo.get_plantilla(plantilla_id)
+        if not plantilla or not plantilla.activo:
+            raise NotFoundError("Plantilla no encontrada")
+        plantilla.activo = False
+        await self.db.flush()
+
+    def _sync_plantilla_hijos(
+        self, plantilla: Eval360Plantilla, competencias, evaluador_tipos
+    ) -> None:
+        for c in competencias:
+            self.db.add(Eval360PlantillaCompetencia(
+                plantilla_id=plantilla.id, competencia_id=c.competencia_id,
+                peso=c.peso, num_preguntas=c.num_preguntas,
+                nivel_esperado=c.nivel_esperado, obligatoria=c.obligatoria, orden=c.orden,
+            ))
+        for t in evaluador_tipos:
+            self.db.add(Eval360PlantillaEvaluadorTipo(
+                plantilla_id=plantilla.id, tipo=t.tipo, peso=t.peso, activo=t.activo,
+            ))
+
+    async def _plantilla_to_response(self, plantilla: Eval360Plantilla) -> PlantillaResponse:
+        comp_nombres = await self._competencia_nombres(
+            [c.competencia_id for c in plantilla.competencias]
+        )
+        return PlantillaResponse(
+            id=plantilla.id,
+            nombre=plantilla.nombre,
+            descripcion=plantilla.descripcion,
+            escala_id=plantilla.escala_id,
+            activo=plantilla.activo,
+            config=plantilla.config,
+            competencias=[
+                CampanaCompetenciaResponse(
+                    competencia_id=c.competencia_id,
+                    competencia_nombre=comp_nombres.get(c.competencia_id),
+                    peso=_f(c.peso) or 0.0, num_preguntas=c.num_preguntas,
+                    nivel_esperado=c.nivel_esperado, obligatoria=c.obligatoria, orden=c.orden,
+                )
+                for c in sorted(plantilla.competencias, key=lambda x: (x.orden or 0, x.id))
+            ],
+            evaluador_tipos=[
+                CampanaEvaluadorTipoResponse(tipo=t.tipo, peso=_f(t.peso) or 0.0, activo=t.activo)
+                for t in plantilla.evaluador_tipos
+            ],
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Recordatorios automáticos (invocado por APScheduler)
+    # ══════════════════════════════════════════════════════════════════════════
+    async def procesar_recordatorios(self) -> RecordatoriosResultado:
+        """Marca evaluaciones vencidas y envía recordatorios según config.dias_antes."""
+        config = await self.get_or_create_config()
+        dias_antes = [3, 1, 0]
+        if isinstance(config.recordatorios, dict):
+            valor = config.recordatorios.get("dias_antes")
+            if isinstance(valor, list) and valor:
+                dias_antes = [int(v) for v in valor]
+
+        hoy = date.today()
+        enviados = 0
+        vencidas = 0
+        pendientes = await self.repo.list_evaluaciones_pendientes_con_limite()
+        for ev, campana in pendientes:
+            dias = (ev.fecha_limite - hoy).days
+            if dias < 0:
+                ev.estado = "vencida"
+                vencidas += 1
+                asunto, cuerpo = self._texto_correo(
+                    config, "vencida",
+                    asunto_def="Evaluación 360° vencida",
+                    cuerpo_def=(
+                        f"La evaluación de la campaña '{campana.nombre}' venció el "
+                        f"{ev.fecha_limite.isoformat()}."
+                    ),
+                    campana=campana.nombre,
+                )
+                if ev.evaluador_empleado_id:
+                    await self._enviar_a_empleado(
+                        ev.evaluador_empleado_id, asunto, cuerpo,
+                        target_url="#/mis-evaluaciones",
+                        metadata={"campana_id": campana.id, "evento": "vencida"},
+                    )
+            elif dias in dias_antes:
+                enviados += 1
+                asunto, cuerpo = self._texto_correo(
+                    config, "recordatorio",
+                    asunto_def="Recordatorio: Evaluación 360° pendiente",
+                    cuerpo_def=(
+                        f"Tienes una evaluación pendiente en '{campana.nombre}'. "
+                        f"Fecha límite: {ev.fecha_limite.isoformat()}."
+                    ),
+                    campana=campana.nombre,
+                )
+                if ev.evaluador_empleado_id:
+                    await self._enviar_a_empleado(
+                        ev.evaluador_empleado_id, asunto, cuerpo,
+                        target_url="#/mis-evaluaciones",
+                        metadata={"campana_id": campana.id, "evento": "recordatorio"},
+                    )
+        await self.db.flush()
+        return RecordatoriosResultado(
+            recordatorios_enviados=enviados, vencidas_marcadas=vencidas
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Fase 4: Capacitación / PDI / perfil del empleado
+    # ══════════════════════════════════════════════════════════════════════════
+    async def _gaps_participante(self, participante_id: int) -> list[Eval360Resultado]:
+        participante = await self.repo.get_participante(participante_id)
+        if not participante:
+            raise NotFoundError("Participante no encontrado")
+        campana = await self.repo.get_campana_detalle(participante.campana_id)
+        await self._calcular_resultados_participante(participante, campana)
+        await self.db.flush()
+        resultados = await self.repo.list_resultados_participante(participante_id)
+        return [
+            r for r in resultados
+            if r.competencia_id and r.estado_brecha in ("riesgo", "brecha")
+        ]
+
+    def _curso_asociado(self, assoc, comp_id: int, comp_nombre: Optional[str]) -> bool:
+        nombre = (comp_nombre or "").strip().lower()
+        for a in assoc or []:
+            if isinstance(a, bool):
+                continue
+            if isinstance(a, int) and a == comp_id:
+                return True
+            if isinstance(a, str):
+                if a.strip() == str(comp_id):
+                    return True
+                if nombre and a.strip().lower() == nombre:
+                    return True
+            if isinstance(a, dict):
+                if a.get("id") == comp_id:
+                    return True
+                if nombre and str(a.get("nombre", "")).strip().lower() == nombre:
+                    return True
+        return False
+
+    async def get_cursos_sugeridos(
+        self, participante_id: int
+    ) -> list[CursoSugeridoPorCompetencia]:
+        gaps = await self._gaps_participante(participante_id)
+        if not gaps:
+            return []
+        comp_nombres = await self._competencia_nombres([r.competencia_id for r in gaps])
+        caps = (
+            await self.db.execute(
+                select(Capacitacion).where(Capacitacion.activo.is_(True))
+            )
+        ).scalars().all()
+        out: list[CursoSugeridoPorCompetencia] = []
+        for r in gaps:
+            nombre = comp_nombres.get(r.competencia_id)
+            cursos = [
+                CursoSugeridoItem(
+                    id=c.id, nombre=c.nombre, modalidad=c.modalidad,
+                    duracion_horas=c.duracion_horas,
+                )
+                for c in caps
+                if self._curso_asociado(c.competencias_asociadas, r.competencia_id, nombre)
+            ]
+            out.append(CursoSugeridoPorCompetencia(
+                competencia_id=r.competencia_id,
+                competencia_nombre=nombre,
+                brecha=_f(r.brecha),
+                estado_brecha=r.estado_brecha,
+                cursos=cursos,
+            ))
+        return out
+
+    async def generar_pdi(
+        self, participante_id: int, current_user: Empleado
+    ) -> GenerarPdiResultado:
+        gaps = await self._gaps_participante(participante_id)
+        participante = await self.repo.get_participante(participante_id)
+        comp_nombres = await self._competencia_nombres([r.competencia_id for r in gaps])
+        existentes = set((
+            await self.db.execute(
+                select(PlanDesarrolloIndividual.competencia_id).where(
+                    PlanDesarrolloIndividual.empleado_id == participante.empleado_id
+                )
+            )
+        ).scalars().all())
+        hoy = date.today()
+        creados = 0
+        comps: list[str] = []
+        for r in gaps:
+            if r.competencia_id in existentes:
+                continue
+            nombre = comp_nombres.get(r.competencia_id, "competencia")
+            self.db.add(PlanDesarrolloIndividual(
+                empleado_id=participante.empleado_id,
+                competencia_id=r.competencia_id,
+                accion=f"Plan de desarrollo para {nombre}"[:300],
+                tipo="capacitacion",
+                fecha_inicio=hoy,
+                fecha_fin=hoy + timedelta(days=90),
+                responsable="RH",
+                estado="pendiente",
+                prioridad="alta" if r.estado_brecha == "brecha" else "media",
+                recursos="Generado automáticamente desde Evaluación 360°",
+                creado_por=current_user.empleado_id,
+            ))
+            creados += 1
+            comps.append(nombre)
+        await self.db.flush()
+        return GenerarPdiResultado(creados=creados, competencias=comps)
+
+    async def get_resumen_empleado(self, empleado_id: int) -> ResumenEmpleadoResponse:
+        participante = await self.repo.get_ultimo_participante_empleado(empleado_id)
+        if not participante:
+            return ResumenEmpleadoResponse(empleado_id=empleado_id, tiene_datos=False)
+        campana = await self.repo.get_campana(participante.campana_id)
+        base = await self._resultado_participante(participante.id)
+        evolucion: list[EvolucionPunto] = []
+        for _part, camp, res in await self.repo.list_resultados_globales_empleado(empleado_id):
+            evolucion.append(EvolucionPunto(
+                campana_id=camp.id, campana_nombre=camp.nombre,
+                fecha=camp.fecha_cierre, calificacion_general=_f(res.calificacion_general),
+            ))
+        return ResumenEmpleadoResponse(
+            empleado_id=empleado_id,
+            tiene_datos=True,
+            participante_id=participante.id,
+            campana_nombre=campana.nombre if campana else None,
+            calificacion_general=base.calificacion_general,
+            competencias=base.competencias,
+            evolucion=evolucion,
+        )
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Fase 5: Matriz 9-Box / detección de talento
+    # ══════════════════════════════════════════════════════════════════════════
+    def _band(self, value: float, vmax: float) -> str:
+        """Clasifica un valor en bajo/medio/alto (umbrales 50% y 75% de la escala)."""
+        if value < vmax * 0.5:
+            return "bajo"
+        if value < vmax * 0.75:
+            return "medio"
+        return "alto"
+
+    _NINEBOX_LABELS = {
+        ("alto", "alto"): "Estrella",
+        ("alto", "medio"): "Alto desempeño",
+        ("alto", "bajo"): "Especialista",
+        ("medio", "alto"): "Alto potencial",
+        ("medio", "medio"): "Colaborador clave",
+        ("medio", "bajo"): "Desempeño sólido",
+        ("bajo", "alto"): "Enigma / potencial",
+        ("bajo", "medio"): "En desarrollo",
+        ("bajo", "bajo"): "Riesgo",
+    }
+
+    def _segmento_talento(self, d_band: str, p_band: str) -> str:
+        if d_band == "alto" and p_band in ("alto", "medio"):
+            return "sobresaliente"
+        if d_band == "bajo" and p_band == "bajo":
+            return "riesgo"
+        if p_band == "alto":
+            return "desarrollo"
+        return "estable"
+
+    async def set_9box(
+        self, participante_id: int, data: NineBoxUpdate
+    ) -> ResultadoParticipanteResponse:
+        participante = await self.repo.get_participante(participante_id)
+        if not participante:
+            raise NotFoundError("Participante no encontrado")
+        res = await self.repo.get_resultado_global(participante_id)
+        if not res:
+            campana = await self.repo.get_campana_detalle(participante.campana_id)
+            await self._calcular_resultados_participante(participante, campana)
+            await self.db.flush()
+            res = await self.repo.get_resultado_global(participante_id)
+        if not res:
+            raise DomainValidationError("El participante no tiene resultados calculados")
+        if data.desempeno is not None:
+            res.desempeno = data.desempeno
+        if data.potencial is not None:
+            res.potencial = data.potencial
+        await self.db.flush()
+        return await self._resultado_participante(participante_id)
+
+    async def get_9box(self, campana_id: int) -> NineBoxResponse:
+        campana = await self.repo.get_campana_detalle(campana_id)
+        if not campana or not campana.activo:
+            raise NotFoundError("Campana no encontrada")
+        escala = await self._escala_de_campana(campana)
+        vmax = float(escala.valor_max) if escala else 5.0
+        await self._calcular_resultados_campana(campana)
+        await self.db.flush()
+
+        participantes = await self.repo.list_participantes(campana_id)
+        celdas: dict[tuple[str, str], list[str]] = {}
+        segmentos: dict[str, int] = {
+            "sobresaliente": 0, "estable": 0, "desarrollo": 0, "riesgo": 0,
+        }
+        for p in participantes:
+            res = await self.repo.get_resultado_global(p.id)
+            if not res:
+                continue
+            desemp = _f(res.desempeno)
+            if desemp is None:
+                desemp = _f(res.calificacion_general)
+            if desemp is None:
+                continue
+            pot = _f(res.potencial)
+            d_band = self._band(desemp, vmax)
+            p_band = self._band(pot, vmax) if pot is not None else "medio"
+            nombre = p.empleado.nombre if p.empleado else f"#{p.empleado_id}"
+            celdas.setdefault((d_band, p_band), []).append(nombre)
+            segmentos[self._segmento_talento(d_band, p_band)] += 1
+
+        celdas_out = [
+            NineBoxCelda(
+                desempeno=d, potencial=pot,
+                clasificacion=self._NINEBOX_LABELS.get((d, pot), ""),
+                empleados=nombres,
+            )
+            for (d, pot), nombres in celdas.items()
+        ]
+        seg_labels = {
+            "sobresaliente": "Sobresaliente", "estable": "Estable",
+            "desarrollo": "En desarrollo", "riesgo": "En riesgo",
+        }
+        segmentos_out = [
+            TalentoSegmentoResumen(segmento=k, label=seg_labels[k], cantidad=v)
+            for k, v in segmentos.items()
+        ]
+        return NineBoxResponse(
+            campana_id=campana_id, escala_max=vmax,
+            celdas=celdas_out, segmentos=segmentos_out,
+        )
 
     # ══════════════════════════════════════════════════════════════════════════
     # Dashboard
@@ -902,24 +1714,79 @@ class Evaluacion360Service:
     async def _notificar_evaluadores(
         self, campana: Eval360Campana, evaluaciones: list[Eval360Evaluacion]
     ) -> None:
+        """Invitación (in-app + email) a cada evaluador al activar la campaña."""
+        config = await self.get_or_create_config()
         destinatarios = {
             e.evaluador_empleado_id for e in evaluaciones if e.evaluador_empleado_id
         }
         for emp_id in destinatarios:
-            try:
-                await self.notificaciones.enviar(
-                    destinatario_id=emp_id,
-                    asunto="Evaluacion 360 asignada",
-                    cuerpo=(
-                        f"Tienes evaluaciones pendientes en la campana "
-                        f"'{campana.nombre}'."
-                    ),
-                    canal="in_app",
-                    target_url="#/level-up/evaluacion-360/mis-evaluaciones",
-                    metadata={"campana_id": campana.id},
-                )
-            except Exception:  # pragma: no cover - notificacion no debe romper flujo
-                logger.exception("Fallo notificando evaluador %s", emp_id)
+            asunto, cuerpo = self._texto_correo(
+                config, "invitacion",
+                asunto_def="Evaluación 360° asignada",
+                cuerpo_def=(
+                    f"Tienes evaluaciones pendientes en la campaña "
+                    f"'{campana.nombre}'. Ingresa a la plataforma para responderlas."
+                ),
+                campana=campana.nombre,
+            )
+            await self._enviar_a_empleado(
+                emp_id, asunto, cuerpo,
+                target_url="#/mis-evaluaciones",
+                metadata={"campana_id": campana.id, "evento": "invitacion"},
+            )
+
+    # SMTP aún no configurado en este entorno: las notificaciones de correo
+    # quedan preparadas (plantillas + _texto_correo) pero se entregan solo
+    # in-app. Cuando se habilite SMTP, cambiar EVAL360_EMAIL_HABILITADO a True.
+    EVAL360_EMAIL_HABILITADO = False
+
+    async def _enviar_a_empleado(
+        self, empleado_id: int, asunto: str, cuerpo: str,
+        target_url: str | None = None, metadata: Optional[dict] = None,
+    ) -> None:
+        """Notifica al empleado (in-app; email opcional cuando SMTP esté activo).
+
+        Nunca propaga errores: una falla de notificación no debe romper el flujo.
+        """
+        try:
+            email = None
+            canal = "in_app"
+            if self.EVAL360_EMAIL_HABILITADO:
+                empleado = await self._get_empleado(empleado_id)
+                email = getattr(empleado, "email", None) if empleado else None
+                canal = "ambos" if email else "in_app"
+            await self.notificaciones.enviar(
+                destinatario_id=empleado_id,
+                asunto=asunto,
+                cuerpo=cuerpo,
+                canal=canal,
+                email_destino=email,
+                target_url=target_url,
+                metadata=metadata,
+            )
+        except Exception:  # pragma: no cover - notificacion no debe romper flujo
+            logger.exception("Fallo notificando empleado %s", empleado_id)
+
+    def _texto_correo(
+        self, config: Eval360Config, evento: str, *,
+        asunto_def: str, cuerpo_def: str, **ctx,
+    ) -> tuple[str, str]:
+        """Devuelve (asunto, cuerpo) usando overrides de config.plantillas_correo.
+
+        Las plantillas admiten placeholders tipo {campana}, {evaluado}.
+        """
+        asunto, cuerpo = asunto_def, cuerpo_def
+        plantillas = config.plantillas_correo or {}
+        tpl = plantillas.get(evento) if isinstance(plantillas, dict) else None
+        if isinstance(tpl, dict):
+            asunto = tpl.get("asunto") or asunto
+            cuerpo = tpl.get("cuerpo") or cuerpo
+        try:
+            asunto = asunto.format(**ctx)
+            cuerpo = cuerpo.format(**ctx)
+        except (KeyError, IndexError, ValueError):
+            pass
+        return asunto, cuerpo
 
     async def _get_evaluacion_editable(
         self, evaluacion_id: int, current_user: Empleado

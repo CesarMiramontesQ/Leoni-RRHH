@@ -178,6 +178,39 @@ export interface ResultadoParticipanteApi {
   oportunidades: string[];
 }
 
+export interface ComentarioReporteApi {
+  tipo_evaluador: TipoEvaluadorApi | null;
+  competencia_id: number | null;
+  competencia_nombre: string | null;
+  texto: string;
+  tipo: string;
+}
+
+export interface EvolucionPuntoApi {
+  campana_id: number;
+  campana_nombre: string;
+  fecha: string | null;
+  calificacion_general: number | null;
+}
+
+export interface ReporteIndividualApi {
+  participante_id: number;
+  empleado_id: number;
+  empleado_nombre: string | null;
+  puesto: string | null;
+  area: string | null;
+  campana_id: number;
+  campana_nombre: string | null;
+  calificacion_general: number | null;
+  promedio_autoevaluacion: number | null;
+  promedio_externo: number | null;
+  competencias: ResultadoCompetenciaApi[];
+  fortalezas: string[];
+  oportunidades: string[];
+  comentarios: ComentarioReporteApi[];
+  evolucion: EvolucionPuntoApi[];
+}
+
 export interface DashboardApi {
   kpis: {
     campanas_activas: number;
@@ -196,6 +229,17 @@ export interface DashboardApi {
   competencias_oportunidad: { label: string; valor: number }[];
   avance_por_campana: { campana_id: number; nombre: string; avance: number }[];
   distribucion_calificaciones: { label: string; valor: number }[];
+}
+
+export interface PlantillaApi {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  escala_id: number | null;
+  activo: boolean;
+  competencias: CampanaCompetenciaApi[];
+  evaluador_tipos: CampanaEvaluadorTipoApi[];
+  config: Record<string, unknown> | null;
 }
 
 // ── Payloads de creacion ──────────────────────────────────────────────────────
@@ -274,6 +318,20 @@ export async function fetchEval360Escalas(): Promise<EscalaApi[]> {
   return res.json();
 }
 
+// ── Catálogo de competencias (bajo el prefijo 360; no requiere módulo competencias) ──
+export interface CompetenciaCatalogoApi {
+  id: number;
+  nombre: string;
+  categoria: string | null;
+  num_preguntas: number;
+}
+
+export async function fetchEval360CompetenciasCatalogo(): Promise<CompetenciaCatalogoApi[]> {
+  const res = await fetchWithAuth(`${BASE}/competencias-catalogo`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
 // ── Preguntas ─────────────────────────────────────────────────────────────────
 export async function fetchEval360Preguntas(competenciaId?: number): Promise<PreguntaApi[]> {
   const qs = competenciaId != null ? `?competencia_id=${competenciaId}` : "";
@@ -294,6 +352,24 @@ export async function createEval360Pregunta(payload: {
   });
   if (!res.ok) return null;
   return res.json();
+}
+
+export async function updateEval360Pregunta(
+  id: number,
+  payload: { texto?: string; orden?: number | null; activo?: boolean },
+): Promise<PreguntaApi | null> {
+  const res = await fetchWithAuth(`${BASE}/preguntas/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function deleteEval360Pregunta(id: number): Promise<boolean> {
+  const res = await fetchWithAuth(`${BASE}/preguntas/${id}`, { method: "DELETE" });
+  return res.ok;
 }
 
 // ── Campanas ──────────────────────────────────────────────────────────────────
@@ -361,6 +437,62 @@ export async function fetchEval360Participantes(campanaId: number): Promise<Part
   return res.json();
 }
 
+export interface EmpleadoEvaluadoApi {
+  participante_id: number;
+  empleado_id: number;
+  nombre: string | null;
+  no_empleado: number | null;
+  puesto: string | null;
+  area: string | null;
+  campana_id: number;
+  campana_nombre: string;
+  estado: EvaluacionEstadoApi;
+  calificacion_general: number | null;
+  evaluaciones_total: number;
+  evaluaciones_completadas: number;
+  avance: number;
+}
+
+export async function fetchEval360EmpleadosEvaluados(params?: {
+  campana_id?: number;
+  estado?: string;
+}): Promise<EmpleadoEvaluadoApi[]> {
+  const qs = new URLSearchParams();
+  if (params?.campana_id != null) qs.set("campana_id", String(params.campana_id));
+  if (params?.estado) qs.set("estado", params.estado);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  const res = await fetchWithAuth(`${BASE}/empleados-evaluados${suffix}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export interface EvaluacionRhApi {
+  id: number;
+  campana_id: number;
+  campana_nombre: string;
+  evaluado_nombre: string | null;
+  evaluador_nombre: string | null;
+  tipo_evaluador: TipoEvaluadorApi;
+  estado: EvaluacionEstadoApi;
+  fecha_asignacion: string | null;
+  fecha_limite: string | null;
+}
+
+export async function fetchEval360Evaluaciones(params?: {
+  campana_id?: number;
+  estado?: string;
+  tipo?: string;
+}): Promise<EvaluacionRhApi[]> {
+  const qs = new URLSearchParams();
+  if (params?.campana_id != null) qs.set("campana_id", String(params.campana_id));
+  if (params?.estado) qs.set("estado", params.estado);
+  if (params?.tipo) qs.set("tipo", params.tipo);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  const res = await fetchWithAuth(`${BASE}/evaluaciones${suffix}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export async function fetchEval360Resultados(
   campanaId: number,
 ): Promise<ResultadoParticipanteApi[]> {
@@ -375,6 +507,33 @@ export async function fetchEval360ResultadoParticipante(
   const res = await fetchWithAuth(`${BASE}/participantes/${participanteId}/resultado`);
   if (!res.ok) return null;
   return res.json();
+}
+
+export async function fetchEval360Reporte(
+  participanteId: number,
+): Promise<ReporteIndividualApi | null> {
+  const res = await fetchWithAuth(`${BASE}/participantes/${participanteId}/reporte`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** Descarga un export (PDF/Excel) autenticado disparando el guardado del archivo. */
+export async function descargarEval360Export(
+  path: string,
+  filename: string,
+): Promise<boolean> {
+  const res = await fetchWithAuth(`${BASE}${path}`);
+  if (!res.ok) return false;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return true;
 }
 
 // ── Mis Evaluaciones (self-service) ───────────────────────────────────────────
@@ -415,4 +574,98 @@ export async function enviarEvaluacion(
   });
   const data = res.ok ? await res.json() : null;
   return { ok: res.ok, status: res.status, data };
+}
+
+// ── Plantillas ────────────────────────────────────────────────────────────────
+export async function fetchEval360Plantillas(): Promise<PlantillaApi[]> {
+  const res = await fetchWithAuth(`${BASE}/plantillas`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export interface PlantillaCreatePayload {
+  nombre: string;
+  descripcion?: string | null;
+  escala_id?: number | null;
+  competencias: CampanaCompetenciaIn[];
+  evaluador_tipos: CampanaEvaluadorTipoIn[];
+  config?: Record<string, unknown> | null;
+}
+
+export async function createEval360Plantilla(
+  payload: PlantillaCreatePayload,
+): Promise<PlantillaApi | null> {
+  const res = await fetchWithAuth(`${BASE}/plantillas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+// ── Fase 4: capacitación / PDI / perfil ───────────────────────────────────────
+export interface CursoSugeridoApi {
+  competencia_id: number;
+  competencia_nombre: string | null;
+  brecha: number | null;
+  estado_brecha: string | null;
+  cursos: { id: number; nombre: string; modalidad: string | null; duracion_horas: number | null }[];
+}
+
+export interface ResumenEmpleadoApi {
+  empleado_id: number;
+  tiene_datos: boolean;
+  participante_id: number | null;
+  campana_nombre: string | null;
+  calificacion_general: number | null;
+  competencias: ResultadoCompetenciaApi[];
+  evolucion: EvolucionPuntoApi[];
+}
+
+export async function fetchEval360ResumenEmpleado(
+  empleadoId: number,
+): Promise<ResumenEmpleadoApi | null> {
+  const res = await fetchWithAuth(`${BASE}/empleados/${empleadoId}/resumen`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function fetchEval360CursosSugeridos(
+  participanteId: number,
+): Promise<CursoSugeridoApi[]> {
+  const res = await fetchWithAuth(`${BASE}/participantes/${participanteId}/cursos-sugeridos`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function generarEval360Pdi(
+  participanteId: number,
+): Promise<{ creados: number; competencias: string[] } | null> {
+  const res = await fetchWithAuth(`${BASE}/participantes/${participanteId}/generar-pdi`, {
+    method: "POST",
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+// ── Fase 5: 9-Box ─────────────────────────────────────────────────────────────
+export interface NineBoxCeldaApi {
+  desempeno: "bajo" | "medio" | "alto";
+  potencial: "bajo" | "medio" | "alto";
+  clasificacion: string;
+  empleados: string[];
+}
+
+export interface NineBoxApi {
+  campana_id: number;
+  escala_max: number;
+  celdas: NineBoxCeldaApi[];
+  segmentos: { segmento: string; label: string; cantidad: number }[];
+}
+
+export async function fetchEval360NineBox(campanaId: number): Promise<NineBoxApi | null> {
+  const res = await fetchWithAuth(`${BASE}/campanas/${campanaId}/9box`);
+  if (!res.ok) return null;
+  return res.json();
 }

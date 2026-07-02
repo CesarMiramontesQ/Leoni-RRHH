@@ -11796,6 +11796,14 @@ paths:
       parameters: [ { name: escala_id, in: path, required: true, schema: { type: integer } } ]
       responses:
         "204": { description: Escala desactivada }
+  /api/v1/evaluacion-360/competencias-catalogo:
+    get:
+      tags: [Evaluación 360]
+      summary: Catálogo de competencias para el wizard (no requiere el módulo competencias)
+      operationId: eval360_competencias_catalogo
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Competencias activas con nº de preguntas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
   /api/v1/evaluacion-360/preguntas:
     get:
       tags: [Evaluación 360]
@@ -11831,6 +11839,56 @@ paths:
       parameters: [ { name: pregunta_id, in: path, required: true, schema: { type: integer } } ]
       responses:
         "204": { description: Pregunta desactivada }
+  /api/v1/evaluacion-360/plantillas:
+    get:
+      tags: [Evaluación 360]
+      summary: Listar plantillas reutilizables de campaña
+      operationId: eval360_list_plantillas
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Plantillas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Evaluación 360]
+      summary: Crear plantilla (competencias, evaluadores, configuración)
+      operationId: eval360_create_plantilla
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Plantilla creada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/plantillas/{plantilla_id}:
+    get:
+      tags: [Evaluación 360]
+      summary: Detalle de plantilla
+      operationId: eval360_get_plantilla
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: plantilla_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Plantilla, content: { application/json: { schema: { type: object } } } }
+    put:
+      tags: [Evaluación 360]
+      summary: Actualizar plantilla
+      operationId: eval360_update_plantilla
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: plantilla_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Plantilla actualizada, content: { application/json: { schema: { type: object } } } }
+    delete:
+      tags: [Evaluación 360]
+      summary: Eliminar plantilla (soft delete)
+      operationId: eval360_delete_plantilla
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: plantilla_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Plantilla eliminada }
+  /api/v1/evaluacion-360/recordatorios/procesar:
+    post:
+      tags: [Evaluación 360]
+      summary: Procesar recordatorios y marcar evaluaciones vencidas (también corre por scheduler diario)
+      operationId: eval360_procesar_recordatorios
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Conteo de recordatorios enviados y vencidas marcadas, content: { application/json: { schema: { type: object } } } }
   /api/v1/evaluacion-360/mis-evaluaciones:
     get:
       tags: [Evaluación 360]
@@ -11957,6 +12015,29 @@ paths:
       parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
       responses:
         "200": { description: Campaña cancelada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/empleados-evaluados:
+    get:
+      tags: [Evaluación 360]
+      summary: Listado global de empleados evaluados (una fila por participante-campaña)
+      operationId: eval360_empleados_evaluados
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: campana_id, in: query, required: false, schema: { type: integer } }
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [pendiente, en_progreso, completada] } }
+      responses:
+        "200": { description: Empleados evaluados, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/evaluacion-360/evaluaciones:
+    get:
+      tags: [Evaluación 360]
+      summary: Listado RH de evaluaciones asignadas en todas las campañas
+      operationId: eval360_list_evaluaciones_rh
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: campana_id, in: query, required: false, schema: { type: integer } }
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [pendiente, en_progreso, completada, vencida] } }
+        - { name: tipo, in: query, required: false, schema: { type: string, enum: [autoevaluacion, jefe, par, subordinado, cliente_interno, cliente_externo] } }
+      responses:
+        "200": { description: Evaluaciones (RH), content: { application/json: { schema: { type: array, items: { type: object } } } } }
   /api/v1/evaluacion-360/campanas/{campana_id}/participantes:
     get:
       tags: [Evaluación 360]
@@ -11987,9 +12068,94 @@ paths:
   /api/v1/evaluacion-360/participantes/{participante_id}/resultado:
     get:
       tags: [Evaluación 360]
-      summary: Reporte individual de un participante (radar, brechas, fortalezas)
+      summary: Resultado consolidado de un participante (radar, brechas, fortalezas)
       operationId: eval360_resultado_participante
       security: [ { BearerAuth: [] } ]
       parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
       responses:
+        "200": { description: Resultado del participante, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/cursos-sugeridos:
+    get:
+      tags: [Evaluación 360]
+      summary: Cursos sugeridos por brecha de competencia (integración Capacitación)
+      operationId: eval360_cursos_sugeridos
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Cursos por competencia con brecha, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/generar-pdi:
+    post:
+      tags: [Evaluación 360]
+      summary: Generar Plan de Desarrollo Individual desde las brechas (idempotente)
+      operationId: eval360_generar_pdi
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Acciones de PDI creadas, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/empleados/{empleado_id}/resumen:
+    get:
+      tags: [Evaluación 360]
+      summary: Resumen 360 del empleado (para la pestaña del perfil)
+      operationId: eval360_resumen_empleado
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: empleado_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Resumen (calificación, competencias, evolución), content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/9box:
+    get:
+      tags: [Evaluación 360]
+      summary: Matriz 9-Box y segmentos de talento de la campaña
+      operationId: eval360_get_9box
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Celdas 9-Box y segmentos, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/9box:
+    put:
+      tags: [Evaluación 360]
+      summary: Fijar desempeño/potencial del participante (9-Box)
+      operationId: eval360_set_9box
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Resultado actualizado, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/reporte:
+    get:
+      tags: [Evaluación 360]
+      summary: Reporte individual completo (auto vs externo, comentarios, evolución)
+      operationId: eval360_reporte_individual
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: participante_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
         "200": { description: Reporte individual, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/participantes/{participante_id}/reporte/export:
+    get:
+      tags: [Evaluación 360]
+      summary: Exportar el reporte individual (PDF o Excel)
+      operationId: eval360_export_reporte_individual
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: participante_id, in: path, required: true, schema: { type: integer } }
+        - { name: formato, in: query, required: false, schema: { type: string, enum: [pdf, excel], default: pdf } }
+      responses:
+        "200":
+          description: Archivo binario (PDF/XLSX)
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } }
+  /api/v1/evaluacion-360/campanas/{campana_id}/resultados/export:
+    get:
+      tags: [Evaluación 360]
+      summary: Exportar resultados de la campaña (PDF o Excel)
+      operationId: eval360_export_resultados_campana
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: campana_id, in: path, required: true, schema: { type: integer } }
+        - { name: formato, in: query, required: false, schema: { type: string, enum: [pdf, excel], default: pdf } }
+      responses:
+        "200":
+          description: Archivo binario (PDF/XLSX)
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } }

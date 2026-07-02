@@ -88,6 +88,7 @@ class ConfigUpdate(BaseModel):
         Literal["mensual", "trimestral", "semestral", "anual", "manual"]
     ] = None
     recordatorios: Optional[dict] = None
+    plantillas_correo: Optional[dict] = None
 
     @field_validator("pesos_evaluadores")
     @classmethod
@@ -112,6 +113,7 @@ class ConfigResponse(BaseModel):
     pesos_evaluadores: Optional[dict[str, float]] = None
     frecuencia_sugerida: str
     recordatorios: Optional[dict] = None
+    plantillas_correo: Optional[dict] = None
 
 
 # ── Banco de preguntas ────────────────────────────────────────────────────────
@@ -141,6 +143,16 @@ class PreguntaResponse(BaseModel):
     texto: str
     orden: Optional[int] = None
     activo: bool
+
+
+class CompetenciaCatalogoItem(BaseModel):
+    """Ítem ligero del catálogo de competencias para el wizard (sin depender
+    del módulo `competencias`)."""
+
+    id: int
+    nombre: str
+    categoria: Optional[str] = None
+    num_preguntas: int = 0
 
 
 # ── Campanas ──────────────────────────────────────────────────────────────────
@@ -287,6 +299,38 @@ class ParticipanteResponse(BaseModel):
     avance: float = 0.0
 
 
+class EmpleadoEvaluadoItem(BaseModel):
+    """Fila del listado global de empleados evaluados (una por participante-campaña)."""
+
+    participante_id: int
+    empleado_id: int
+    nombre: Optional[str] = None
+    no_empleado: Optional[int] = None
+    puesto: Optional[str] = None
+    area: Optional[str] = None
+    campana_id: int
+    campana_nombre: str
+    estado: str
+    calificacion_general: Optional[float] = None
+    evaluaciones_total: int = 0
+    evaluaciones_completadas: int = 0
+    avance: float = 0.0
+
+
+class EvaluacionRhItem(BaseModel):
+    """Fila del listado RH de evaluaciones asignadas (todas las campañas)."""
+
+    id: int
+    campana_id: int
+    campana_nombre: str
+    evaluado_nombre: Optional[str] = None
+    evaluador_nombre: Optional[str] = None
+    tipo_evaluador: str
+    estado: str
+    fecha_asignacion: Optional[str] = None
+    fecha_limite: Optional[str] = None
+
+
 class EvaluadorManualIn(BaseModel):
     """Alta manual de evaluador (interno por empleado_id o externo por nombre)."""
 
@@ -395,6 +439,39 @@ class ResultadoParticipanteResponse(BaseModel):
     oportunidades: list[str] = Field(default_factory=list)
 
 
+class ComentarioReporte(BaseModel):
+    tipo_evaluador: Optional[TipoEvaluador] = None
+    competencia_id: Optional[int] = None
+    competencia_nombre: Optional[str] = None
+    texto: str
+    tipo: str = "general"
+
+
+class EvolucionPunto(BaseModel):
+    campana_id: int
+    campana_nombre: str
+    fecha: Optional[date] = None
+    calificacion_general: Optional[float] = None
+
+
+class ReporteIndividualResponse(BaseModel):
+    participante_id: int
+    empleado_id: int
+    empleado_nombre: Optional[str] = None
+    puesto: Optional[str] = None
+    area: Optional[str] = None
+    campana_id: int
+    campana_nombre: Optional[str] = None
+    calificacion_general: Optional[float] = None
+    promedio_autoevaluacion: Optional[float] = None
+    promedio_externo: Optional[float] = None
+    competencias: list[ResultadoCompetencia] = Field(default_factory=list)
+    fortalezas: list[str] = Field(default_factory=list)
+    oportunidades: list[str] = Field(default_factory=list)
+    comentarios: list[ComentarioReporte] = Field(default_factory=list)
+    evolucion: list[EvolucionPunto] = Field(default_factory=list)
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 
@@ -429,3 +506,108 @@ class DashboardResponse(BaseModel):
     competencias_oportunidad: list[DashboardSeriePunto] = Field(default_factory=list)
     avance_por_campana: list[CampanaAvance] = Field(default_factory=list)
     distribucion_calificaciones: list[DashboardSeriePunto] = Field(default_factory=list)
+
+
+# ── Plantillas ────────────────────────────────────────────────────────────────
+
+
+class PlantillaCreate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    nombre: str = Field(..., min_length=3, max_length=255)
+    descripcion: Optional[str] = None
+    escala_id: Optional[int] = None
+    competencias: list[CampanaCompetenciaIn] = Field(default_factory=list)
+    evaluador_tipos: list[CampanaEvaluadorTipoIn] = Field(default_factory=list)
+    config: Optional[CampanaConfigIn] = None
+
+
+class PlantillaUpdate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    nombre: Optional[str] = Field(None, min_length=3, max_length=255)
+    descripcion: Optional[str] = None
+    escala_id: Optional[int] = None
+    competencias: Optional[list[CampanaCompetenciaIn]] = None
+    evaluador_tipos: Optional[list[CampanaEvaluadorTipoIn]] = None
+    config: Optional[CampanaConfigIn] = None
+    activo: Optional[bool] = None
+
+
+class PlantillaResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    escala_id: Optional[int] = None
+    activo: bool
+    competencias: list[CampanaCompetenciaResponse] = Field(default_factory=list)
+    evaluador_tipos: list[CampanaEvaluadorTipoResponse] = Field(default_factory=list)
+    config: Optional[dict] = None
+
+
+class RecordatoriosResultado(BaseModel):
+    recordatorios_enviados: int = 0
+    vencidas_marcadas: int = 0
+
+
+# ── Fase 4: capacitación / PDI / perfil ──────────────────────────────────────
+
+
+class CursoSugeridoItem(BaseModel):
+    id: int
+    nombre: str
+    modalidad: Optional[str] = None
+    duracion_horas: Optional[int] = None
+
+
+class CursoSugeridoPorCompetencia(BaseModel):
+    competencia_id: int
+    competencia_nombre: Optional[str] = None
+    brecha: Optional[float] = None
+    estado_brecha: Optional[str] = None
+    cursos: list[CursoSugeridoItem] = Field(default_factory=list)
+
+
+class GenerarPdiResultado(BaseModel):
+    creados: int = 0
+    competencias: list[str] = Field(default_factory=list)
+
+
+class ResumenEmpleadoResponse(BaseModel):
+    empleado_id: int
+    tiene_datos: bool = False
+    participante_id: Optional[int] = None
+    campana_nombre: Optional[str] = None
+    calificacion_general: Optional[float] = None
+    competencias: list[ResultadoCompetencia] = Field(default_factory=list)
+    evolucion: list[EvolucionPunto] = Field(default_factory=list)
+
+
+# ── Fase 5: 9-Box / talento ──────────────────────────────────────────────────
+
+
+class NineBoxUpdate(BaseModel):
+    desempeno: Optional[float] = Field(None, ge=0, le=100)
+    potencial: Optional[float] = Field(None, ge=0, le=100)
+
+
+class NineBoxCelda(BaseModel):
+    desempeno: Literal["bajo", "medio", "alto"]
+    potencial: Literal["bajo", "medio", "alto"]
+    clasificacion: str
+    empleados: list[str] = Field(default_factory=list)
+
+
+class TalentoSegmentoResumen(BaseModel):
+    segmento: str
+    label: str
+    cantidad: int
+
+
+class NineBoxResponse(BaseModel):
+    campana_id: int
+    escala_max: float
+    celdas: list[NineBoxCelda] = Field(default_factory=list)
+    segmentos: list[TalentoSegmentoResumen] = Field(default_factory=list)

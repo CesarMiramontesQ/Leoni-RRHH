@@ -31,6 +31,24 @@ async def _tress_scheduler_job():
         logger.error("Error en TRESS scheduler job: %s", str(exc), exc_info=True)
 
 
+async def _eval360_recordatorios_job():
+    """Recordatorios de Evaluación 360 y marcado de evaluaciones vencidas (diario)."""
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.evaluacion360_service import Evaluacion360Service
+
+        async with AsyncSessionLocal() as db:
+            resultado = await Evaluacion360Service(db).procesar_recordatorios()
+            await db.commit()
+        logger.info(
+            "Eval360 recordatorios | enviados=%d | vencidas=%d",
+            resultado.recordatorios_enviados,
+            resultado.vencidas_marcadas,
+        )
+    except Exception as exc:
+        logger.error("Error en Eval360 recordatorios job: %s", str(exc), exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────
@@ -57,6 +75,14 @@ async def lifespan(app: FastAPI):
         "interval",
         minutes=5,
         id="tress_scheduler",
+    )
+    # Recordatorios Evaluación 360: una vez al día (08:00).
+    scheduler.add_job(
+        _eval360_recordatorios_job,
+        "cron",
+        hour=8,
+        minute=0,
+        id="eval360_recordatorios",
     )
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))
