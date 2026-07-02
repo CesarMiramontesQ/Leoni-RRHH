@@ -419,6 +419,62 @@ export async function fetchEval360Participantes(campanaId: number): Promise<Part
   return res.json();
 }
 
+export interface EmpleadoEvaluadoApi {
+  participante_id: number;
+  empleado_id: number;
+  nombre: string | null;
+  no_empleado: number | null;
+  puesto: string | null;
+  area: string | null;
+  campana_id: number;
+  campana_nombre: string;
+  estado: EvaluacionEstadoApi;
+  calificacion_general: number | null;
+  evaluaciones_total: number;
+  evaluaciones_completadas: number;
+  avance: number;
+}
+
+export async function fetchEval360EmpleadosEvaluados(params?: {
+  campana_id?: number;
+  estado?: string;
+}): Promise<EmpleadoEvaluadoApi[]> {
+  const qs = new URLSearchParams();
+  if (params?.campana_id != null) qs.set("campana_id", String(params.campana_id));
+  if (params?.estado) qs.set("estado", params.estado);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  const res = await fetchWithAuth(`${BASE}/empleados-evaluados${suffix}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export interface EvaluacionRhApi {
+  id: number;
+  campana_id: number;
+  campana_nombre: string;
+  evaluado_nombre: string | null;
+  evaluador_nombre: string | null;
+  tipo_evaluador: TipoEvaluadorApi;
+  estado: EvaluacionEstadoApi;
+  fecha_asignacion: string | null;
+  fecha_limite: string | null;
+}
+
+export async function fetchEval360Evaluaciones(params?: {
+  campana_id?: number;
+  estado?: string;
+  tipo?: string;
+}): Promise<EvaluacionRhApi[]> {
+  const qs = new URLSearchParams();
+  if (params?.campana_id != null) qs.set("campana_id", String(params.campana_id));
+  if (params?.estado) qs.set("estado", params.estado);
+  if (params?.tipo) qs.set("tipo", params.tipo);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  const res = await fetchWithAuth(`${BASE}/evaluaciones${suffix}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
 export async function fetchEval360Resultados(
   campanaId: number,
 ): Promise<ResultadoParticipanteApi[]> {

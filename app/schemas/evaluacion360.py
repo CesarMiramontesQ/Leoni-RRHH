@@ -299,6 +299,38 @@ class ParticipanteResponse(BaseModel):
     avance: float = 0.0
 
 
+class EmpleadoEvaluadoItem(BaseModel):
+    """Fila del listado global de empleados evaluados (una por participante-campaña)."""
+
+    participante_id: int
+    empleado_id: int
+    nombre: Optional[str] = None
+    no_empleado: Optional[int] = None
+    puesto: Optional[str] = None
+    area: Optional[str] = None
+    campana_id: int
+    campana_nombre: str
+    estado: str
+    calificacion_general: Optional[float] = None
+    evaluaciones_total: int = 0
+    evaluaciones_completadas: int = 0
+    avance: float = 0.0
+
+
+class EvaluacionRhItem(BaseModel):
+    """Fila del listado RH de evaluaciones asignadas (todas las campañas)."""
+
+    id: int
+    campana_id: int
+    campana_nombre: str
+    evaluado_nombre: Optional[str] = None
+    evaluador_nombre: Optional[str] = None
+    tipo_evaluador: str
+    estado: str
+    fecha_asignacion: Optional[str] = None
+    fecha_limite: Optional[str] = None
+
+
 class EvaluadorManualIn(BaseModel):
     """Alta manual de evaluador (interno por empleado_id o externo por nombre)."""
 

@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.empleados import Empleado
 from app.models.evaluacion360 import (
     Eval360Campana,
     Eval360CampanaCompetencia,
@@ -134,7 +135,8 @@ class Evaluacion360Repository(BaseRepository[Eval360Campana]):
             select(Eval360Participante)
             .where(Eval360Participante.campana_id == campana_id)
             .options(
-                selectinload(Eval360Participante.empleado),
+                selectinload(Eval360Participante.empleado).selectinload(Empleado.puesto),
+                selectinload(Eval360Participante.empleado).selectinload(Empleado.area),
                 selectinload(Eval360Participante.evaluaciones),
             )
             .order_by(Eval360Participante.id)
@@ -148,11 +150,70 @@ class Evaluacion360Repository(BaseRepository[Eval360Campana]):
             select(Eval360Participante)
             .where(Eval360Participante.id == participante_id)
             .options(
-                selectinload(Eval360Participante.empleado),
+                selectinload(Eval360Participante.empleado).selectinload(Empleado.puesto),
+                selectinload(Eval360Participante.empleado).selectinload(Empleado.area),
                 selectinload(Eval360Participante.evaluaciones),
             )
         )
         return result.scalar_one_or_none()
+
+    async def list_empleados_evaluados(
+        self,
+        campana_id: Optional[int] = None,
+        estado: Optional[str] = None,
+    ) -> Sequence[tuple[Eval360Participante, Eval360Campana, Optional[Eval360Resultado]]]:
+        """Listado global de participantes (una fila por participante-campaña) con la
+        fila resumen de resultado (competencia_id NULL) si existe."""
+        query = (
+            select(Eval360Participante, Eval360Campana, Eval360Resultado)
+            .join(Eval360Campana, Eval360Campana.id == Eval360Participante.campana_id)
+            .outerjoin(
+                Eval360Resultado,
+                and_(
+                    Eval360Resultado.participante_id == Eval360Participante.id,
+                    Eval360Resultado.competencia_id.is_(None),
+                ),
+            )
+            .options(
+                selectinload(Eval360Participante.empleado).selectinload(Empleado.puesto),
+                selectinload(Eval360Participante.empleado).selectinload(Empleado.area),
+                selectinload(Eval360Participante.evaluaciones),
+            )
+            .order_by(Eval360Campana.id.desc(), Eval360Participante.id)
+        )
+        if campana_id is not None:
+            query = query.where(Eval360Participante.campana_id == campana_id)
+        if estado:
+            query = query.where(Eval360Participante.estado == estado)
+        result = await self.db.execute(query)
+        return result.all()
+
+    async def list_evaluaciones_rh(
+        self,
+        campana_id: Optional[int] = None,
+        estado: Optional[str] = None,
+        tipo: Optional[str] = None,
+    ) -> Sequence[tuple[Eval360Evaluacion, Eval360Campana]]:
+        """Listado RH de evaluaciones asignadas (todas las campañas) con nombres."""
+        query = (
+            select(Eval360Evaluacion, Eval360Campana)
+            .join(Eval360Campana, Eval360Campana.id == Eval360Evaluacion.campana_id)
+            .options(
+                selectinload(Eval360Evaluacion.participante).selectinload(
+                    Eval360Participante.empleado
+                ),
+                selectinload(Eval360Evaluacion.evaluador),
+            )
+            .order_by(Eval360Evaluacion.campana_id.desc(), Eval360Evaluacion.id)
+        )
+        if campana_id is not None:
+            query = query.where(Eval360Evaluacion.campana_id == campana_id)
+        if estado:
+            query = query.where(Eval360Evaluacion.estado == estado)
+        if tipo:
+            query = query.where(Eval360Evaluacion.tipo_evaluador == tipo)
+        result = await self.db.execute(query)
+        return result.all()
 
     # ── Evaluaciones ──────────────────────────────────────────────────────────
     async def list_evaluaciones_campana(

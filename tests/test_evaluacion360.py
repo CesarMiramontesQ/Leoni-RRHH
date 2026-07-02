@@ -158,6 +158,38 @@ async def test_create_campana_success(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_empleados_evaluados_lista_participantes(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="e360_empeval@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Comunicacion")
+    empleado = await make_empleado(db, rol="empleado", email="e360_empeval_p@leoni.test")
+
+    res = await client.post(
+        "/api/v1/evaluacion-360/campanas",
+        json=_campana_payload(comp.id, [empleado.empleado_id]),
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    campana_id = res.json()["id"]
+
+    res = await client.get("/api/v1/evaluacion-360/empleados-evaluados", headers=headers)
+    assert res.status_code == 200, res.text
+    items = res.json()
+    assert len(items) == 1
+    fila = items[0]
+    assert fila["empleado_id"] == empleado.empleado_id
+    assert fila["campana_id"] == campana_id
+    assert fila["calificacion_general"] is None
+
+    # Filtro por campana inexistente => vacio.
+    res = await client.get(
+        "/api/v1/evaluacion-360/empleados-evaluados?campana_id=999999", headers=headers
+    )
+    assert res.status_code == 200
+    assert res.json() == []
+
+
+@pytest.mark.asyncio
 async def test_create_campana_pesos_invalidos(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="e360_camp2@leoni.test")
     headers = await auth_headers(client, rh)
@@ -223,6 +255,24 @@ async def test_activar_campana_genera_evaluaciones(client: AsyncClient, db):
     assert res.status_code == 200
     part = res.json()[0]
     assert part["evaluaciones_total"] >= 4
+
+    # Listado RH de evaluaciones: devuelve las evaluaciones generadas con nombres.
+    res = await client.get(
+        f"/api/v1/evaluacion-360/evaluaciones?campana_id={campana_id}", headers=headers
+    )
+    assert res.status_code == 200, res.text
+    evals = res.json()
+    assert len(evals) >= 4
+    assert all(e["campana_id"] == campana_id for e in evals)
+    assert all(e["evaluado_nombre"] == evaluado.nombre for e in evals)
+    assert "jefe" in {e["tipo_evaluador"] for e in evals}
+    # Filtro por tipo.
+    res = await client.get(
+        f"/api/v1/evaluacion-360/evaluaciones?campana_id={campana_id}&tipo=jefe",
+        headers=headers,
+    )
+    assert res.status_code == 200
+    assert [e["tipo_evaluador"] for e in res.json()] == ["jefe"]
 
 
 @pytest.mark.asyncio

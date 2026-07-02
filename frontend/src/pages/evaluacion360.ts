@@ -3,19 +3,13 @@ import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
-import {
-  mountEval360ReportesCharts,
-  mountEval360ResultadosCharts,
-  mountEval360RhDashboardCharts,
-} from "../evaluacion360/charts.ts";
+import { mountEval360ResultadosCharts } from "../evaluacion360/charts.ts";
 import { EMPTY_EVAL360_FILTERS, readEval360FiltersFromDom } from "../evaluacion360/filters.ts";
-import { MOCK_EVALUACIONES } from "../evaluacion360/mockData.ts";
 import { EVAL360_BASE_HASH, parseEval360ViewFromHash, renderEval360SubNav } from "../evaluacion360/subNav.ts";
 import type { Campana360, Eval360Filters, Eval360ViewId } from "../evaluacion360/types.ts";
 import { campanaEstadoBadge, renderAvanceBar } from "../evaluacion360/shared.ts";
 import { renderEval360Configuracion } from "../evaluacion360/views/configuracion.ts";
 import {
-  getDashboardChartData,
   renderEval360RhDashboard,
   renderEval360RhHeader,
 } from "../evaluacion360/views/dashboardRh.ts";
@@ -32,10 +26,22 @@ import {
   descargarEval360Export,
   duplicarEval360Campana,
   fetchEval360Campanas,
+  fetchEval360CompetenciasCatalogo,
+  fetchEval360Config,
+  fetchEval360Dashboard,
+  fetchEval360EmpleadosEvaluados,
+  fetchEval360Escalas,
+  fetchEval360Evaluaciones,
   fetchEval360NineBox,
   fetchEval360Participantes,
   fetchEval360Reporte,
   type CampanaApi,
+  type CompetenciaCatalogoApi,
+  type ConfigApi,
+  type DashboardApi,
+  type EmpleadoEvaluadoApi,
+  type EscalaApi,
+  type EvaluacionRhApi,
   type NineBoxApi,
   type ParticipanteApi,
   type ReporteIndividualApi,
@@ -58,6 +64,24 @@ interface State {
   resReporte: ReporteIndividualApi | null;
   resLoading: boolean;
   resNineBox: NineBoxApi | null;
+  // Configuración
+  cfgLoaded: boolean;
+  cfgCatalogo: CompetenciaCatalogoApi[] | null;
+  cfgEscalas: EscalaApi[] | null;
+  cfgConfig: ConfigApi | null;
+  // Dashboard
+  dashboardLoaded: boolean;
+  dashboard: DashboardApi | null;
+  // Empleados
+  empleadosLoaded: boolean;
+  empleados: EmpleadoEvaluadoApi[] | null;
+  // Evaluaciones (RH)
+  evaluacionesLoaded: boolean;
+  evaluaciones: EvaluacionRhApi[] | null;
+  // Reportes
+  repCampanaId: number | null;
+  repNineBox: NineBoxApi | null;
+  repNineBoxLoading: boolean;
 }
 
 function forbiddenHtml(): string {
@@ -211,11 +235,11 @@ function renderCampanasView(state: State): string {
 function renderViewContent(state: State): string {
   switch (state.view) {
     case "empleados":
-      return renderEval360Empleados({ filters: state.filters, search: state.search });
+      return renderEval360Empleados({ empleados: state.empleados, search: state.search });
     case "campanas":
       return renderCampanasView(state);
     case "evaluaciones":
-      return renderEval360Evaluaciones(MOCK_EVALUACIONES);
+      return renderEval360Evaluaciones({ evaluaciones: state.evaluaciones });
     case "resultados":
       return renderResultadosReal({
         campanas: state.campanas,
@@ -227,24 +251,29 @@ function renderViewContent(state: State): string {
         nineBox: state.resNineBox,
       });
     case "reportes":
-      return renderEval360Reportes();
+      return renderEval360Reportes({
+        campanas: state.campanas,
+        campanaId: state.repCampanaId,
+        nineBox: state.repNineBox,
+        nineBoxLoading: state.repNineBoxLoading,
+        dashboard: state.dashboard,
+      });
     case "configuracion":
-      return renderEval360Configuracion();
+      return renderEval360Configuracion({
+        catalogo: state.cfgLoaded ? (state.cfgCatalogo ?? []) : null,
+        escalas: state.cfgLoaded ? (state.cfgEscalas ?? []) : null,
+        config: state.cfgConfig,
+      });
     default:
-      return renderEval360RhDashboard({ filters: state.filters });
+      return renderEval360RhDashboard(state.dashboard);
   }
 }
 
 function mountViewCharts(root: HTMLElement, state: State): void {
-  if (state.view === "dashboard") {
-    const data = getDashboardChartData({ filters: state.filters });
-    mountEval360RhDashboardCharts(root, data.competenciasDept);
-  } else if (state.view === "resultados") {
+  if (state.view === "resultados") {
     if (state.resReporte) {
       mountEval360ResultadosCharts(root, mapReporteToChartComps(state.resReporte));
     }
-  } else if (state.view === "reportes") {
-    mountEval360ReportesCharts(root);
   }
 }
 
@@ -272,6 +301,19 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     resReporte: null,
     resLoading: false,
     resNineBox: null,
+    cfgLoaded: false,
+    cfgCatalogo: null,
+    cfgEscalas: null,
+    cfgConfig: null,
+    dashboardLoaded: false,
+    dashboard: null,
+    empleadosLoaded: false,
+    empleados: null,
+    evaluacionesLoaded: false,
+    evaluaciones: null,
+    repCampanaId: null,
+    repNineBox: null,
+    repNineBoxLoading: false,
   };
 
   mountAppShell(container, {
@@ -295,7 +337,11 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
       state.campanasError = true;
       state.campanas = [];
     }
-    if (!signal.aborted && (state.view === "campanas" || state.view === "resultados")) paint();
+    if (
+      !signal.aborted &&
+      (state.view === "campanas" || state.view === "resultados" || state.view === "reportes")
+    )
+      paint();
   }
 
   async function loadResParticipantes(campanaId: number): Promise<void> {
@@ -310,6 +356,51 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     // Matriz 9-Box de la campaña (no bloquea la lista de participantes).
     state.resNineBox = await fetchEval360NineBox(campanaId);
     if (!signal.aborted && state.view === "resultados") paint();
+  }
+
+  async function loadDashboard(): Promise<void> {
+    if (state.dashboardLoaded) return;
+    state.dashboardLoaded = true;
+    state.dashboard = await fetchEval360Dashboard();
+    if (!signal.aborted && (state.view === "dashboard" || state.view === "reportes")) paint();
+  }
+
+  async function loadEmpleados(): Promise<void> {
+    if (state.empleadosLoaded) return;
+    state.empleadosLoaded = true;
+    state.empleados = await fetchEval360EmpleadosEvaluados();
+    if (!signal.aborted && state.view === "empleados") paint();
+  }
+
+  async function loadEvaluaciones(): Promise<void> {
+    if (state.evaluacionesLoaded) return;
+    state.evaluacionesLoaded = true;
+    state.evaluaciones = await fetchEval360Evaluaciones();
+    if (!signal.aborted && state.view === "evaluaciones") paint();
+  }
+
+  async function loadRepNineBox(campanaId: number): Promise<void> {
+    state.repCampanaId = campanaId;
+    state.repNineBox = null;
+    state.repNineBoxLoading = true;
+    paint();
+    state.repNineBox = await fetchEval360NineBox(campanaId);
+    state.repNineBoxLoading = false;
+    if (!signal.aborted && state.view === "reportes") paint();
+  }
+
+  async function loadConfiguracion(): Promise<void> {
+    if (state.cfgLoaded) return;
+    state.cfgLoaded = true;
+    const [catalogo, escalas, config] = await Promise.all([
+      fetchEval360CompetenciasCatalogo(),
+      fetchEval360Escalas(),
+      fetchEval360Config(),
+    ]);
+    state.cfgCatalogo = catalogo;
+    state.cfgEscalas = escalas;
+    state.cfgConfig = config;
+    if (!signal.aborted && state.view === "configuracion") paint();
   }
 
   async function loadResReporte(participanteId: number): Promise<void> {
@@ -356,6 +447,14 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
       runChartsAfterLayout(content, () => mountViewCharts(content as HTMLElement, state), { isStale });
     }
     if (state.view === "campanas" || state.view === "resultados") void loadCampanas();
+    if (state.view === "configuracion") void loadConfiguracion();
+    if (state.view === "dashboard") void loadDashboard();
+    if (state.view === "empleados") void loadEmpleados();
+    if (state.view === "evaluaciones") void loadEvaluaciones();
+    if (state.view === "reportes") {
+      void loadCampanas();
+      void loadDashboard();
+    }
     bindEvents();
   }
 
@@ -438,6 +537,12 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
         if (!window.confirm("¿Cancelar la campaña? Esta acción no calcula resultados.")) return;
         void ejecutarAccionCampana(cancelarEval360Campana, idOf(btn), "No se pudo cancelar la campaña.");
       });
+    });
+
+    // Reportes: selector de campaña para la matriz 9-box.
+    pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-rep-campana"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) void loadRepNineBox(id);
     });
 
     // Resultados: selectores de campaña/participante y exportación.

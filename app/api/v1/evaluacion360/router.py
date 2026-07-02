@@ -18,6 +18,8 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.evaluacion360 import (
+    EmpleadoEvaluadoItem,
+    EvaluacionRhItem,
     CampanaCreate,
     CampanaDetalleResponse,
     CampanaListResponse,
@@ -367,6 +369,29 @@ async def cancelar_campana(
     svc: Evaluacion360Service = Depends(_svc),
 ):
     return await svc.cancelar_campana(campana_id, current_user, background_tasks)
+
+
+@router.get("/empleados-evaluados", response_model=list[EmpleadoEvaluadoItem])
+async def empleados_evaluados(
+    campana_id: int | None = Query(None),
+    estado: str | None = Query(None, description="pendiente | en_progreso | completada"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    """Listado global de empleados evaluados (una fila por participante-campaña)."""
+    return await svc.list_empleados_evaluados(campana_id=campana_id, estado=estado)
+
+
+@router.get("/evaluaciones", response_model=list[EvaluacionRhItem])
+async def list_evaluaciones_rh(
+    campana_id: int | None = Query(None),
+    estado: str | None = Query(None, description="pendiente | en_progreso | completada | vencida"),
+    tipo: str | None = Query(None, description="autoevaluacion | jefe | par | subordinado | cliente_interno | cliente_externo"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    """Listado RH de evaluaciones asignadas en todas las campañas."""
+    return await svc.list_evaluaciones_rh(campana_id=campana_id, estado=estado, tipo=tipo)
 
 
 @router.get("/campanas/{campana_id}/participantes", response_model=list[ParticipanteResponse])

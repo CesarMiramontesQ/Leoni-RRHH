@@ -12015,6 +12015,29 @@ paths:
       parameters: [ { name: campana_id, in: path, required: true, schema: { type: integer } } ]
       responses:
         "200": { description: Campaña cancelada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/evaluacion-360/empleados-evaluados:
+    get:
+      tags: [Evaluación 360]
+      summary: Listado global de empleados evaluados (una fila por participante-campaña)
+      operationId: eval360_empleados_evaluados
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: campana_id, in: query, required: false, schema: { type: integer } }
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [pendiente, en_progreso, completada] } }
+      responses:
+        "200": { description: Empleados evaluados, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/evaluacion-360/evaluaciones:
+    get:
+      tags: [Evaluación 360]
+      summary: Listado RH de evaluaciones asignadas en todas las campañas
+      operationId: eval360_list_evaluaciones_rh
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: campana_id, in: query, required: false, schema: { type: integer } }
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [pendiente, en_progreso, completada, vencida] } }
+        - { name: tipo, in: query, required: false, schema: { type: string, enum: [autoevaluacion, jefe, par, subordinado, cliente_interno, cliente_externo] } }
+      responses:
+        "200": { description: Evaluaciones (RH), content: { application/json: { schema: { type: array, items: { type: object } } } } }
   /api/v1/evaluacion-360/campanas/{campana_id}/participantes:
     get:
       tags: [Evaluación 360]

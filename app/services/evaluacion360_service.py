@@ -71,6 +71,8 @@ from app.schemas.evaluacion360 import (
     CampanaResponse,
     CampanaCompetenciaIn,
     CampanaConfigIn,
+    EmpleadoEvaluadoItem,
+    EvaluacionRhItem,
     CampanaEvaluadorTipoIn,
     CampanaUpdate,
     ComentarioIn,
@@ -602,6 +604,70 @@ class Evaluacion360Service:
                 evaluaciones_total=total,
                 evaluaciones_completadas=completadas,
                 avance=round(completadas / total * 100, 1) if total else 0.0,
+            ))
+        return out
+
+    async def list_empleados_evaluados(
+        self,
+        campana_id: Optional[int] = None,
+        estado: Optional[str] = None,
+    ) -> list[EmpleadoEvaluadoItem]:
+        """Listado global de empleados evaluados (una fila por participante-campaña)."""
+        filas = await self.repo.list_empleados_evaluados(campana_id=campana_id, estado=estado)
+        out: list[EmpleadoEvaluadoItem] = []
+        for participante, campana, resultado in filas:
+            total = len(participante.evaluaciones)
+            completadas = sum(1 for e in participante.evaluaciones if e.estado == "completada")
+            emp = participante.empleado
+            out.append(EmpleadoEvaluadoItem(
+                participante_id=participante.id,
+                empleado_id=participante.empleado_id,
+                nombre=emp.nombre if emp else None,
+                no_empleado=emp.no_empleado if emp else None,
+                puesto=self._puesto_nombre(emp),
+                area=self._area_nombre(emp),
+                campana_id=campana.id,
+                campana_nombre=campana.nombre,
+                estado=participante.estado,
+                calificacion_general=(
+                    float(resultado.calificacion_general)
+                    if resultado and resultado.calificacion_general is not None
+                    else None
+                ),
+                evaluaciones_total=total,
+                evaluaciones_completadas=completadas,
+                avance=round(completadas / total * 100, 1) if total else 0.0,
+            ))
+        return out
+
+    async def list_evaluaciones_rh(
+        self,
+        campana_id: Optional[int] = None,
+        estado: Optional[str] = None,
+        tipo: Optional[str] = None,
+    ) -> list[EvaluacionRhItem]:
+        """Listado RH de evaluaciones asignadas (todas las campañas)."""
+        filas = await self.repo.list_evaluaciones_rh(
+            campana_id=campana_id, estado=estado, tipo=tipo
+        )
+        out: list[EvaluacionRhItem] = []
+        for ev, campana in filas:
+            evaluado = ev.participante.empleado if ev.participante else None
+            evaluador_nombre = (
+                ev.evaluador.nombre if ev.evaluador else ev.evaluador_nombre
+            )
+            out.append(EvaluacionRhItem(
+                id=ev.id,
+                campana_id=ev.campana_id,
+                campana_nombre=campana.nombre,
+                evaluado_nombre=evaluado.nombre if evaluado else None,
+                evaluador_nombre=evaluador_nombre,
+                tipo_evaluador=ev.tipo_evaluador,
+                estado=ev.estado,
+                fecha_asignacion=(
+                    ev.fecha_asignacion.date().isoformat() if ev.fecha_asignacion else None
+                ),
+                fecha_limite=ev.fecha_limite.isoformat() if ev.fecha_limite else None,
             ))
         return out
 
