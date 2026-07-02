@@ -11796,6 +11796,14 @@ paths:
       parameters: [ { name: escala_id, in: path, required: true, schema: { type: integer } } ]
       responses:
         "204": { description: Escala desactivada }
+  /api/v1/evaluacion-360/competencias-catalogo:
+    get:
+      tags: [Evaluación 360]
+      summary: Catálogo de competencias para el wizard (no requiere el módulo competencias)
+      operationId: eval360_competencias_catalogo
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Competencias activas con nº de preguntas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
   /api/v1/evaluacion-360/preguntas:
     get:
       tags: [Evaluación 360]

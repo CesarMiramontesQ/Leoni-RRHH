@@ -27,7 +27,7 @@ from io import BytesIO
 from typing import Optional, Sequence
 
 from fastapi import BackgroundTasks
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -75,6 +75,7 @@ from app.schemas.evaluacion360 import (
     CampanaUpdate,
     ComentarioIn,
     ComentarioReporte,
+    CompetenciaCatalogoItem,
     CompetenciaEvaluacion,
     ConfigResponse,
     ConfigUpdate,
@@ -242,6 +243,33 @@ class Evaluacion360Service:
     # ══════════════════════════════════════════════════════════════════════════
     # Banco de preguntas
     # ══════════════════════════════════════════════════════════════════════════
+    async def list_competencias_catalogo(self) -> list[CompetenciaCatalogoItem]:
+        """Catálogo de competencias activas para el wizard (bajo el prefijo 360,
+        para no exigir el módulo `competencias`). Incluye el nº de preguntas."""
+        competencias = (
+            await self.db.execute(
+                select(Competencia)
+                .where(Competencia.activo.is_(True))
+                .order_by(Competencia.nombre)
+            )
+        ).scalars().all()
+        conteos: dict[int, int] = {}
+        for row in (
+            await self.db.execute(
+                select(Eval360Pregunta.competencia_id, func.count())
+                .where(Eval360Pregunta.activo.is_(True))
+                .group_by(Eval360Pregunta.competencia_id)
+            )
+        ).all():
+            conteos[row[0]] = row[1]
+        return [
+            CompetenciaCatalogoItem(
+                id=c.id, nombre=c.nombre, categoria=c.categoria,
+                num_preguntas=conteos.get(c.id, 0),
+            )
+            for c in competencias
+        ]
+
     async def list_preguntas(
         self, competencia_id: Optional[int] = None
     ) -> list[PreguntaResponse]:

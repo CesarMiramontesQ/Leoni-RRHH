@@ -3,11 +3,11 @@
 // Autónomo: monta su propio overlay, gestiona su estado y, al crear la campaña,
 // invoca onCreated() y se desmonta. No depende del paint() de la página.
 
-import { getCompetencias } from "../api/competencias.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import {
   createEval360Campana,
   createEval360Plantilla,
+  fetchEval360CompetenciasCatalogo,
   fetchEval360Escalas,
   fetchEval360Plantillas,
   type CampanaCreatePayload,
@@ -63,7 +63,7 @@ interface WizardState {
     fecha_limite: string;
   };
   // catálogos / búsqueda
-  catalogo: { id: number; nombre: string }[] | null;
+  catalogo: { id: number; nombre: string; num_preguntas: number }[] | null;
   escalas: EscalaApi[] | null;
   plantillas: PlantillaApi[] | null;
   busqueda: string;
@@ -145,12 +145,10 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
 
   async function ensureCatalogo(): Promise<void> {
     if (st.catalogo !== null) return;
-    try {
-      const comps = await getCompetencias({ page_size: 300 });
-      st.catalogo = comps.map((c) => ({ id: c.id, nombre: c.nombre }));
-    } catch {
-      st.catalogo = [];
-    }
+    const comps = await fetchEval360CompetenciasCatalogo();
+    st.catalogo = comps.map((c) => ({
+      id: c.id, nombre: c.nombre, num_preguntas: c.num_preguntas,
+    }));
     render();
   }
 
@@ -354,13 +352,25 @@ export function openCampanaWizard(host: HTMLElement, onCreated: () => void): voi
   }
 
   function stepCompetencias(): string {
+    // Catálogo vacío → aviso claro (no hay competencias activas en el sistema).
+    if (st.catalogo !== null && st.catalogo.length === 0) {
+      return `
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-center">
+          <p class="text-sm font-semibold text-amber-900">No hay competencias disponibles</p>
+          <p class="mt-1 text-sm text-amber-800">El módulo reutiliza el catálogo de competencias existente. Pide a RH crear competencias (módulo <span class="font-medium">Competencias</span>) y, en Ajustes de Evaluación 360°, registrar preguntas por competencia. Luego vuelve a crear la campaña.</p>
+        </div>`;
+    }
+    const disponibles = (st.catalogo ?? []).filter(
+      (c) => !st.competencias.some((s) => s.competencia_id === c.id),
+    );
     const opciones =
       st.catalogo === null
         ? '<option>Cargando…</option>'
-        : st.catalogo
-            .filter((c) => !st.competencias.some((s) => s.competencia_id === c.id))
-            .map((c) => `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`)
-            .join("");
+        : disponibles.length === 0
+          ? '<option value="">Todas las competencias ya están agregadas</option>'
+          : disponibles
+              .map((c) => `<option value="${c.id}">${escapeHtml(c.nombre)}${c.num_preguntas === 0 ? " · ⚠ sin preguntas" : ` · ${c.num_preguntas} preg.`}</option>`)
+              .join("");
     const filas = st.competencias
       .map(
         (c, idx) => `

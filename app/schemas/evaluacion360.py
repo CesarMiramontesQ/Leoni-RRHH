@@ -145,6 +145,16 @@ class PreguntaResponse(BaseModel):
     activo: bool
 
 
+class CompetenciaCatalogoItem(BaseModel):
+    """Ítem ligero del catálogo de competencias para el wizard (sin depender
+    del módulo `competencias`)."""
+
+    id: int
+    nombre: str
+    categoria: Optional[str] = None
+    num_preguntas: int = 0
+
+
 # ── Campanas ──────────────────────────────────────────────────────────────────
 
 

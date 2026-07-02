@@ -33,6 +33,7 @@ from app.schemas.evaluacion360 import (
     MiEvaluacionResumen,
     ParticipanteResponse,
     PreguntaCreate,
+    CompetenciaCatalogoItem,
     CursoSugeridoPorCompetencia,
     GenerarPdiResultado,
     NineBoxResponse,
@@ -128,6 +129,15 @@ async def delete_escala(
 # ══════════════════════════════════════════════════════════════════════════════
 # Banco de preguntas
 # ══════════════════════════════════════════════════════════════════════════════
+@router.get("/competencias-catalogo", response_model=list[CompetenciaCatalogoItem])
+async def competencias_catalogo(
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: Evaluacion360Service = Depends(_svc),
+):
+    """Catálogo de competencias (bajo el prefijo 360; no requiere el módulo competencias)."""
+    return await svc.list_competencias_catalogo()
+
+
 @router.get("/preguntas", response_model=list[PreguntaResponse])
 async def list_preguntas(
     competencia_id: int | None = Query(None),

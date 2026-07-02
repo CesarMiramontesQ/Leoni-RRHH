@@ -124,6 +124,20 @@ async def test_preguntas_crud(client: AsyncClient, db):
 # Campanas
 # ══════════════════════════════════════════════════════════════════════════════
 @pytest.mark.asyncio
+async def test_competencias_catalogo(client: AsyncClient, db):
+    """El catálogo del wizard vive bajo /evaluacion-360 (no exige módulo competencias)."""
+    rh = await make_empleado(db, rol="rh", email="e360_cat@leoni.test")
+    headers = await auth_headers(client, rh)
+    comp = await _crear_competencia_con_preguntas(client, db, headers, nombre="Organización", n_preguntas=3)
+
+    res = await client.get("/api/v1/evaluacion-360/competencias-catalogo", headers=headers)
+    assert res.status_code == 200, res.text
+    item = next(c for c in res.json() if c["id"] == comp.id)
+    assert item["nombre"] == "Organización"
+    assert item["num_preguntas"] == 3
+
+
+@pytest.mark.asyncio
 async def test_create_campana_success(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="e360_camp@leoni.test")
     headers = await auth_headers(client, rh)

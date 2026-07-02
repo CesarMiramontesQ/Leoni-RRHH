@@ -318,6 +318,20 @@ export async function fetchEval360Escalas(): Promise<EscalaApi[]> {
   return res.json();
 }
 
+// ── Catálogo de competencias (bajo el prefijo 360; no requiere módulo competencias) ──
+export interface CompetenciaCatalogoApi {
+  id: number;
+  nombre: string;
+  categoria: string | null;
+  num_preguntas: number;
+}
+
+export async function fetchEval360CompetenciasCatalogo(): Promise<CompetenciaCatalogoApi[]> {
+  const res = await fetchWithAuth(`${BASE}/competencias-catalogo`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
 // ── Preguntas ─────────────────────────────────────────────────────────────────
 export async function fetchEval360Preguntas(competenciaId?: number): Promise<PreguntaApi[]> {
   const qs = competenciaId != null ? `?competencia_id=${competenciaId}` : "";
