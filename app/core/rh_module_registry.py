@@ -32,7 +32,7 @@ class RhModuleDef:
 _LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
     "comedor": ("comedor-registro", "comedor-gestion", "comedor-planear"),
     "puestos": ("puestos-ajustes",),
-    "cursos": ("cursos-seguimiento", "sesiones", "cursos-ajustes"),
+    "cursos": ("cursos-seguimiento", "sesiones", "cursos-ajustes", "juntas"),
     "level-up": ("evaluacion-360",),
 }
 
@@ -215,6 +215,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         nav_item_ids=("cursos-ajustes",),
         hash_prefixes=("#/cursos/ajustes",),
         api_prefixes=("/api/v1/level-up/catalogos",),
+    ),
+    "juntas": RhModuleDef(
+        key="juntas",
+        label="Juntas",
+        group="Cursos",
+        nav_item_ids=("cursos-juntas",),
+        hash_prefixes=("#/cursos/juntas",),
+        api_prefixes=("/api/v1/juntas",),
     ),
     "puestos": RhModuleDef(
         key="puestos",

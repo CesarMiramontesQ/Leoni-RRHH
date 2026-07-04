@@ -31,6 +31,7 @@ import { mountMetricas } from "./pages/metricas.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
 import { mountTareasCatalogo } from "./pages/tareasCatalogo.ts";
+import { mountCursosJuntas } from "./pages/cursosJuntas.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
 import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
@@ -235,6 +236,10 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h === "#/cursos/seguimiento" || h.startsWith("#/cursos/seguimiento/")) {
       mountCursosSeguimiento(container);
+      return;
+    }
+    if (h.startsWith("#/cursos/juntas")) {
+      mountCursosJuntas(container, signal);
       return;
     }
     if (h.startsWith("#/cursos")) {

@@ -35,6 +35,7 @@ export type RhNavKey =
   | "cursos"
   | "cursos-seguimiento"
   | "cursos-ajustes"
+  | "cursos-juntas"
   | "sesiones"
   | "opls"
   | "evidencias"

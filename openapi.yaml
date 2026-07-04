@@ -5292,6 +5292,55 @@ components:
           type: array
           items: { $ref: "#/components/schemas/ComentarioItem" }
 
+    # ── Juntas ──────────────────────────────────────────
+    JuntaCreate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string, minLength: 3, maxLength: 255 }
+        motivo: { type: string, nullable: true, maxLength: 2000 }
+        categoria: { type: string, nullable: true, maxLength: 120 }
+        asistente_ids:
+          type: array
+          items: { type: integer }
+          description: empleado_id de los asistentes (catálogo de empleados existente)
+    JuntaAsistente:
+      type: object
+      properties:
+        empleado_id: { type: integer }
+        no_empleado: { type: integer, nullable: true }
+        nombre: { type: string, nullable: true }
+        puesto: { type: string, nullable: true }
+        area: { type: string, nullable: true }
+    JuntaResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        nombre: { type: string }
+        motivo: { type: string, nullable: true }
+        categoria: { type: string, nullable: true }
+        estado: { type: string, enum: [registrada, cancelada, cerrada] }
+        asistentes_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    JuntaDetalleResponse:
+      allOf:
+        - $ref: "#/components/schemas/JuntaResponse"
+        - type: object
+          properties:
+            asistentes:
+              type: array
+              items: { $ref: "#/components/schemas/JuntaAsistente" }
+    JuntaListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/JuntaResponse" }
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -12159,3 +12208,43 @@ paths:
           content:
             application/pdf: { schema: { type: string, format: binary } }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } }
+  /api/v1/juntas:
+    get:
+      tags: [Juntas]
+      summary: Listar juntas (paginado, búsqueda)
+      operationId: juntas_list
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, required: false, schema: { type: integer, default: 10 } }
+        - { name: q, in: query, required: false, schema: { type: string }, description: Búsqueda por nombre de la junta }
+        - { name: categoria, in: query, required: false, schema: { type: string } }
+      responses:
+        "200":
+          description: Listado paginado de juntas
+          content: { application/json: { schema: { $ref: '#/components/schemas/JuntaListResponse' } } }
+    post:
+      tags: [Juntas]
+      summary: Crear junta con sus asistentes
+      operationId: juntas_create
+      security: [ { BearerAuth: [] } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/JuntaCreate' } } }
+      responses:
+        "201":
+          description: Junta creada (con detalle y asistentes)
+          content: { application/json: { schema: { $ref: '#/components/schemas/JuntaDetalleResponse' } } }
+        "422": { description: Validación (nombre < 3 caracteres, etc.) }
+  /api/v1/juntas/{junta_id}:
+    get:
+      tags: [Juntas]
+      summary: Detalle de una junta con la lista completa de asistentes
+      operationId: juntas_get
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: junta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Detalle de la junta
+          content: { application/json: { schema: { $ref: '#/components/schemas/JuntaDetalleResponse' } } }
+        "404": { description: Junta no encontrada }

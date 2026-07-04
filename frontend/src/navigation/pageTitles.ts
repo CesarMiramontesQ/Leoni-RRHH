@@ -25,6 +25,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/capacidades"), titulo: "Matriz de Multihabilidades" },
   { match: (h) => h.startsWith("#/cursos/seguimiento"), titulo: "Seguimiento de capacitaciones" },
   { match: (h) => h.startsWith("#/cursos/ajustes"), titulo: "Ajustes de cursos" },
+  { match: (h) => h.startsWith("#/cursos/juntas"), titulo: "Juntas" },
   { match: (h) => h.startsWith("#/cursos"), titulo: "Manejo de Cursos" },
   { match: (h) => h.startsWith("#/opls"), titulo: "Manejo de OPLs" },
   { match: (h) => h.startsWith("#/evidencias"), titulo: "Motor de Evidencias" },

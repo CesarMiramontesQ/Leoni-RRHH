@@ -121,6 +121,7 @@ export type ShellNavKey =
   | "capacidades"
   | "cursos"
   | "cursos-seguimiento"
+  | "cursos-juntas"
   | "sesiones"
   | "opls"
   | "evidencias"
