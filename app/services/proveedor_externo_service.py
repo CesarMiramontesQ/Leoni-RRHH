@@ -98,6 +98,7 @@ class ProveedorExternoService:
         personas = [
             PersonaResponse.model_validate(p)
             for p in sorted(prov.personas, key=lambda x: x.nombre.lower())
+            if p.activo
         ]
         return ProveedorDetalleResponse(**base.model_dump(), personas=personas)
 

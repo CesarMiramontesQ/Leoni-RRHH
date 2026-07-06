@@ -90,6 +90,39 @@ async def test_agregar_persona_aparece_en_detalle(client, db):
 
 # ── Cursos externos ───────────────────────────────────────────────────────────
 @pytest.mark.asyncio
+async def test_quitar_persona_no_aparece_en_detalle(client, db):
+    rh = await make_empleado(db, rol="rh", email="pe_delpers@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    prov = await _crear_proveedor(client, headers)
+    r1 = await client.post(
+        f"{BASE}/proveedores/{prov['id']}/personas",
+        json={"nombre": "Persona Uno", "identificacion": "INE-1"},
+        headers=headers,
+    )
+    await client.post(
+        f"{BASE}/proveedores/{prov['id']}/personas",
+        json={"nombre": "Persona Dos", "identificacion": "INE-2"},
+        headers=headers,
+    )
+    p1 = r1.json()
+
+    res = await client.delete(f"{BASE}/personas/{p1['id']}", headers=headers)
+    assert res.status_code == 204, res.text
+
+    detalle = await client.get(f"{BASE}/proveedores/{prov['id']}", headers=headers)
+    body = detalle.json()
+    assert body["personas_count"] == 1
+    assert [p["nombre"] for p in body["personas"]] == ["Persona Dos"]
+
+    # También desaparece del selector de personas activas.
+    personas = await client.get(f"{BASE}/proveedores/{prov['id']}/personas", headers=headers)
+    assert [p["id"] for p in personas.json()] == [
+        p["id"] for p in body["personas"]
+    ]
+
+
+@pytest.mark.asyncio
 async def test_crear_curso_externo_con_vigencia(client, db):
     rh = await make_empleado(db, rol="rh", email="pe_curso@leoni.test")
     headers = await auth_headers(client, rh)
