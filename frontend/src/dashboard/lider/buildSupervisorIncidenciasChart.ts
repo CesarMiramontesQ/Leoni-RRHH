@@ -1,5 +1,8 @@
 import type { RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
-import { extraerPrimerNombreApellido } from "../../utils/comedorNombreCorto.ts";
+import {
+  empleadoLabelConNumero,
+  empleadoLabelCorto,
+} from "../../utils/empleadoLabelConNumero.ts";
 import type {
   SupervisorIncidenciasChartData,
   SupervisorIncidenciasChartRow,
@@ -74,7 +77,10 @@ export function buildSupervisorIncidenciasChart(
   const scoped =
     excludeEmpleadoId != null ? filas.filter((f) => f.empleado_id !== excludeEmpleadoId) : [...filas];
 
-  const byEmployee = new Map<string, { nombre: string; byTipo: Map<string, number> }>();
+  const byEmployee = new Map<
+    string,
+    { nombre: string; no_empleado: string | null; byTipo: Map<string, number> }
+  >();
 
   for (const fila of scoped) {
     const id = fila.empleado_id;
@@ -82,8 +88,12 @@ export function buildSupervisorIncidenciasChart(
     const tipo = resolveTipoIncidencia(fila);
     let entry = byEmployee.get(id);
     if (!entry) {
-      entry = { nombre, byTipo: new Map() };
+      entry = { nombre, no_empleado: null, byTipo: new Map() };
       byEmployee.set(id, entry);
+    }
+    if (!entry.no_empleado) {
+      const no = fila.no_empleado?.trim();
+      if (no) entry.no_empleado = no;
     }
     entry.byTipo.set(tipo, (entry.byTipo.get(tipo) ?? 0) + 1);
   }
@@ -97,17 +107,19 @@ export function buildSupervisorIncidenciasChart(
         total += count;
       }
       const nombre = entry.nombre;
+      const noEmpleado = entry.no_empleado;
       return {
         empleado_id,
-        empleado_nombre: nombre,
-        empleado_nombre_corto: extraerPrimerNombreApellido(nombre),
+        no_empleado: noEmpleado,
+        empleado_nombre: empleadoLabelConNumero(nombre, noEmpleado),
+        empleado_nombre_corto: empleadoLabelCorto(nombre, noEmpleado),
+        _nombreOrden: nombre,
         total,
         byTipo,
       };
     })
-    .sort(
-      (a, b) => b.total - a.total || a.empleado_nombre.localeCompare(b.empleado_nombre, "es"),
-    );
+    .sort((a, b) => b.total - a.total || a._nombreOrden.localeCompare(b._nombreOrden, "es"))
+    .map(({ _nombreOrden, ...row }) => row);
 
   const totalIncidencias = rows.reduce((sum, row) => sum + row.total, 0);
   const totalColaboradores = rows.length;

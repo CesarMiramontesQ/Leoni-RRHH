@@ -11,8 +11,8 @@ describe("aggregateEmpleadosRetardosTop", () => {
     }));
     const ranking = aggregateEmpleadosRetardosTop(rows);
     expect(ranking).toHaveLength(5);
-    expect(ranking[0]).toEqual({ label: "Empleado 7", total: 7 });
-    expect(ranking[4]).toEqual({ label: "Empleado 3", total: 3 });
+    expect(ranking[0]).toEqual({ label: "Empleado 7 (E7)", total: 7 });
+    expect(ranking[4]).toEqual({ label: "Empleado 3 (E3)", total: 3 });
   });
 
   it("desempata por nombre y luego por empleado_id", () => {
@@ -21,8 +21,8 @@ describe("aggregateEmpleadosRetardosTop", () => {
       { empleado_id: 1, no_empleado: "1001", nombre: "Ana López", total: 3 },
     ]);
     expect(ranking).toEqual([
-      { label: "Ana López", total: 3 },
-      { label: "Ana López", total: 3 },
+      { label: "Ana López (1001)", total: 3 },
+      { label: "Ana López (1002)", total: 3 },
     ]);
     expect(ranking).toHaveLength(2);
   });
@@ -34,8 +34,15 @@ describe("aggregateEmpleadosRetardosTop", () => {
       { empleado_id: 3, no_empleado: null, nombre: null, total: 0 },
     ]);
     expect(ranking).toEqual([
-      { label: "Ana López", total: 3 },
+      { label: "Ana López (1001)", total: 3 },
       { label: "1002", total: 2 },
     ]);
+  });
+
+  it("reduce nombres 'APELLIDOS, NOMBRES' a nombre corto con número", () => {
+    const ranking = aggregateEmpleadosRetardosTop([
+      { empleado_id: 1, no_empleado: "5", nombre: "PÉREZ GARCÍA, JUAN CARLOS", total: 4 },
+    ]);
+    expect(ranking).toEqual([{ label: "Juan Pérez (5)", total: 4 }]);
   });
 });

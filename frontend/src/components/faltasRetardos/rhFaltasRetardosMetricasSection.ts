@@ -14,6 +14,7 @@ import {
 import { mountRankingHorizontalBar } from "../solicitudes/rhSolicitudesAnalyticsCharts.ts";
 import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+import { empleadoLabelCorto } from "../../utils/empleadoLabelConNumero.ts";
 import { RH_LISTADO_SURFACE } from "./rhFaltasRetardosPageStyles.ts";
 import {
   mountFaltasRetardosTendenciaPorTipoChart,
@@ -39,7 +40,7 @@ function empleadosChartRows(data: FaltasRetardosEstadisticasData): FaltaRetardoE
         if (item.total > 0) byTipo[item.tipo] = item.total;
       }
       return {
-        label: e.nombre?.trim() || e.no_empleado?.trim() || "Sin nombre",
+        label: empleadoLabelCorto(e.nombre, e.no_empleado),
         total: e.total,
         byTipo,
       };
