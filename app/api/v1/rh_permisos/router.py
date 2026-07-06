@@ -6,6 +6,7 @@ from app.core.dependencies import get_current_user, require_admin_user
 from app.models.empleados import Empleado
 from app.repositories.rh_permisos_repository import RhPermisosRepository
 from app.schemas.rh_permisos import (
+    RhAdminPermisosUpdate,
     RhEmpleadoBusquedaItem,
     RhModuloCatalogItem,
     RhPermisosMeResponse,
@@ -88,6 +89,23 @@ async def actualizar_permisos_usuario(
     return await svc.update_usuario_permisos(
         empleado_id=empleado_id,
         body=body,
+        current_user=current_user,
+        ip_address=_client_ip(request),
+    )
+
+
+@router.put("/usuarios/{empleado_id}/admin", response_model=RhUsuarioPermisosItem)
+async def set_admin_permisos_usuario(
+    empleado_id: int,
+    body: RhAdminPermisosUpdate,
+    request: Request,
+    current_user: Empleado = Depends(require_admin_user),
+    svc: RhPermisosService = Depends(_svc),
+):
+    """Otorga/revoca `puede_administrar_permisos_rh` a un empleado (fuente: BD)."""
+    return await svc.set_admin_permisos(
+        empleado_id=empleado_id,
+        conceder=body.conceder,
         current_user=current_user,
         ip_address=_client_ip(request),
     )

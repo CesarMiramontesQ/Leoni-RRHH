@@ -78,7 +78,7 @@ Layered architecture: **router → service → repository → models/schemas**
 - Tests use SQLite in-memory with JSONB→JSON patch (see `tests/conftest.py`); no Docker required
 - APScheduler runs periodic jobs (TRESS queue processing, IT Mirror sync, nightly bono imports: `calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`)
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
-- **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. Bootstrap/recuperación vía `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) solo cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`); no hay gestión de admin desde la UI de permisos RH.
+- **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper
 
 ## Git Workflow

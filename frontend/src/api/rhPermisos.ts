@@ -106,3 +106,19 @@ export async function updateRhUsuarioPermisos(
   }
   return (await res.json()) as RhUsuarioPermisosItem;
 }
+
+export async function setRhAdminPermisos(
+  empleadoId: number,
+  conceder: boolean,
+): Promise<RhUsuarioPermisosItem> {
+  const res = await fetchWithAuth(`/api/v1/rh-permisos/usuarios/${empleadoId}/admin`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ conceder }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(err?.detail ?? `rh-permisos/usuarios/${empleadoId}/admin: ${res.status}`);
+  }
+  return (await res.json()) as RhUsuarioPermisosItem;
+}
