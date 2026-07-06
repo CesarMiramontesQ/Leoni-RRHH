@@ -141,6 +141,61 @@ class RhPermisosService:
         )
         return self._to_item(target, current_user)
 
+    async def set_admin_permisos(
+        self,
+        *,
+        empleado_id: int,
+        conceder: bool,
+        current_user: Empleado,
+        ip_address: str | None = None,
+    ) -> RhUsuarioPermisosItem:
+        """Otorga o revoca el flag `puede_administrar_permisos_rh` de un empleado.
+
+        La BD (`levelup_empleados_permisos`) es la fuente; el `.env` solo hace
+        bootstrap/recuperación. Candados: no puedes cambiar tu propio flag ni
+        revocar al último administrador (evita lockout). Auditado síncrono.
+        """
+        self._require_admin(current_user)
+
+        if empleado_id == current_user.empleado_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No puedes cambiar tu propio permiso de administración.",
+            )
+
+        target = await self.repo.get_by_empleado_id(empleado_id)
+        if target is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Empleado no encontrado.",
+            )
+
+        antes = is_admin_user(target)
+        if antes == conceder:
+            # Sin cambio: devolver estado actual sin auditar ruido.
+            return self._to_item(target, current_user)
+
+        if not conceder:
+            # Anti-lockout: no revocar al último administrador del sistema.
+            if await self.repo.count_admins() <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="No puedes revocar al último administrador de permisos RH.",
+                )
+
+        target = await self.repo.set_admin_flag(target, conceder)
+        await log_action(
+            self.repo.db,
+            accion="RH_PERMISOS_ADMIN_GRANTED" if conceder else "RH_PERMISOS_ADMIN_REVOKED",
+            modulo="rh_permisos",
+            usuario_id=current_user.empleado_id,
+            entidad_id=empleado_id,
+            datos_antes={"puede_administrar_permisos_rh": antes},
+            datos_despues={"puede_administrar_permisos_rh": conceder},
+            ip_address=ip_address,
+        )
+        return self._to_item(target, current_user)
+
     async def update_usuario_permisos(
         self,
         *,

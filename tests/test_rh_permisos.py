@@ -864,3 +864,116 @@ async def test_bootstrap_rh_admins_recovery_semantics(db, monkeypatch):
     await ensure_bootstrap_rh_admins(db)
     await db.refresh(cand2)
     assert cand2.puede_administrar_permisos_rh is False
+
+
+# ── Toggle admin desde la UI ────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_admin_puede_otorgar_admin_a_otro(client: AsyncClient, db):
+    admin = await make_empleado(
+        db, rol="rh", email="adm_grant@test.com", puede_administrar_permisos_rh=True
+    )
+    target = await make_empleado(db, rol="gerente", email="tgt_grant@test.com")
+
+    res = await client.put(
+        f"/api/v1/rh-permisos/usuarios/{target.empleado_id}/admin",
+        json={"conceder": True},
+        headers=await auth_headers(client, admin),
+    )
+    assert res.status_code == 200
+    assert res.json()["puede_administrar_permisos_rh"] is True
+
+    await db.refresh(target)
+    assert target.puede_administrar_permisos_rh is True
+
+
+@pytest.mark.asyncio
+async def test_admin_puede_revocar_admin(client: AsyncClient, db):
+    admin = await make_empleado(
+        db, rol="rh", email="adm_revoke@test.com", puede_administrar_permisos_rh=True
+    )
+    otro = await make_empleado(
+        db, rol="rh", email="otro_admin@test.com", puede_administrar_permisos_rh=True
+    )
+
+    res = await client.put(
+        f"/api/v1/rh-permisos/usuarios/{otro.empleado_id}/admin",
+        json={"conceder": False},
+        headers=await auth_headers(client, admin),
+    )
+    assert res.status_code == 200
+    assert res.json()["puede_administrar_permisos_rh"] is False
+
+    await db.refresh(otro)
+    assert otro.puede_administrar_permisos_rh is False
+
+
+@pytest.mark.asyncio
+async def test_no_puede_cambiar_su_propio_flag(client: AsyncClient, db):
+    admin = await make_empleado(
+        db, rol="rh", email="adm_self@test.com", puede_administrar_permisos_rh=True
+    )
+    res = await client.put(
+        f"/api/v1/rh-permisos/usuarios/{admin.empleado_id}/admin",
+        json={"conceder": False},
+        headers=await auth_headers(client, admin),
+    )
+    assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_count_admins_refleja_toggles(client: AsyncClient, db):
+    """count_admins() (usado por el candado anti-lockout, defensivo) cuenta bien.
+
+    El 409 de "último admin" es inalcanzable por API: revocar a OTRO admin implica
+    que el caller también es admin → siempre hay ≥2. Aquí verificamos el conteo."""
+    from app.repositories.rh_permisos_repository import RhPermisosRepository
+
+    repo = RhPermisosRepository(db)
+    base = await repo.count_admins()
+
+    admin = await make_empleado(
+        db, rol="rh", email="cnt_admin@test.com", puede_administrar_permisos_rh=True
+    )
+    otro = await make_empleado(db, rol="gerente", email="cnt_otro@test.com")
+    assert await repo.count_admins() == base + 1
+
+    await client.put(
+        f"/api/v1/rh-permisos/usuarios/{otro.empleado_id}/admin",
+        json={"conceder": True},
+        headers=await auth_headers(client, admin),
+    )
+    assert await repo.count_admins() == base + 2
+
+    await client.put(
+        f"/api/v1/rh-permisos/usuarios/{otro.empleado_id}/admin",
+        json={"conceder": False},
+        headers=await auth_headers(client, admin),
+    )
+    assert await repo.count_admins() == base + 1
+
+
+@pytest.mark.asyncio
+async def test_no_admin_no_puede_togglear(client: AsyncClient, db):
+    no_admin = await make_empleado(db, rol="gerente", email="noadm_toggle@test.com")
+    target = await make_empleado(db, rol="empleado", email="tgt_toggle@test.com")
+    res = await client.put(
+        f"/api/v1/rh-permisos/usuarios/{target.empleado_id}/admin",
+        json={"conceder": True},
+        headers=await auth_headers(client, no_admin),
+    )
+    assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_toggle_admin_empleado_inexistente_404(client: AsyncClient, db):
+    admin = await make_empleado(
+        db, rol="rh", email="adm_404@test.com", puede_administrar_permisos_rh=True
+    )
+    res = await client.put(
+        "/api/v1/rh-permisos/usuarios/99999999/admin",
+        json={"conceder": True},
+        headers=await auth_headers(client, admin),
+    )
+    assert res.status_code == 404
