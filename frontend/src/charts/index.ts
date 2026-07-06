@@ -19,6 +19,7 @@ export {
   destroyChart,
   destroyChartsIn,
   getChart,
+  isChartHealthy,
   mountChart,
   renderChartCanvas,
   renderChartLoadingSkeleton,

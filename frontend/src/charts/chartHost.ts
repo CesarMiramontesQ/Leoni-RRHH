@@ -13,6 +13,12 @@ export type ChartConfigFactory = (ctx: ChartHostContext) => ChartConfiguration;
 export type MountChartOptions = {
   /** Si retorna true, cancela montajes diferidos (p. ej. respuesta async obsoleta). */
   isStale?: () => boolean;
+  /**
+   * Se ejecuta en cada frame de asentamiento (y en un backstop diferido) tras
+   * reintentar montajes y reajustar. Útil para reconciliar gráficas que quedaron
+   * sin instancia por una carrera de layout. Guardado por `isStale`.
+   */
+  afterSettle?: () => void;
 };
 
 const registry = new Map<string, Chart>();
@@ -304,6 +310,17 @@ export function getChart(chartId: string): Chart | undefined {
   return registry.get(chartId);
 }
 
+/**
+ * La gráfica tiene una instancia viva, dibujada con tamaño real (> 0). Una gráfica
+ * sin instancia o pintada a 0px (canvas en blanco por carrera de layout) es "no sana".
+ */
+export function isChartHealthy(chartId: string): boolean {
+  const chart = registry.get(chartId);
+  if (!chart) return false;
+  if (chart.width <= 0 || chart.height <= 0) return false;
+  return chartCanvasHostHasDimensions(chart.canvas);
+}
+
 /** Actualiza datos/opciones de una gráfica existente sin recrearla. */
 export function updateChart(chartId: string, buildConfig: ChartConfigFactory): boolean {
   const chart = registry.get(chartId);
@@ -374,6 +391,7 @@ export function runChartsAfterLayout(
       if (options?.isStale?.()) return;
       retryPendingChartMounts(root);
       resizeChartsIn(root);
+      options?.afterSettle?.();
     };
     requestAnimationFrame(() => {
       settle();
@@ -382,6 +400,16 @@ export function runChartsAfterLayout(
         requestAnimationFrame(settle);
       });
     });
+    // Backstop diferido: si el layout asienta tarde (grid `lg` recién medido, fuentes),
+    // reconcilia una última vez fuera de la ventana de rAF.
+    if (options?.afterSettle) {
+      setTimeout(() => {
+        if (options.isStale?.()) return;
+        retryPendingChartMounts(root);
+        resizeChartsIn(root);
+        options.afterSettle?.();
+      }, 250);
+    }
   } finally {
     activeMountOptions = undefined;
   }
