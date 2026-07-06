@@ -1,9 +1,21 @@
 from datetime import date, datetime, timezone
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 
-from tests.conftest import auth_headers, link_turno_comedor_empleado, make_empleado
+from tests.conftest import (
+    auth_headers,
+    link_turno_comedor_empleado,
+    make_empleado,
+    reset_comedor_transaccional,
+)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_comedor_global(db):
+    """Aísla los conteos globales de comedor de la contaminación entre tests."""
+    await reset_comedor_transaccional(db)
 
 PROXIMAS_EQUIPO_URL = "/api/v1/comedor/accesos/equipo/mis-proximas-reservas"
 RESERVAS_EQUIPO_MES_URL = "/api/v1/comedor/accesos/equipo/mis-reservas"

@@ -32,7 +32,7 @@ class RhModuleDef:
 _LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
     "comedor": ("comedor-registro", "comedor-gestion", "comedor-planear"),
     "puestos": ("puestos-ajustes",),
-    "cursos": ("cursos-seguimiento", "sesiones", "cursos-ajustes"),
+    "cursos": ("cursos-seguimiento", "sesiones", "cursos-ajustes", "juntas"),
     "level-up": ("evaluacion-360",),
 }
 
@@ -216,6 +216,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/cursos/ajustes",),
         api_prefixes=("/api/v1/level-up/catalogos",),
     ),
+    "juntas": RhModuleDef(
+        key="juntas",
+        label="Juntas",
+        group="Cursos",
+        nav_item_ids=("cursos-juntas",),
+        hash_prefixes=("#/cursos/juntas",),
+        api_prefixes=("/api/v1/juntas",),
+    ),
     "puestos": RhModuleDef(
         key="puestos",
         label="Perfiles de puesto",
@@ -306,7 +314,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
         group="Level Up",
         nav_item_ids=("evaluacion-360",),
         hash_prefixes=("#/level-up/evaluacion-360",),
-        api_prefixes=(),
+        api_prefixes=("/api/v1/evaluacion-360",),
     ),
     "capacidades": RhModuleDef(
         key="capacidades",
@@ -345,6 +353,9 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/comedor/accesos/primera-fecha-permitida",
     "/api/v1/comedor/registro",
     "/api/v1/bono-productividad",
+    # Evaluacion 360: responder evaluaciones es self-service (cualquier evaluador).
+    "/api/v1/evaluacion-360/mis-evaluaciones",
+    "/api/v1/evaluacion-360/evaluaciones",
 )
 
 

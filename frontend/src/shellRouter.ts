@@ -31,6 +31,7 @@ import { mountMetricas } from "./pages/metricas.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
 import { mountTareasCatalogo } from "./pages/tareasCatalogo.ts";
+import { mountCursosJuntas } from "./pages/cursosJuntas.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
 import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
@@ -237,6 +238,10 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountCursosSeguimiento(container);
       return;
     }
+    if (h.startsWith("#/cursos/juntas")) {
+      mountCursosJuntas(container, signal);
+      return;
+    }
     if (h.startsWith("#/cursos")) {
       mountCursos(container, signal);
       return;
@@ -255,6 +260,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/mis-encuestas")) {
       mountMisEncuestas(container, signal);
+      return;
+    }
+    if (h.startsWith("#/mis-evaluaciones")) {
+      void import("./pages/misEvaluaciones.ts").then(({ mountMisEvaluaciones }) => {
+        mountMisEvaluaciones(container, signal);
+      });
       return;
     }
     if (h.startsWith("#/encuestas")) {

@@ -1,29 +1,58 @@
-import { getRolFromAccessToken, hasRhOperativeViewerContext } from "../auth/jwt.ts";
+import { hasRhOperativeViewerContext } from "../auth/jwt.ts";
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { destroyChartsIn, runChartsAfterLayout } from "../charts/index.ts";
-import {
-  mountEval360ReportesCharts,
-  mountEval360ResultadosCharts,
-  mountEval360RhDashboardCharts,
-} from "../evaluacion360/charts.ts";
+import { mountEval360ResultadosCharts } from "../evaluacion360/charts.ts";
 import { EMPTY_EVAL360_FILTERS, readEval360FiltersFromDom } from "../evaluacion360/filters.ts";
-import { MOCK_CAMPANAS, MOCK_EVALUACIONES, RADAR_COMPETENCIAS } from "../evaluacion360/mockData.ts";
 import { EVAL360_BASE_HASH, parseEval360ViewFromHash, renderEval360SubNav } from "../evaluacion360/subNav.ts";
-import type { Eval360Filters, Eval360ViewId } from "../evaluacion360/types.ts";
-import { renderEval360Campanas } from "../evaluacion360/views/campanas.ts";
+import type { Campana360, Eval360Filters, Eval360ViewId } from "../evaluacion360/types.ts";
+import { campanaEstadoBadge, renderAvanceBar } from "../evaluacion360/shared.ts";
 import { renderEval360Configuracion } from "../evaluacion360/views/configuracion.ts";
 import {
-  getDashboardChartData,
   renderEval360RhDashboard,
   renderEval360RhHeader,
 } from "../evaluacion360/views/dashboardRh.ts";
+import { renderEval360BancoPreguntas } from "../evaluacion360/views/bancoPreguntas.ts";
 import { renderEval360Empleados } from "../evaluacion360/views/empleados.ts";
 import { renderEval360Evaluaciones } from "../evaluacion360/views/evaluaciones.ts";
 import { renderEval360Reportes } from "../evaluacion360/views/reportes.ts";
-import { renderEval360Resultados } from "../evaluacion360/views/resultados.ts";
-import { htmlAccessDenied, RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
+import { mapReporteToChartComps, renderResultadosReal } from "../evaluacion360/views/resultadosReal.ts";
+import { BTN_PRIMARY, htmlAccessDenied, RH_DASHBOARD_PAGE_SHELL, RH_LISTADO_PAGE_OUTER_GRADIENT } from "../ui/uiTokens.ts";
+import { escapeHtml } from "../ui/uiUtils.ts";
+import {
+  activarEval360Campana,
+  cancelarEval360Campana,
+  cerrarEval360Campana,
+  descargarEval360Export,
+  duplicarEval360Campana,
+  fetchEval360Campanas,
+  fetchEval360CompetenciasCatalogo,
+  createEval360Pregunta,
+  deleteEval360Pregunta,
+  fetchEval360Config,
+  fetchEval360Dashboard,
+  fetchEval360EmpleadosEvaluados,
+  fetchEval360Escalas,
+  fetchEval360Evaluaciones,
+  fetchEval360NineBox,
+  fetchEval360Participantes,
+  fetchEval360Preguntas,
+  fetchEval360Reporte,
+  updateEval360Pregunta,
+  type CampanaApi,
+  type CompetenciaCatalogoApi,
+  type ConfigApi,
+  type DashboardApi,
+  type EmpleadoEvaluadoApi,
+  type EscalaApi,
+  type EvaluacionRhApi,
+  type NineBoxApi,
+  type PreguntaApi,
+  type ParticipanteApi,
+  type ReporteIndividualApi,
+} from "../api/evaluacion360.ts";
+import { openCampanaWizard } from "../evaluacion360/campanaWizard.ts";
 
 const PAGE_SHELL = RH_DASHBOARD_PAGE_SHELL;
 
@@ -32,6 +61,39 @@ interface State {
   showCampanaModal: boolean;
   filters: Eval360Filters;
   search: string;
+  campanas: CampanaApi[] | null; // null = aún no cargadas
+  campanasError: boolean;
+  // Resultados
+  resCampanaId: number | null;
+  resParticipantes: ParticipanteApi[] | null;
+  resParticipanteId: number | null;
+  resReporte: ReporteIndividualApi | null;
+  resLoading: boolean;
+  resNineBox: NineBoxApi | null;
+  // Configuración
+  cfgLoaded: boolean;
+  cfgCatalogo: CompetenciaCatalogoApi[] | null;
+  cfgEscalas: EscalaApi[] | null;
+  cfgConfig: ConfigApi | null;
+  // Dashboard
+  dashboardLoaded: boolean;
+  dashboard: DashboardApi | null;
+  // Empleados
+  empleadosLoaded: boolean;
+  empleados: EmpleadoEvaluadoApi[] | null;
+  // Evaluaciones (RH)
+  evaluacionesLoaded: boolean;
+  evaluaciones: EvaluacionRhApi[] | null;
+  // Reportes
+  repCampanaId: number | null;
+  repNineBox: NineBoxApi | null;
+  repNineBoxLoading: boolean;
+  // Banco de preguntas
+  pregCatalogo: CompetenciaCatalogoApi[] | null;
+  pregCompetenciaId: number | null;
+  preguntas: PreguntaApi[] | null;
+  pregLoading: boolean;
+  pregEditandoId: number | null;
 }
 
 function forbiddenHtml(): string {
@@ -51,33 +113,187 @@ function renderHeader(view: Eval360ViewId): string {
     </div>`;
 }
 
+// ── Campañas conectadas a la API ──────────────────────────────────────────────
+function adaptCampana(c: CampanaApi): Campana360 {
+  const periodo = [c.fecha_inicio, c.fecha_cierre].filter(Boolean).join(" – ") || "—";
+  return {
+    id: String(c.id),
+    nombre: c.nombre,
+    periodo,
+    empleados: c.participantes,
+    evaluadores: c.evaluadores,
+    avance: Math.round(c.avance),
+    estado: c.estado,
+    descripcion: c.descripcion ?? undefined,
+    fechaInicio: c.fecha_inicio ?? undefined,
+    fechaCierre: c.fecha_cierre ?? undefined,
+  };
+}
+
+function renderCampanasSkeleton(): string {
+  const row = `
+    <div class="flex items-center gap-4 border-b border-slate-100 px-4 py-3">
+      <div class="h-4 w-40 animate-pulse rounded bg-slate-100"></div>
+      <div class="h-4 w-24 animate-pulse rounded bg-slate-100"></div>
+      <div class="h-4 flex-1 animate-pulse rounded bg-slate-100"></div>
+      <div class="h-4 w-20 animate-pulse rounded bg-slate-100"></div>
+    </div>`;
+  return `
+    <div class="rounded-xl border border-border bg-white">
+      <div class="border-b border-slate-100 px-5 py-4">
+        <div class="h-4 w-48 animate-pulse rounded bg-slate-100"></div>
+      </div>
+      ${row.repeat(4)}
+    </div>`;
+}
+
+function renderCampanaAcciones(c: CampanaApi): string {
+  const btn = (accion: string, label: string, cls: string) =>
+    `<button type="button" class="${cls}" data-action="${accion}" data-id="${c.id}">${label}</button>`;
+  const acciones: string[] = [
+    btn("e360-campana-ver", "Ver", "text-xs font-semibold text-accent hover:underline"),
+    btn("e360-campana-duplicar", "Duplicar", "text-xs font-semibold text-slate-600 hover:underline"),
+  ];
+  if (c.estado === "borrador") {
+    acciones.splice(1, 0, btn("e360-campana-activar", "Activar", "text-xs font-semibold text-blue-600 hover:underline"));
+  }
+  if (["activa", "en_progreso", "finalizada"].includes(c.estado)) {
+    acciones.push(btn("e360-campana-cerrar", "Cerrar", "text-xs font-semibold text-emerald-700 hover:underline"));
+  }
+  if (!["cerrada", "cancelada"].includes(c.estado)) {
+    acciones.push(btn("e360-campana-cancelar", "Cancelar", "text-xs font-semibold text-red-600 hover:underline"));
+  }
+  return `<div class="flex flex-wrap gap-2">${acciones.join("")}</div>`;
+}
+
+function renderCampanasReal(campanas: CampanaApi[]): string {
+  if (campanas.length === 0) {
+    return `
+      <div class="rounded-xl border border-border bg-white">
+        <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-text-primary">Campañas de evaluación</h2>
+            <p class="mt-0.5 text-xs text-text-muted">Sin campañas registradas</p>
+          </div>
+        </div>
+        <div class="px-5 py-12 text-center text-sm text-text-muted">
+          <p>Aún no hay campañas.</p>
+          <button type="button" class="${BTN_PRIMARY} mt-4" data-action="e360-open-modal">Nueva campaña</button>
+        </div>
+      </div>`;
+  }
+  const rows = campanas
+    .map((c) => {
+      const a = adaptCampana(c);
+      return `
+      <tr class="border-b border-slate-100 hover:bg-slate-50/50">
+        <td class="px-4 py-3">
+          <p class="text-sm font-medium text-text-primary">${escapeHtml(a.nombre)}</p>
+          <p class="text-xs text-text-muted">#${escapeHtml(a.id)}</p>
+        </td>
+        <td class="px-4 py-3 text-sm text-slate-600">${escapeHtml(a.periodo)}</td>
+        <td class="px-4 py-3 text-sm tabular-nums text-slate-700">${a.empleados}</td>
+        <td class="px-4 py-3 text-sm tabular-nums text-slate-700">${a.evaluadores}</td>
+        <td class="px-4 py-3">${renderAvanceBar(a.avance)}</td>
+        <td class="px-4 py-3">${campanaEstadoBadge(a.estado)}</td>
+        <td class="px-4 py-3">${renderCampanaAcciones(c)}</td>
+      </tr>`;
+    })
+    .join("");
+  return `
+    <div class="rounded-xl border border-border bg-white">
+      <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-sm font-semibold text-text-primary">Campañas de evaluación</h2>
+          <p class="mt-0.5 text-xs text-text-muted">${campanas.length} campañas registradas</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button type="button" class="text-xs font-semibold text-accent hover:underline" data-action="e360-campanas-refresh">Actualizar</button>
+          <button type="button" class="${BTN_PRIMARY}" data-action="e360-open-modal">Nueva campaña</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              <th class="px-4 py-3">Nombre</th>
+              <th class="px-4 py-3">Periodo</th>
+              <th class="px-4 py-3">Participantes</th>
+              <th class="px-4 py-3">Evaluadores</th>
+              <th class="px-4 py-3">Avance</th>
+              <th class="px-4 py-3">Estado</th>
+              <th class="px-4 py-3">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function renderCampanasView(state: State): string {
+  if (state.campanasError) {
+    return `
+      <div class="rounded-xl border border-red-200 bg-red-50 px-5 py-8 text-center text-sm text-red-700">
+        No se pudieron cargar las campañas. Intenta de nuevo.
+      </div>`;
+  }
+  if (state.campanas === null) return renderCampanasSkeleton();
+  // El listado opera contra la API real. El asistente guiado de creación llega
+  // en la próxima entrega (ver plan de fases).
+  return renderCampanasReal(state.campanas);
+}
+
 function renderViewContent(state: State): string {
   switch (state.view) {
     case "empleados":
-      return renderEval360Empleados({ filters: state.filters, search: state.search });
+      return renderEval360Empleados({ empleados: state.empleados, search: state.search });
     case "campanas":
-      return renderEval360Campanas(MOCK_CAMPANAS, state.showCampanaModal);
+      return renderCampanasView(state);
     case "evaluaciones":
-      return renderEval360Evaluaciones(MOCK_EVALUACIONES);
+      return renderEval360Evaluaciones({ evaluaciones: state.evaluaciones });
     case "resultados":
-      return renderEval360Resultados();
+      return renderResultadosReal({
+        campanas: state.campanas,
+        campanaId: state.resCampanaId,
+        participantes: state.resParticipantes,
+        participanteId: state.resParticipanteId,
+        reporte: state.resReporte,
+        loading: state.resLoading,
+        nineBox: state.resNineBox,
+      });
     case "reportes":
-      return renderEval360Reportes();
+      return renderEval360Reportes({
+        campanas: state.campanas,
+        campanaId: state.repCampanaId,
+        nineBox: state.repNineBox,
+        nineBoxLoading: state.repNineBoxLoading,
+        dashboard: state.dashboard,
+      });
+    case "preguntas":
+      return renderEval360BancoPreguntas({
+        catalogo: state.pregCatalogo,
+        competenciaId: state.pregCompetenciaId,
+        preguntas: state.preguntas,
+        loading: state.pregLoading,
+        editandoId: state.pregEditandoId,
+      });
     case "configuracion":
-      return renderEval360Configuracion();
+      return renderEval360Configuracion({
+        catalogo: state.cfgLoaded ? (state.cfgCatalogo ?? []) : null,
+        escalas: state.cfgLoaded ? (state.cfgEscalas ?? []) : null,
+        config: state.cfgConfig,
+      });
     default:
-      return renderEval360RhDashboard({ filters: state.filters });
+      return renderEval360RhDashboard(state.dashboard);
   }
 }
 
 function mountViewCharts(root: HTMLElement, state: State): void {
-  if (state.view === "dashboard") {
-    const data = getDashboardChartData({ filters: state.filters });
-    mountEval360RhDashboardCharts(root, data.competenciasDept);
-  } else if (state.view === "resultados") {
-    mountEval360ResultadosCharts(root, RADAR_COMPETENCIAS);
-  } else if (state.view === "reportes") {
-    mountEval360ReportesCharts(root);
+  if (state.view === "resultados") {
+    if (state.resReporte) {
+      mountEval360ResultadosCharts(root, mapReporteToChartComps(state.resReporte));
+    }
   }
 }
 
@@ -97,6 +313,32 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     showCampanaModal: false,
     filters: { ...EMPTY_EVAL360_FILTERS },
     search: "",
+    campanas: null,
+    campanasError: false,
+    resCampanaId: null,
+    resParticipantes: null,
+    resParticipanteId: null,
+    resReporte: null,
+    resLoading: false,
+    resNineBox: null,
+    cfgLoaded: false,
+    cfgCatalogo: null,
+    cfgEscalas: null,
+    cfgConfig: null,
+    dashboardLoaded: false,
+    dashboard: null,
+    empleadosLoaded: false,
+    empleados: null,
+    evaluacionesLoaded: false,
+    evaluaciones: null,
+    repCampanaId: null,
+    repNineBox: null,
+    repNineBoxLoading: false,
+    pregCatalogo: null,
+    pregCompetenciaId: null,
+    preguntas: null,
+    pregLoading: false,
+    pregEditandoId: null,
   };
 
   mountAppShell(container, {
@@ -109,6 +351,180 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
   const pageRoot = container.querySelector<HTMLElement>("#eval360-page")!;
 
   let paintSeq = 0;
+
+  async function loadCampanas(force = false): Promise<void> {
+    if (state.campanas !== null && !force) return;
+    state.campanasError = false;
+    try {
+      const data = await fetchEval360Campanas({ page_size: 50 });
+      state.campanas = data.items;
+    } catch {
+      state.campanasError = true;
+      state.campanas = [];
+    }
+    if (
+      !signal.aborted &&
+      (state.view === "campanas" || state.view === "resultados" || state.view === "reportes")
+    )
+      paint();
+  }
+
+  async function loadResParticipantes(campanaId: number): Promise<void> {
+    state.resCampanaId = campanaId;
+    state.resParticipantes = null;
+    state.resParticipanteId = null;
+    state.resReporte = null;
+    state.resNineBox = null;
+    paint();
+    state.resParticipantes = await fetchEval360Participantes(campanaId);
+    if (!signal.aborted && state.view === "resultados") paint();
+    // Matriz 9-Box de la campaña (no bloquea la lista de participantes).
+    state.resNineBox = await fetchEval360NineBox(campanaId);
+    if (!signal.aborted && state.view === "resultados") paint();
+  }
+
+  async function loadDashboard(): Promise<void> {
+    if (state.dashboardLoaded) return;
+    state.dashboardLoaded = true;
+    state.dashboard = await fetchEval360Dashboard();
+    if (!signal.aborted && (state.view === "dashboard" || state.view === "reportes")) paint();
+  }
+
+  async function loadEmpleados(): Promise<void> {
+    if (state.empleadosLoaded) return;
+    state.empleadosLoaded = true;
+    state.empleados = await fetchEval360EmpleadosEvaluados();
+    if (!signal.aborted && state.view === "empleados") paint();
+  }
+
+  async function loadEvaluaciones(): Promise<void> {
+    if (state.evaluacionesLoaded) return;
+    state.evaluacionesLoaded = true;
+    state.evaluaciones = await fetchEval360Evaluaciones();
+    if (!signal.aborted && state.view === "evaluaciones") paint();
+  }
+
+  async function loadBancoCatalogo(force = false): Promise<void> {
+    if (state.pregCatalogo !== null && !force) return;
+    state.pregCatalogo = await fetchEval360CompetenciasCatalogo();
+    if (!signal.aborted && state.view === "preguntas") paint();
+  }
+
+  async function loadPreguntas(competenciaId: number): Promise<void> {
+    state.pregCompetenciaId = competenciaId;
+    state.preguntas = null;
+    state.pregEditandoId = null;
+    state.pregLoading = true;
+    paint();
+    state.preguntas = await fetchEval360Preguntas(competenciaId);
+    state.pregLoading = false;
+    if (!signal.aborted && state.view === "preguntas") paint();
+  }
+
+  async function refrescarPreguntas(): Promise<void> {
+    if (state.pregCompetenciaId == null) return;
+    state.preguntas = await fetchEval360Preguntas(state.pregCompetenciaId);
+    // Refrescar contador de preguntas del catálogo.
+    await loadBancoCatalogo(true);
+    if (!signal.aborted && state.view === "preguntas") paint();
+  }
+
+  async function crearPregunta(): Promise<void> {
+    if (state.pregCompetenciaId == null) return;
+    const texto = pageRoot.querySelector<HTMLTextAreaElement>('[data-input="e360-preg-nueva-texto"]')?.value.trim() ?? "";
+    if (texto.length < 3) {
+      window.alert("La pregunta debe tener al menos 3 caracteres.");
+      return;
+    }
+    const ordenRaw = pageRoot.querySelector<HTMLInputElement>('[data-input="e360-preg-nueva-orden"]')?.value ?? "";
+    const orden = ordenRaw ? Number(ordenRaw) : null;
+    const res = await createEval360Pregunta({ competencia_id: state.pregCompetenciaId, texto, orden });
+    if (res === null) {
+      window.alert("No se pudo crear la pregunta.");
+      return;
+    }
+    await refrescarPreguntas();
+  }
+
+  async function guardarPregunta(id: number): Promise<void> {
+    const texto = pageRoot.querySelector<HTMLTextAreaElement>('[data-input="e360-preg-edit-texto"]')?.value.trim() ?? "";
+    if (texto.length < 3) {
+      window.alert("La pregunta debe tener al menos 3 caracteres.");
+      return;
+    }
+    const activo = pageRoot.querySelector<HTMLInputElement>('[data-input="e360-preg-edit-activa"]')?.checked ?? true;
+    const ordenRaw = pageRoot.querySelector<HTMLInputElement>('[data-input="e360-preg-edit-orden"]')?.value ?? "";
+    const orden = ordenRaw ? Number(ordenRaw) : null;
+    const res = await updateEval360Pregunta(id, { texto, activo, orden });
+    if (res === null) {
+      window.alert("No se pudo guardar la pregunta.");
+      return;
+    }
+    state.pregEditandoId = null;
+    await refrescarPreguntas();
+  }
+
+  async function borrarPregunta(id: number): Promise<void> {
+    if (!window.confirm("¿Borrar esta pregunta del banco?")) return;
+    const ok = await deleteEval360Pregunta(id);
+    if (!ok) {
+      window.alert("No se pudo borrar la pregunta.");
+      return;
+    }
+    await refrescarPreguntas();
+  }
+
+  async function loadRepNineBox(campanaId: number): Promise<void> {
+    state.repCampanaId = campanaId;
+    state.repNineBox = null;
+    state.repNineBoxLoading = true;
+    paint();
+    state.repNineBox = await fetchEval360NineBox(campanaId);
+    state.repNineBoxLoading = false;
+    if (!signal.aborted && state.view === "reportes") paint();
+  }
+
+  async function loadConfiguracion(): Promise<void> {
+    if (state.cfgLoaded) return;
+    state.cfgLoaded = true;
+    const [catalogo, escalas, config] = await Promise.all([
+      fetchEval360CompetenciasCatalogo(),
+      fetchEval360Escalas(),
+      fetchEval360Config(),
+    ]);
+    state.cfgCatalogo = catalogo;
+    state.cfgEscalas = escalas;
+    state.cfgConfig = config;
+    if (!signal.aborted && state.view === "configuracion") paint();
+  }
+
+  async function loadResReporte(participanteId: number): Promise<void> {
+    state.resParticipanteId = participanteId;
+    state.resReporte = null;
+    state.resLoading = true;
+    paint();
+    state.resReporte = await fetchEval360Reporte(participanteId);
+    state.resLoading = false;
+    if (!signal.aborted && state.view === "resultados") paint();
+  }
+
+  async function ejecutarAccionCampana(
+    accion: (id: number) => Promise<unknown>,
+    id: number,
+    errorMsg: string,
+  ): Promise<void> {
+    try {
+      const res = await accion(id);
+      if (res === null) {
+        window.alert(errorMsg);
+        return;
+      }
+    } catch {
+      window.alert(errorMsg);
+      return;
+    }
+    await loadCampanas(true);
+  }
 
   function paint(): void {
     const seq = ++paintSeq;
@@ -125,6 +541,16 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     if (content) {
       runChartsAfterLayout(content, () => mountViewCharts(content as HTMLElement, state), { isStale });
     }
+    if (state.view === "campanas" || state.view === "resultados") void loadCampanas();
+    if (state.view === "configuracion") void loadConfiguracion();
+    if (state.view === "dashboard") void loadDashboard();
+    if (state.view === "empleados") void loadEmpleados();
+    if (state.view === "evaluaciones") void loadEvaluaciones();
+    if (state.view === "reportes") {
+      void loadCampanas();
+      void loadDashboard();
+    }
+    if (state.view === "preguntas") void loadBancoCatalogo();
     bindEvents();
   }
 
@@ -153,18 +579,20 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
       });
     });
 
-    pageRoot.querySelector('[data-action="e360-open-modal"]')?.addEventListener("click", () => {
-      state.showCampanaModal = true;
-      if (state.view !== "campanas") {
-        window.location.hash = `${EVAL360_BASE_HASH}/campanas`;
-        return;
-      }
-      paint();
+    pageRoot.querySelectorAll('[data-action="e360-open-modal"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (state.view !== "campanas") {
+          window.location.hash = `${EVAL360_BASE_HASH}/campanas`;
+          return;
+        }
+        openCampanaWizard(pageRoot, () => {
+          void loadCampanas(true);
+        });
+      });
     });
 
-    pageRoot.querySelector('[data-action="e360-close-modal"]')?.addEventListener("click", () => {
-      state.showCampanaModal = false;
-      paint();
+    pageRoot.querySelector('[data-action="e360-campanas-refresh"]')?.addEventListener("click", () => {
+      void loadCampanas(true);
     });
 
     pageRoot.querySelector('[data-action="e360-generar-reporte"]')?.addEventListener("click", () => {
@@ -172,22 +600,98 @@ export function mountEvaluacion360(container: HTMLElement, signal: AbortSignal):
     });
 
     pageRoot.querySelector('[data-action="e360-exportar"]')?.addEventListener("click", () => {
-      window.alert("Exportación de resultados 360° (demo).");
+      window.alert("Exportación de resultados 360° (próxima entrega).");
     });
 
-    pageRoot.querySelector('form[data-form="e360-nueva-campana"]')?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      state.showCampanaModal = false;
+    // Acciones de ciclo de vida de campaña (datos reales).
+    const idOf = (btn: Element): number => Number(btn.getAttribute("data-id"));
+    pageRoot.querySelectorAll('[data-action="e360-campana-ver"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        void loadResParticipantes(idOf(btn));
+        window.location.hash = `${EVAL360_BASE_HASH}/resultados`;
+      });
+    });
+    pageRoot.querySelectorAll('[data-action="e360-campana-activar"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!window.confirm("¿Activar la campaña? Se generarán las evaluaciones y se notificará a los evaluadores.")) return;
+        void ejecutarAccionCampana(activarEval360Campana, idOf(btn), "No se pudo activar la campaña. Verifica participantes y pesos (deben sumar 100%).");
+      });
+    });
+    pageRoot.querySelectorAll('[data-action="e360-campana-duplicar"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        void ejecutarAccionCampana(duplicarEval360Campana, idOf(btn), "No se pudo duplicar la campaña.");
+      });
+    });
+    pageRoot.querySelectorAll('[data-action="e360-campana-cerrar"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!window.confirm("¿Cerrar la campaña? Se calcularán los resultados finales.")) return;
+        void ejecutarAccionCampana(cerrarEval360Campana, idOf(btn), "No se pudo cerrar la campaña.");
+      });
+    });
+    pageRoot.querySelectorAll('[data-action="e360-campana-cancelar"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!window.confirm("¿Cancelar la campaña? Esta acción no calcula resultados.")) return;
+        void ejecutarAccionCampana(cancelarEval360Campana, idOf(btn), "No se pudo cancelar la campaña.");
+      });
+    });
+
+    // Reportes: selector de campaña para la matriz 9-box.
+    pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-rep-campana"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) void loadRepNineBox(id);
+    });
+
+    // Banco de preguntas: selector de competencia + CRUD.
+    pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-preg-competencia"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) void loadPreguntas(id);
+    });
+    pageRoot.querySelector('[data-action="e360-preg-add"]')?.addEventListener("click", () => {
+      void crearPregunta();
+    });
+    pageRoot.querySelectorAll('[data-action="e360-preg-editar"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.pregEditandoId = idOf(btn);
+        paint();
+      });
+    });
+    pageRoot.querySelector('[data-action="e360-preg-cancelar"]')?.addEventListener("click", () => {
+      state.pregEditandoId = null;
       paint();
     });
-
-    pageRoot.querySelectorAll("[data-action^='e360-campana-']").forEach((btn) => {
+    pageRoot.querySelector('[data-action="e360-preg-guardar"]')?.addEventListener("click", (e) => {
+      void guardarPregunta(idOf(e.currentTarget as Element));
+    });
+    pageRoot.querySelectorAll('[data-action="e360-preg-borrar"]').forEach((btn) => {
       btn.addEventListener("click", () => {
-        if (btn.getAttribute("data-action") === "e360-campana-editar") {
-          state.showCampanaModal = true;
-          paint();
-        }
+        void borrarPregunta(idOf(btn));
       });
+    });
+
+    // Resultados: selectores de campaña/participante y exportación.
+    pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-res-campana"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) void loadResParticipantes(id);
+    });
+    pageRoot.querySelector<HTMLSelectElement>('[data-select="e360-res-participante"]')?.addEventListener("change", (e) => {
+      const id = Number((e.target as HTMLSelectElement).value);
+      if (id) void loadResReporte(id);
+    });
+    pageRoot.querySelector('[data-action="e360-export-pdf"]')?.addEventListener("click", () => {
+      if (state.resParticipanteId) {
+        void descargarEval360Export(
+          `/participantes/${state.resParticipanteId}/reporte/export?formato=pdf`,
+          `reporte_360_${state.resParticipanteId}.pdf`,
+        );
+      }
+    });
+    pageRoot.querySelector('[data-action="e360-export-excel"]')?.addEventListener("click", () => {
+      if (state.resParticipanteId) {
+        void descargarEval360Export(
+          `/participantes/${state.resParticipanteId}/reporte/export?formato=excel`,
+          `reporte_360_${state.resParticipanteId}.xlsx`,
+        );
+      }
     });
   }
 

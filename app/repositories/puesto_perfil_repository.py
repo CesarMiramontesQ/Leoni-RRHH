@@ -70,6 +70,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         """Lista todos los puestos perfil activos de un area."""
         result = await self.db.execute(
             select(PuestoPerfil)
+            .options(selectinload(PuestoPerfil.nivel))
             .where(PuestoPerfil.area_id == area_id, PuestoPerfil.activo.is_(True))
             .order_by(PuestoPerfil.nombre)
         )

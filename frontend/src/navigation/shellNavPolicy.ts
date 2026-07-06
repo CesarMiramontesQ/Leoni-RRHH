@@ -140,12 +140,14 @@ export type AppShellNavItemId =
   | "cursos"
   | "cursos-seguimiento"
   | "cursos-ajustes"
+  | "cursos-juntas"
   | "opls"
   | "evidencias"
   | "sugerencias"
   | "sesiones"
   | "encuestas"
   | "mis-encuestas"
+  | "mis-evaluaciones"
   | "level-up"
   | "nominas"
   | "horas-extra"
@@ -159,6 +161,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "solicitudes",
   "comedor",
   "mis-encuestas",
+  "mis-evaluaciones",
 ]);
 
 /** Rol con menú lateral plano (sin hubs ni submenús). */
@@ -211,7 +214,7 @@ const NOMINAS_NAV_ROLES: ReadonlySet<string> = new Set([OPERATIVO_NAV_ROL, "dire
 
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
-  "cursos", "cursos-seguimiento", "cursos-ajustes", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
+  "cursos", "cursos-seguimiento", "cursos-ajustes", "cursos-juntas", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
@@ -323,6 +326,7 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/mis-encuestas")) return true;
+  if (h.startsWith("#/mis-evaluaciones")) return true;
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith("#/metricas")) return false;
   return false;

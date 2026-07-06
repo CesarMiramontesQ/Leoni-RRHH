@@ -47,6 +47,7 @@ from app.models.empleados import Empleado
 from app.models.level_up import Curso, CursoEmpleado, CursoPuesto
 from app.models.talento import PerfilFunciones
 from app.schemas.perfil_funciones import (
+    EmpleadoDisponibleResponse,
     EvaluacionCompetenciaSyncBody,
     PerfilCompetenciaCreate,
     PerfilCompetenciaResponse,
@@ -69,6 +70,28 @@ from app.schemas.perfil_funciones import (
 from app.services.perfil_funciones_service import PerfilFuncionesService
 
 router = APIRouter(prefix="/api/v1/perfiles", tags=["Perfil de Funciones"])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BÚSQUEDA DE EMPLEADOS PARA ASIGNAR
+# (ruta estática declarada antes de las rutas "/{perfil_id}/...")
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/empleados-disponibles", response_model=list[EmpleadoDisponibleResponse])
+async def buscar_empleados_disponibles(
+    q: str = Query("", description="Nombre o número de empleado (mínimo 2 caracteres)"),
+    limit: int = Query(10, ge=1, le=50),
+    current_user: Empleado = Depends(role_checker(["operativo", "supervisor"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Empleados activos sin asignación de perfil, para el buscador del modal de asignar.
+
+    El guard ``role_checker`` deja pasar además a usuarios con el módulo ``puestos``
+    (bypass por módulo según la ruta), que es quien asigna empleados a perfiles.
+    """
+    service = PerfilFuncionesService(db)
+    return await service.buscar_empleados_disponibles(q=q, limit=limit)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

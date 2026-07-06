@@ -1,7 +1,6 @@
 """Tests de capacidad gestor RH y modos UI lider/gerente."""
 
 import uuid
-from datetime import date
 
 import pytest
 from httpx import AsyncClient
@@ -112,7 +111,9 @@ async def test_listar_empleados_rh_gerente_modo_equipo(client: AsyncClient, db: 
 
 @pytest.mark.asyncio
 async def test_incidencias_rh_lider_modo_equipo(client: AsyncClient, db: AsyncSession):
-    from app.models.incidencias import Incidencia
+    from unittest.mock import patch
+
+    from app.services.incidencia_fuentes_service import IncidenciaFuentesService
 
     puesto = await _make_puesto(db, "Lider de equipo de recursos humanos")
     lider_rh = await make_empleado(
@@ -125,39 +126,44 @@ async def test_incidencias_rh_lider_modo_equipo(client: AsyncClient, db: AsyncSe
         lider_id=lider_rh.empleado_id,
     )
     otro = await make_empleado(db, rol="empleado", email="otro_lider_inc@test")
-
-    db.add(
-        Incidencia(
-            tipo="Retardo",
-            empleado_id=sub.id,
-            no_empleado=sub.no_empleado,
-            nombre=sub.nombre,
-            fecha=date.today(),
-            categoria="Asistencia",
-            origen="manual",
-        )
-    )
-    db.add(
-        Incidencia(
-            tipo="Retardo",
-            empleado_id=otro.id,
-            no_empleado=otro.no_empleado,
-            nombre=otro.nombre,
-            fecha=date.today(),
-            categoria="Asistencia",
-            origen="manual",
-        )
-    )
     await db.commit()
 
-    headers = await auth_headers(client, lider_rh)
-    headers["X-RH-UI-Mode"] = "lider"
-    response = await client.get("/api/v1/incidencias", headers=headers)
+    # El listado de incidencias lee de fuentes Bono históricas (engine aparte, no
+    # de la tabla `incidencias` local). Se mockea la fuente para capturar el scope
+    # de empleados que aplica el modo líder y verificar que acota al equipo.
+    captured: dict = {}
 
-    assert response.status_code == 200
-    ids = {item["empleado_id"] for item in response.json()["items"]}
-    assert sub.id in ids
-    assert otro.id not in ids
+    class _FakeRepo:
+        async def count(self, filters):
+            captured["scope"] = filters.empleado_ids_scope
+            return 0
+
+        async def list_offset(self, offset, limit, filters):
+            captured["scope"] = filters.empleado_ids_scope
+            return []
+
+    class _FakeEngine:
+        async def dispose(self):
+            return None
+
+    async def _fake_with_bono_repo(self):
+        return _FakeEngine(), _FakeRepo()
+
+    with patch.object(
+        IncidenciaFuentesService, "_with_bono_repo", _fake_with_bono_repo
+    ):
+        headers = await auth_headers(client, lider_rh)
+        headers["X-RH-UI-Mode"] = "lider"
+        response = await client.get("/api/v1/incidencias", headers=headers)
+
+    assert response.status_code == 200, response.text
+    scope = captured["scope"]
+    # Modo líder acota (no es vista global RH): incluye al subordinado y al propio
+    # gestor, y excluye a un empleado ajeno al equipo.
+    assert scope is not None
+    assert sub.empleado_id in scope
+    assert lider_rh.empleado_id in scope
+    assert otro.empleado_id not in scope
 
 
 @pytest.mark.asyncio

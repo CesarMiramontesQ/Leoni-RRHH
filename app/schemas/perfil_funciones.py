@@ -14,6 +14,7 @@ from app.schemas.cualificaciones_catalogo import (
     validar_criterio_requerido,
     validar_valor_capturado,
 )
+from app.schemas.empleados import AreaResponse
 
 
 # ── Tipos enumerados ────────────────────────────────────────────────────────
@@ -51,6 +52,20 @@ class PuestoPerfilFuncionesUpdate(BaseModel):
     obligacion_confidencialidad: Optional[bool] = None
     poderes_legales: Optional[str] = None
     complemento_poderes: Optional[str] = None
+
+
+# ── Búsqueda de empleados disponibles para asignar ─────────────────────────
+
+
+class EmpleadoDisponibleResponse(BaseModel):
+    """Empleado activo sin asignación de perfil, para el buscador del modal de asignar."""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    no_empleado: int
+    nombre: str
+    area: Optional[AreaResponse] = None
 
 
 # ── Perfil Tareas ───────────────────────────────────────────────────────────

@@ -3,204 +3,122 @@ import {
   RH_LISTADO_BTN_GHOST,
   RH_LISTADO_BTN_PRIMARY,
   RH_LISTADO_BTN_SECONDARY,
-  badgeCancelled,
-  badgeInProgress,
-  badgeRejected,
 } from "../../ui/uiTokens.ts";
-import type { Eval360Filters, KpiCard, PlantKpisRh, TalentoSaludCard } from "../types.ts";
-import { renderEval360Filters } from "../filters.ts";
-import {
-  computeBrechaHeatmap,
-  computeCompetenciasPorDepartamento,
-  computePlantKpis,
-  computeTalentoSalud,
-  filterEmpleadosEval360,
-  getBrechaCriticaList,
-  getNecesidadesCapacitacion,
-  getTopDestacados,
-  MOCK_EMPLEADOS_EVAL360,
-} from "../rhDashboardData.ts";
-import { renderEval360ChartIds } from "../charts.ts";
-import { renderEval360KpiGrid, renderSurfaceCard } from "../shared.ts";
+import { renderSurfaceCard } from "../shared.ts";
+import type { DashboardApi } from "../../api/evaluacion360.ts";
 
-const DEMO_SPARK = [12, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+type SeriePunto = { label: string; valor: number };
 
-function plantKpisToKpiCards(kpis: PlantKpisRh): KpiCard[] {
-  return [
-    {
-      label: "Total empleados evaluados",
-      value: String(kpis.totalEvaluados),
-      icon: "users",
-      spark: DEMO_SPARK,
-      delta: "+4",
-      deltaPositive: true,
-      sub: "vs. ciclo anterior",
-    },
-    {
-      label: "Evaluaciones completadas",
-      value: String(kpis.completadas),
-      icon: "check",
-      spark: DEMO_SPARK,
-      delta: "+12%",
-      deltaPositive: true,
-      sub: "vs. ciclo anterior",
-    },
-    {
-      label: "Participación general",
-      value: String(kpis.participacionPct),
-      suffix: "%",
-      icon: "target",
-      spark: DEMO_SPARK,
-      delta: "+5 pts",
-      deltaPositive: true,
-      sub: "vs. ciclo anterior",
-    },
-    {
-      label: "Promedio general planta",
-      value: kpis.promedioPlanta.toFixed(1),
-      suffix: "/5",
-      icon: "star",
-      spark: DEMO_SPARK,
-      delta: "+0.2",
-      deltaPositive: true,
-      sub: "vs. ciclo anterior",
-    },
-    {
-      label: "Competencias en riesgo",
-      value: String(kpis.competenciasRiesgo),
-      icon: "warn",
-      spark: DEMO_SPARK,
-      delta: "-2",
-      deltaPositive: true,
-      sub: "vs. ciclo anterior",
-    },
-    {
-      label: "Brechas críticas detectadas",
-      value: String(kpis.brechasCriticas),
-      icon: "alert",
-      spark: DEMO_SPARK,
-      delta: "+1",
-      deltaPositive: false,
-      sub: "vs. ciclo anterior",
-    },
-  ];
+function kpiTile(label: string, value: string, sub = ""): string {
+  return `
+    <article class="rounded-[14px] border border-border bg-white p-4">
+      <p class="text-xs font-medium text-text-muted">${escapeHtml(label)}</p>
+      <p class="mt-2 text-2xl font-bold tabular-nums tracking-tight text-text-primary">${escapeHtml(value)}</p>
+      ${sub ? `<p class="mt-1 text-[11px] text-text-muted">${escapeHtml(sub)}</p>` : ""}
+    </article>`;
 }
 
-function renderTalentoSalud(cards: TalentoSaludCard[]): string {
-  const tone: Record<TalentoSaludCard["segmento"], string> = {
-    sobresaliente: "border-emerald-200 bg-emerald-50",
-    estable: "border-blue-200 bg-blue-50",
-    desarrollo: "border-amber-200 bg-amber-50",
-    riesgo: "border-red-200 bg-red-50",
-  };
+function renderKpis(k: DashboardApi["kpis"]): string {
+  const promedio = k.promedio_general != null ? `${k.promedio_general.toFixed(1)}/5` : "—";
+  const mayor =
+    k.competencia_mayor != null
+      ? `${k.competencia_mayor}${k.competencia_mayor_promedio != null ? ` · ${k.competencia_mayor_promedio.toFixed(1)}` : ""}`
+      : "—";
+  const menor =
+    k.competencia_menor != null
+      ? `${k.competencia_menor}${k.competencia_menor_promedio != null ? ` · ${k.competencia_menor_promedio.toFixed(1)}` : ""}`
+      : "—";
   return `
-  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-    ${cards
-      .map(
-        (c) => `
-      <article class="rounded-[14px] border p-4 ${tone[c.segmento]}">
-        <p class="text-xs font-semibold text-text-primary">${escapeHtml(c.label)}</p>
-        <p class="mt-2 text-2xl font-bold tabular-nums tracking-tight text-text-primary">${c.cantidad}</p>
-        <div class="mt-2 flex items-center justify-between gap-2">
-          <span class="text-sm font-semibold tabular-nums text-text-primary">${c.pct}%</span>
-          <span class="text-[10px] font-semibold ${c.deltaPositive ? "text-emerald-700" : "text-red-700"}">${c.deltaPositive ? "↑" : "↓"} ${escapeHtml(c.delta)} vs ciclo ant.</span>
-        </div>
-      </article>`,
-      )
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      ${kpiTile("Campañas activas", String(k.campanas_activas))}
+      ${kpiTile("Campañas finalizadas", String(k.campanas_finalizadas))}
+      ${kpiTile("Participantes", String(k.participantes))}
+      ${kpiTile("Promedio general", promedio)}
+      ${kpiTile("Evaluaciones respondidas", String(k.evaluaciones_respondidas))}
+      ${kpiTile("Evaluaciones pendientes", String(k.evaluaciones_pendientes))}
+      ${kpiTile("Competencia mejor evaluada", mayor)}
+      ${kpiTile("Competencia de oportunidad", menor)}
+    </div>`;
+}
+
+/** Lista de barras horizontales para una serie label/valor. `max` fija la escala. */
+function barList(serie: SeriePunto[], max: number, fmt: (v: number) => string, tone = "bg-accent"): string {
+  if (serie.length === 0) return `<p class="text-sm text-text-muted">Sin datos.</p>`;
+  const escala = max > 0 ? max : 1;
+  return `<ul class="space-y-2">
+    ${serie
+      .map((p) => {
+        const pct = Math.max(2, Math.min(100, (p.valor / escala) * 100));
+        return `<li>
+          <div class="flex items-center justify-between gap-2 text-xs">
+            <span class="truncate text-text-primary" title="${escapeHtml(p.label)}">${escapeHtml(p.label)}</span>
+            <span class="tabular-nums font-semibold text-text-primary">${escapeHtml(fmt(p.valor))}</span>
+          </div>
+          <div class="mt-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full ${tone}" style="width:${pct}%"></div></div>
+        </li>`;
+      })
       .join("")}
-  </div>`;
+  </ul>`;
 }
 
-function brechaHeatmapCell(nivel: string): string {
-  const map: Record<string, string> = {
-    ninguna: "bg-emerald-100 text-emerald-800",
-    baja: "bg-sky-100 text-sky-800",
-    media: "bg-amber-100 text-amber-900",
-    critica: "bg-red-100 text-red-800",
-  };
-  const labels: Record<string, string> = {
-    ninguna: "Sin brecha",
-    baja: "Brecha baja",
-    media: "Brecha media",
-    critica: "Brecha crítica",
-  };
-  return `<div class="flex h-10 items-center justify-center rounded text-[10px] font-semibold ${map[nivel] ?? map.baja}">${labels[nivel] ?? nivel}</div>`;
+function renderAvanceCampanas(items: DashboardApi["avance_por_campana"]): string {
+  if (items.length === 0) return `<p class="text-sm text-text-muted">Sin campañas.</p>`;
+  return `<ul class="space-y-3">
+    ${items
+      .map((c) => {
+        const pct = Math.round(c.avance);
+        return `<li>
+          <div class="flex items-center justify-between gap-2 text-xs">
+            <span class="truncate text-text-primary" title="${escapeHtml(c.nombre)}">${escapeHtml(c.nombre)}</span>
+            <span class="tabular-nums font-semibold text-text-primary">${pct}%</span>
+          </div>
+          <div class="mt-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full bg-accent" style="width:${Math.max(2, Math.min(100, pct))}%"></div></div>
+        </li>`;
+      })
+      .join("")}
+  </ul>`;
 }
 
-function capacitacionPrioridadBadge(prioridad: string): string {
-  if (prioridad === "Alta") return badgeRejected(prioridad);
-  if (prioridad === "Media") return badgeInProgress(prioridad);
-  return badgeCancelled(prioridad);
-}
-
-export interface RhDashboardRenderOpts {
-  filters: Eval360Filters;
-}
-
-export function renderEval360RhDashboard(opts: RhDashboardRenderOpts): string {
-  const filtered = filterEmpleadosEval360(MOCK_EMPLEADOS_EVAL360, opts.filters, "");
-  const kpis = computePlantKpis(filtered);
-  const salud = computeTalentoSalud(filtered);
-  const heatmap = computeBrechaHeatmap(filtered);
-  const charts = renderEval360ChartIds();
-
-  const topDestacados = getTopDestacados(filtered);
-  const brechaCritica = getBrechaCriticaList(filtered);
-  const capacitacion = getNecesidadesCapacitacion(filtered);
-
-  const heatmapHeader = heatmap.competencias.map((c) => `<th class="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(c)}</th>`).join("");
-  const heatmapRows = heatmap.departamentos
-    .map(
-      (dept, di) => `
-    <tr>
-      <td class="px-3 py-2 text-xs font-medium text-text-primary">${escapeHtml(dept)}</td>
-      ${heatmap.matrix[di]?.map((cell) => `<td class="p-1">${brechaHeatmapCell(cell)}</td>`).join("") ?? ""}
-    </tr>`,
-    )
-    .join("");
-
+function renderSkeleton(): string {
+  const tile = `<div class="h-20 animate-pulse rounded-[14px] bg-slate-100"></div>`;
+  const card = `<div class="h-48 animate-pulse rounded-xl bg-slate-100"></div>`;
   return `
-    ${renderEval360Filters(opts.filters)}
+    <section class="mt-6 space-y-6">
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">${tile.repeat(8)}</div>
+      <div class="grid gap-5 lg:grid-cols-2">${card.repeat(2)}</div>
+    </section>`;
+}
 
-    <section class="mt-6" aria-labelledby="e360-seccion-planta">
-      <h2 id="e360-seccion-planta" class="text-sm font-semibold text-text-primary">Resumen general de planta</h2>
-      <p class="mt-0.5 text-xs text-text-muted">${filtered.length} empleados en el universo filtrado</p>
-      <div class="mt-4">${renderEval360KpiGrid(plantKpisToKpiCards(kpis))}</div>
-
-      <div class="mt-6">
-        <h3 class="text-sm font-semibold text-text-primary">Salud de talento de la planta</h3>
-        <div class="mt-3">${renderTalentoSalud(salud)}</div>
+export function renderEval360RhDashboard(data: DashboardApi | null): string {
+  if (data === null) return renderSkeleton();
+  const distMax = Math.max(0, ...data.distribucion_calificaciones.map((d) => d.valor));
+  return `
+    <section class="mt-6 space-y-6" aria-labelledby="e360-seccion-planta">
+      <div>
+        <h2 id="e360-seccion-planta" class="text-sm font-semibold text-text-primary">Resumen general 360°</h2>
+        <p class="mt-0.5 text-xs text-text-muted">Indicadores en tiempo real de las campañas de evaluación.</p>
+        <div class="mt-4">${renderKpis(data.kpis)}</div>
       </div>
 
-      <div class="mt-6 grid gap-5 lg:grid-cols-2">
-        ${renderSurfaceCard("Promedio de competencias por departamento", "Comparativo por área organizacional", charts.barDeptComp)}
+      <div class="grid gap-5 lg:grid-cols-2">
         ${renderSurfaceCard(
-          "Mapa de brechas por competencia y departamento",
-          "Sin brecha · Brecha baja · Brecha media · Brecha crítica",
-          `<div class="overflow-x-auto -mx-5 px-5">
-            <table class="min-w-full text-left">
-              <thead><tr><th class="px-3 py-2"></th>${heatmapHeader}</tr></thead>
-              <tbody>${heatmapRows}</tbody>
-            </table>
-          </div>`,
+          "Competencias mejor evaluadas",
+          "Promedio general (escala 0–5)",
+          barList(data.competencias_mejor, 5, (v) => v.toFixed(1), "bg-emerald-500"),
+        )}
+        ${renderSurfaceCard(
+          "Áreas de oportunidad",
+          "Competencias con menor promedio",
+          barList(data.competencias_oportunidad, 5, (v) => v.toFixed(1), "bg-amber-500"),
         )}
       </div>
 
-      <div class="mt-5 grid gap-5 lg:grid-cols-3">
+      <div class="grid gap-5 lg:grid-cols-2">
+        ${renderSurfaceCard("Avance por campaña", "Porcentaje de evaluaciones completadas", renderAvanceCampanas(data.avance_por_campana))}
         ${renderSurfaceCard(
-          "Top empleados destacados",
-          "",
-          `<ul class="space-y-3">${topDestacados.map((e) => `<li class="flex items-start justify-between gap-2"><div><p class="text-sm font-medium text-text-primary">${escapeHtml(e.nombre)}</p><p class="text-xs text-text-muted">${escapeHtml(e.puesto)} · ${escapeHtml(e.departamento)}</p></div><div class="text-right"><p class="text-sm font-bold tabular-nums text-accent">${e.calificacion.toFixed(1)}</p><p class="text-[10px] font-semibold text-emerald-700">${escapeHtml(e.nivel)}</p></div></li>`).join("") || `<p class="text-sm text-text-muted">Sin datos</p>`}</ul>`,
-        )}
-        ${renderSurfaceCard(
-          "Empleados con brecha crítica",
-          "",
-          `<ul class="space-y-3">${brechaCritica.map((b) => `<li><p class="text-sm font-medium text-text-primary">${escapeHtml(b.nombre)}</p><p class="text-xs text-red-700">${escapeHtml(b.competencia)} · ${escapeHtml(b.brecha)}</p><p class="text-[11px] text-text-muted">${escapeHtml(b.accion)}</p></li>`).join("") || `<p class="text-sm text-text-muted">Sin alertas</p>`}</ul>`,
-        )}
-        ${renderSurfaceCard(
-          "Necesidades de capacitación",
-          "Agrupado por competencia",
-          `<ul class="space-y-3">${capacitacion.map((n) => `<li class="flex items-center justify-between gap-2"><div><p class="text-sm font-medium text-text-primary">${escapeHtml(n.competencia)}</p><p class="text-xs text-text-muted">${n.afectados} empleados</p></div>${capacitacionPrioridadBadge(n.prioridad)}</li>`).join("") || `<p class="text-sm text-text-muted">Sin necesidades detectadas</p>`}</ul>`,
+          "Distribución de calificaciones",
+          "Cantidad de evaluaciones por rango",
+          barList(data.distribucion_calificaciones, distMax, (v) => String(Math.round(v)), "bg-accent"),
         )}
       </div>
     </section>`;
@@ -220,13 +138,4 @@ export function renderEval360RhHeader(): string {
         <button type="button" class="${RH_LISTADO_BTN_PRIMARY}" data-action="e360-open-modal">Nueva campaña</button>
       </div>
     </header>`;
-}
-
-/** Datos de gráfica competencias/depto para mount charts. */
-export function getDashboardChartData(opts: RhDashboardRenderOpts) {
-  const filtered = filterEmpleadosEval360(MOCK_EMPLEADOS_EVAL360, opts.filters, "");
-  return {
-    filtered,
-    competenciasDept: computeCompetenciasPorDepartamento(filtered),
-  };
 }

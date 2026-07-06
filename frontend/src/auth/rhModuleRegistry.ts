@@ -27,6 +27,7 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "level-up", prefix: "#/level-up" },
   { key: "cursos-seguimiento", prefix: "#/cursos/seguimiento" },
   { key: "cursos-ajustes", prefix: "#/cursos/ajustes" },
+  { key: "juntas", prefix: "#/cursos/juntas" },
   { key: "cursos", prefix: "#/cursos" },
   { key: "sesiones", prefix: "#/sesiones" },
   { key: "opls", prefix: "#/opls" },
@@ -50,6 +51,7 @@ export function resolveModuleFromHash(hashValue: string): string | null {
 }
 
 export function navItemIdToModuleKey(navItemId: string): string {
+  if (navItemId === "cursos-juntas") return "juntas";
   if (navItemId === "comedor-menu") return "comedor-registro";
   if (navItemId === "laborales") return "dashboard";
   if (navItemId === "horas-extra") return "nominas-horas-extra";

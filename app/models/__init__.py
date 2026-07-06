@@ -82,6 +82,26 @@ from app.models.level_up import (
     PlanDesarrollo,
     PlanEtapa,
 )
+from app.models.juntas import (
+    Junta,
+    JuntaAsistente,
+)
+from app.models.evaluacion360 import (
+    Eval360Config,
+    Eval360Escala,
+    Eval360Pregunta,
+    Eval360Campana,
+    Eval360CampanaCompetencia,
+    Eval360CampanaEvaluadorTipo,
+    Eval360Participante,
+    Eval360Evaluacion,
+    Eval360Respuesta,
+    Eval360Comentario,
+    Eval360Resultado,
+    Eval360Plantilla,
+    Eval360PlantillaCompetencia,
+    Eval360PlantillaEvaluadorTipo,
+)
 
 __all__ = [
     "Rol",
@@ -168,4 +188,20 @@ __all__ = [
     "PlanDesarrollo",
     "PlanEtapa",
     "PlanDesarrolloIndividual",
+    "Junta",
+    "JuntaAsistente",
+    "Eval360Config",
+    "Eval360Escala",
+    "Eval360Pregunta",
+    "Eval360Campana",
+    "Eval360CampanaCompetencia",
+    "Eval360CampanaEvaluadorTipo",
+    "Eval360Participante",
+    "Eval360Evaluacion",
+    "Eval360Respuesta",
+    "Eval360Comentario",
+    "Eval360Resultado",
+    "Eval360Plantilla",
+    "Eval360PlantillaCompetencia",
+    "Eval360PlantillaEvaluadorTipo",
 ]

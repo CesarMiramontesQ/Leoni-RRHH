@@ -31,6 +31,24 @@ async def _tress_scheduler_job():
         logger.error("Error en TRESS scheduler job: %s", str(exc), exc_info=True)
 
 
+async def _eval360_recordatorios_job():
+    """Recordatorios de Evaluación 360 y marcado de evaluaciones vencidas (diario)."""
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.evaluacion360_service import Evaluacion360Service
+
+        async with AsyncSessionLocal() as db:
+            resultado = await Evaluacion360Service(db).procesar_recordatorios()
+            await db.commit()
+        logger.info(
+            "Eval360 recordatorios | enviados=%d | vencidas=%d",
+            resultado.recordatorios_enviados,
+            resultado.vencidas_marcadas,
+        )
+    except Exception as exc:
+        logger.error("Error en Eval360 recordatorios job: %s", str(exc), exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────
@@ -57,6 +75,14 @@ async def lifespan(app: FastAPI):
         "interval",
         minutes=5,
         id="tress_scheduler",
+    )
+    # Recordatorios Evaluación 360: una vez al día (08:00).
+    scheduler.add_job(
+        _eval360_recordatorios_job,
+        "cron",
+        hour=8,
+        minute=0,
+        id="eval360_recordatorios",
     )
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))
@@ -203,6 +229,8 @@ from app.api.v1.rh_permisos.router import router as rh_permisos_router
 from app.api.v1.nominas.router import router as nominas_router
 from app.api.v1.horas_extra.router import router as horas_extra_router
 from app.api.v1.faltas_retardos.router import router as faltas_retardos_router
+from app.api.v1.evaluacion360.router import router as evaluacion360_router
+from app.api.v1.juntas.router import router as juntas_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -240,6 +268,8 @@ app.include_router(rh_permisos_router)
 app.include_router(nominas_router)
 app.include_router(horas_extra_router)
 app.include_router(faltas_retardos_router)
+app.include_router(evaluacion360_router)
+app.include_router(juntas_router)
 
 
 # ── Root ──────────────────────────────────────────────────────

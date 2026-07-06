@@ -55,6 +55,7 @@ import app.models.level_up  # noqa: F401
 import app.models.cursos_catalogo  # noqa: F401
 import app.models.vacaciones  # noqa: F401
 import app.models.turnos_empleados  # noqa: F401
+import app.models.evaluacion360  # noqa: F401  (incluye plantillas)
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password
@@ -126,6 +127,15 @@ async def db(engine) -> AsyncGenerator[AsyncSession, None]:
             yield session
         finally:
             await session.rollback()
+
+    # Aislamiento entre tests: la conexión SQLite en memoria es única (StaticPool)
+    # y compartida; las llamadas API hacen commit, por lo que un rollback de la
+    # sesión NO deshace lo committeado. Se vacían todas las tablas al terminar el
+    # test (con las sesiones ya cerradas, sin conflicto multi-sesión) para que el
+    # siguiente parta de un estado limpio.
+    async with engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
 
 
 # ---------------------------------------------------------------------------
@@ -310,9 +320,54 @@ async def link_turno_comedor_empleado(
     await db.flush()
 
 
+async def reset_comedor_transaccional(db: AsyncSession) -> None:
+    """Limpia las tablas mutables de comedor (registros/accesos/códigos).
+
+    Los endpoints RH de comedor agregan sobre estado **global**; como las
+    llamadas API hacen commit sobre la conexión SQLite compartida, los registros
+    creados por un test contaminan los conteos globales de otro. Las pruebas que
+    asertan estado global invocan este reset (autouse) para partir de cero.
+    """
+    from sqlalchemy import delete
+
+    from app.models.comedor import (
+        ComedorAcceso,
+        ComedorCodigoExterno,
+        ComedorExternoCorrelativo,
+        ComedorRegistro,
+    )
+
+    # Orden respetando FKs: accesos → registros; códigos y correlativo son independientes.
+    for model in (
+        ComedorAcceso,
+        ComedorRegistro,
+        ComedorCodigoExterno,
+        ComedorExternoCorrelativo,
+    ):
+        await db.execute(delete(model))
+    await db.flush()
+
+
 async def make_clasificacion_administrativo(db: AsyncSession):
-    """Catálogo Administrativo (código A) para pruebas de Home Office."""
+    """Catálogo Administrativo (código A) para pruebas de Home Office.
+
+    Idempotente: usa un ``clasificacion_id`` fijo (901). Como las llamadas API
+    de otros tests hacen commit sobre la conexión SQLite compartida, ese registro
+    puede persistir entre tests; se reutiliza si ya existe para evitar violar la
+    unicidad de ``clasificacion_id``.
+    """
+    from sqlalchemy import select
+
     from app.models.catalogos import ClasificacionEmpleado
+
+    existing = await db.execute(
+        select(ClasificacionEmpleado).where(
+            ClasificacionEmpleado.clasificacion_id == 901
+        )
+    )
+    cl = existing.scalar_one_or_none()
+    if cl is not None:
+        return cl
 
     cl = ClasificacionEmpleado(
         clasificacion_id=901,

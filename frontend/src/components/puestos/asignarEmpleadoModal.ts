@@ -1,6 +1,5 @@
-import { getEmpleadosPage } from "../../api/empleados.ts";
 import { getGradosPuesto } from "../../api/gradosPuesto.ts";
-import { createPerfilAsignacion } from "../../api/puestos.ts";
+import { createPerfilAsignacion, buscarEmpleadosDisponiblesPerfil } from "../../api/puestos.ts";
 import type { GradoPuesto } from "../../dashboard/gradosPuesto/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, FIELD_FOCUS, RH_LISTADO_LABEL, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
@@ -17,7 +16,7 @@ export type AsignarEmpleadoModalOptions = {
 
 type EmpleadoResult = {
   empleado_id: number;
-  no_empleado: string;
+  no_empleado: number;
   nombre: string;
   area: string | null;
 };
@@ -159,8 +158,8 @@ export function mountAsignarEmpleadoModal(
     }
 
     try {
-      const page = await getEmpleadosPage({ page: 1, page_size: 10, q, activo: true });
-      const items: EmpleadoResult[] = page.items.map(i => ({
+      const results = await buscarEmpleadosDisponiblesPerfil(q);
+      const items: EmpleadoResult[] = results.map(i => ({
         empleado_id: i.id,
         no_empleado: i.no_empleado,
         nombre: i.nombre,

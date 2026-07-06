@@ -462,6 +462,23 @@ export async function updateEvaluaciones(
 // ── Asignaciones ─────────────────────────────────────────────────────────────
 
 /** POST /api/v1/perfiles/:id/asignaciones */
+/** Empleado activo sin asignación de perfil, para el buscador del modal de asignar. */
+export type EmpleadoDisponible = {
+  id: number;
+  no_empleado: number;
+  nombre: string;
+  area: { descripcion: string } | null;
+};
+
+/** GET /api/v1/perfiles/empleados-disponibles?q= — busca empleados activos no asignados */
+export async function buscarEmpleadosDisponiblesPerfil(q: string): Promise<EmpleadoDisponible[]> {
+  const res = await fetchWithAuth(
+    `/api/v1/perfiles/empleados-disponibles?q=${encodeURIComponent(q)}`,
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return await res.json();
+}
+
 export async function createPerfilAsignacion(
   perfilId: number,
   body: {

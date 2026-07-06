@@ -1,151 +1,83 @@
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import {
-  HEATMAP_DATA,
-  NINE_BOX,
-  REPORTE_CARDS,
-  TENDENCIAS_COMPETENCIA,
-} from "../mockData.ts";
-import { renderEval360ChartIds } from "../charts.ts";
+import { FIELD_INPUT } from "../../ui/uiTokens.ts";
 import { renderSurfaceCard } from "../shared.ts";
+import { renderNineBox } from "./resultadosReal.ts";
+import type { CampanaApi, DashboardApi, NineBoxApi } from "../../api/evaluacion360.ts";
 
-function heatmapColor(valor: number): string {
-  if (valor >= 4) return "bg-emerald-500 text-white";
-  if (valor >= 3.5) return "bg-emerald-300 text-emerald-900";
-  if (valor >= 3) return "bg-amber-300 text-amber-900";
-  if (valor >= 2.5) return "bg-orange-300 text-orange-900";
-  return "bg-red-400 text-white";
+export interface ReportesViewData {
+  campanas: CampanaApi[] | null;
+  campanaId: number | null;
+  nineBox: NineBoxApi | null;
+  nineBoxLoading: boolean;
+  dashboard: DashboardApi | null;
 }
 
-export function renderEval360Reportes(): string {
-  const charts = renderEval360ChartIds();
-  const competenciaLabels = ["Liderazgo", "Comunicación", "Trabajo eq.", "Orient. res.", "Adaptab.", "Resol. prob.", "Des. personal"];
+const CAMPANA_ESTADOS_CON_RESULTADOS = ["activa", "en_progreso", "finalizada", "cerrada"];
 
-  const cards = REPORTE_CARDS.map(
-    (c) => `
-    <div class="rounded-xl border border-border bg-white p-5">
-      <h3 class="text-sm font-semibold text-text-primary">${escapeHtml(c.titulo)}</h3>
-      <ul class="mt-3 space-y-2">
-        ${c.items.map((item, i) => `<li class="flex items-center gap-2 text-sm text-slate-700"><span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent-light text-[10px] font-bold text-accent">${i + 1}</span>${escapeHtml(item)}</li>`).join("")}
-      </ul>
-    </div>`,
-  ).join("");
-
-  const tendencias = TENDENCIAS_COMPETENCIA.map(
-    (t) => `
-    <tr class="border-b border-slate-100">
-      <td class="px-4 py-3 text-sm font-medium text-text-primary">${escapeHtml(t.competencia)}</td>
-      <td class="px-4 py-3 text-sm tabular-nums text-center">${t.q1.toFixed(1)}</td>
-      <td class="px-4 py-3 text-sm tabular-nums text-center">${t.q2.toFixed(1)}</td>
-      <td class="px-4 py-3 text-sm tabular-nums text-center">${t.q3.toFixed(1)}</td>
-      <td class="px-4 py-3 text-sm tabular-nums text-center font-semibold text-accent">${t.q4.toFixed(1)}</td>
-    </tr>`,
-  ).join("");
-
-  const heatmapHeader = competenciaLabels
-    .map((l) => `<th class="px-2 py-2 text-[10px] font-semibold text-text-muted">${escapeHtml(l)}</th>`)
-    .join("");
-
-  const heatmapRows = HEATMAP_DATA.map(
-    (row) => `
-    <tr>
-      <td class="px-3 py-2 text-xs font-medium text-text-primary">${escapeHtml(row.dept)}</td>
-      ${row.competencias
-        .map(
-          (v) =>
-            `<td class="p-1"><div class="flex size-10 items-center justify-center rounded text-[10px] font-semibold tabular-nums ${heatmapColor(v)}" title="${v.toFixed(1)}">${v.toFixed(1)}</div></td>`,
-        )
-        .join("")}
-    </tr>`,
-  ).join("");
-
-  const potencialLabels = ["Alto potencial", "Potencial medio", "Bajo potencial"];
-  const desempenoLabels = ["Alto desempeño", "Desempeño medio", "Bajo desempeño"];
-
-  const nineBoxGrid = ["alto", "medio", "bajo"].map((desempeno) => {
-    return ["alto", "medio", "bajo"]
-      .map((potencial) => {
-        const cell = NINE_BOX.find((c) => c.desempeno === desempeno && c.potencial === potencial);
-        const bg =
-          cell?.clasificacion === "Talento clave"
-            ? "bg-emerald-50 border-emerald-200"
-            : cell?.clasificacion === "Promovibles"
-              ? "bg-blue-50 border-blue-200"
-              : cell?.clasificacion === "Consistentes"
-                ? "bg-slate-50 border-slate-200"
-                : "bg-amber-50 border-amber-200";
-        return `
-        <div class="min-h-[6rem] rounded-lg border p-3 ${bg}">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(cell?.clasificacion ?? "")}</p>
-          <ul class="mt-2 space-y-0.5">
-            ${(cell?.empleados ?? []).map((e) => `<li class="text-xs text-slate-700">${escapeHtml(e)}</li>`).join("")}
-          </ul>
-        </div>`;
+function serieList(serie: { label: string; valor: number }[], tone: string): string {
+  if (serie.length === 0) return `<p class="text-sm text-text-muted">Sin datos disponibles todavía.</p>`;
+  return `<ul class="space-y-2">
+    ${serie
+      .map((p) => {
+        const pct = Math.max(2, Math.min(100, (p.valor / 5) * 100));
+        return `<li>
+          <div class="flex items-center justify-between gap-2 text-xs">
+            <span class="truncate text-text-primary" title="${escapeHtml(p.label)}">${escapeHtml(p.label)}</span>
+            <span class="tabular-nums font-semibold text-text-primary">${p.valor.toFixed(1)}</span>
+          </div>
+          <div class="mt-1 h-2 rounded-full bg-slate-100"><div class="h-2 rounded-full ${tone}" style="width:${pct}%"></div></div>
+        </li>`;
       })
-      .join("");
-  });
+      .join("")}
+  </ul>`;
+}
+
+function renderAnalitica(dashboard: DashboardApi | null): string {
+  if (!dashboard) return "";
+  return `
+    <div class="mt-6">
+      <h2 class="text-sm font-semibold text-text-primary">Analítica de competencias</h2>
+      <p class="mt-0.5 text-xs text-text-muted">Consolidado de todas las campañas (escala 0–5)</p>
+    </div>
+    <div class="mt-4 grid gap-5 lg:grid-cols-2">
+      ${renderSurfaceCard("Competencias mejor evaluadas", "Promedio general", serieList(dashboard.competencias_mejor, "bg-emerald-500"))}
+      ${renderSurfaceCard("Áreas de oportunidad", "Competencias con menor promedio", serieList(dashboard.competencias_oportunidad, "bg-amber-500"))}
+    </div>`;
+}
+
+export function renderEval360Reportes(data: ReportesViewData): string {
+  const campanas = (data.campanas ?? []).filter((c) =>
+    CAMPANA_ESTADOS_CON_RESULTADOS.includes(c.estado),
+  );
+  const opciones = [
+    `<option value="">Selecciona una campaña…</option>`,
+    ...campanas.map(
+      (c) => `<option value="${c.id}" ${c.id === data.campanaId ? "selected" : ""}>${escapeHtml(c.nombre)}</option>`,
+    ),
+  ].join("");
+
+  const selector = `
+    <div class="rounded-xl border border-border bg-white p-4">
+      <label class="mb-1 block text-xs font-medium text-text-muted">Campaña</label>
+      <select data-select="e360-rep-campana" class="${FIELD_INPUT} max-w-md">${opciones}</select>
+      ${data.campanas === null ? `<p class="mt-2 text-xs text-text-muted">Cargando campañas…</p>` : ""}
+      ${data.campanas !== null && campanas.length === 0 ? `<p class="mt-2 text-xs text-text-muted">No hay campañas activas o finalizadas con resultados.</p>` : ""}
+    </div>`;
+
+  let nineBoxSection = "";
+  if (data.campanaId != null) {
+    if (data.nineBoxLoading || data.nineBox === null) {
+      nineBoxSection = `<div class="mt-5 h-64 animate-pulse rounded-xl bg-slate-100"></div>`;
+    } else {
+      nineBoxSection = `<div class="mt-5">${renderNineBox(data.nineBox)}</div>`;
+    }
+  } else {
+    nineBoxSection = `<div class="mt-5 rounded-xl border border-dashed border-border bg-slate-50/50 px-4 py-10 text-center text-sm text-text-muted">Selecciona una campaña para ver su matriz de talento (9-box).</div>`;
+  }
 
   return `
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">${cards}</div>
-
-    <div class="mt-6">
-      <h2 class="text-sm font-semibold text-text-primary">Analítica</h2>
-      <p class="mt-0.5 text-xs text-text-muted">Evolución, comparativos y tendencias organizacionales</p>
-    </div>
-
-    <div class="mt-4 grid gap-5 lg:grid-cols-2">
-      ${renderSurfaceCard("Evolución histórica", "Promedio general por periodo", charts.lineEvolucion)}
-      ${renderSurfaceCard("Comparativo por departamento", "Promedio de calificación", charts.barDept)}
-    </div>
-
-    <div class="mt-5">
-      ${renderSurfaceCard(
-        "Tendencias por competencia",
-        "Evolución trimestral",
-        `<div class="overflow-x-auto -mx-5 px-5">
-          <table class="min-w-full text-left">
-            <thead>
-              <tr class="border-b border-slate-100 text-xs font-semibold uppercase tracking-wide text-text-muted">
-                <th class="px-4 py-2">Competencia</th>
-                <th class="px-4 py-2 text-center">Q1</th>
-                <th class="px-4 py-2 text-center">Q2</th>
-                <th class="px-4 py-2 text-center">Q3</th>
-                <th class="px-4 py-2 text-center">Q4</th>
-              </tr>
-            </thead>
-            <tbody>${tendencias}</tbody>
-          </table>
-        </div>`,
-      )}
-    </div>
-
-    <div class="mt-5">
-      ${renderSurfaceCard(
-        "Heatmap organizacional",
-        "Puntuación por departamento y competencia",
-        `<div class="overflow-x-auto -mx-5 px-5">
-          <table class="min-w-full text-left">
-            <thead><tr><th class="px-3 py-2"></th>${heatmapHeader}</tr></thead>
-            <tbody>${heatmapRows}</tbody>
-          </table>
-        </div>`,
-      )}
-    </div>
-
-    <div class="mt-5">
-      ${renderSurfaceCard(
-        "Matriz de talento (9-box)",
-        "Desempeño vs. potencial",
-        `<div class="grid grid-cols-[auto_1fr] gap-3">
-          <div class="flex flex-col justify-around py-8 text-[10px] font-semibold text-text-muted [writing-mode:vertical-rl] rotate-180">
-            ${desempenoLabels.map((l) => `<span class="py-4">${escapeHtml(l)}</span>`).join("")}
-          </div>
-          <div>
-            <div class="mb-2 flex justify-around text-[10px] font-semibold text-text-muted">
-              ${potencialLabels.map((l) => `<span>${escapeHtml(l)}</span>`).join("")}
-            </div>
-            <div class="grid grid-cols-3 gap-2">${nineBoxGrid.join("")}</div>
-          </div>
-        </div>`,
-      )}
-    </div>`;
+    ${selector}
+    ${nineBoxSection}
+    ${renderAnalitica(data.dashboard)}
+    <p class="mt-6 text-xs text-text-muted">Los reportes organizacionales (tendencias trimestrales y heatmap por área) llegarán en una próxima entrega.</p>`;
 }
