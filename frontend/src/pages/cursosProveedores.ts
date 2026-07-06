@@ -252,6 +252,7 @@ export function mountCursosProveedores(container: HTMLElement, signal: AbortSign
   let errorMessage: string | null = null;
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let detailProveedorId: number | null = null;
+  let savingPersona = false;
 
   mountAppShell(container, {
     pageTitle: "Contratistas",
@@ -432,6 +433,10 @@ export function mountCursosProveedores(container: HTMLElement, signal: AbortSign
   }
 
   async function submitPersona(form: HTMLFormElement): Promise<void> {
+    // Guard de reentrada: el modal de detalle queda abierto tras agregar, así que
+    // un segundo submit (doble clic) crearía una persona duplicada. Bloquea hasta
+    // que el POST y el refresco terminen.
+    if (savingPersona) return;
     const proveedorId = Number(form.dataset.proveedor);
     if (Number.isNaN(proveedorId)) return;
     const fd = new FormData(form);
@@ -444,6 +449,9 @@ export function mountCursosProveedores(container: HTMLElement, signal: AbortSign
       }
       return;
     }
+    savingPersona = true;
+    const submitBtn = form.querySelector<HTMLButtonElement>("button[type=submit]");
+    if (submitBtn) submitBtn.disabled = true;
     try {
       await createPersona(proveedorId, {
         nombre,
@@ -458,6 +466,9 @@ export function mountCursosProveedores(container: HTMLElement, signal: AbortSign
         errorEl.textContent = detail;
         errorEl.classList.remove("hidden");
       }
+      if (submitBtn) submitBtn.disabled = false;
+    } finally {
+      savingPersona = false;
     }
   }
 
