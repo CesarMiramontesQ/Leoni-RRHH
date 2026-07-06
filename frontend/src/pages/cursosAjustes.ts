@@ -82,7 +82,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "clasificaciones", label: "Clasificaciones" },
   { id: "instructores", label: "Instructores Ext." },
   { id: "instructores-int", label: "Instructores Int." },
-  { id: "proveedores", label: "Proveedores" },
+  { id: "proveedores", label: "Proveedores de cursos" },
 ];
 
 export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal): void {
@@ -221,7 +221,7 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
     if (state.loading) return ajustesLoadingState("Cargando…");
     if (state.error) return ajustesErrorAlert(state.error);
     const items = state.items as Proveedor[];
-    if (items.length === 0) return ajustesEmptyState("No hay proveedores. Crea el primero.");
+    if (items.length === 0) return ajustesEmptyState("No hay proveedores de cursos. Crea el primero.");
     const rows = items.map((i) => `
       <tr class="border-b border-slate-100/90">
         <td class="${AJUSTES_TABLE_TD} font-medium">${escapeHtml(i.nombre)}</td>
@@ -303,8 +303,8 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
     const matched = proveedores.some((p) => p.nombre === selected);
     const disabled = state.proveedoresLoading ? " disabled" : "";
     const loadingOption = state.proveedoresLoading
-      ? `<option value="" selected>Cargando proveedores…</option>`
-      : `<option value="">Seleccionar proveedor…</option>`;
+      ? `<option value="" selected>Cargando proveedores de cursos…</option>`
+      : `<option value="">Seleccionar proveedor de cursos…</option>`;
     let options = loadingOption;
     if (!state.proveedoresLoading) {
       for (const p of proveedores) {
@@ -316,7 +316,7 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
       }
     }
     const emptyHint = proveedores.length === 0 && !state.proveedoresLoading
-      ? `<p class="mt-1 text-xs text-text-muted">No hay proveedores activos. Regístralos en la pestaña Proveedores.</p>`
+      ? `<p class="mt-1 text-xs text-text-muted">No hay proveedores de cursos activos. Regístralos en la pestaña «Proveedores de cursos».</p>`
       : "";
     return `
       <div class="grid grid-cols-1">
@@ -360,7 +360,7 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
             <input id="cat-especialidad" name="especialidad" type="text" maxlength="255" value="${escapeHtml(item?.especialidad ?? "")}" class="${AJUSTES_INPUT}" />
           </div>
           <div>
-            <label for="cat-empresa" class="${RH_LISTADO_LABEL}">Proveedor</label>
+            <label for="cat-empresa" class="${RH_LISTADO_LABEL}">Proveedor de cursos</label>
             ${renderProveedorSelect(item?.empresa)}
           </div>
           ${state.modalError ? ajustesModalError(state.modalError) : ""}
@@ -459,7 +459,7 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
       const item = state.editingItem as Proveedor;
       return `<div id="cat-modal-overlay" class="${AJUSTES_MODAL_OVERLAY}" role="presentation">
         <div class="${AJUSTES_MODAL_PANEL}" role="dialog" aria-modal="true">
-          <h3 class="text-lg font-semibold text-text-primary">Desactivar proveedor</h3>
+          <h3 class="text-lg font-semibold text-text-primary">Desactivar proveedor de cursos</h3>
           <p class="mt-2 text-sm text-text-secondary">¿Desactivar <strong>${escapeHtml(item?.nombre ?? "")}</strong>?</p>
           ${state.modalError ? ajustesModalError(state.modalError) : ""}
           <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -471,7 +471,7 @@ export function mountCursosAjustes(container: HTMLElement, signal: AbortSignal):
     }
     const isEdit = state.modalMode === "edit";
     const item = state.editingItem as Proveedor | null;
-    const title = isEdit ? "Editar proveedor" : "Nuevo proveedor";
+    const title = isEdit ? "Editar proveedor de cursos" : "Nuevo proveedor de cursos";
     return `<div id="cat-modal-overlay" class="${AJUSTES_MODAL_OVERLAY}" role="presentation">
       <div class="${AJUSTES_MODAL_PANEL}" role="dialog" aria-modal="true">
         <h3 class="text-lg font-semibold text-text-primary">${title}</h3>

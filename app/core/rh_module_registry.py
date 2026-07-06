@@ -32,7 +32,10 @@ class RhModuleDef:
 _LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
     "comedor": ("comedor-registro", "comedor-gestion", "comedor-planear"),
     "puestos": ("puestos-ajustes",),
-    "cursos": ("cursos-seguimiento", "sesiones", "cursos-ajustes", "juntas"),
+    "cursos": (
+        "cursos-seguimiento", "sesiones", "cursos-ajustes", "juntas",
+        "proveedores-externos", "cursos-externos", "cursos-vencimientos",
+    ),
     "level-up": ("evaluacion-360",),
 }
 
@@ -223,6 +226,31 @@ RH_MODULES: dict[str, RhModuleDef] = {
         nav_item_ids=("cursos-juntas",),
         hash_prefixes=("#/cursos/juntas",),
         api_prefixes=("/api/v1/juntas",),
+    ),
+    "proveedores-externos": RhModuleDef(
+        key="proveedores-externos",
+        label="Contratistas",
+        group="Personal Externo",
+        nav_item_ids=("cursos-proveedores",),
+        hash_prefixes=("#/cursos/proveedores",),
+        # Las 3 subpaginas comparten el backend; solo esta declara el api_prefix.
+        api_prefixes=("/api/v1/proveedores-externos",),
+    ),
+    "cursos-externos": RhModuleDef(
+        key="cursos-externos",
+        label="Cursos externos",
+        group="Personal Externo",
+        nav_item_ids=("cursos-externos",),
+        hash_prefixes=("#/cursos/externos",),
+        api_prefixes=(),
+    ),
+    "cursos-vencimientos": RhModuleDef(
+        key="cursos-vencimientos",
+        label="Vencimientos",
+        group="Personal Externo",
+        nav_item_ids=("cursos-vencimientos",),
+        hash_prefixes=("#/cursos/vencimientos",),
+        api_prefixes=(),
     ),
     "puestos": RhModuleDef(
         key="puestos",

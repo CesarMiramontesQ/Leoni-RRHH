@@ -141,6 +141,9 @@ export type AppShellNavItemId =
   | "cursos-seguimiento"
   | "cursos-ajustes"
   | "cursos-juntas"
+  | "cursos-proveedores"
+  | "cursos-externos"
+  | "cursos-vencimientos"
   | "opls"
   | "evidencias"
   | "sugerencias"
@@ -214,7 +217,7 @@ const NOMINAS_NAV_ROLES: ReadonlySet<string> = new Set([OPERATIVO_NAV_ROL, "dire
 
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
-  "cursos", "cursos-seguimiento", "cursos-ajustes", "cursos-juntas", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
+  "cursos", "cursos-seguimiento", "cursos-ajustes", "cursos-juntas", "cursos-proveedores", "cursos-externos", "cursos-vencimientos", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "level-up",
 ]);
 
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);

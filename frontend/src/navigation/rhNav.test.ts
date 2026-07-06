@@ -99,6 +99,28 @@ describe("rhNav sections", () => {
     expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
   });
 
+  it("expone Personal Externo como sección de primer nivel con sus tres subpáginas", async () => {
+    allowedModules.add("proveedores-externos");
+    allowedModules.add("cursos-externos");
+    allowedModules.add("cursos-vencimientos");
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("supervisor");
+
+    const peSection = sections.find((section) => section.id === "personal-externo");
+    const cursosSection = sections.find((section) => section.id === "cursos");
+
+    expect(peSection?.title).toBe("Personal Externo");
+    expect(peSection?.items.map((item) => item.key)).toEqual([
+      "cursos-proveedores",
+      "cursos-externos",
+      "cursos-vencimientos",
+    ]);
+    // Ya no cuelgan del acordeón Cursos.
+    expect(cursosSection?.items.some((item) => item.key === "cursos-proveedores")).toBe(false);
+    expect(cursosSection?.items.some((item) => item.key === "cursos-externos")).toBe(false);
+    expect(cursosSection?.items.some((item) => item.key === "cursos-vencimientos")).toBe(false);
+  });
+
   it("expone Puestos como sección independiente sin duplicar ítems en Level Up", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sections = getVisibleRhNavSections("supervisor");

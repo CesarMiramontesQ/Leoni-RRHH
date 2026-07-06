@@ -32,6 +32,9 @@ import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
 import { mountTareasCatalogo } from "./pages/tareasCatalogo.ts";
 import { mountCursosJuntas } from "./pages/cursosJuntas.ts";
+import { mountCursosProveedores } from "./pages/cursosProveedores.ts";
+import { mountCursosExternos } from "./pages/cursosExternos.ts";
+import { mountCursosVencimientos } from "./pages/cursosVencimientos.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
 import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
@@ -240,6 +243,18 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/cursos/juntas")) {
       mountCursosJuntas(container, signal);
+      return;
+    }
+    if (h.startsWith("#/cursos/proveedores")) {
+      mountCursosProveedores(container, signal);
+      return;
+    }
+    if (h.startsWith("#/cursos/externos")) {
+      mountCursosExternos(container, signal);
+      return;
+    }
+    if (h.startsWith("#/cursos/vencimientos")) {
+      mountCursosVencimientos(container, signal);
       return;
     }
     if (h.startsWith("#/cursos")) {

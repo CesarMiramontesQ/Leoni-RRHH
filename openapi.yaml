@@ -5341,6 +5341,153 @@ components:
         page: { type: integer }
         page_size: { type: integer }
 
+    # ── Proveedores externos (capacitación de personal externo) ──────────
+    EstadoVencimiento:
+      type: string
+      enum: [vigente, por_vencer, vencido, sin_vencimiento]
+    ProveedorCreate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 255 }
+        rfc: { type: string, nullable: true, maxLength: 20 }
+        contacto: { type: string, nullable: true, maxLength: 255 }
+        telefono: { type: string, nullable: true, maxLength: 50 }
+        email: { type: string, nullable: true, maxLength: 255 }
+        direccion: { type: string, nullable: true, maxLength: 2000 }
+    ProveedorUpdate:
+      allOf:
+        - $ref: "#/components/schemas/ProveedorCreate"
+        - type: object
+          properties:
+            activo: { type: boolean, nullable: true }
+    ProveedorResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        nombre: { type: string }
+        rfc: { type: string, nullable: true }
+        contacto: { type: string, nullable: true }
+        telefono: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        direccion: { type: string, nullable: true }
+        activo: { type: boolean }
+        personas_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PersonaCreate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 255 }
+        identificacion: { type: string, nullable: true, maxLength: 100 }
+        puesto: { type: string, nullable: true, maxLength: 150 }
+    PersonaUpdate:
+      allOf:
+        - $ref: "#/components/schemas/PersonaCreate"
+        - type: object
+          properties:
+            activo: { type: boolean, nullable: true }
+    PersonaResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        proveedor_id: { type: integer }
+        nombre: { type: string }
+        identificacion: { type: string, nullable: true }
+        puesto: { type: string, nullable: true }
+        activo: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ProveedorDetalleResponse:
+      allOf:
+        - $ref: "#/components/schemas/ProveedorResponse"
+        - type: object
+          properties:
+            personas:
+              type: array
+              items: { $ref: "#/components/schemas/PersonaResponse" }
+    ProveedorListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ProveedorResponse" }
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+    CursoExternoCreate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 255 }
+        descripcion: { type: string, nullable: true, maxLength: 2000 }
+        vigencia_meses: { type: integer, nullable: true, minimum: 1, maximum: 600, description: "NULL = el curso no vence" }
+    CursoExternoUpdate:
+      allOf:
+        - $ref: "#/components/schemas/CursoExternoCreate"
+        - type: object
+          properties:
+            activo: { type: boolean, nullable: true }
+    CursoExternoResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        nombre: { type: string }
+        descripcion: { type: string, nullable: true }
+        vigencia_meses: { type: integer, nullable: true }
+        activo: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CursoExternoListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CursoExternoResponse" }
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+    RegistroCursoCreate:
+      type: object
+      required: [persona_id, curso_externo_id, fecha_realizado]
+      properties:
+        persona_id: { type: integer }
+        curso_externo_id: { type: integer }
+        fecha_realizado: { type: string, format: date }
+        observaciones: { type: string, nullable: true, maxLength: 2000 }
+    RegistroCursoUpdate:
+      type: object
+      properties:
+        fecha_realizado: { type: string, format: date, nullable: true }
+        observaciones: { type: string, nullable: true, maxLength: 2000 }
+    RegistroCursoResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        persona_id: { type: integer }
+        curso_externo_id: { type: integer }
+        fecha_realizado: { type: string, format: date }
+        fecha_vencimiento: { type: string, format: date, nullable: true }
+        observaciones: { type: string, nullable: true }
+        estado: { $ref: "#/components/schemas/EstadoVencimiento" }
+        dias_restantes: { type: integer, nullable: true }
+        proveedor_id: { type: integer, nullable: true }
+        proveedor_nombre: { type: string, nullable: true }
+        persona_nombre: { type: string, nullable: true }
+        curso_nombre: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    VencimientoListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/RegistroCursoResponse" }
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -12248,3 +12395,234 @@ paths:
           description: Detalle de la junta
           content: { application/json: { schema: { $ref: '#/components/schemas/JuntaDetalleResponse' } } }
         "404": { description: Junta no encontrada }
+
+  # ── Proveedores externos (capacitación de personal externo) ──────────
+  /api/v1/proveedores-externos/proveedores:
+    get:
+      tags: [Proveedores externos]
+      summary: Listar proveedores (paginado, búsqueda)
+      operationId: proveedores_externos_list
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, required: false, schema: { type: integer, default: 50 } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+        - { name: activo, in: query, required: false, schema: { type: boolean } }
+      responses:
+        "200":
+          description: Listado paginado de proveedores
+          content: { application/json: { schema: { $ref: '#/components/schemas/ProveedorListResponse' } } }
+    post:
+      tags: [Proveedores externos]
+      summary: Crear proveedor
+      operationId: proveedores_externos_create
+      security: [ { BearerAuth: [] } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProveedorCreate' } } }
+      responses:
+        "201":
+          description: Proveedor creado
+          content: { application/json: { schema: { $ref: '#/components/schemas/ProveedorDetalleResponse' } } }
+  /api/v1/proveedores-externos/proveedores/{proveedor_id}:
+    get:
+      tags: [Proveedores externos]
+      summary: Detalle de proveedor con sus personas
+      operationId: proveedores_externos_get
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: proveedor_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Detalle del proveedor
+          content: { application/json: { schema: { $ref: '#/components/schemas/ProveedorDetalleResponse' } } }
+        "404": { description: Proveedor no encontrado }
+    put:
+      tags: [Proveedores externos]
+      summary: Actualizar proveedor
+      operationId: proveedores_externos_update
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: proveedor_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProveedorUpdate' } } }
+      responses:
+        "200":
+          description: Proveedor actualizado
+          content: { application/json: { schema: { $ref: '#/components/schemas/ProveedorDetalleResponse' } } }
+        "404": { description: Proveedor no encontrado }
+    delete:
+      tags: [Proveedores externos]
+      summary: Baja (soft-delete) de proveedor
+      operationId: proveedores_externos_delete
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: proveedor_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Proveedor dado de baja }
+        "404": { description: Proveedor no encontrado }
+  /api/v1/proveedores-externos/proveedores/{proveedor_id}/personas:
+    get:
+      tags: [Proveedores externos]
+      summary: Listar personas activas de un proveedor
+      operationId: proveedores_externos_personas_list
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: proveedor_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Personas del proveedor
+          content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PersonaResponse' } } } }
+        "404": { description: Proveedor no encontrado }
+    post:
+      tags: [Proveedores externos]
+      summary: Agregar persona a un proveedor
+      operationId: proveedores_externos_persona_create
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: proveedor_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PersonaCreate' } } }
+      responses:
+        "201":
+          description: Persona creada
+          content: { application/json: { schema: { $ref: '#/components/schemas/PersonaResponse' } } }
+        "404": { description: Proveedor no encontrado }
+  /api/v1/proveedores-externos/personas/{persona_id}:
+    put:
+      tags: [Proveedores externos]
+      summary: Actualizar persona externa
+      operationId: proveedores_externos_persona_update
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: persona_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PersonaUpdate' } } }
+      responses:
+        "200":
+          description: Persona actualizada
+          content: { application/json: { schema: { $ref: '#/components/schemas/PersonaResponse' } } }
+        "404": { description: Persona no encontrada }
+    delete:
+      tags: [Proveedores externos]
+      summary: Baja (soft-delete) de persona externa
+      operationId: proveedores_externos_persona_delete
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: persona_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Persona dada de baja }
+        "404": { description: Persona no encontrada }
+  /api/v1/proveedores-externos/cursos-externos:
+    get:
+      tags: [Proveedores externos]
+      summary: Listar cursos externos (catálogo)
+      operationId: cursos_externos_list
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, required: false, schema: { type: integer, default: 50 } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+        - { name: activo, in: query, required: false, schema: { type: boolean } }
+      responses:
+        "200":
+          description: Listado paginado de cursos externos
+          content: { application/json: { schema: { $ref: '#/components/schemas/CursoExternoListResponse' } } }
+    post:
+      tags: [Proveedores externos]
+      summary: Crear curso externo
+      operationId: cursos_externos_create
+      security: [ { BearerAuth: [] } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CursoExternoCreate' } } }
+      responses:
+        "201":
+          description: Curso externo creado
+          content: { application/json: { schema: { $ref: '#/components/schemas/CursoExternoResponse' } } }
+  /api/v1/proveedores-externos/cursos-externos/{curso_id}:
+    get:
+      tags: [Proveedores externos]
+      summary: Detalle de curso externo
+      operationId: cursos_externos_get
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: curso_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Detalle del curso externo
+          content: { application/json: { schema: { $ref: '#/components/schemas/CursoExternoResponse' } } }
+        "404": { description: Curso externo no encontrado }
+    put:
+      tags: [Proveedores externos]
+      summary: Actualizar curso externo
+      operationId: cursos_externos_update
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: curso_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CursoExternoUpdate' } } }
+      responses:
+        "200":
+          description: Curso externo actualizado
+          content: { application/json: { schema: { $ref: '#/components/schemas/CursoExternoResponse' } } }
+        "404": { description: Curso externo no encontrado }
+    delete:
+      tags: [Proveedores externos]
+      summary: Baja (soft-delete) de curso externo
+      operationId: cursos_externos_delete
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: curso_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Curso externo dado de baja }
+        "404": { description: Curso externo no encontrado }
+  /api/v1/proveedores-externos/vencimientos:
+    get:
+      tags: [Proveedores externos]
+      summary: Listar registros de curso con estado de vencimiento
+      operationId: vencimientos_list
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: page, in: query, required: false, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, required: false, schema: { type: integer, default: 50 } }
+        - { name: estado, in: query, required: false, schema: { $ref: '#/components/schemas/EstadoVencimiento' } }
+        - { name: proveedor_id, in: query, required: false, schema: { type: integer } }
+        - { name: curso_externo_id, in: query, required: false, schema: { type: integer } }
+        - { name: incluir_historico, in: query, required: false, schema: { type: boolean, default: false }, description: "Si false, solo el registro más reciente por (persona, curso)" }
+      responses:
+        "200":
+          description: Listado paginado de vencimientos
+          content: { application/json: { schema: { $ref: '#/components/schemas/VencimientoListResponse' } } }
+  /api/v1/proveedores-externos/registros:
+    post:
+      tags: [Proveedores externos]
+      summary: Registrar curso tomado por una persona (calcula vencimiento)
+      operationId: registros_create
+      security: [ { BearerAuth: [] } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegistroCursoCreate' } } }
+      responses:
+        "201":
+          description: Registro creado con estado/dias_restantes calculados
+          content: { application/json: { schema: { $ref: '#/components/schemas/RegistroCursoResponse' } } }
+        "404": { description: Persona o curso no encontrado }
+  /api/v1/proveedores-externos/registros/{registro_id}:
+    put:
+      tags: [Proveedores externos]
+      summary: Actualizar registro (recalcula vencimiento si cambia la fecha)
+      operationId: registros_update
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: registro_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RegistroCursoUpdate' } } }
+      responses:
+        "200":
+          description: Registro actualizado
+          content: { application/json: { schema: { $ref: '#/components/schemas/RegistroCursoResponse' } } }
+        "404": { description: Registro no encontrado }
+    delete:
+      tags: [Proveedores externos]
+      summary: Eliminar registro de curso
+      operationId: registros_delete
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: registro_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Registro eliminado }
+        "404": { description: Registro no encontrado }

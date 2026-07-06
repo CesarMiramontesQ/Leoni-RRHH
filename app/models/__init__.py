@@ -86,6 +86,12 @@ from app.models.juntas import (
     Junta,
     JuntaAsistente,
 )
+from app.models.proveedores_externos import (
+    Proveedor,
+    ProveedorPersona,
+    CursoExterno,
+    ProveedorPersonaCurso,
+)
 from app.models.evaluacion360 import (
     Eval360Config,
     Eval360Escala,
