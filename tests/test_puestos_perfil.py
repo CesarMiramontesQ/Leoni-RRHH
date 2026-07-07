@@ -69,7 +69,7 @@ async def test_create_puesto_perfil_success(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_create_puesto_perfil_duplicate_nombre(client: AsyncClient, db):
-    """Crear perfil con nombre duplicado → 409."""
+    """Crear perfil con mismo nombre y mismo nivel → 409."""
     rh = await make_empleado(db, rol="rh", email="pp_dup@leoni.test")
     headers = await auth_headers(client, rh)
     nivel = await make_nivel_puesto(db, nombre="Nivel Dup")
@@ -83,7 +83,7 @@ async def test_create_puesto_perfil_duplicate_nombre(client: AsyncClient, db):
     )
     assert response1.status_code == 201
 
-    # Intentar crear con mismo nombre
+    # Intentar crear con mismo nombre y mismo nivel
     response2 = await client.post(
         "/api/v1/puestos-perfil",
         json=payload,
@@ -91,6 +91,36 @@ async def test_create_puesto_perfil_duplicate_nombre(client: AsyncClient, db):
     )
     assert response2.status_code == 409
     assert "ya existe" in response2.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# test_create_puesto_perfil_same_nombre_different_nivel
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_puesto_perfil_same_nombre_different_nivel(client: AsyncClient, db):
+    """Mismo nombre con distinto nivel → 201 en ambos."""
+    rh = await make_empleado(db, rol="rh", email="pp_same_name@leoni.test")
+    headers = await auth_headers(client, rh)
+    nivel_jr = await make_nivel_puesto(db, nombre="JR")
+    nivel_senior = await make_nivel_puesto(db, nombre="Senior")
+
+    nombre = "Analista UL"
+    response1 = await client.post(
+        "/api/v1/puestos-perfil",
+        json={**PERFIL_PAYLOAD_BASE, "nombre": nombre, "nivel_id": nivel_jr.id},
+        headers=headers,
+    )
+    assert response1.status_code == 201
+
+    response2 = await client.post(
+        "/api/v1/puestos-perfil",
+        json={**PERFIL_PAYLOAD_BASE, "nombre": nombre, "nivel_id": nivel_senior.id},
+        headers=headers,
+    )
+    assert response2.status_code == 201
+    assert response2.json()["nombre"] == nombre
+    assert response2.json()["nivel_id"] == nivel_senior.id
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +308,36 @@ async def test_update_puesto_perfil_increments_version(client: AsyncClient, db):
     )
     assert response2.status_code == 200
     assert response2.json()["version"] == 3
+
+
+# ---------------------------------------------------------------------------
+# test_update_puesto_perfil_duplicate_nombre_nivel
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_update_puesto_perfil_duplicate_nombre_nivel(client: AsyncClient, db):
+    """Actualizar nivel hacia combinación nombre+nivel ya existente → 409."""
+    area = await make_area(db, descripcion="Area Dup Update")
+    rh = await make_empleado(db, rol="rh", email="pp_dup_update@leoni.test")
+    headers = await auth_headers(client, rh)
+    nivel_jr = await make_nivel_puesto(db, nombre="JR Dup")
+    nivel_senior = await make_nivel_puesto(db, nombre="Senior Dup")
+
+    nombre = "Analista Dup Update"
+    perfil_jr = await make_puesto_perfil(
+        db, nombre=nombre, area_id=area.area_id, nivel_id=nivel_jr.id
+    )
+    await make_puesto_perfil(
+        db, nombre=nombre, area_id=area.area_id, nivel_id=nivel_senior.id
+    )
+
+    response = await client.put(
+        f"/api/v1/puestos-perfil/{perfil_jr.id}",
+        json={"nivel_id": nivel_senior.id},
+        headers=headers,
+    )
+    assert response.status_code == 409
+    assert "ya existe" in response.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------

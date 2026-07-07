@@ -10472,6 +10472,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PuestoPerfilResponse"
+        "409":
+          description: Ya existe un perfil activo con la misma combinacion de nombre y nivel
         "422":
           description: Error de validacion
           content:
@@ -10543,6 +10545,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PuestoPerfilResponse"
+        "409":
+          description: Ya existe un perfil activo con la misma combinacion de nombre y nivel
         "422":
           description: Error de validacion
           content:

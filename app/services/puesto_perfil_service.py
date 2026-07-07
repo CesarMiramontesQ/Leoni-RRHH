@@ -139,10 +139,10 @@ class PuestoPerfilService:
         if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede crear perfiles de puesto")
 
-        # Verificar duplicado
-        if await self.repo.exists_by_nombre(data.nombre):
+        # Verificar duplicado (nombre + nivel)
+        if await self.repo.exists_by_nombre_y_nivel(data.nombre, data.nivel_id):
             raise ConflictError(
-                detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}'"
+                detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}' y ese nivel"
             )
 
         # Generar codigo
@@ -178,12 +178,14 @@ class PuestoPerfilService:
         if not perfil:
             raise NotFoundError(entidad="PuestoPerfil", id=id)
 
-        # Verificar duplicado de nombre si cambio
-        if data.nombre and data.nombre != perfil.nombre:
-            if await self.repo.exists_by_nombre(data.nombre, exclude_id=id):
-                raise ConflictError(
-                    detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}'"
-                )
+        new_nombre = data.nombre if data.nombre is not None else perfil.nombre
+        new_nivel_id = data.nivel_id if data.nivel_id is not None else perfil.nivel_id
+        if await self.repo.exists_by_nombre_y_nivel(
+            new_nombre, new_nivel_id, exclude_id=id
+        ):
+            raise ConflictError(
+                detail=f"Ya existe un perfil de puesto con el nombre '{new_nombre}' y ese nivel"
+            )
 
         # Construir dict de actualizacion (solo campos enviados)
         update_data: dict = {"updated_by": current_user.id}

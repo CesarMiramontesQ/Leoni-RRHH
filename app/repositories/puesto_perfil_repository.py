@@ -99,10 +99,13 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
 
         return f"{prefix}{next_seq:03d}"
 
-    async def exists_by_nombre(self, nombre: str, exclude_id: int | None = None) -> bool:
-        """Verifica si ya existe un puesto perfil con el mismo nombre."""
+    async def exists_by_nombre_y_nivel(
+        self, nombre: str, nivel_id: int, exclude_id: int | None = None
+    ) -> bool:
+        """Verifica si ya existe un puesto perfil activo con el mismo nombre y nivel."""
         query = select(func.count()).select_from(PuestoPerfil).where(
             PuestoPerfil.nombre.ilike(nombre),
+            PuestoPerfil.nivel_id == nivel_id,
             PuestoPerfil.activo.is_(True),
         )
         if exclude_id:
