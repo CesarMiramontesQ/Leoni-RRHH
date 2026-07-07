@@ -12,6 +12,7 @@ import {
 import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
 import { clearAuth } from "../auth/session.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
+import { resolveRhModoHomeHash } from "../navigation/shellNavPolicy.ts";
 import {
   BTN_DANGER,
   BTN_GHOST,
@@ -1427,7 +1428,7 @@ export function mountRhModuleAccessDenied(container: HTMLElement): void {
     mainHtml: htmlAccessDenied({
       title: "Acceso no autorizado",
       description: "No tienes permiso para acceder a este módulo. Contacta al administrador de RH si necesitas acceso.",
-      linkHref: "#/",
+      linkHref: resolveRhModoHomeHash(),
       linkLabel: "Volver al inicio",
     }),
   });
@@ -1439,7 +1440,7 @@ export function mountRhSinPermisosDisponibles(container: HTMLElement): void {
       title: "Sin permisos disponibles",
       description:
         "Tu cuenta RH no tiene módulos asignados. Contacta al administrador de permisos para solicitar acceso.",
-      linkHref: "#/",
+      linkHref: resolveRhModoHomeHash(),
       linkLabel: "Volver al inicio",
     }),
   });

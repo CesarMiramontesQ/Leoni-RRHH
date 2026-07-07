@@ -3,16 +3,17 @@ import {
   empleadoMayAccessHash,
   isRhHomeHash,
   modulosMayAccessHash,
-  resolveRhOperativoLandingHash,
+  resolveRhModoHomeHash,
   resolveRhModeLandingHash,
   resolveRoutedHashForRol,
+  RH_MODO_INICIO_HASH,
   RH_SIN_PERMISOS_HASH,
   rhMayAccessHash,
   supervisorMayAccessHash,
   usesSupervisorRoutePolicy,
 } from "./navigation/shellNavPolicy.ts";
 import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
-import { isAdminUser, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
+import { isAdminUser, isNonRhRhMode, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -68,6 +69,7 @@ import { mountHorasExtra } from "./pages/horasExtra.ts";
 import { mountHorasExtraAprobaciones } from "./pages/horasExtraAprobaciones.ts";
 import { mountHorasExtraSolicitud } from "./pages/horasExtraSolicitud.ts";
 import { mountGestionPdi } from "./pages/gestionPdi.ts";
+import { mountRhModoInicio } from "./pages/rhModoInicio.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -91,6 +93,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     // RH-exclusiva (ajustes, actas, reporte comedor, evaluación 360) sería enviado a #/.
     const enrolledNonRh = !isAdminUser() && isModulosRhEnrolled();
     const adminRhOperativo = isAdminUser() && isRhOperativoUiMode();
+    const nonRhInRhMode = enrolledNonRh && isNonRhRhMode();
     if (!enrolledNonRh && !adminRhOperativo) {
       if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
         history.replaceState(null, "", "#/");
@@ -101,8 +104,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       }
     }
     const rol = getRolFromAccessToken();
-    if (isAdminUser() && isRhOperativoUiMode() && isRhHomeHash(rawHash) && !rhMayAccessHash("#/")) {
-      const landing = resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
+    if ((adminRhOperativo || nonRhInRhMode) && isRhHomeHash(rawHash) && !modulosMayAccessHash("#/", rol)) {
+      const landing = resolveRhModoHomeHash();
       if (landing !== rawHash) {
         history.replaceState(null, "", landing);
         rawHash = landing;
@@ -135,6 +138,11 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     destroyAllCharts();
     if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
       mountRhSinPermisosDisponibles(container);
+      return;
+    }
+
+    if (h.startsWith(RH_MODO_INICIO_HASH)) {
+      mountRhModoInicio(container);
       return;
     }
 

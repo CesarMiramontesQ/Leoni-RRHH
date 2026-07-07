@@ -18,10 +18,13 @@ import {
 import { isNominasHubVisibleForRol } from "./nominasNav.ts";
 import { canApproveOvertime, canRegisterOvertime } from "../auth/payrollPermissions.ts";
 import { getRolFromAccessToken } from "../auth/jwt.ts";
-import { isNonRhRhMode, isAdminUser, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+import { isNonRhRhMode, isAdminUser, hasRhPermisosActivos, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGerenteUiMode, isRhGestorTeamUiMode, isRhLiderUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 /** Ruta segura cuando un RH inscrito no tiene ningún módulo asignado. */
 export const RH_SIN_PERMISOS_HASH = "#/sin-permisos-rh";
+
+/** Pantalla de bienvenida en Modo RH cuando no hay grant de dashboard. */
+export const RH_MODO_INICIO_HASH = "#/rh-inicio";
 
 /** Rol de navegación para admin operativo o inscrito en Modo RH (no es el JWT `rol`). */
 export const OPERATIVO_NAV_ROL = "operativo" as const;
@@ -47,6 +50,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "competencias", hash: "#/competencias" },
   { itemId: "tareas-catalogo", hash: "#/tareas-catalogo" },
   { itemId: "evaluaciones", hash: "#/evaluaciones" },
+  { itemId: "pdi-gestion", hash: "#/pdi-gestion" },
   { itemId: "evaluacion-360", hash: "#/level-up/evaluacion-360" },
   { itemId: "capacidades", hash: "#/capacidades" },
   { itemId: "cursos", hash: "#/cursos" },
@@ -81,17 +85,37 @@ export function resolveRhOperativoLandingHash(): string | null {
 }
 
 /**
+ * Home de Modo RH: dashboard si hay grant; bienvenida si hay otros módulos;
+ * sin-permisos si no hay ninguno.
+ */
+export function resolveRhModoHomeHash(): string {
+  if (hasExplicitModuleGrant("dashboard") || (isAdminUser() && isRhOperativoUiMode())) {
+    return "#/";
+  }
+  if (hasRhPermisosActivos()) {
+    return RH_MODO_INICIO_HASH;
+  }
+  return RH_SIN_PERMISOS_HASH;
+}
+
+/**
  * Hash inicial tras login o recarga para usuarios RH con permisos limitados.
  * Solo ajusta la ruta de inicio (#/); no altera deep links válidos.
  */
 export function resolveRhInitialHash(currentHash?: string): string {
   const h = (currentHash ?? (typeof window !== "undefined" ? window.location.hash : "") ?? "#/").trim() || "#/";
-  if (!isAdminUser()) return h;
-  if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) return isRhHomeHash(h) ? "#/" : h;
-  if (!isRhHomeHash(h)) return h;
-  if (rhMayAccessHash("#/")) return "#/";
-  const landing = resolveRhOperativoLandingHash();
-  return landing ?? RH_SIN_PERMISOS_HASH;
+  if (isAdminUser()) {
+    if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) {
+      return isRhHomeHash(h) ? "#/" : h;
+    }
+    if (!isRhHomeHash(h)) return h;
+    return resolveRhModoHomeHash();
+  }
+  if (isModulosRhEnrolled() && isNonRhRhMode()) {
+    if (!isRhHomeHash(h)) return h;
+    return resolveRhModoHomeHash();
+  }
+  return h;
 }
 
 /**
@@ -103,11 +127,10 @@ export function resolveRhModeLandingHash(): string {
     if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) {
       return "#/";
     }
-    if (rhMayAccessHash("#/")) return "#/";
-    return resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
+    return resolveRhModoHomeHash();
   }
   if (isModulosRhEnrolled() && isNonRhRhMode()) {
-    return resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
+    return resolveRhModoHomeHash();
   }
   return "#/";
 }
@@ -399,8 +422,11 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
     return NOMINAS_NAV_ROLES.has(rol ?? "") || grant;
   }
   if (h.startsWith("#/notificaciones")) return true;
+  if (h.startsWith(RH_MODO_INICIO_HASH)) {
+    return (isRhOperativoUiMode() || isNonRhRhMode()) && hasRhPermisosActivos();
+  }
   if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
-    return isRhOperativoUiMode();
+    return isRhOperativoUiMode() || isNonRhRhMode();
   }
   if (h.startsWith("#/ajustes/permisos-rh")) {
     return isRhOperativoUiMode() && canAccessRhPermisosAdmin();
@@ -410,6 +436,9 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   if (moduleKey === null) return true;
 
   if (isRhOperativoUiMode() || isNonRhRhMode()) {
+    if (isRhHomeHash(h)) {
+      return hasRhModule("dashboard");
+    }
     if (h.startsWith("#/comedor/reporte") || h.startsWith("#/reportes")) {
       return hasRhModule("reportes");
     }
@@ -427,7 +456,10 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
 
   if (isModulosRhEnrolled()) {
     // Modo RH: rol base + grants; Modo base: solo rutas del rol.
-    if (isNonRhRhMode()) return hashAllowedByRole(rol, h) || hasExplicitModuleGrant(moduleKey);
+    if (isNonRhRhMode()) {
+      if (isRhHomeHash(h)) return hasExplicitModuleGrant("dashboard");
+      return hashAllowedByRole(rol, h) || hasExplicitModuleGrant(moduleKey);
+    }
     return hashAllowedByRole(rol, h);
   }
   return true;

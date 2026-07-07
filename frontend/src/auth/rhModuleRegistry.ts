@@ -57,7 +57,9 @@ export function resolveModuleFromHash(hashValue: string): string | null {
 export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "cursos-juntas") return "juntas";
   if (navItemId === "cursos-proveedores") return "proveedores-externos";
-  if (navItemId === "comedor-menu") return "comedor-registro";
+  if (navItemId === "comedor-menu" || navItemId === "comedor") return "comedor-registro";
+  if (navItemId === "comedor-gestion") return "comedor-gestion";
+  if (navItemId === "comedor-planear") return "comedor-planear";
   if (navItemId === "laborales") return "dashboard";
   if (navItemId === "horas-extra") return "nominas-horas-extra";
   if (navItemId === "conciliacion") return "nominas-conciliacion";
