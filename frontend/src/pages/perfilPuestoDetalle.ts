@@ -18,6 +18,7 @@ import {
   badgeOpen,
 } from "../ui/uiTokens.ts";
 import { hasRhModule } from "../auth/rhModulePermissions.ts";
+import { tareaTituloSubtitulo } from "../components/puestos/perfilTareaDisplay.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
 import { labelCriterio } from "../components/puestos/cualificacionCriterioFields.ts";
@@ -56,6 +57,8 @@ interface Tarea {
   orden: number;
   descripcion: string;
   es_complemento: boolean;
+  tarea_catalogo_id?: number | null;
+  tarea_catalogo_nombre?: string | null;
 }
 
 interface Competencia {
@@ -422,13 +425,20 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
 
   const renderList = (items: Tarea[]) =>
     items
-      .map(
-        (t) => `
+      .map((t) => {
+        const { titulo, subtitulo } = tareaTituloSubtitulo(t);
+        const subtituloHtml = subtitulo
+          ? `<p class="mt-0.5 text-xs leading-relaxed text-text-muted" title="${escapeHtml(subtitulo)}">${escapeHtml(subtitulo)}</p>`
+          : "";
+        return `
       <li class="ppd-task-item group flex gap-3 rounded-lg border border-transparent px-2 py-2.5 transition hover:border-slate-200/90 hover:bg-slate-50/80">
         <span class="ppd-task-orden flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 font-mono text-xs font-bold text-blue-800 ring-1 ring-blue-200/60" aria-hidden="true">${t.orden}</span>
-        <p class="min-w-0 flex-1 text-sm leading-relaxed text-text-primary" title="${escapeHtml(t.descripcion)}">${escapeHtml(t.descripcion)}</p>
-      </li>`,
-      )
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium leading-relaxed text-text-primary" title="${escapeHtml(titulo)}">${escapeHtml(titulo)}</p>
+          ${subtituloHtml}
+        </div>
+      </li>`;
+      })
       .join("");
 
   const body = `

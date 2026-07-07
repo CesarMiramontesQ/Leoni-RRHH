@@ -20,6 +20,7 @@ import {
   type TareaCatalogo,
   type TareaCatalogoFetchError,
 } from "../../api/tareasCatalogo.ts";
+import { tareaTituloSubtitulo } from "./perfilTareaDisplay.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
   MODAL_OVERLAY,
@@ -163,18 +164,18 @@ function renderTareasList(tareas: PerfilTarea[], editingId: number | null): stri
           </div>`;
           }
 
-          const nombreHint =
-            t.tarea_catalogo_nombre && t.tarea_catalogo_nombre !== t.descripcion
-              ? `<span class="block truncate text-[11px] text-text-muted" title="${escapeHtml(t.tarea_catalogo_nombre)}">${escapeHtml(t.tarea_catalogo_nombre)}</span>`
-              : "";
+          const { titulo, subtitulo } = tareaTituloSubtitulo(t);
+          const subtituloHtml = subtitulo
+            ? `<span class="block truncate text-[11px] text-text-muted" title="${escapeHtml(subtitulo)}">${escapeHtml(subtitulo)}</span>`
+            : "";
 
           return `
           <div class="group flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 transition-colors hover:border-slate-200 hover:bg-active-tint"
                data-tarea-id="${t.id}">
             <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue/10 font-mono text-[10px] font-bold tabular-nums text-leoni-blue" data-orden-badge>${i + 1}</span>
             <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm text-text-primary" title="${escapeHtml(t.descripcion)}">${escapeHtml(t.descripcion)}</span>
-              ${nombreHint}
+              <span class="block truncate text-sm text-text-primary" title="${escapeHtml(titulo)}">${escapeHtml(titulo)}</span>
+              ${subtituloHtml}
             </span>
             ${tipoChip(t.es_complemento)}
             <button type="button" data-edit-tarea="${t.id}" class="shrink-0 rounded-md p-1.5 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-leoni-blue focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40" title="Editar" aria-label="Editar tarea">
