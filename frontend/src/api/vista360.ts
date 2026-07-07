@@ -104,3 +104,24 @@ export async function getEmpleadoSaldoVacacionesReal(
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as SaldoVacacionesReal;
 }
+
+/** Días disponibles para solicitar vacaciones = saldo TRESS − comprometidos en curso. */
+export type VacacionesDisponibleSolicitud = {
+  empleado_id: number;
+  no_empleado: number;
+  saldo_tress: number;
+  dias_comprometidos: number;
+  dias_disponibles: number;
+};
+
+export async function getEmpleadoVacacionesDisponiblesSolicitud(
+  id: number,
+  options?: { signal?: AbortSignal },
+): Promise<VacacionesDisponibleSolicitud> {
+  const res = await fetchWithAuth(
+    `/api/v1/empleados/${id}/vacaciones-disponibles-solicitud`,
+    { signal: options?.signal },
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as VacacionesDisponibleSolicitud;
+}

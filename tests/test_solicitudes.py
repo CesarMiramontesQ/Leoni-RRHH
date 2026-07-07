@@ -507,12 +507,11 @@ async def test_crear_solicitud_vacaciones_administrativo_rechaza_fin_de_semana(
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_vacaciones_administrativo_debita_dias_laborales(
+async def test_crear_solicitud_vacaciones_administrativo_cuenta_dias_laborales(
     client: AsyncClient, db,
 ):
-    from sqlalchemy import select
-
-    from app.models.vacaciones_disponibles import VacacionesDisponibles
+    """Un administrativo compromete días LABORALES (lun–vie), no naturales. La solicitud
+    pendiente reduce el disponible (saldo TRESS − comprometidos) en esos días laborales."""
     from tests.conftest import make_clasificacion_administrativo
 
     cl_admin = await make_clasificacion_administrativo(db)
@@ -528,21 +527,22 @@ async def test_crear_solicitud_vacaciones_administrativo_debita_dias_laborales(
         "/api/v1/solicitudes",
         json={
             "tipo": "vacaciones",
-            "fecha_inicio": "2026-05-04",
-            "fecha_fin": "2026-05-08",
+            "fecha_inicio": "2026-05-04",  # lunes
+            "fecha_fin": "2026-05-08",  # viernes → 5 días laborales
             "comentarios": "Semana laboral",
         },
         headers=headers,
     )
     assert response.status_code == 201
 
-    result = await db.execute(
-        select(VacacionesDisponibles).where(
-            VacacionesDisponibles.no_empleado == empleado.no_empleado
-        )
+    disp = await client.get(
+        f"/api/v1/empleados/{empleado.id}/vacaciones-disponibles-solicitud",
+        headers=headers,
     )
-    row = result.scalar_one()
-    assert row.dias == 5
+    assert disp.status_code == 200
+    body = disp.json()
+    assert body["dias_comprometidos"] == 5
+    assert body["dias_disponibles"] == 999.0 - 5
 
 
 # TC-SOL-004d: Vacaciones con saldo insuficiente → 422
@@ -551,8 +551,14 @@ async def test_crear_solicitud_vacaciones_administrativo_debita_dias_laborales(
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_vacaciones_sin_dias_disponibles_422(
-    client: AsyncClient, db,
+    client: AsyncClient, db, monkeypatch,
 ):
+    async def _saldo_cero(no_empleado):  # noqa: ANN001
+        return 0.0
+
+    monkeypatch.setattr(
+        "app.services.vacaciones_service.obtener_saldo_gozo_tress", _saldo_cero
+    )
     empleado = await make_empleado(
         db, rol="empleado", email="sol004c@leoni.test", dias_vacaciones=0
     )
@@ -574,8 +580,14 @@ async def test_crear_solicitud_vacaciones_sin_dias_disponibles_422(
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_vacaciones_saldo_insuficiente_422(
-    client: AsyncClient, db,
+    client: AsyncClient, db, monkeypatch,
 ):
+    async def _saldo_dos(no_empleado):  # noqa: ANN001
+        return 2.0
+
+    monkeypatch.setattr(
+        "app.services.vacaciones_service.obtener_saldo_gozo_tress", _saldo_dos
+    )
     empleado = await make_empleado(
         db, rol="empleado", email="sol004d@leoni.test", dias_vacaciones=2
     )

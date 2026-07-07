@@ -1402,6 +1402,29 @@ components:
           nullable: true
           description: Suma de VS_S_GOZO desde dbo.GET_SALDOS_VACACION(no_empleado); 0 si el empleado no tiene periodos
 
+    VacacionesDisponibleSolicitudResponse:
+      type: object
+      required:
+        - empleado_id
+        - no_empleado
+        - saldo_tress
+        - dias_comprometidos
+        - dias_disponibles
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: integer
+        saldo_tress:
+          type: number
+          description: Saldo total de gozo desde TRESS (GET_SALDOS_VACACION)
+        dias_comprometidos:
+          type: integer
+          description: Días de solicitudes de vacaciones en curso (pending/changes_requested)
+        dias_disponibles:
+          type: number
+          description: saldo_tress − dias_comprometidos
+
     HomeOfficeDisponibilidadResponse:
       type: object
       required:
@@ -7160,6 +7183,33 @@ paths:
           description: Empleado no encontrado
         "503":
           description: Base datos-analisis no configurada o no disponible
+
+  /api/v1/empleados/{empleado_id}/vacaciones-disponibles-solicitud:
+    get:
+      tags: [Empleados]
+      summary: Días disponibles para solicitar vacaciones (saldo TRESS − comprometidos en curso)
+      operationId: empleados_vacaciones_disponibles_solicitud_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Días disponibles para solicitar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacacionesDisponibleSolicitudResponse"
+        "403":
+          description: Sin permiso para consultar este empleado
+        "404":
+          description: Empleado no encontrado
+        "503":
+          description: No se pudo verificar el saldo (datos-analisis no disponible)
 
   /api/v1/empleados/{empleado_id}/home-office/disponibilidad:
     get:

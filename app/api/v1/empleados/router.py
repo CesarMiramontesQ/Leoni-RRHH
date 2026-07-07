@@ -29,6 +29,7 @@ from app.schemas.usuarios import (
 from app.schemas.solicitudes import HomeOfficeDisponibilidadResponse
 from app.schemas.vacaciones import (
     SaldoVacacionesRealResponse,
+    VacacionesDisponibleSolicitudResponse,
     VacacionesResponse,
     VacacionesUpdate,
 )
@@ -177,6 +178,21 @@ async def get_saldo_vacaciones_real(
 ):
     """Saldo real de días de gozo desde SQL Server datos-analisis (función GET_SALDOS_VACACION)."""
     return await svc.obtener_saldo_real(empleado_id=empleado_id, current_user=current_user)
+
+
+@router.get(
+    "/{empleado_id}/vacaciones-disponibles-solicitud",
+    response_model=VacacionesDisponibleSolicitudResponse,
+)
+async def get_vacaciones_disponibles_solicitud(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    svc: SolicitudService = Depends(_sol_svc),
+):
+    """Días disponibles para solicitar vacaciones = saldo TRESS − comprometidos en curso."""
+    return await svc.obtener_disponible_vacaciones(
+        empleado_id=empleado_id, current_user=current_user
+    )
 
 
 @router.put("/{empleado_id}/vacaciones", response_model=VacacionesResponse)

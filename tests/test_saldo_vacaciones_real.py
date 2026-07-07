@@ -1,16 +1,13 @@
-"""Tests del saldo real de vacaciones (SQL Server datos-analisis, vista V_SALD_VAC).
+"""Tests del saldo real de vacaciones (SQL Server datos-analisis, función GET_SALDOS_VACACION).
 
-La BD externa no existe en el entorno de tests: se mockea el cliente/repositorio de
-``datos-analisis`` para probar el wiring del endpoint (autorización, resolución de
-``no_empleado`` y forma de respuesta) sin tocar SQL Server.
+La BD externa no existe en el entorno de tests: se mockea `obtener_saldo_gozo_tress` (el
+helper que consulta datos-analisis) para probar el wiring del endpoint sin tocar SQL Server.
 """
 
 import pytest
 from httpx import AsyncClient
-
 from sqlalchemy import text
 
-import app.services.vacaciones_service as vac_svc
 from app.repositories.datos_analisis_vacaciones_repository import load_saldo_vacaciones_sql
 from tests.conftest import auth_headers, make_empleado
 
@@ -23,37 +20,24 @@ def test_sql_saldo_tiene_un_solo_bind_cb_codigo():
     assert set(parsed._bindparams.keys()) == {"cb_codigo"}
 
 
-class _FakeEngine:
-    async def dispose(self) -> None:  # el service hace `await engine.dispose()`
-        return None
-
-
 @pytest.fixture
-def mock_datos_analisis(monkeypatch):
-    """Fuerza engine no-nulo y un saldo fijo desde el repositorio externo."""
+def mock_saldo_tress(monkeypatch):
+    """Fija el saldo TRESS que devuelve `obtener_saldo_gozo_tress`."""
 
-    def _apply(saldo):
-        monkeypatch.setattr(
-            vac_svc.DatosAnalisisReadClient,
-            "create_read_engine",
-            staticmethod(lambda: _FakeEngine()),
-        )
-
-        async def _fake_total(self, *, cb_codigo):  # noqa: ANN001
-            return saldo
+    def _apply(valor):
+        async def _fake(no_empleado):  # noqa: ANN001
+            return valor
 
         monkeypatch.setattr(
-            vac_svc.DatosAnalisisVacacionesRepository,
-            "get_saldo_gozo_total",
-            _fake_total,
+            "app.services.vacaciones_service.obtener_saldo_gozo_tress", _fake
         )
 
     return _apply
 
 
 @pytest.mark.asyncio
-async def test_saldo_real_happy_path(client: AsyncClient, db, mock_datos_analisis):
-    mock_datos_analisis(15.5)
+async def test_saldo_real_happy_path(client: AsyncClient, db, mock_saldo_tress):
+    mock_saldo_tress(15.5)
     rh = await make_empleado(db, rol="rh", email="saldo-rh@test", dias_vacaciones=None)
     emp = await make_empleado(db, rol="empleado", email="saldo-emp@test", dias_vacaciones=0)
     headers = await auth_headers(client, rh)
@@ -70,10 +54,11 @@ async def test_saldo_real_happy_path(client: AsyncClient, db, mock_datos_analisi
 
 
 @pytest.mark.asyncio
-async def test_saldo_real_sin_registro_devuelve_null(client: AsyncClient, db, mock_datos_analisis):
-    mock_datos_analisis(None)
-    rh = await make_empleado(db, rol="rh", email="saldo-null-rh@test", dias_vacaciones=None)
-    emp = await make_empleado(db, rol="empleado", email="saldo-null-emp@test", dias_vacaciones=0)
+async def test_saldo_real_sin_periodos_devuelve_cero(client: AsyncClient, db, mock_saldo_tress):
+    # ISNULL(SUM,0) en el SQL => un empleado sin periodos da 0 (no None).
+    mock_saldo_tress(0.0)
+    rh = await make_empleado(db, rol="rh", email="saldo-cero-rh@test", dias_vacaciones=None)
+    emp = await make_empleado(db, rol="empleado", email="saldo-cero-emp@test", dias_vacaciones=0)
     headers = await auth_headers(client, rh)
 
     res = await client.get(
@@ -81,7 +66,7 @@ async def test_saldo_real_sin_registro_devuelve_null(client: AsyncClient, db, mo
         headers=headers,
     )
     assert res.status_code == 200
-    assert res.json()["saldo_gozo_total"] is None
+    assert res.json()["saldo_gozo_total"] == 0.0
 
 
 @pytest.mark.asyncio

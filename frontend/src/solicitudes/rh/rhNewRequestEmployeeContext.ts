@@ -2,7 +2,8 @@
  * Contexto informativo por empleado (vacaciones / HO) para el modal RH.
  */
 
-import { getEmpleadoHomeOfficeDisponibilidad, getEmpleadoVacaciones } from "../../api/empleados.ts";
+import { getEmpleadoHomeOfficeDisponibilidad } from "../../api/empleados.ts";
+import { getEmpleadoVacacionesDisponiblesSolicitud } from "../../api/vista360.ts";
 import { HOME_OFFICE_RESUMEN_BASE } from "./rhNewRequestDays.ts";
 
 export type RhEmpleadoRequestContext = {
@@ -34,7 +35,11 @@ export async function fetchRhEmpleadoRequestContext(
   }
 
   const fechaRef = opts.fechaReferencia?.trim() ?? "";
-  const saldoPromise = getEmpleadoVacaciones(empleadoId);
+  // Fuente del saldo = TRESS (datos-analisis) menos comprometidos. Si el servicio externo
+  // no responde (503), se deja null → estado "no disponible" (el submit lo bloquea).
+  const saldoPromise = getEmpleadoVacacionesDisponiblesSolicitud(empleadoId)
+    .then((r) => r.dias_disponibles)
+    .catch(() => null);
   const hoPromise =
     fechaRef ?
       getEmpleadoHomeOfficeDisponibilidad(empleadoId, fechaRef, opts.excluirSolicitudId)
@@ -49,7 +54,7 @@ export async function fetchRhEmpleadoRequestContext(
   }
 
   return {
-    diasVacacionesDisponibles: saldo.dias_disponibles,
+    diasVacacionesDisponibles: saldo,
     homeOfficeResumen,
     homeOfficePuedeSolicitarMes: puedeMes,
   };

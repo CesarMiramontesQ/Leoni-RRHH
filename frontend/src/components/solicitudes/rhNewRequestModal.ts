@@ -139,6 +139,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   /** Clasificación del colaborador titular (null = sin empleado seleccionado). */
   let empleadoEsAdministrativo: boolean | null = null;
   let contextoVac: number | null = null;
+  /** Empleado con contexto cargado; distingue "sin empleado" de "saldo TRESS no disponible". */
+  let contextoEmpleadoSel: number | null = null;
   let contextoHoText = "";
   let contextoHoPuedeSolicitarMes: boolean | null = null;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -244,7 +246,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const dias = calcularDiasVacacionesSolicitados(fi, ff, empleadoEsAdministrativo === true);
     const fechasOk = fechasOrdenValidas(fi, ff);
     if (tipo === "vacaciones") {
-      card.innerHTML = buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true);
+      card.innerHTML = buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true, contextoEmpleadoSel != null);
     } else if (tipo === "home_office") {
       card.innerHTML = buildInfoHomeOfficeHtml(contextoHoText);
     } else {
@@ -286,6 +288,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       actualizarClasificacionEmpleado(empleadoId),
     ]);
     contextoVac = ctx.diasVacacionesDisponibles;
+    contextoEmpleadoSel = empleadoId;
     contextoHoText = ctx.homeOfficeResumen;
     contextoHoPuedeSolicitarMes = ctx.homeOfficePuedeSolicitarMes;
     asegurarTipoSolicitudPermitido();
@@ -418,7 +421,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const fechasOk = fechasOrdenValidas(fechaInicioEff, fechaFin);
     const infoHtml =
       tipo === "vacaciones"
-        ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true)
+        ? buildInfoVacacionesHtml(contextoVac, dias, fechasOk, empleadoEsAdministrativo === true, contextoEmpleadoSel != null)
         : tipo === "home_office"
           ? buildInfoHomeOfficeHtml(contextoHoText)
           : buildInfoHomeOfficeHtml(
@@ -870,6 +873,16 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
               fechaFin: fecha_fin,
               motivo: motivoRaw,
             });
+            return;
+          }
+        }
+        if (tipo === "vacaciones") {
+          // Refresca el disponible (saldo TRESS − comprometidos) justo antes de validar.
+          await refreshContextForEmpleado(empleado_id);
+          if (contextoVac == null) {
+            showError(
+              "No se pudo verificar el saldo de vacaciones (servicio no disponible). Intenta más tarde.",
+            );
             return;
           }
         }

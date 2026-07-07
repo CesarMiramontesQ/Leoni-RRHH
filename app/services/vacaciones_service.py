@@ -18,6 +18,31 @@ from app.schemas.vacaciones import (
 )
 
 
+async def obtener_saldo_gozo_tress(no_empleado: int) -> float:
+    """Saldo real de días de gozo desde datos-analisis (función GET_SALDOS_VACACION).
+
+    Crea un motor efímero de solo lectura y lo desecha. **Bloquea** (levanta
+    ``ServiceUnavailableError``) si la BD externa no está configurada o falla, para que el
+    llamador no continúe sin un saldo confiable. Devuelve 0.0 si el empleado no tiene periodos.
+    """
+    engine = DatosAnalisisReadClient.create_read_engine()
+    if engine is None:
+        raise ServiceUnavailableError(
+            "No se pudo verificar el saldo de vacaciones (datos-analisis no configurada)."
+        )
+    try:
+        total = await DatosAnalisisVacacionesRepository(engine).get_saldo_gozo_total(
+            cb_codigo=no_empleado
+        )
+    except SQLAlchemyError as exc:
+        raise ServiceUnavailableError(
+            f"No se pudo verificar el saldo de vacaciones: {type(exc).__name__}"
+        ) from exc
+    finally:
+        await engine.dispose()
+    return float(total) if total is not None else 0.0
+
+
 class VacacionesService:
     def __init__(self, db: AsyncSession):
         self.repo = VacacionesRepository(db)
@@ -72,25 +97,7 @@ class VacacionesService:
             raise NotFoundError(entidad="Empleado", id=empleado_id)
         await self._ensure_puede_ver_empleado(current_user, empleado_id)
 
-        engine = DatosAnalisisReadClient.create_read_engine()
-        if engine is None:
-            raise ServiceUnavailableError(
-                "Base datos-analisis no configurada (variables DATOS_ANALISIS_DB_*)."
-            )
-        try:
-            total = await DatosAnalisisVacacionesRepository(engine).get_saldo_gozo_total(
-                cb_codigo=empleado.no_empleado
-            )
-        except SQLAlchemyError as exc:
-            raise ServiceUnavailableError(
-                f"Error al consultar datos-analisis: {type(exc).__name__}: {exc}"
-            ) from exc
-        except Exception as exc:
-            raise ServiceUnavailableError(
-                f"Error datos-analisis: {type(exc).__name__}: {exc}"
-            ) from exc
-        finally:
-            await engine.dispose()
+        total = await obtener_saldo_gozo_tress(empleado.no_empleado)
 
         return SaldoVacacionesRealResponse(
             empleado_id=empleado_id,

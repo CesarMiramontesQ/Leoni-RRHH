@@ -368,6 +368,7 @@ export function buildInfoVacacionesHtml(
   diasSolicitados: number,
   fechasOk: boolean,
   administrativo = false,
+  empleadoSeleccionado = false,
 ): string {
   const iconCal = `<div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-leoni-blue shadow-sm ring-1 ring-leoni-blue/15" aria-hidden="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5">
@@ -376,11 +377,15 @@ export function buildInfoVacacionesHtml(
   </div>`;
 
   if (dias == null) {
+    // null con empleado seleccionado = saldo TRESS no disponible; sin empleado = pedir selección.
+    const mensajeNull = empleadoSeleccionado
+      ? "No se pudo obtener el saldo de vacaciones (servicio no disponible). Intenta más tarde."
+      : "Selecciona un empleado para ver los días de vacaciones disponibles.";
     return `<div class="flex items-center gap-3 rounded-2xl border border-leoni-blue/15 bg-leoni-blue/[0.06] px-4 py-3 text-sm leading-snug text-slate-600">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0 text-leoni-blue" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
       </svg>
-      <span>Selecciona un empleado para ver los días de vacaciones disponibles.</span>
+      <span>${escapeHtml(mensajeNull)}</span>
     </div>`;
   }
 
