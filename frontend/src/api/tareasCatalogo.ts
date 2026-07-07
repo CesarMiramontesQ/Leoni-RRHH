@@ -44,14 +44,19 @@ async function readErrorDetail(res: Response): Promise<string> {
 
 /** GET /api/v1/tareas-catalogo */
 export async function getTareasCatalogo(opts?: {
+  page?: number;
   page_size?: number;
   busqueda?: string;
+  categoria?: string;
+  signal?: AbortSignal;
 }): Promise<TareaCatalogo[]> {
   const qs = new URLSearchParams();
+  if (opts?.page) qs.set("page", String(opts.page));
   if (opts?.page_size) qs.set("page_size", String(opts.page_size));
-  if (opts?.busqueda) qs.set("busqueda", opts.busqueda);
+  if (opts?.busqueda?.trim()) qs.set("busqueda", opts.busqueda.trim());
+  if (opts?.categoria?.trim()) qs.set("categoria", opts.categoria.trim());
   const url = `/api/v1/tareas-catalogo${qs.toString() ? `?${qs}` : ""}`;
-  const res = await fetchWithAuth(url);
+  const res = await fetchWithAuth(url, { signal: opts?.signal });
   if (!res.ok) {
     const detail = await readErrorDetail(res);
     throw { status: res.status, detail } as TareaCatalogoFetchError;
@@ -66,6 +71,19 @@ export async function getTareasCatalogo(opts?: {
     activa: (t.activo ?? true) as boolean,
     created_at: (t.created_at ?? "") as string,
   }));
+}
+
+/** Extrae categorías distintas de ítems del catálogo (para filtros/datalist). */
+export function extractCategoriasFromCatalogo(items: TareaCatalogo[]): string[] {
+  const seen = new Map<string, string>();
+  for (const t of items) {
+    const label = t.categoria?.trim();
+    if (label) {
+      const key = label.toLowerCase();
+      if (!seen.has(key)) seen.set(key, label);
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 /** POST /api/v1/tareas-catalogo */

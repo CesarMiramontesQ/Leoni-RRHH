@@ -14,6 +14,7 @@ import {
 import {
   getTareasCatalogo,
   createTareaCatalogo,
+  extractCategoriasFromCatalogo,
   isTareaCatalogoDuplicada,
   MSG_TAREA_DUPLICADA,
   type TareaCatalogo,
@@ -45,6 +46,9 @@ export type EditarTareasModalOptions = {
 
 type TipoFilter = "" | "principal" | "complemento";
 
+const SEARCH_PAGE_SIZE = 25;
+const SEARCH_DEBOUNCE_MS = 300;
+
 // ── Iconos (Heroicons, currentColor) ─────────────────────────────────────────
 const ICON_SEARCH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>`;
 const ICON_DRAG = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M7 4a1 1 0 11-2 0 1 1 0 012 0zM7 10a1 1 0 11-2 0 1 1 0 012 0zM6 17a1 1 0 100-2 1 1 0 000 2zM15 4a1 1 0 11-2 0 1 1 0 012 0zM14 10a1 1 0 11-2 0 1 1 0 012 0zM14 17a1 1 0 100-2 1 1 0 000 2z"/></svg>`;
@@ -66,16 +70,12 @@ function categoriaChip(categoria: string | undefined): string {
   return `<span class="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600" title="${escapeHtml(categoria.trim())}">${escapeHtml(categoria.trim())}</span>`;
 }
 
-function catalogoCategorias(catalogo: TareaCatalogo[]): string[] {
-  const seen = new Map<string, string>();
-  for (const t of catalogo) {
-    const label = t.categoria?.trim();
-    if (label) {
-      const key = label.toLowerCase();
-      if (!seen.has(key)) seen.set(key, label);
-    }
-  }
-  return [...seen.values()].sort((a, b) => a.localeCompare(b, "es"));
+function mergeCategoria(opciones: string[], categoria: string | undefined): string[] {
+  const label = categoria?.trim();
+  if (!label) return opciones;
+  const key = label.toLowerCase();
+  if (opciones.some((c) => c.toLowerCase() === key)) return opciones;
+  return [...opciones, label].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 function overlayHtml(): string {
@@ -170,16 +170,29 @@ function renderAddForm(
       <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Agregar del catálogo</p>
 
       <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-        <!-- Search -->
+        <!-- Combobox búsqueda catálogo -->
         <div>
-          <label for="tarea-search" class="${RH_LISTADO_LABEL}">Buscar</label>
+          <label for="tarea-search" class="${RH_LISTADO_LABEL}">Buscar en catálogo</label>
           <div class="relative">
             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">${ICON_SEARCH}</span>
-            <input id="tarea-search" type="text" autocomplete="off"
+            <input
+              id="tarea-search"
+              type="search"
+              autocomplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="tarea-search-listbox"
               class="block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS}"
-              placeholder="Nombre de la tarea…" />
+              placeholder="Escribe para buscar en el catálogo…"
+            />
           </div>
-          <div id="tarea-search-results" class="mt-1.5 hidden max-h-52 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-[0_4px_12px_rgba(10,22,40,0.08)]"></div>
+          <p class="mt-1 text-xs text-text-muted">Escribe el nombre; si existe, selecciónala de la lista.</p>
+          <div
+            id="tarea-search-listbox"
+            role="listbox"
+            class="mt-1.5 hidden max-h-52 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-[0_4px_12px_rgba(10,22,40,0.08)]"
+          ></div>
         </div>
 
         <!-- Filtros -->
@@ -270,11 +283,23 @@ export function mountEditarTareasModal(
   let filterTipo: TipoFilter = "";
   let filterCategoria = "";
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  let catalogoCache: TareaCatalogo[] = [];
+  let categoriasOpciones: string[] = [];
+  let searchResults: TareaCatalogo[] = [];
+  let searchLoading = false;
+  let searchError = "";
+  let highlightedIndex = -1;
+  let searchAbort: AbortController | null = null;
+  let comboboxOpen = false;
+  let clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
   let assignedCatalogoIds: Set<number> = new Set();
   let tareas: PerfilTarea[] = [];
 
   function close(): void {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = null;
+    searchAbort?.abort();
+    searchAbort = null;
+    detachClickOutside();
     overlay.classList.add("hidden");
     overlay.classList.remove("flex");
     document.body.style.overflow = "";
@@ -283,6 +308,15 @@ export function mountEditarTareasModal(
 
   async function refreshList(): Promise<void> {
     try {
+      searchAbort?.abort();
+      searchAbort = null;
+      detachClickOutside();
+      comboboxOpen = false;
+      searchResults = [];
+      searchLoading = false;
+      searchError = "";
+      highlightedIndex = -1;
+
       tareas = await getPerfilTareas(options.perfilId);
       assignedCatalogoIds = new Set(
         tareas.filter(t => t.tarea_catalogo_id).map(t => t.tarea_catalogo_id as number),
@@ -290,7 +324,7 @@ export function mountEditarTareasModal(
       selectedCatalogo = null;
       body.innerHTML =
         renderTareasList(tareas) +
-        renderAddForm(showCreateNew, filterTipo, filterCategoria, catalogoCategorias(catalogoCache));
+        renderAddForm(showCreateNew, filterTipo, filterCategoria, categoriasOpciones);
       bindDeleteButtons();
       bindDragDrop();
       bindInteractions();
@@ -387,80 +421,233 @@ export function mountEditarTareasModal(
     bindCreateSubmit();
   }
 
+  function getSearchInput(): HTMLInputElement | null {
+    return body.querySelector("#tarea-search");
+  }
+
+  function getSearchListbox(): HTMLElement | null {
+    return body.querySelector("#tarea-search-listbox");
+  }
+
+  function detachClickOutside(): void {
+    if (clickOutsideHandler) {
+      document.removeEventListener("mousedown", clickOutsideHandler);
+      clickOutsideHandler = null;
+    }
+  }
+
+  function setComboboxExpanded(expanded: boolean): void {
+    comboboxOpen = expanded;
+    const input = getSearchInput();
+    if (input) input.setAttribute("aria-expanded", expanded ? "true" : "false");
+  }
+
+  function hideSearchDropdown(): void {
+    const listbox = getSearchListbox();
+    listbox?.classList.add("hidden");
+    highlightedIndex = -1;
+    setComboboxExpanded(false);
+    detachClickOutside();
+  }
+
+  function applyTipoFilter(items: TareaCatalogo[]): TareaCatalogo[] {
+    return items.filter((t) => {
+      if (assignedCatalogoIds.has(t.id)) return false;
+      if (filterTipo === "principal" && t.es_complemento) return false;
+      if (filterTipo === "complemento" && !t.es_complemento) return false;
+      return true;
+    });
+  }
+
+  function renderSearchDropdown(): void {
+    const listbox = getSearchListbox();
+    if (!listbox) return;
+
+    if (searchLoading) {
+      listbox.innerHTML = `<p class="px-2 py-3 text-center text-xs text-text-muted">Buscando…</p>`;
+      listbox.classList.remove("hidden");
+      setComboboxExpanded(true);
+      return;
+    }
+
+    if (searchError) {
+      listbox.innerHTML = `<p class="px-2 py-3 text-center text-xs text-red-600">${escapeHtml(searchError)}</p>`;
+      listbox.classList.remove("hidden");
+      setComboboxExpanded(true);
+      return;
+    }
+
+    const filtered = applyTipoFilter(searchResults);
+    if (filtered.length === 0) {
+      listbox.innerHTML = `<p class="px-2 py-3 text-center text-xs text-text-muted">No hay tareas que coincidan</p>`;
+    } else {
+      listbox.innerHTML = filtered
+        .map((t, i) => {
+          const active = i === highlightedIndex;
+          return `
+        <button
+          type="button"
+          role="option"
+          aria-selected="${active ? "true" : "false"}"
+          data-select-tarea="${t.id}"
+          data-option-index="${i}"
+          class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-active-tint focus:bg-active-tint focus:outline-none${active ? " bg-active-tint" : ""}"
+        >
+          <span class="min-w-0 flex-1 truncate text-sm font-medium text-text-primary" title="${escapeHtml(t.nombre)}">${escapeHtml(t.nombre)}</span>
+          ${categoriaChip(t.categoria)}
+          ${tipoChip(t.es_complemento)}
+        </button>`;
+        })
+        .join("");
+    }
+    listbox.classList.remove("hidden");
+    setComboboxExpanded(true);
+
+    if (!clickOutsideHandler) {
+      clickOutsideHandler = (e: MouseEvent) => {
+        const target = e.target as Node;
+        const input = getSearchInput();
+        const box = getSearchListbox();
+        if (input?.contains(target) || box?.contains(target)) return;
+        hideSearchDropdown();
+      };
+      document.addEventListener("mousedown", clickOutsideHandler);
+    }
+  }
+
+  async function doSearch(q: string): Promise<void> {
+    const trimmed = q.trim();
+    if (trimmed.length < 1) {
+      searchAbort?.abort();
+      searchAbort = null;
+      searchResults = [];
+      searchLoading = false;
+      searchError = "";
+      hideSearchDropdown();
+      return;
+    }
+
+    searchAbort?.abort();
+    const controller = new AbortController();
+    searchAbort = controller;
+
+    searchLoading = true;
+    searchError = "";
+    highlightedIndex = -1;
+    renderSearchDropdown();
+
+    try {
+      const items = await getTareasCatalogo({
+        busqueda: trimmed,
+        categoria: filterCategoria || undefined,
+        page_size: SEARCH_PAGE_SIZE,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      searchResults = items;
+      searchLoading = false;
+      renderSearchDropdown();
+    } catch (err: unknown) {
+      if (controller.signal.aborted) return;
+      searchLoading = false;
+      searchResults = [];
+      const detail = (err as TareaCatalogoFetchError)?.detail;
+      searchError = detail?.trim() || "No se pudo buscar en el catálogo.";
+      renderSearchDropdown();
+    }
+  }
+
+  function scheduleSearch(q: string): void {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      void doSearch(q);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
   function bindSearch(): void {
-    const searchInput = body.querySelector("#tarea-search") as HTMLInputElement | null;
-    const resultsEl = body.querySelector("#tarea-search-results") as HTMLElement | null;
-    if (!searchInput || !resultsEl) return;
+    const searchInput = getSearchInput();
+    const listbox = getSearchListbox();
+    if (!searchInput || !listbox) return;
 
     searchInput.addEventListener("input", () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        doSearch(searchInput.value.trim(), resultsEl);
-      }, 320);
+      scheduleSearch(searchInput.value);
+    });
+
+    searchInput.addEventListener("keydown", (e) => {
+      const filtered = applyTipoFilter(searchResults);
+      if (e.key === "ArrowDown") {
+        if (!comboboxOpen && searchInput.value.trim().length >= 1) {
+          void doSearch(searchInput.value);
+          return;
+        }
+        if (filtered.length === 0) return;
+        e.preventDefault();
+        highlightedIndex = Math.min(highlightedIndex + 1, filtered.length - 1);
+        renderSearchDropdown();
+        const active = listbox.querySelector(`[data-option-index="${highlightedIndex}"]`);
+        active?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "ArrowUp") {
+        if (filtered.length === 0) return;
+        e.preventDefault();
+        highlightedIndex = Math.max(highlightedIndex - 1, 0);
+        renderSearchDropdown();
+        const active = listbox.querySelector(`[data-option-index="${highlightedIndex}"]`);
+        active?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter") {
+        if (!comboboxOpen || highlightedIndex < 0 || highlightedIndex >= filtered.length) return;
+        e.preventDefault();
+        selectTarea(filtered[highlightedIndex]);
+      } else if (e.key === "Escape") {
+        if (comboboxOpen) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideSearchDropdown();
+        }
+      }
     });
 
     const tipoSelect = body.querySelector("#tarea-filter-tipo") as HTMLSelectElement | null;
     tipoSelect?.addEventListener("change", () => {
       filterTipo = tipoSelect.value as TipoFilter;
-      doSearch(searchInput.value.trim(), resultsEl);
+      if (searchInput.value.trim().length >= 1) {
+        if (searchResults.length > 0) {
+          highlightedIndex = -1;
+          renderSearchDropdown();
+        } else {
+          scheduleSearch(searchInput.value);
+        }
+      }
     });
 
     const catSelect = body.querySelector("#tarea-filter-categoria") as HTMLSelectElement | null;
     catSelect?.addEventListener("change", () => {
       filterCategoria = catSelect.value;
-      doSearch(searchInput.value.trim(), resultsEl);
+      if (searchInput.value.trim().length >= 1) {
+        scheduleSearch(searchInput.value);
+      }
     });
 
-    resultsEl.addEventListener("click", (e) => {
+    listbox.addEventListener("click", (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-select-tarea]");
       if (!btn) return;
       const id = Number(btn.dataset.selectTarea);
-      const item = catalogoCache.find(t => t.id === id);
+      const item = searchResults.find((t) => t.id === id);
       if (item) selectTarea(item);
     });
   }
 
-  function doSearch(q: string, resultsEl: HTMLElement): void {
-    const hasFilter = filterTipo !== "" || filterCategoria !== "";
-    if (q.length < 2 && !hasFilter) {
-      resultsEl.classList.add("hidden");
-      return;
-    }
-    const lower = q.toLowerCase();
-    const cat = filterCategoria.trim().toLowerCase();
-    const filtered = catalogoCache.filter(t => {
-      if (assignedCatalogoIds.has(t.id)) return false;
-      if (filterTipo === "principal" && t.es_complemento) return false;
-      if (filterTipo === "complemento" && !t.es_complemento) return false;
-      if (cat && (t.categoria?.trim().toLowerCase() ?? "") !== cat) return false;
-      if (q.length >= 2 && !t.nombre.toLowerCase().includes(lower)) return false;
-      return true;
-    });
-    if (filtered.length === 0) {
-      resultsEl.innerHTML = `<p class="px-2 py-3 text-center text-xs text-text-muted">Sin resultados</p>`;
-    } else {
-      resultsEl.innerHTML = filtered.slice(0, 20).map(t => `
-        <button type="button" data-select-tarea="${t.id}"
-          class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-active-tint focus:bg-active-tint focus:outline-none">
-          <span class="min-w-0 flex-1 truncate text-sm font-medium text-text-primary" title="${escapeHtml(t.nombre)}">${escapeHtml(t.nombre)}</span>
-          ${categoriaChip(t.categoria)}
-          ${tipoChip(t.es_complemento)}
-        </button>
-      `).join("");
-    }
-    resultsEl.classList.remove("hidden");
-  }
-
   function selectTarea(item: TareaCatalogo): void {
     selectedCatalogo = item;
-    const resultsEl = body.querySelector("#tarea-search-results") as HTMLElement;
+    const listbox = getSearchListbox();
     const selectedRow = body.querySelector("#tarea-selected-row") as HTMLElement;
     const selectedInfo = body.querySelector("#tarea-selected-info") as HTMLElement;
-    const searchInput = body.querySelector("#tarea-search") as HTMLInputElement;
+    const searchInput = getSearchInput();
 
-    resultsEl.classList.add("hidden");
+    hideSearchDropdown();
+    searchResults = [];
+    searchError = "";
     selectedRow.classList.remove("hidden");
-    searchInput.value = "";
+    if (searchInput) searchInput.value = "";
 
     selectedInfo.innerHTML = `
       <div class="flex min-w-0 flex-1 items-center gap-2">
@@ -547,7 +734,7 @@ export function mountEditarTareasModal(
 
       try {
         const created = await createTareaCatalogo({ nombre, categoria, es_complemento });
-        catalogoCache.push(created);
+        categoriasOpciones = mergeCategoria(categoriasOpciones, created.categoria);
 
         const orden = tareas.length + 1;
         await createPerfilTarea(options.perfilId, {
@@ -583,9 +770,22 @@ export function mountEditarTareasModal(
   });
 
   function escHandler(e: KeyboardEvent): void {
-    if (e.key === "Escape" && !overlay.classList.contains("hidden")) {
+    if (e.key !== "Escape" || overlay.classList.contains("hidden")) return;
+    if (comboboxOpen) {
       e.preventDefault();
-      close();
+      hideSearchDropdown();
+      return;
+    }
+    e.preventDefault();
+    close();
+  }
+
+  async function loadCategoriasOpciones(): Promise<void> {
+    try {
+      const sample = await getTareasCatalogo({ page_size: 200 });
+      categoriasOpciones = extractCategoriasFromCatalogo(sample);
+    } catch {
+      categoriasOpciones = [];
     }
   }
 
@@ -599,13 +799,15 @@ export function mountEditarTareasModal(
       selectedCatalogo = null;
       filterTipo = "";
       filterCategoria = "";
+      searchResults = [];
+      searchLoading = false;
+      searchError = "";
+      highlightedIndex = -1;
+      comboboxOpen = false;
       body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
-      getTareasCatalogo({ page_size: 200 })
-        .then(items => {
-          catalogoCache = items;
-        })
-        .catch(() => { /* cache stays empty */ })
-        .finally(() => { void refreshList(); });
+      void loadCategoriasOpciones().finally(() => {
+        void refreshList();
+      });
     },
     close,
   };

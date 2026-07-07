@@ -643,6 +643,15 @@ de filtro" cuando ambos representan los mismos segmentos. Usado en: Permisos RH.
 **Focus token (`FIELD_FOCUS`)**: Ring + outline hacia accent color.
 **Checkbox**: `appearance-none rounded-sm border border-border checked:border-accent checked:bg-accent`.
 
+**Combobox server-side (catálogos grandes):** Para pickers que buscan en API (p. ej. tareas del catálogo en «Editar tareas»):
+
+- Input: `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded`, `aria-controls` → listbox.
+- Listbox: `role="listbox"`, opciones `role="option"`; `shadow-md`, `max-h-52`.
+- No mostrar sugerencias hasta ≥1 carácter; debounce ~300 ms; `AbortController` en requests sucesivos.
+- Teclado: ↑↓ navegar, Enter seleccionar, Escape cerrar dropdown (no el modal).
+- Filtros adicionales (tipo/categoría) acotan la consulta; no disparan lista sin texto.
+- Referencia: `editarTareasModal.ts`, `solicitudesNuevaIncidenciaModalUi.ts`.
+
 ### 8.8 Modal / Dialog
 
 ```html
