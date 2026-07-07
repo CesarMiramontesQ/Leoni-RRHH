@@ -1162,6 +1162,24 @@ Representacion compacta de tendencia dentro de KPI cards.
 - Gap: `gap-0.5` (2px)
 - Radius: `rounded-sm` (2px)
 
+### 14.1.1 Paleta categórica Chart.js
+
+Gráficas con **varias series o categorías** usan la paleta centralizada en `frontend/src/charts/chartTokens.ts` (`chartCategoricalPalette`, `chartColorSlots`, `chartColorAt`). Regla: **una familia de color por slot** — no rotar dos azules, dos verdes ni tonos vecinos del mismo matiz en la misma gráfica.
+
+| Slot | Token / fallback | Uso típico |
+|---|---|---|
+| `accent` | `--color-accent` (#2563EB) | Serie principal, retardo, home office |
+| `green` | `--color-leoni-green` (#00C853) | Positivo, justificado, calidad |
+| `amber` | `--color-warning` (#F59E0B) | Pendiente, suspensión |
+| `red` | `--color-danger` (#EF4444) | Negativo, falta injustificada |
+| `violet` | #9333EA | Categorías extra, matrimonio |
+| `teal` | #0891B2 | Vacaciones, incapacidad |
+| `orange` | #EA580C | Seguridad, paternidad, daño equipo |
+| `navy` | `--color-leoni-blue` (#002147) | Indisciplina (único oscuro) |
+| `slate` | `--color-text-secondary` (#64748B) | Otros, defunción, neutral |
+
+Mapas por dominio (solicitudes, incidencias, faltas-retardos) deben referenciar `chartColorSlots()` en lugar de tokens vecinos (`--color-info`, `--color-success`, `--color-leoni-blue-light`). Gráficas de **una sola serie** pueden seguir usando `--color-accent`.
+
 ### 14.2 Progress Bar con Marker (nivel requerido)
 
 Barra de progreso con indicador vertical del nivel requerido.

@@ -4,7 +4,7 @@
 
 import type { Plugin, ScriptableContext } from "chart.js";
 import { chartCartesianScales, mountChart, renderChartCanvas } from "../../charts/index.ts";
-import { cssVar, type ChartSemanticColors } from "../../charts/chartTokens.ts";
+import { chartColorSlots, cssVar, type ChartSemanticColors } from "../../charts/chartTokens.ts";
 import type { HoDiasPorDiaLaboralSerie } from "../../solicitudes/rh/aggregateHoDiasPorDiaLaboral.ts";
 import { hoDiasPorDiaLaboralTieneDatos } from "../../solicitudes/rh/aggregateHoDiasPorDiaLaboral.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
@@ -100,13 +100,13 @@ function donutCenterPlugin(total: number, colors: ChartSemanticColors): Plugin<"
 }
 
 const TIPO_COLORS_BY_CODIGO: Record<RhSolicitudTipoCodigo, () => string> = {
-  vacaciones: () => cssVar("--color-success", "#22C55E"),
-  home_office: () => cssVar("--color-accent", "#2563EB"),
-  matrimonio: () => cssVar("--color-leoni-green", "#00C853"),
-  incapacidad_interna: () => cssVar("--color-leoni-blue-light", "#0D3D66"),
-  defuncion: () => cssVar("--color-text-muted", "#5A6880"),
-  paternidad: () => cssVar("--color-leoni-blue", "#002147"),
-  permiso_sin_goce_sueldo: () => cssVar("--color-warning", "#F59E0B"),
+  vacaciones: () => chartColorSlots().green,
+  home_office: () => chartColorSlots().accent,
+  matrimonio: () => chartColorSlots().violet,
+  incapacidad_interna: () => chartColorSlots().teal,
+  defuncion: () => chartColorSlots().slate,
+  paternidad: () => chartColorSlots().orange,
+  permiso_sin_goce_sueldo: () => chartColorSlots().amber,
 };
 
 function colorForTipoCodigo(codigo: RhSolicitudTipoCodigo): string {

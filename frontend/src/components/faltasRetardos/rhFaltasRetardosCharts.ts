@@ -1,5 +1,5 @@
 import { chartCartesianScales, mountChart, renderChartCanvas } from "../../charts/index.ts";
-import { cssVar } from "../../charts/chartTokens.ts";
+import { chartColorSlots } from "../../charts/chartTokens.ts";
 import type { FaltaRetardoTendenciaPorTipo } from "../../faltasRetardos/rh/buildFaltasRetardosTendenciaPorTipo.ts";
 import type { RhDashboardTendenciaAgrupacion } from "../../dashboard/rh/filterRowsByPeriod.ts";
 import { labelFaltaRetardoTipo } from "../../faltasRetardos/rh/constants.ts";
@@ -31,19 +31,20 @@ function colorConAlpha(hex: string, alpha: number): string {
 }
 
 function colorForTipo(tipo: FaltaRetardoTipo): string {
+  const s = chartColorSlots();
   switch (tipo) {
     case "falta_justificada":
-      return cssVar("--color-leoni-green", "#00C853");
+      return s.green;
     case "falta_injustificada":
-      return cssVar("--color-danger", "#EF4444");
+      return s.red;
     case "retardo":
-      return cssVar("--color-accent", "#2563EB");
+      return s.accent;
     case "incapacidad":
-      return cssVar("--color-info", "#3B82F6");
+      return s.teal;
     case "suspension":
-      return cssVar("--color-warning", "#F59E0B");
+      return s.amber;
     default:
-      return cssVar("--color-success", "#22C55E");
+      return s.violet;
   }
 }
 

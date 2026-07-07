@@ -3,7 +3,7 @@
  */
 
 import { chartCartesianScales, mountChart, renderChartCanvas } from "../../charts/index.ts";
-import { cssVar } from "../../charts/chartTokens.ts";
+import { chartColorSlots, cssVar } from "../../charts/chartTokens.ts";
 import type {
   IncidenciaTendenciaPorTipo,
   RhDashboardTendenciaAgrupacion,
@@ -57,15 +57,14 @@ export type SubareaRankingRow = { subarea: string; total: number; area?: string 
 
 /** Color por tipo (valores resueltos para canvas Chart.js). */
 function fillColorForTipo(tipoRaw: string): string {
+  const s = chartColorSlots();
   const t = tipoRaw.toLowerCase();
-  if (t.includes("seguridad")) return cssVar("--color-kpi-metric-inactivo-icon", "#f87171");
-  if (t.includes("calidad")) return cssVar("--color-leoni-green", "#00C853");
-  if (t.includes("retardo") || t.includes("tardan")) return cssVar("--color-accent", "#2563EB");
-  if (t.includes("falta") || t.includes("ausencia")) return cssVar("--color-text-muted", "#5A6880");
-  if (t.includes("daño") || t.includes("dano") || t.includes("equipo")) {
-    return cssVar("--color-leoni-blue-light", "#0D3D66");
-  }
-  if (t.includes("indisciplina")) return cssVar("--color-leoni-blue", "#002147");
+  if (t.includes("seguridad")) return s.red;
+  if (t.includes("calidad")) return s.green;
+  if (t.includes("retardo") || t.includes("tardan")) return s.accent;
+  if (t.includes("falta") || t.includes("ausencia")) return s.slate;
+  if (t.includes("daño") || t.includes("dano") || t.includes("equipo")) return s.orange;
+  if (t.includes("indisciplina")) return s.navy;
   return cssVar("--color-border", "#D1DCE8");
 }
 
