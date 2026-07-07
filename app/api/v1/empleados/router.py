@@ -27,7 +27,11 @@ from app.schemas.usuarios import (
     UsuarioVista360Response,
 )
 from app.schemas.solicitudes import HomeOfficeDisponibilidadResponse
-from app.schemas.vacaciones import VacacionesResponse, VacacionesUpdate
+from app.schemas.vacaciones import (
+    SaldoVacacionesRealResponse,
+    VacacionesResponse,
+    VacacionesUpdate,
+)
 from app.services.acta_service import ActaService
 from app.services.empleado_foto_service import EmpleadoFotoService
 from app.services.solicitud_service import SolicitudService
@@ -160,6 +164,19 @@ async def get_vacaciones_empleado(
 ):
     """Saldo de días de vacaciones del empleado."""
     return await svc.obtener_saldo(empleado_id=empleado_id, current_user=current_user)
+
+
+@router.get(
+    "/{empleado_id}/saldo-vacaciones-real",
+    response_model=SaldoVacacionesRealResponse,
+)
+async def get_saldo_vacaciones_real(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    svc: VacacionesService = Depends(_vac_svc),
+):
+    """Saldo real de días de gozo desde SQL Server datos-analisis (vista V_SALD_VAC)."""
+    return await svc.obtener_saldo_real(empleado_id=empleado_id, current_user=current_user)
 
 
 @router.put("/{empleado_id}/vacaciones", response_model=VacacionesResponse)

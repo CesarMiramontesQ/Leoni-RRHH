@@ -86,3 +86,21 @@ export async function getEmpleadoMetricas(
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as MetricasUsuario;
 }
+
+/** Saldo real de días de gozo desde SQL Server datos-analisis (vista V_SALD_VAC). */
+export type SaldoVacacionesReal = {
+  empleado_id: number;
+  no_empleado: number;
+  saldo_gozo_total: number | null;
+};
+
+export async function getEmpleadoSaldoVacacionesReal(
+  id: number,
+  options?: { signal?: AbortSignal },
+): Promise<SaldoVacacionesReal> {
+  const res = await fetchWithAuth(`/api/v1/empleados/${id}/saldo-vacaciones-real`, {
+    signal: options?.signal,
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as SaldoVacacionesReal;
+}

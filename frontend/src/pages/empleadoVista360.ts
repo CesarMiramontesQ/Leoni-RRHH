@@ -425,6 +425,7 @@ function renderVista360Content(
   data: UsuarioVista360,
   activeTab: Vista360TabId,
   incidenciasMetricas: EmpleadoIncidenciasMetricas | null,
+  saldoVacacionesReal: number | null,
 ): string {
   const u = data.usuario;
   const showRh = canAccessUsuariosAdmin();
@@ -464,10 +465,10 @@ function renderVista360Content(
 
   const estadisticasSection =
     showRh && incidenciasMetricas !== null
-      ? vista360EstadisticasCardsHtml(incidenciasMetricas, data.saldo_vacaciones)
+      ? vista360EstadisticasCardsHtml(incidenciasMetricas, saldoVacacionesReal)
       : showRh
         ? vista360EstadisticasSkeletonHtml(true)
-        : vista360EstadisticasCardsHtml(null, data.saldo_vacaciones);
+        : vista360EstadisticasCardsHtml(null, saldoVacacionesReal);
 
   const accionesRapidasSection = showRh ? "" : quickActions;
 
@@ -710,7 +711,7 @@ export function mountEmployeeVista360(
         const r = await loadEmpleadoVista360(empleadoId, signal);
         if (!r.ok && r.aborted) return;
         if (r.ok) {
-          contentEl.innerHTML = renderVista360Content(r.data, initialTab, r.incidenciasMetricas);
+          contentEl.innerHTML = renderVista360Content(r.data, initialTab, r.incidenciasMetricas, r.saldoVacacionesReal);
           afterVista360Rendered(r.data.usuario.no_empleado);
         } else {
           contentEl.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">${escapeHtml(r.message)}</div>`;
@@ -744,7 +745,7 @@ export function mountEmployeeVista360(
     if (!r.ok && r.aborted) return;
     if (!contentEl) return;
     if (r.ok) {
-      contentEl.innerHTML = renderVista360Content(r.data, initialTab, r.incidenciasMetricas);
+      contentEl.innerHTML = renderVista360Content(r.data, initialTab, r.incidenciasMetricas, r.saldoVacacionesReal);
       afterVista360Rendered(r.data.usuario.no_empleado);
       return;
     }

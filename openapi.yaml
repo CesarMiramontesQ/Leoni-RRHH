@@ -1386,6 +1386,22 @@ components:
           format: date-time
           nullable: true
 
+    SaldoVacacionesRealResponse:
+      type: object
+      required:
+        - empleado_id
+        - no_empleado
+        - saldo_gozo_total
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: integer
+        saldo_gozo_total:
+          type: number
+          nullable: true
+          description: Suma de VS_S_GOZO; null si el empleado no tiene registro en V_SALD_VAC
+
     HomeOfficeDisponibilidadResponse:
       type: object
       required:
@@ -7117,6 +7133,33 @@ paths:
           description: Empleado no encontrado
         "422":
           description: Validación de días disponibles
+
+  /api/v1/empleados/{empleado_id}/saldo-vacaciones-real:
+    get:
+      tags: [Empleados]
+      summary: Saldo real de días de gozo (SQL Server datos-analisis, vista V_SALD_VAC)
+      operationId: empleados_saldo_vacaciones_real_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saldo real de días de gozo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaldoVacacionesRealResponse"
+        "403":
+          description: Sin permiso para consultar este empleado
+        "404":
+          description: Empleado no encontrado
+        "503":
+          description: Base datos-analisis no configurada o no disponible
 
   /api/v1/empleados/{empleado_id}/home-office/disponibilidad:
     get:

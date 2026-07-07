@@ -1,12 +1,21 @@
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import ForbiddenError, NotFoundError
+from app.core.exceptions import ForbiddenError, NotFoundError, ServiceUnavailableError
 from app.core.rh_module_registry import user_has_module
+from app.integrations.datos_analisis_db import DatosAnalisisReadClient
 from app.models.empleados import Empleado
+from app.repositories.datos_analisis_vacaciones_repository import (
+    DatosAnalisisVacacionesRepository,
+)
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.vacaciones_repository import VacacionesRepository
-from app.schemas.vacaciones import VacacionesResponse, VacacionesUpdate
+from app.schemas.vacaciones import (
+    SaldoVacacionesRealResponse,
+    VacacionesResponse,
+    VacacionesUpdate,
+)
 
 
 class VacacionesService:
@@ -53,6 +62,41 @@ class VacacionesService:
         await self._ensure_puede_ver_empleado(current_user, empleado_id)
         dias = await self.repo.get_dias_disponibles(empleado_id)
         return VacacionesResponse(empleado_id=empleado_id, dias_disponibles=dias)
+
+    async def obtener_saldo_real(
+        self, empleado_id: int, current_user: Empleado
+    ) -> SaldoVacacionesRealResponse:
+        """Saldo real de días de gozo desde SQL Server datos-analisis (vista V_SALD_VAC)."""
+        empleado = await self.empleado_repo.get_by_empleado_id(empleado_id)
+        if not empleado:
+            raise NotFoundError(entidad="Empleado", id=empleado_id)
+        await self._ensure_puede_ver_empleado(current_user, empleado_id)
+
+        engine = DatosAnalisisReadClient.create_read_engine()
+        if engine is None:
+            raise ServiceUnavailableError(
+                "Base datos-analisis no configurada (variables DATOS_ANALISIS_DB_*)."
+            )
+        try:
+            total = await DatosAnalisisVacacionesRepository(engine).get_saldo_gozo_total(
+                cb_codigo=empleado.no_empleado
+            )
+        except SQLAlchemyError as exc:
+            raise ServiceUnavailableError(
+                f"Error al consultar datos-analisis: {type(exc).__name__}: {exc}"
+            ) from exc
+        except Exception as exc:
+            raise ServiceUnavailableError(
+                f"Error datos-analisis: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            await engine.dispose()
+
+        return SaldoVacacionesRealResponse(
+            empleado_id=empleado_id,
+            no_empleado=empleado.no_empleado,
+            saldo_gozo_total=total,
+        )
 
     async def actualizar_saldo(
         self,

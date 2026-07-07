@@ -74,8 +74,13 @@ function renderIncidenciaMetricCard(def: MetricCardDef, value: number): string {
     </article>`;
 }
 
-function renderVacacionesCard(saldoVacaciones: number): string {
+function renderVacacionesCard(saldoVacacionesReal: number | null): string {
   const def = VACACIONES_CARD;
+  const disponible = saldoVacacionesReal !== null;
+  const valor = disponible ? String(saldoVacacionesReal) : "—";
+  const nota = disponible
+    ? "Días de gozo disponibles (SQL Server datos-analisis)."
+    : "Saldo no disponible.";
   return `
     <article class="rh-dash-kpi-card flex h-full flex-col rounded-[18px] p-5" data-v360-estadistica="${def.id}">
       <div class="flex items-start justify-between gap-3">
@@ -84,8 +89,8 @@ function renderVacacionesCard(saldoVacaciones: number): string {
           ${iconFor(def.id)}
         </div>
       </div>
-      <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-leoni-blue">${escapeHtml(String(saldoVacaciones))}</p>
-      <p class="mt-2 text-xs leading-relaxed text-text-muted">Días según registro en sistema (integración TRESS pendiente).</p>
+      <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-leoni-blue">${escapeHtml(valor)}</p>
+      <p class="mt-2 text-xs leading-relaxed text-text-muted">${escapeHtml(nota)}</p>
     </article>`;
 }
 
@@ -127,12 +132,12 @@ export function vista360IncidenciasMetricasCardsHtml(metricas: EmpleadoIncidenci
 
 export function vista360EstadisticasCardsHtml(
   metricas: EmpleadoIncidenciasMetricas | null,
-  saldoVacaciones: number,
+  saldoVacacionesReal: number | null,
 ): string {
   const incidenciaCards = metricas
     ? INCIDENCIA_CARDS.map((def) => renderIncidenciaMetricCard(def, valueForIncidencia(def.id, metricas))).join("")
     : "";
-  const vacacionesCard = renderVacacionesCard(saldoVacaciones);
+  const vacacionesCard = renderVacacionesCard(saldoVacacionesReal);
   const cardCount = (metricas ? INCIDENCIA_CARDS.length : 0) + 1;
   return `
     <div class="${estadisticasGridClass(cardCount)}" aria-label="Estadísticas del empleado">
