@@ -320,6 +320,23 @@ export function canAccessFaltasRetardosPage(): boolean {
   return r === "director" || r === "gerente" || r === "supervisor";
 }
 
+/** Página de viajes laborales (`#/viajes-laborales`). */
+export function canAccessViajesLaboralesPage(): boolean {
+  if (isRhEmpleadoUiMode() || isRhDirectorUiMode()) return false;
+  if (isRhLiderUiMode() || isRhGerenteUiMode()) return true;
+  if (canAccessRhAssignedModule("viajes-laborales")) return true;
+  const r = getRolFromAccessToken();
+  return r === "director" || r === "gerente" || r === "supervisor";
+}
+
+/** Aprobar/rechazar viajes: RH operativo o director. */
+export function canApproveViajesLaborales(): boolean {
+  if (isRhOperativoUiMode()) return true;
+  if (isRhDirectorUiMode()) return true;
+  const r = getRolFromAccessToken();
+  return r === "director" || r === "rh";
+}
+
 /** Página de actas (`#/actas`): admin operativo o no-RH con módulo otorgado. */
 export function canAccessActasPage(): boolean {
   return canAccessRhAssignedModule("actas", {

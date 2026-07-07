@@ -19,6 +19,7 @@ import { mountActas } from "./pages/actas.ts";
 import { mountActaDetalle } from "./pages/actaDetalle.ts";
 import { mountEmpleados } from "./pages/empleados.ts";
 import { mountFaltasRetardos } from "./pages/faltasRetardos.ts";
+import { mountViajesLaborales } from "./pages/viajesLaborales.ts";
 import { mountIncidencias } from "./pages/incidencias.ts";
 import { mountComedor } from "./pages/comedor.ts";
 import { mountNotificaciones } from "./pages/notificaciones.ts";
@@ -348,6 +349,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountSolicitudes(container, signal);
     } else if (h.startsWith("#/faltas-retardos")) {
       mountFaltasRetardos(container, signal);
+    } else if (h.startsWith("#/viajes-laborales")) {
+      mountViajesLaborales(container, signal);
     } else if (h.startsWith("#/incidencias")) {
       mountIncidencias(container, signal);
     } else {

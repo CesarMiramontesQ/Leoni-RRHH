@@ -9,6 +9,7 @@ export type SupervisorNavKey =
   | "metricas"
   | "incidencias"
   | "faltas-retardos"
+  | "viajes-laborales"
   | "solicitudes"
   | "mis-encuestas"
   | "horas-extra-solicitud"
@@ -71,6 +72,13 @@ export const SUPERVISOR_NAV_SECTIONS: readonly SupervisorNavSection[] = [
         href: "#/faltas-retardos",
         label: "Faltas y retardos",
         svgPaths: `<path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5M12 9.75v.008M12 12.75v.008M12 15.75v.008" stroke-linecap="round" stroke-linejoin="round" />`,
+      },
+      {
+        id: "viajes-laborales",
+        key: "viajes-laborales",
+        href: "#/viajes-laborales",
+        label: "Viajes laborales",
+        svgPaths: `<path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.75v.958m0 0v.958m0-.958h1.5m-1.5 0h-1.5" stroke-linecap="round" stroke-linejoin="round" />`,
       },
       {
         id: "solicitudes",

@@ -22,6 +22,7 @@ from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
 from app.models.faltas_retardos import FaltaRetardoEvento, FaltaRetardoRegistroAuditoria
+from app.models.viajes_laborales import ViajeLaboral
 from app.models.comedor import (
     Comedor,
     ComedorAcceso,
@@ -123,6 +124,7 @@ __all__ = [
     "ActaAprobacion",
     "FaltaRetardoEvento",
     "FaltaRetardoRegistroAuditoria",
+    "ViajeLaboral",
     "Comedor",
     "ComedorAcceso",
     "ComedorCodigoExterno",

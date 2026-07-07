@@ -102,6 +102,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/faltas-retardos",),
         api_prefixes=("/api/v1/faltas-retardos",),
     ),
+    "viajes-laborales": RhModuleDef(
+        key="viajes-laborales",
+        label="Viajes laborales",
+        group="Laborales",
+        nav_item_ids=("viajes-laborales",),
+        hash_prefixes=("#/viajes-laborales",),
+        api_prefixes=("/api/v1/viajes-laborales",),
+    ),
     "comedor-registro": RhModuleDef(
         key="comedor-registro",
         label="Registro Comedor",

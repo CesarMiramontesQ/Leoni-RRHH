@@ -17,6 +17,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/evaluaciones"), titulo: "Evaluaciones" },
   { match: (h) => h.startsWith("#/incidencias"), titulo: "Incidencias" },
   { match: (h) => h.startsWith("#/faltas-retardos"), titulo: "Faltas y retardos" },
+  { match: (h) => h.startsWith("#/viajes-laborales"), titulo: "Viajes laborales" },
   { match: (h) => h.startsWith("#/actas"), titulo: "Actas" },
   { match: (h) => h.startsWith("#/reportes"), titulo: "Reporte comedor" },
   { match: (h) => h.startsWith("#/puestos/ajustes"), titulo: "Ajustes para perfiles de puesto" },
