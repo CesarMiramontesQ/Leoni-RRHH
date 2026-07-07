@@ -1825,6 +1825,15 @@ components:
           type: [string, "null"]
           description: Área más frecuente asociada a la subárea en el conjunto filtrado (heurística).
 
+    IncidenciaEmpleadoTipoCountItem:
+      type: object
+      required: [tipo, total]
+      properties:
+        tipo:
+          type: string
+        total:
+          type: integer
+
     IncidenciaEmpleadoTotalItem:
       type: object
       required: [empleado_id, total]
@@ -1837,6 +1846,10 @@ components:
           type: [string, "null"]
         total:
           type: integer
+        por_tipo:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaEmpleadoTipoCountItem"
 
     IncidenciaTipoDistribucionItem:
       type: object
@@ -2347,6 +2360,203 @@ components:
                       $ref: "#/components/schemas/FaltaRetardoTipo"
                     total:
                       type: integer
+
+    ViajeLaboralEstado:
+      type: string
+      enum: [borrador, pendiente, aprobado, rechazado, cancelado]
+
+    ViajeLaboralCreate:
+      type: object
+      required:
+        - empleado_id
+        - fecha_salida
+        - fecha_regreso
+        - lugar_origen
+        - lugar_destino
+        - motivo
+        - medio_transporte
+      properties:
+        empleado_id:
+          type: integer
+          minimum: 1
+        fecha_salida:
+          type: string
+          format: date
+        fecha_regreso:
+          type: string
+          format: date
+        lugar_origen:
+          type: string
+          maxLength: 255
+        lugar_destino:
+          type: string
+          maxLength: 255
+        motivo:
+          type: string
+          maxLength: 4000
+        descripcion:
+          type: [string, "null"]
+          maxLength: 4000
+        medio_transporte:
+          type: string
+          maxLength: 120
+        hospedaje:
+          type: [string, "null"]
+          maxLength: 255
+        viaticos_estimados:
+          type: [number, "null"]
+          minimum: 0
+
+    ViajeLaboralUpdate:
+      type: object
+      properties:
+        empleado_id:
+          type: integer
+          minimum: 1
+        fecha_salida:
+          type: string
+          format: date
+        fecha_regreso:
+          type: string
+          format: date
+        lugar_origen:
+          type: string
+          maxLength: 255
+        lugar_destino:
+          type: string
+          maxLength: 255
+        motivo:
+          type: string
+          maxLength: 4000
+        descripcion:
+          type: [string, "null"]
+          maxLength: 4000
+        medio_transporte:
+          type: string
+          maxLength: 120
+        hospedaje:
+          type: [string, "null"]
+          maxLength: 255
+        viaticos_estimados:
+          type: [number, "null"]
+          minimum: 0
+
+    ViajeLaboralRechazarRequest:
+      type: object
+      required: [motivo_rechazo]
+      properties:
+        motivo_rechazo:
+          type: string
+          maxLength: 4000
+
+    ViajeLaboralResponse:
+      type: object
+      required:
+        - id
+        - empleado_id
+        - fecha_salida
+        - fecha_regreso
+        - lugar_origen
+        - lugar_destino
+        - motivo
+        - medio_transporte
+        - estado
+        - registrado_por_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+        empleado_id:
+          type: integer
+        empleado_nombre:
+          type: [string, "null"]
+        numero_empleado:
+          type: [string, "null"]
+        fecha_salida:
+          type: string
+          format: date
+        fecha_regreso:
+          type: string
+          format: date
+        lugar_origen:
+          type: string
+        lugar_destino:
+          type: string
+        motivo:
+          type: string
+        descripcion:
+          type: [string, "null"]
+        medio_transporte:
+          type: string
+        hospedaje:
+          type: [string, "null"]
+        viaticos_estimados:
+          type: [number, "null"]
+        estado:
+          $ref: "#/components/schemas/ViajeLaboralEstado"
+        registrado_por_id:
+          type: integer
+        registrado_por_nombre:
+          type: [string, "null"]
+        aprobado_por_id:
+          type: [integer, "null"]
+        aprobado_por_nombre:
+          type: [string, "null"]
+        motivo_rechazo:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ViajesLaboralesPageResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViajeLaboralResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    ViajeLaboralEstadoItem:
+      type: object
+      required: [value, label]
+      properties:
+        value:
+          $ref: "#/components/schemas/ViajeLaboralEstado"
+        label:
+          type: string
+
+    ViajesLaboralesEstadosResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViajeLaboralEstadoItem"
+
+    ViajesLaboralesEstadisticasResponse:
+      type: object
+      required: [total, pendientes, aprobados, cancelados]
+      properties:
+        total:
+          type: integer
+        pendientes:
+          type: integer
+        aprobados:
+          type: integer
+        cancelados:
+          type: integer
 
     # ── Comedor ───────────────────────────────────────
     ComedorResponse:
@@ -7461,6 +7671,297 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FaltasRetardosEstadisticasResponse"
+
+  # ── Viajes laborales ───────────────────────────────
+  /api/v1/viajes-laborales:
+    get:
+      tags: [Viajes laborales]
+      summary: Listar viajes laborales
+      operationId: viajes_laborales_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: empleado_id
+          in: query
+          schema:
+            type: integer
+        - name: fecha_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: destino
+          in: query
+          description: Filtro por lugar de destino
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            $ref: "#/components/schemas/ViajeLaboralEstado"
+        - name: busqueda
+          in: query
+          description: Nombre o número de empleado
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Página de viajes laborales
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajesLaboralesPageResponse"
+    post:
+      tags: [Viajes laborales]
+      summary: Registrar viaje laboral
+      operationId: viajes_laborales_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ViajeLaboralCreate"
+      responses:
+        "201":
+          description: Viaje creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajeLaboralResponse"
+        "422":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/viajes-laborales/estados:
+    get:
+      tags: [Viajes laborales]
+      summary: Catálogo de estados de viaje
+      operationId: viajes_laborales_estados
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Estados disponibles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajesLaboralesEstadosResponse"
+
+  /api/v1/viajes-laborales/estadisticas:
+    get:
+      tags: [Viajes laborales]
+      summary: Estadísticas de viajes laborales
+      operationId: viajes_laborales_estadisticas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: query
+          schema:
+            type: integer
+        - name: fecha_inicio
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: destino
+          in: query
+          schema:
+            type: string
+        - name: estado
+          in: query
+          schema:
+            $ref: "#/components/schemas/ViajeLaboralEstado"
+        - name: busqueda
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Totales por estado con filtros aplicados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajesLaboralesEstadisticasResponse"
+
+  /api/v1/viajes-laborales/{id}:
+    get:
+      tags: [Viajes laborales]
+      summary: Detalle de viaje laboral
+      operationId: viajes_laborales_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Detalle del viaje
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajeLaboralResponse"
+    patch:
+      tags: [Viajes laborales]
+      summary: Actualizar viaje laboral
+      operationId: viajes_laborales_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ViajeLaboralUpdate"
+      responses:
+        "200":
+          description: Viaje actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajeLaboralResponse"
+    delete:
+      tags: [Viajes laborales]
+      summary: Eliminar viaje en borrador
+      operationId: viajes_laborales_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Viaje eliminado
+
+  /api/v1/viajes-laborales/{id}/enviar:
+    put:
+      tags: [Viajes laborales]
+      summary: Enviar viaje a aprobación
+      operationId: viajes_laborales_enviar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Viaje enviado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajeLaboralResponse"
+
+  /api/v1/viajes-laborales/{id}/aprobar:
+    put:
+      tags: [Viajes laborales]
+      summary: Aprobar viaje laboral
+      operationId: viajes_laborales_aprobar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Viaje aprobado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajeLaboralResponse"
+
+  /api/v1/viajes-laborales/{id}/rechazar:
+    put:
+      tags: [Viajes laborales]
+      summary: Rechazar viaje laboral
+      operationId: viajes_laborales_rechazar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ViajeLaboralRechazarRequest"
+      responses:
+        "200":
+          description: Viaje rechazado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajeLaboralResponse"
+
+  /api/v1/viajes-laborales/{id}/cancelar:
+    put:
+      tags: [Viajes laborales]
+      summary: Cancelar viaje laboral
+      operationId: viajes_laborales_cancelar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Viaje cancelado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ViajeLaboralResponse"
 
   # ── Actas Administrativas ──────────────────────────
   /api/v1/actas:

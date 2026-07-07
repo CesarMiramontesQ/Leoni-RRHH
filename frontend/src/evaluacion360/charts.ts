@@ -1,5 +1,5 @@
 import { chartCartesianScales, mountChart, renderChartCanvas } from "../charts/index.ts";
-import { cssVar } from "../charts/chartTokens.ts";
+import { chartColorAt, cssVar } from "../charts/chartTokens.ts";
 import type { CompetenciaPuntuacion, EmpleadoEval360 } from "./types.ts";
 import { COMPARATIVO_DEPARTAMENTO, EVOLUCION_HISTORICA } from "./mockData.ts";
 
@@ -35,14 +35,6 @@ export function mountEval360RhDashboardCharts(
   root: ParentNode,
   competenciasDept: { departamentos: string[]; competencias: string[]; matrix: number[][] },
 ): void {
-  const palette = [
-    cssVar("--color-accent", "#2563EB"),
-    cssVar("--color-success", "#22C55E"),
-    cssVar("--color-info", "#3B82F6"),
-    cssVar("--color-warning", "#F59E0B"),
-    cssVar("--color-danger", "#EF4444"),
-  ];
-
   const radarFillAlpha = 0.12;
 
   mountChart(root, E360_RADAR_DEPT_COMP_ID, ({ colors }) => ({
@@ -50,7 +42,7 @@ export function mountEval360RhDashboardCharts(
     data: {
       labels: competenciasDept.competencias,
       datasets: competenciasDept.departamentos.map((dept, i) => {
-        const color = palette[i % palette.length]!;
+        const color = chartColorAt(i);
         return {
           label: dept,
           data: competenciasDept.matrix[i] ?? [],

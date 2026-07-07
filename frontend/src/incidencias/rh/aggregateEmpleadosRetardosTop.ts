@@ -1,4 +1,5 @@
 import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
+import { empleadoLabelCorto } from "../../utils/empleadoLabelConNumero.ts";
 
 export const EMPLEADOS_RETARDOS_TOP = 5;
 
@@ -38,7 +39,7 @@ export function aggregateEmpleadosRetardosTop(
     })
     .slice(0, top)
     .map((e) => ({
-      label: empleadoNombreCompleto(e.nombre, e.no_empleado),
+      label: empleadoLabelCorto(e.nombre, e.no_empleado),
       total: e.total,
     }));
 }

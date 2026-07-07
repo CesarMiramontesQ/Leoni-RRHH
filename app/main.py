@@ -229,6 +229,7 @@ from app.api.v1.rh_permisos.router import router as rh_permisos_router
 from app.api.v1.nominas.router import router as nominas_router
 from app.api.v1.horas_extra.router import router as horas_extra_router
 from app.api.v1.faltas_retardos.router import router as faltas_retardos_router
+from app.api.v1.viajes_laborales.router import router as viajes_laborales_router
 from app.api.v1.evaluacion360.router import router as evaluacion360_router
 
 app.include_router(auth_router)
@@ -267,6 +268,7 @@ app.include_router(rh_permisos_router)
 app.include_router(nominas_router)
 app.include_router(horas_extra_router)
 app.include_router(faltas_retardos_router)
+app.include_router(viajes_laborales_router)
 app.include_router(evaluacion360_router)
 
 

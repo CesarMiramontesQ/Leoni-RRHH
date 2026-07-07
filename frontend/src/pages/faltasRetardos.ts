@@ -18,6 +18,7 @@ import { FR_COPY } from "../faltasRetardos/rh/faltasRetardosCopy.ts";
 import {
   cloneFaltasRetardosListFilters,
   emptyFaltasRetardosListFilters,
+  faltasRetardosFiltersFromHash,
   fechasRangoFaltasRetardosListo,
   readFaltasRetardosFiltersFromDom,
   RH_FR_FILTER_FIELDS,
@@ -142,8 +143,11 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
     return;
   }
 
-  let filterDraft = emptyFaltasRetardosListFilters();
-  let appliedFilters = emptyFaltasRetardosListFilters();
+  // Filtros iniciales desde el deep-link del hash (p. ej. al llegar desde las
+  // gráficas del dashboard con periodo + tipo ya seleccionados).
+  const initialFilters = faltasRetardosFiltersFromHash();
+  let filterDraft = initialFilters;
+  let appliedFilters = cloneFaltasRetardosListFilters(initialFilters);
   let page = 1;
   let loadSeq = 0;
   let empleadoOptions: FaltaRetardoEmpleadoOption[] = [];

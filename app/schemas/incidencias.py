@@ -115,11 +115,17 @@ class IncidenciaSubareaTotalItem(BaseModel):
     area: str | None = None
 
 
+class IncidenciaEmpleadoTipoCountItem(BaseModel):
+    tipo: str
+    total: int
+
+
 class IncidenciaEmpleadoTotalItem(BaseModel):
     empleado_id: int
     no_empleado: str | None = None
     nombre: str | None = None
     total: int
+    por_tipo: list[IncidenciaEmpleadoTipoCountItem] = Field(default_factory=list)
 
 
 class IncidenciaTipoDistribucionItem(BaseModel):

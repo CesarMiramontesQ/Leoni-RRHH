@@ -10,6 +10,7 @@ import {
 import {
   mountRhDashboardAnalyticsCharts,
   mountRhDashboardEmpleadosCharts,
+  reconcileRhDashboardCharts,
   RH_DASH_ANALYTICS_CHART_IDS,
 } from "../components/dashboard/rhAnalyticsCharts.ts";
 import {
@@ -220,7 +221,12 @@ function mountRhDashboardChartsWhenReady(
   runChartsAfterLayout(
     analyticsRoot,
     () => mountRhDashboardAnalyticsCharts(analyticsRoot, payload),
-    { isStale },
+    {
+      isStale,
+      // Red de seguridad: remonta cualquier gráfica que quedó en blanco por una
+      // carrera de layout al cambiar el periodo (idempotente en las sanas).
+      afterSettle: () => reconcileRhDashboardCharts(analyticsRoot, payload),
+    },
   );
 }
 

@@ -42,6 +42,21 @@ function fechaIncidenciaHastaHoy(fecha: string | undefined | null): boolean {
   return f.slice(0, 10) <= isoHoyLocal();
 }
 
+function quejaTipoFromFila(r: RhIncidenciaTablaFila): string | null {
+  const ti = r.tipo_incidencia?.trim();
+  if (ti) {
+    const lower = ti.toLowerCase();
+    if (lower === "seguridad" || lower.includes("seguridad")) return "Seguridad";
+    if (lower === "calidad" || lower.includes("calidad")) return "Calidad";
+  }
+  const { seg, cal } = textoSegCal(r.tipo, r.categoria, r.tipo_texto);
+  if (seg && !cal) return "Seguridad";
+  if (cal && !seg) return "Calidad";
+  if (seg) return "Seguridad";
+  if (cal) return "Calidad";
+  return null;
+}
+
 /** Agregados locales (p. ej. dataset mock) alineados con GET /incidencias/estadisticas. */
 export function computeRhIncidenciasEstadisticasFromFilas(
   rows: readonly RhIncidenciaTablaFila[],
@@ -50,7 +65,13 @@ export function computeRhIncidenciasEstadisticasFromFilas(
   const bySubArea = new Map<string, Map<string, number>>();
   const byEmp = new Map<
     string,
-    { empleado_id: number; no_empleado: string | null; nombre: string | null; total: number }
+    {
+      empleado_id: number;
+      no_empleado: string | null;
+      nombre: string | null;
+      total: number;
+      por_tipo: Map<string, number>;
+    }
   >();
   const byTipo = new Map<string, number>();
   let nSeg = 0;
@@ -71,6 +92,7 @@ export function computeRhIncidenciasEstadisticasFromFilas(
 
     const eid = Number.parseInt(String(r.empleado_id), 10);
     const ek = Number.isFinite(eid) ? String(eid) : r.empleado_id;
+    const qTipo = quejaTipoFromFila(r);
     const prev = byEmp.get(ek);
     const nom = r.empleado_nombre_raw?.trim() || null;
     const no = r.no_empleado?.trim() || null;
@@ -78,12 +100,16 @@ export function computeRhIncidenciasEstadisticasFromFilas(
       prev.total += 1;
       if (!prev.nombre && nom) prev.nombre = nom;
       if (!prev.no_empleado && no) prev.no_empleado = no;
+      if (qTipo) prev.por_tipo.set(qTipo, (prev.por_tipo.get(qTipo) ?? 0) + 1);
     } else {
+      const por_tipo = new Map<string, number>();
+      if (qTipo) por_tipo.set(qTipo, 1);
       byEmp.set(ek, {
         empleado_id: Number.isFinite(eid) ? eid : 0,
         no_empleado: no,
         nombre: nom,
         total: 1,
+        por_tipo,
       });
     }
 
@@ -113,7 +139,18 @@ export function computeRhIncidenciasEstadisticasFromFilas(
     .sort((a, b) => b.total - a.total)
     .slice(0, 10);
 
-  const empleados = [...byEmp.values()].sort((a, b) => b.total - a.total).slice(0, 10);
+  const empleados = [...byEmp.values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10)
+    .map((e) => ({
+      empleado_id: e.empleado_id,
+      no_empleado: e.no_empleado,
+      nombre: e.nombre,
+      total: e.total,
+      por_tipo: [...e.por_tipo.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([tipo, total]) => ({ tipo, total })),
+    }));
 
   const tipoRows = [...byTipo.entries()].sort((a, b) => b[1] - a[1]);
   const tipoTotal = tipoRows.reduce((s, [, c]) => s + c, 0);

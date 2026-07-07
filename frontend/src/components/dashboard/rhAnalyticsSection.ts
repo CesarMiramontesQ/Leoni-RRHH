@@ -3,6 +3,7 @@ import {
   RH_DASHBOARD_PERIOD_OPTIONS,
   RH_DASH_PERIOD_EMPTY_MSG,
 } from "../../dashboard/rh/analyticsTypes.ts";
+import { periodRangeIso } from "../../dashboard/rh/filterRowsByPeriod.ts";
 import { RH_LISTADO_SURFACE, RH_SOLICITUDES_BTN_SECONDARY } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
@@ -101,15 +102,23 @@ function blockErrors(errors: readonly string[]): string {
     </div>`;
 }
 
-function chartCard(title: string, subtitle: string, body: string): string {
+function chartCard(title: string, subtitle: string, body: string, action = ""): string {
   return `
     <article class="${CARD} flex min-h-0 flex-col">
-      <header class="mb-3 shrink-0">
-        <h4 class="text-sm font-bold text-[color:var(--color-text-primary)]">${escapeHtml(title)}</h4>
-        <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">${escapeHtml(subtitle)}</p>
+      <header class="mb-3 flex shrink-0 items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h4 class="text-sm font-bold text-[color:var(--color-text-primary)]">${escapeHtml(title)}</h4>
+          <p class="mt-0.5 text-xs text-[color:var(--color-text-secondary)]">${escapeHtml(subtitle)}</p>
+        </div>
+        ${action}
       </header>
       <div class="rh-dash-analytics-chart min-h-[220px] flex-1">${body}</div>
     </article>`;
+}
+
+/** Botón "Ver datos" que hace deep-link a la página con el filtro aplicado. */
+function verDatosButton(href: string): string {
+  return `<a href="${escapeHtml(href)}" class="${RH_SOLICITUDES_BTN_SECONDARY} shrink-0 whitespace-nowrap px-3 py-1.5 text-xs">Ver datos →</a>`;
 }
 
 function renderLaboralesBlock(payload: RhDashboardAnalyticsPayload): string {
@@ -120,11 +129,18 @@ function renderLaboralesBlock(payload: RhDashboardAnalyticsPayload): string {
     ? renderLaboralesKpiRow(k.solicitudes_pendientes, k.vacaciones_urgentes)
     : `<p class="text-sm text-text-muted">Indicadores laborales no disponibles.</p>`;
 
+  const { fechaInicio, fechaFin } = periodRangeIso(payload.periodDays);
+  const verDatosHref = (tipo: "retardo" | "falta_injustificada"): string =>
+    `#/faltas-retardos?tipo=${tipo}&fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
+  const hasRetardos = payload.laborales.empleadosRetardosRanking.length > 0;
+  const hasFaltas = payload.laborales.empleadosFaltasInjustificadasRanking.length > 0;
+
   const charts = `<div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
     ${chartCard(
       "Top 5 empleados con más retardos",
       "Retardos del historial de asistencia (importadas_historico) en el periodo seleccionado",
       renderDashEmpleadosRetardosChart(payload.laborales.empleadosRetardosRanking),
+      hasRetardos ? verDatosButton(verDatosHref("retardo")) : "",
     )}
     ${chartCard(
       "Top 5 empleados con más faltas injustificadas",
@@ -132,6 +148,7 @@ function renderLaboralesBlock(payload: RhDashboardAnalyticsPayload): string {
       renderDashEmpleadosFaltasInjustificadasChart(
         payload.laborales.empleadosFaltasInjustificadasRanking,
       ),
+      hasFaltas ? verDatosButton(verDatosHref("falta_injustificada")) : "",
     )}
   </div>`;
 

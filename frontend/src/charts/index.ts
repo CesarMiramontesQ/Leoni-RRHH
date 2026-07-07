@@ -11,7 +11,15 @@
  * @see https://www.chartjs.org/docs/latest/getting-started/integration.html
  */
 export { Chart, type ChartConfiguration, type ChartData, type ChartDataset, type ChartOptions, type ChartType } from "./chartSetup.ts";
-export { chartPalette, chartSemanticColors, cssVar, type ChartSemanticColors } from "./chartTokens.ts";
+export {
+  chartCategoricalPalette,
+  chartColorAt,
+  chartColorSlots,
+  chartPalette,
+  chartSemanticColors,
+  cssVar,
+  type ChartSemanticColors,
+} from "./chartTokens.ts";
 export {
   chartCartesianScales,
   chartCanvasHostHasDimensions,
@@ -19,6 +27,7 @@ export {
   destroyChart,
   destroyChartsIn,
   getChart,
+  isChartHealthy,
   mountChart,
   renderChartCanvas,
   renderChartLoadingSkeleton,

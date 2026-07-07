@@ -43,6 +43,20 @@ describe("buildSupervisorIncidenciasChart", () => {
     expect(data.tipos).toContain("retardo");
   });
 
+  it("agrega el no_empleado entre paréntesis en las etiquetas", () => {
+    const data = buildSupervisorIncidenciasChart(
+      [
+        fila({ id: 1, empleado_id: "10", no_empleado: "1234", empleado_nombre_raw: "LÓPEZ, ANA MARÍA", tipo: "retardo" }),
+        fila({ id: 2, empleado_id: "10", no_empleado: null, empleado_nombre_raw: "LÓPEZ, ANA MARÍA", tipo: "retardo" }),
+      ],
+      null,
+    );
+
+    expect(data.rows[0]?.no_empleado).toBe("1234");
+    expect(data.rows[0]?.empleado_nombre).toBe("LÓPEZ, ANA MARÍA (1234)");
+    expect(data.rows[0]?.empleado_nombre_corto).toBe("Ana López (1234)");
+  });
+
   it("colapsa tipos poco frecuentes en otros", () => {
     const filas: RhIncidenciaTablaFila[] = [];
     let id = 1;

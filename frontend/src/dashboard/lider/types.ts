@@ -87,6 +87,7 @@ export type LiderDashboardPayload = {
 /** Fila agregada para la gráfica de incidencias del supervisor. */
 export type SupervisorIncidenciasChartRow = {
   empleado_id: string;
+  no_empleado?: string | null;
   empleado_nombre: string;
   /** Etiqueta breve para eje X / tabla. */
   empleado_nombre_corto: string;

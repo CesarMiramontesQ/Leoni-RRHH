@@ -18,12 +18,10 @@ import {
 } from "../incidencias/rh/incidenciaListFilterHelpers.ts";
 import { incidenciasUiConfig } from "../incidencias/rh/incidenciasUiConfig.ts";
 import { buildRhSolicitudFilterOptions } from "../solicitudes/rh/buildRhSolicitudFilterOptions.ts";
-import { aggregateEmpleadosRetardosTop } from "../incidencias/rh/aggregateEmpleadosRetardosTop.ts";
 import {
   buildMetricasIncidenciasViewModel,
   type RhIncidenciasFilterCatalog,
 } from "../incidencias/rh/fetchRhIncidenciasAdminMock.ts";
-import type { SolicitudRankingRow } from "../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import { buildRhSolicitudesAdminViewModel } from "../solicitudes/rh/fetchRhSolicitudesAdminMock.ts";
 import { filterRhSolicitudRows } from "../solicitudes/rh/filterAndPaginateRhSolicitudes.ts";
 import {
@@ -139,7 +137,6 @@ function loadingFaltasRetardosViewModel(): FaltasRetardosMetricasViewModel {
     estadisticas: null,
     estadisticasStatus: "loading",
     estadisticasErrorMessage: undefined,
-    empleadosRetardosRanking: [],
     tendenciaFiltros: { fecha_inicio: "", fecha_fin: "" },
   };
 }
@@ -173,7 +170,6 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
   let frEstadisticas: FaltasRetardosEstadisticasData | null = null;
   let frEstadisticasStatus: FaltasRetardosMetricasViewModel["estadisticasStatus"] = "loading";
   let frEstadisticasError: string | undefined;
-  let frEmpleadosRetardosRanking: readonly SolicitudRankingRow[] = [];
   let frLoadSeq = 0;
 
   function buildFaltasRetardosMetricasVm(): FaltasRetardosMetricasViewModel {
@@ -181,7 +177,6 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       estadisticas: frEstadisticas,
       estadisticasStatus: frEstadisticasStatus,
       estadisticasErrorMessage: frEstadisticasError,
-      empleadosRetardosRanking: frEmpleadosRetardosRanking,
       tendenciaFiltros: {
         fecha_inicio: appliedFilters.fecha_inicio,
         fecha_fin: appliedFilters.fecha_fin,
@@ -245,7 +240,6 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
     frEstadisticasStatus = "loading";
     frEstadisticas = null;
     frEstadisticasError = undefined;
-    frEmpleadosRetardosRanking = [];
     paint();
 
     try {
@@ -254,16 +248,12 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
         filters.fecha_inicio ?? "",
         filters.fecha_fin ?? "",
       );
-      const filtersRetardo = { ...filters, tipo: "retardo" as const };
-      const [estadisticas, retardosEstadisticas] = await Promise.all([
-        getFaltasRetardosEstadisticas({ ...filters, tendencia_agrupacion: tendenciaAgrupacion }),
-        getFaltasRetardosEstadisticas(filtersRetardo).catch(() => null),
-      ]);
+      const estadisticas = await getFaltasRetardosEstadisticas({
+        ...filters,
+        tendencia_agrupacion: tendenciaAgrupacion,
+      });
       if (isStale()) return;
       frEstadisticas = estadisticas;
-      frEmpleadosRetardosRanking = retardosEstadisticas
-        ? aggregateEmpleadosRetardosTop(retardosEstadisticas.empleados_con_mas_eventos)
-        : [];
       frEstadisticasStatus = "ready";
       frEstadisticasError = undefined;
     } catch (err) {
@@ -281,7 +271,6 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       frEstadisticasStatus = "error";
       frEstadisticasError =
         fetchError?.detail || "No se pudieron cargar las estadísticas de faltas y retardos.";
-      frEmpleadosRetardosRanking = [];
     }
     if (isStale()) return;
     paint();

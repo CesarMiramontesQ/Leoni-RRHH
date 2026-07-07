@@ -34,17 +34,48 @@ export function chartSemanticColors(): ChartSemanticColors {
   };
 }
 
+/** Slots nombrados para mapas por dominio (una familia de color por slot). */
+export function chartColorSlots(): {
+  accent: string;
+  green: string;
+  amber: string;
+  red: string;
+  violet: string;
+  teal: string;
+  orange: string;
+  navy: string;
+  slate: string;
+} {
+  const c = chartSemanticColors();
+  return {
+    accent: c.accent,
+    green: c.leoniGreen,
+    amber: c.warning,
+    red: c.danger,
+    violet: "#9333EA",
+    teal: "#0891B2",
+    orange: "#EA580C",
+    navy: c.leoniBlue,
+    slate: c.textSecondary,
+  };
+}
+
+/**
+ * Paleta categórica de alto contraste para series múltiples.
+ * Evita tonos vecinos del mismo matiz (p. ej. dos azules o dos verdes).
+ */
+export function chartCategoricalPalette(): readonly string[] {
+  const s = chartColorSlots();
+  return [s.accent, s.green, s.violet, s.amber, s.teal, s.red, s.navy, s.orange, s.slate] as const;
+}
+
+/** Acceso estable por índice a la paleta categórica. */
+export function chartColorAt(index: number): string {
+  const palette = chartCategoricalPalette();
+  return palette[((index % palette.length) + palette.length) % palette.length]!;
+}
+
 /** Paleta por defecto para datasets (barras, líneas, dona). */
 export function chartPalette(): readonly string[] {
-  const c = chartSemanticColors();
-  return [
-    c.accent,
-    c.leoniGreen,
-    c.leoniBlue,
-    cssVar("--color-leoni-blue-light", "#0D3D66"),
-    c.warning,
-    c.danger,
-    cssVar("--color-kpi-metric-total-icon", "#1d4ed8"),
-    cssVar("--color-kpi-metric-inactivo-icon", "#f87171"),
-  ] as const;
+  return chartCategoricalPalette();
 }
