@@ -305,6 +305,52 @@ async def test_actualizar_tarea_legacy_put_descripcion(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_eliminar_tarea_recompacta_ordenes(client: AsyncClient, db):
+    """DELETE /perfiles/{id}/tareas/{tarea_id} renumera las restantes a 1..N."""
+    from app.models.talento import PerfilTarea
+
+    area = await make_area(db, descripcion="Delete Recompact Test")
+    rh = await make_empleado(db, rol="rh", email="pf_del_recompact_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, area_id=area.area_id, created_by=rh.id)
+
+    tareas_data = [
+        ("Tarea uno", 1),
+        ("Tarea dos", 2),
+        ("Tarea tres", 3),
+    ]
+    tareas: list[PerfilTarea] = []
+    for desc, orden in tareas_data:
+        t = PerfilTarea(
+            puesto_perfil_id=perfil.id,
+            orden=orden,
+            descripcion=desc,
+            es_complemento=False,
+        )
+        db.add(t)
+        tareas.append(t)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    tarea_a_borrar = tareas[1]
+    response = await client.delete(
+        f"/api/v1/perfiles/{perfil.id}/tareas/{tarea_a_borrar.id}",
+        headers=headers,
+    )
+    assert response.status_code == 204
+
+    list_response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/tareas",
+        headers=headers,
+    )
+    assert list_response.status_code == 200
+    data = list_response.json()
+    assert len(data) == 2
+    assert [t["orden"] for t in data] == [1, 2]
+    assert data[0]["descripcion"] == "Tarea uno"
+    assert data[1]["descripcion"] == "Tarea tres"
+
+
+@pytest.mark.asyncio
 async def test_crear_tarea_empleado_no_autorizado(client: AsyncClient, db):
     """POST /perfiles/{id}/tareas con rol empleado retorna 403."""
     area = await make_area(db, descripcion="Auth Tarea Test")

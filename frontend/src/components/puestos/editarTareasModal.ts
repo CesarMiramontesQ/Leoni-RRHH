@@ -1,7 +1,6 @@
 /**
  * Modal para editar tareas de un perfil de puesto (solo RH).
- * Permite buscar y asignar tareas del catálogo, crear nuevas inline,
- * eliminar y reordenar con drag & drop.
+ * Permite buscar y asignar tareas del catálogo, crear nuevas inline y eliminar.
  */
 
 import {
@@ -9,7 +8,6 @@ import {
   createPerfilTarea,
   updatePerfilTarea,
   deletePerfilTarea,
-  reorderPerfilTareas,
   type PerfilTarea,
 } from "../../api/puestos.ts";
 import {
@@ -53,7 +51,6 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 // ── Iconos (Heroicons, currentColor) ─────────────────────────────────────────
 const ICON_SEARCH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>`;
-const ICON_DRAG = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M7 4a1 1 0 11-2 0 1 1 0 012 0zM7 10a1 1 0 11-2 0 1 1 0 012 0zM6 17a1 1 0 100-2 1 1 0 000 2zM15 4a1 1 0 11-2 0 1 1 0 012 0zM14 10a1 1 0 11-2 0 1 1 0 012 0zM14 17a1 1 0 100-2 1 1 0 000 2z"/></svg>`;
 const ICON_TRASH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4Z" clip-rule="evenodd"/></svg>`;
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const ICON_PLUS = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>`;
@@ -98,7 +95,7 @@ function overlayHtml(): string {
           <div class="min-w-0">
             <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Perfil de puesto</p>
             <h2 id="editar-tareas-title" class="mt-0.5 text-lg font-semibold text-text-primary">Editar tareas</h2>
-            <p class="mt-1 text-sm text-text-muted">Asigna, ordena y clasifica las tareas del perfil.</p>
+            <p class="mt-1 text-sm text-text-muted">Asigna y clasifica las tareas del perfil.</p>
           </div>
           <button
             type="button"
@@ -137,8 +134,8 @@ function renderTareasList(tareas: PerfilTarea[], editingId: number | null): stri
   return `
     <section class="space-y-2">
       ${header}
-      <div id="tareas-sortable" class="max-h-64 space-y-1 overflow-y-auto pr-0.5">
-        ${tareas.map(t => {
+      <div id="tareas-list" class="max-h-64 space-y-1 overflow-y-auto pr-0.5">
+        ${tareas.map((t, i) => {
           if (editingId === t.id) {
             const catalogLinked = t.tarea_catalogo_id != null;
             const nombreVal = catalogLinked ? (t.tarea_catalogo_nombre ?? t.descripcion) : "";
@@ -172,10 +169,9 @@ function renderTareasList(tareas: PerfilTarea[], editingId: number | null): stri
               : "";
 
           return `
-          <div class="group flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 transition-colors hover:border-slate-200 hover:bg-active-tint active:cursor-grabbing"
-               draggable="true" data-tarea-id="${t.id}">
-            <span class="flex size-5 shrink-0 cursor-grab items-center justify-center text-slate-300 transition-colors group-hover:text-slate-400" aria-hidden="true">${ICON_DRAG}</span>
-            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue/10 font-mono text-[10px] font-bold tabular-nums text-leoni-blue" data-orden-badge>${t.orden}</span>
+          <div class="group flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 transition-colors hover:border-slate-200 hover:bg-active-tint"
+               data-tarea-id="${t.id}">
+            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue/10 font-mono text-[10px] font-bold tabular-nums text-leoni-blue" data-orden-badge>${i + 1}</span>
             <span class="min-w-0 flex-1">
               <span class="block truncate text-sm text-text-primary" title="${escapeHtml(t.descripcion)}">${escapeHtml(t.descripcion)}</span>
               ${nombreHint}
@@ -376,7 +372,6 @@ export function mountEditarTareasModal(
         renderAddForm(showCreateNew, filterTipo, filterCategoria, categoriasOpciones);
       bindDeleteButtons();
       bindEditButtons();
-      bindDragDrop();
       bindInteractions();
     } catch {
       body.innerHTML = `<p class="text-sm text-red-600">Error al cargar tareas.</p>`;
@@ -456,6 +451,10 @@ export function mountEditarTareasModal(
     });
   }
 
+  function nextOrden(): number {
+    return tareas.reduce((max, t) => Math.max(max, t.orden), 0) + 1;
+  }
+
   function bindDeleteButtons(): void {
     body.querySelectorAll<HTMLButtonElement>("[data-delete-tarea]").forEach(btn => {
       btn.addEventListener("click", async () => {
@@ -473,67 +472,6 @@ export function mountEditarTareasModal(
           loading = false;
         }
       });
-    });
-  }
-
-  function bindDragDrop(): void {
-    const container = body.querySelector("#tareas-sortable") as HTMLElement | null;
-    if (!container) return;
-
-    let draggedEl: HTMLElement | null = null;
-
-    container.addEventListener("dragstart", (e) => {
-      draggedEl = (e.target as HTMLElement).closest("[data-tarea-id]");
-      if (draggedEl) {
-        draggedEl.classList.add("opacity-50");
-        (e as DragEvent).dataTransfer!.effectAllowed = "move";
-      }
-    });
-
-    container.addEventListener("dragend", () => {
-      if (draggedEl) {
-        draggedEl.classList.remove("opacity-50");
-        draggedEl = null;
-      }
-    });
-
-    container.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      (e as DragEvent).dataTransfer!.dropEffect = "move";
-      const target = (e.target as HTMLElement).closest<HTMLElement>("[data-tarea-id]");
-      if (target && target !== draggedEl) {
-        const rect = target.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        if ((e as DragEvent).clientY < midY) {
-          container.insertBefore(draggedEl!, target);
-        } else {
-          container.insertBefore(draggedEl!, target.nextSibling);
-        }
-      }
-    });
-
-    container.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      if (loading) return;
-      loading = true;
-
-      const rows = container.querySelectorAll<HTMLElement>("[data-tarea-id]");
-      const reorderItems: { id: number; orden: number }[] = [];
-      rows.forEach((row, i) => {
-        const id = Number(row.dataset.tareaId);
-        const newOrden = i + 1;
-        reorderItems.push({ id, orden: newOrden });
-        const badge = row.querySelector("[data-orden-badge]");
-        if (badge) badge.textContent = String(newOrden);
-      });
-      try {
-        await reorderPerfilTareas(options.perfilId, reorderItems);
-        options.onSuccess();
-      } catch {
-        await refreshList();
-      } finally {
-        loading = false;
-      }
     });
   }
 
@@ -802,7 +740,7 @@ export function mountEditarTareasModal(
       btn.textContent = "Agregando…";
 
       try {
-        const orden = tareas.length + 1;
+        const orden = nextOrden();
         await createPerfilTarea(options.perfilId, {
           orden,
           tarea_catalogo_id: selectedCatalogo.id,
@@ -870,7 +808,7 @@ export function mountEditarTareasModal(
         const created = await createTareaCatalogo({ nombre, descripcion, categoria, es_complemento });
         categoriasOpciones = mergeCategoria(categoriasOpciones, created.categoria);
 
-        const orden = tareas.length + 1;
+        const orden = nextOrden();
         await createPerfilTarea(options.perfilId, {
           orden,
           tarea_catalogo_id: created.id,

@@ -303,6 +303,14 @@ class PerfilFuncionesService:
             raise NotFoundError(entidad="PerfilTarea", id=tarea_id)
 
         await self.tarea_repo.hard_delete(tarea_id)
+        await self._recompactar_ordenes_tareas(perfil_id)
+
+    async def _recompactar_ordenes_tareas(self, perfil_id: int) -> None:
+        tareas = await self.tarea_repo.list_by_perfil(perfil_id)
+        for i, tarea in enumerate(tareas, start=1):
+            if tarea.orden != i:
+                tarea.orden = i
+        await self.db.flush()
 
     async def reordenar_tareas(
         self, perfil_id: int, items: list, current_user: Empleado
