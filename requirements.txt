@@ -23,8 +23,12 @@ langchain-community==0.3.18
 langchain-ollama==0.2.3
 langchain-text-splitters==0.3.8
 
+# SQL Server datos-analisis (solo lectura) — DBAPI async ODBC + driver base.
+# Requiere el ODBC Driver 18 de Microsoft instalado en la imagen (ver Dockerfile).
+aioodbc==0.5.0
+pyodbc==5.2.0
+
 # Windows only — TRESS integration (descomentar en servidor Windows)
-# pyodbc==5.2.0
 # pywinauto==0.6.8
 # pywin32==308
 
