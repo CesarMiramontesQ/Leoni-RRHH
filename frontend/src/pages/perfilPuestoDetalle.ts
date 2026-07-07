@@ -29,6 +29,7 @@ import {
 } from "../ui/competenciaCategoria.ts";
 import { nivelRequeridoLabel, maxNivelActivoValor, ensureMetodosCalificacionCompetenciaLoaded } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
+import type { EditarCompetenciasModalHandle } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import type { EditarCualificacionesModalHandle } from "../components/puestos/editarCualificacionesModal.ts";
 import type { EditarTareasModalHandle } from "../components/puestos/editarTareasModal.ts";
 import { getPerfilCompetencias, getPerfilCualificaciones, updatePerfil, type PerfilCualificacion } from "../api/puestos.ts";
@@ -860,6 +861,7 @@ type PerfilDetalleController = {
   grados: GradoPuesto[];
   tareasModal: EditarTareasModalHandle | null;
   cualModal: EditarCualificacionesModalHandle | null;
+  competenciasModal: EditarCompetenciasModalHandle | null;
 };
 
 const perfilDetalleControllers = new WeakMap<HTMLElement, PerfilDetalleController>();
@@ -869,27 +871,21 @@ async function openEditarCompetenciasModal(
   host: HTMLElement | null,
   gradoId?: number,
 ): Promise<void> {
-  if (!host) return;
-
   let grado = gradoId != null ? ctrl.grados.find((g) => g.id === gradoId && g.activo) : undefined;
   if (!grado) {
     grado = ctrl.grados.find((g) => g.activo) ?? ctrl.grados[0];
   }
   if (!grado) {
-    showPerfilDetalleNotice(
-      host,
-      "Configura al menos un grado de puesto en Ajustes de perfiles → Grados en puestos antes de asignar competencias.",
-    );
+    if (host) {
+      showPerfilDetalleNotice(
+        host,
+        "Configura al menos un grado de puesto en Ajustes de perfiles → Grados en puestos antes de asignar competencias.",
+      );
+    }
     return;
   }
 
-  const modal = mountEditarCompetenciasModal(host, {
-    perfilId: ctrl.perfilId,
-    gradoId: grado.id,
-    gradoNombre: grado.nombre,
-    onSuccess: ctrl.reload,
-  });
-  modal.open();
+  ctrl.competenciasModal?.open({ gradoId: grado.id, gradoNombre: grado.nombre });
 }
 
 function showPerfilDetalleNotice(host: HTMLElement, message: string): void {
@@ -995,6 +991,7 @@ export function mountPerfilPuestoDetalle(container: HTMLElement, id: number): vo
     grados: [],
     tareasModal: null,
     cualModal: null,
+    competenciasModal: null,
   });
 
   const root = container.querySelector("#perfil-detalle-root");
@@ -1136,6 +1133,12 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
       const cualHost = contentEl.querySelector("#modal-host-cualificaciones") as HTMLElement;
       ctrl.cualModal = mountEditarCualificacionesModal(cualHost, { perfilId, onSuccess: reload });
+
+      const competenciasHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
+      ctrl.competenciasModal = mountEditarCompetenciasModal(competenciasHost, {
+        perfilId,
+        onSuccess: reload,
+      });
     }
   } catch {
     inner.innerHTML = `

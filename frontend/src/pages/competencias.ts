@@ -531,8 +531,15 @@ function renderDeleteConfirmModal(
 
 // ── Page mount ────────────────────────────────────────────────────────
 
-export function mountCompetencias(container: HTMLElement, signal: AbortSignal): void {
+let competenciasPageAc: AbortController | null = null;
+
+export function mountCompetencias(container: HTMLElement, _signal: AbortSignal): void {
+  competenciasPageAc?.abort();
+  competenciasPageAc = new AbortController();
+  const signal = competenciasPageAc.signal;
+
   let status: "loading" | "ready" | "error" = "loading";
+  let submitting = false;
   let activeTab: CompetenciasTab = "catalogo";
   let catalogoItems: Competencia[] = [];
   let catalogoFilter = "";
@@ -902,6 +909,9 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
       const form = (e.target as HTMLElement).closest("#comp-modal-form");
       if (!form) return;
       e.preventDefault();
+      if (submitting) return;
+
+      const submitBtn = (form as HTMLFormElement).querySelector<HTMLButtonElement>('button[type="submit"]');
       const fd = new FormData(form as HTMLFormElement);
       const nombre = (fd.get("nombre") as string)?.trim();
       const descripcion = (fd.get("descripcion") as string)?.trim();
@@ -933,6 +943,13 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
         return;
       }
 
+      submitting = true;
+      const submitLabel = submitBtn?.textContent ?? "";
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Guardando...";
+      }
+
       void (async () => {
         try {
           if (idRaw) {
@@ -952,6 +969,12 @@ export function mountCompetencias(container: HTMLElement, signal: AbortSignal): 
             return;
           }
           alert(fe?.detail || "Error al guardar");
+        } finally {
+          submitting = false;
+          if (submitBtn && showModal) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = submitLabel;
+          }
         }
       })();
     },
