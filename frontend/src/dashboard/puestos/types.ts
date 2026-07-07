@@ -1,6 +1,8 @@
 // ── Nivel de competencia ──────────────────────────────────────────────
 export type NivelCompetencia = 1 | 2 | 3 | 4;
 
+export type TipoPuestoPerfil = "administrativo" | "operativo";
+
 // ── Competencia tecnica ───────────────────────────────────────────────
 export type CompetenciaTecnica = {
   id: string;
@@ -41,6 +43,7 @@ export type PerfilPuesto = {
   area: string;
   nivel_id: number;
   nivel_nombre: string;
+  tipo: TipoPuestoPerfil;
   recomendaciones_ia: IaRecomendacion[];
   version: string; // e.g. "3.2"
   ultima_actualizacion: string; // ISO datetime
@@ -54,6 +57,7 @@ export type PerfilPuestoListItem = {
   area: string;
   nivel_id: number;
   nivel_nombre: string;
+  tipo: TipoPuestoPerfil;
   version: string;
   ultima_actualizacion: string;
 };
@@ -65,6 +69,7 @@ export type PerfilPuestoCreatePayload = {
   area: string;
   area_id: number | null;
   nivel_id: number;
+  tipo: TipoPuestoPerfil;
 };
 
 export type PerfilPuestoUpdatePayload = {
@@ -73,6 +78,7 @@ export type PerfilPuestoUpdatePayload = {
   area?: string;
   area_id?: number | null;
   nivel_id?: number;
+  tipo?: TipoPuestoPerfil;
 };
 
 // ── Respuesta de generacion IA ────────────────────────────────────────

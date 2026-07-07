@@ -60,6 +60,7 @@ async def test_create_puesto_perfil_success(client: AsyncClient, db):
     assert body["area_id"] == area.area_id
     assert body["nivel_id"] == nivel.id
     assert body["nivel_nombre"] == "Senior"
+    assert body["tipo"] == "administrativo"
     assert body["created_by"] == rh.id
 
 
@@ -91,6 +92,56 @@ async def test_create_puesto_perfil_duplicate_nombre(client: AsyncClient, db):
     )
     assert response2.status_code == 409
     assert "ya existe" in response2.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# test_create_puesto_perfil_tipo_operativo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_puesto_perfil_tipo_operativo(client: AsyncClient, db):
+    """Crear perfil con tipo operativo explícito → 201."""
+    nivel = await make_nivel_puesto(db, nombre="Nivel Operativo")
+    rh = await make_empleado(db, rol="rh", email="pp_tipo_op@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            **PERFIL_PAYLOAD_BASE,
+            "nombre": "Operador de Linea",
+            "nivel_id": nivel.id,
+            "tipo": "operativo",
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["tipo"] == "operativo"
+
+
+# ---------------------------------------------------------------------------
+# test_update_puesto_perfil_tipo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_update_puesto_perfil_tipo(client: AsyncClient, db):
+    """Actualizar tipo de perfil → 200 y persiste."""
+    area = await make_area(db, descripcion="Area Tipo Update")
+    rh = await make_empleado(db, rol="rh", email="pp_tipo_upd@leoni.test")
+    headers = await auth_headers(client, rh)
+    perfil = await make_puesto_perfil(
+        db, nombre="Perfil Tipo Update", area_id=area.area_id, nivel_id=(await make_nivel_puesto(db, nombre="Nivel Tipo")).id
+    )
+
+    response = await client.put(
+        f"/api/v1/puestos-perfil/{perfil.id}",
+        json={"tipo": "operativo"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["tipo"] == "operativo"
 
 
 # ---------------------------------------------------------------------------

@@ -3281,6 +3281,11 @@ components:
           type: [integer, "null"]
         nivel_id:
           type: integer
+        tipo:
+          type: string
+          enum: [administrativo, operativo]
+          default: administrativo
+          description: Clasificacion del puesto
         descripcion:
           type: [string, "null"]
         competencias_tecnicas:
@@ -3301,6 +3306,11 @@ components:
           type: [integer, "null"]
         nivel_id:
           type: integer
+        tipo:
+          type: string
+          enum: [administrativo, operativo]
+          default: administrativo
+          description: Clasificacion del puesto
         descripcion:
           type: [string, "null"]
         competencias_tecnicas:
@@ -3815,7 +3825,7 @@ components:
 
     PuestoPerfilResponse:
       type: object
-      required: [id, codigo, nombre, nivel_id, nivel_nombre, version, activo, created_at, updated_at]
+      required: [id, codigo, nombre, nivel_id, nivel_nombre, tipo, version, activo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -3831,6 +3841,9 @@ components:
           type: integer
         nivel_nombre:
           type: string
+        tipo:
+          type: string
+          enum: [administrativo, operativo]
         descripcion:
           type: [string, "null"]
         competencias_tecnicas:

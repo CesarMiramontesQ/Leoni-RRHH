@@ -64,6 +64,7 @@ class PuestoPerfilService:
             area_nombre=area_nombre,
             nivel_id=perfil.nivel_id,
             nivel_nombre=nivel_nombre,
+            tipo=perfil.tipo,
             descripcion=perfil.descripcion,
             version=perfil.version,
             activo=perfil.activo,
@@ -155,6 +156,7 @@ class PuestoPerfilService:
             "nombre": data.nombre,
             "area_id": data.area_id,
             "nivel_id": data.nivel_id,
+            "tipo": data.tipo,
             "descripcion": data.descripcion,
             "version": 1,
             "activo": True,
@@ -197,6 +199,8 @@ class PuestoPerfilService:
         if data.nivel_id is not None:
             await self.nivel_service.validar_nivel_activo(data.nivel_id)
             update_data["nivel_id"] = data.nivel_id
+        if data.tipo is not None:
+            update_data["tipo"] = data.tipo
         if data.descripcion is not None:
             update_data["descripcion"] = data.descripcion
 

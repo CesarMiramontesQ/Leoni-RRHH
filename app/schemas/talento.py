@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 # ── Puestos Perfil ───────────────────────────────────────────────────────────
 
+TipoPuestoPerfil = Literal["administrativo", "operativo"]
+
 
 class PuestoPerfilCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
@@ -19,6 +21,10 @@ class PuestoPerfilCreate(BaseModel):
     nombre: str = Field(..., min_length=3, max_length=255)
     area_id: Optional[int] = None
     nivel_id: int = Field(..., description="ID del nivel de puesto")
+    tipo: TipoPuestoPerfil = Field(
+        default="administrativo",
+        description="Clasificacion del puesto: administrativo u operativo",
+    )
     descripcion: Optional[str] = None
 
 
@@ -28,6 +34,7 @@ class PuestoPerfilUpdate(BaseModel):
     nombre: Optional[str] = Field(None, min_length=3, max_length=255)
     area_id: Optional[int] = None
     nivel_id: Optional[int] = None
+    tipo: Optional[TipoPuestoPerfil] = None
     descripcion: Optional[str] = None
 
 
@@ -41,6 +48,7 @@ class PuestoPerfilResponse(BaseModel):
     area_nombre: Optional[str] = None
     nivel_id: int
     nivel_nombre: str
+    tipo: TipoPuestoPerfil
     descripcion: Optional[str] = None
     version: int
     activo: bool

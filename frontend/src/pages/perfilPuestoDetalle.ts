@@ -3,6 +3,7 @@ import { escapeHtml } from "../ui/uiUtils.ts";
 import { getAccessToken } from "../auth/session.ts";
 import {
   FIELD_FOCUS,
+  FIELD_INPUT,
   MODAL_OVERLAY,
   MODAL_PANEL,
   RH_LISTADO_BTN_GHOST,
@@ -32,7 +33,10 @@ import { mountEditarCompetenciasModal } from "../components/puestos/editarCompet
 import type { EditarCompetenciasModalHandle } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import type { EditarCualificacionesModalHandle } from "../components/puestos/editarCualificacionesModal.ts";
 import type { EditarTareasModalHandle } from "../components/puestos/editarTareasModal.ts";
-import { getPerfilCompetencias, getPerfilCualificaciones, updatePerfil, type PerfilCualificacion } from "../api/puestos.ts";
+import { getPerfilCompetencias, getPerfilCualificaciones, updatePerfil, getAreasOptions, type PerfilCualificacion, type AreaOption } from "../api/puestos.ts";
+import { getNivelesPuesto } from "../api/nivelesPuesto.ts";
+import type { NivelPuesto } from "../dashboard/nivelesPuesto/types.ts";
+import type { TipoPuestoPerfil } from "../dashboard/puestos/types.ts";
 import type { CriterioRequerido } from "../dashboard/cualificaciones/types.ts";
 import { getGradosPuesto } from "../api/gradosPuesto.ts";
 import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
@@ -45,8 +49,11 @@ interface PuestoPerfilInfo {
   id: number;
   codigo: string;
   nombre: string;
+  area_id: number | null;
   area_nombre: string | null;
+  nivel_id: number;
   nivel_nombre: string | null;
+  tipo: TipoPuestoPerfil;
   descripcion: string | null;
   version: number;
   activo: boolean;
@@ -939,16 +946,13 @@ async function handlePerfilDetalleClick(container: HTMLElement, ev: Event): Prom
       );
       break;
     }
-    case "edit-base":
-      if (ctrl.puesto) {
-        openEditBaseModal(
-          inner.querySelector("#modal-host-edit-base") as HTMLElement,
-          ctrl.puesto,
-          ctrl.perfilId,
-          ctrl.reload,
-        );
+    case "edit-base": {
+      const editHost = inner.querySelector("#modal-host-edit-base");
+      if (ctrl.puesto && editHost instanceof HTMLElement) {
+        await openEditBaseModal(editHost, ctrl.puesto, ctrl.perfilId, ctrl.reload);
       }
       break;
+    }
     case "add-curso":
       openAsignarCursoModal(
         inner.querySelector("#modal-host-cursos") as HTMLElement,
@@ -1320,24 +1324,64 @@ function openAsignarCursoModal(
   searchInput.focus();
 }
 
-// ── Modal editar datos base (misma lógica) ────────────────────────────────
+// ── Modal editar datos base ────────────────────────────────────────────────
 
-function openEditBaseModal(
+async function openEditBaseModal(
   host: HTMLElement,
   puesto: PuestoPerfilInfo,
   perfilId: number,
   onSuccess: () => void,
-): void {
+): Promise<void> {
   const overlayId = "edit-base-overlay";
 
   host.innerHTML = `
     <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
-      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-md" role="dialog" aria-modal="true" aria-labelledby="edit-base-title">
+      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-lg" role="dialog" aria-modal="true" aria-labelledby="edit-base-title">
+        <div class="border-b border-slate-100 px-6 py-5">
+          <p class="text-sm text-text-muted">Cargando formulario…</p>
+        </div>
+      </div>
+    </div>`;
+  document.body.style.overflow = "hidden";
+
+  let areas: AreaOption[] = [];
+  let niveles: NivelPuesto[] = [];
+  try {
+    [areas, niveles] = await Promise.all([
+      getAreasOptions(),
+      getNivelesPuesto({ page_size: 200 }),
+    ]);
+  } catch {
+    host.innerHTML = "";
+    document.body.style.overflow = "";
+    return;
+  }
+
+  const areaId = puesto.area_id != null ? String(puesto.area_id) : "";
+  const nivelId = String(puesto.nivel_id);
+  const tipo = puesto.tipo === "operativo" ? "operativo" : "administrativo";
+
+  const areaOpts = areas
+    .map(
+      (a) =>
+        `<option value="${a.id}" ${areaId === String(a.id) ? "selected" : ""}>${escapeHtml(a.label)}</option>`,
+    )
+    .join("");
+  const nivelOpts = niveles
+    .map(
+      (n) =>
+        `<option value="${n.id}" ${nivelId === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`,
+    )
+    .join("");
+
+  host.innerHTML = `
+    <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
+      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-lg" role="dialog" aria-modal="true" aria-labelledby="edit-base-title">
         <div class="border-b border-slate-100 px-6 py-5">
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 id="edit-base-title" class="text-lg font-semibold text-text-primary">Editar perfil</h2>
-              <p class="mt-1 text-sm text-text-muted">Nombre y nivel organizacional del puesto.</p>
+              <p class="mt-1 text-sm text-text-muted">Nombre, área, nivel y tipo del puesto.</p>
             </div>
             <button type="button" id="edit-base-close" class="rounded-lg p-1.5 text-text-muted transition hover:bg-slate-100 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-leoni-blue/40" aria-label="Cerrar">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true">
@@ -1347,20 +1391,45 @@ function openEditBaseModal(
           </div>
         </div>
         <p id="edit-base-error" class="mx-6 hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></p>
-        <form id="form-edit-base" class="space-y-4 px-6 py-5">
+        <form id="form-edit-base" class="flex flex-col gap-4 px-6 py-5">
           <div>
-            <label for="eb-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto</label>
+            <label for="eb-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto <span class="text-red-600" aria-hidden="true">*</span></label>
             <input id="eb-nombre" name="nombre_puesto" type="text" required value="${escapeHtml(puesto.nombre)}"
-              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
+              class="${FIELD_INPUT}" />
           </div>
           <div>
-            <label for="eb-nivel" class="${RH_LISTADO_LABEL}">Nivel</label>
-            <input id="eb-nivel" name="nivel" type="text" value="${safeText(puesto.nivel_nombre, "")}"
-              class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
+            <label for="eb-area" class="${RH_LISTADO_LABEL}">Área <span class="text-red-600" aria-hidden="true">*</span></label>
+            <div class="grid grid-cols-1">
+              <select id="eb-area" name="area" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="" disabled ${!areaId ? "selected" : ""}>Seleccionar área…</option>
+                ${areaOpts}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div>
+            <label for="eb-nivel" class="${RH_LISTADO_LABEL}">Nivel <span class="text-red-600" aria-hidden="true">*</span></label>
+            <div class="grid grid-cols-1">
+              <select id="eb-nivel" name="nivel_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="" disabled ${!nivelId ? "selected" : ""}>Selecciona un nivel…</option>
+                ${nivelOpts}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div>
+            <label for="eb-tipo" class="${RH_LISTADO_LABEL}">Tipo <span class="text-red-600" aria-hidden="true">*</span></label>
+            <div class="grid grid-cols-1">
+              <select id="eb-tipo" name="tipo" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="administrativo" ${tipo === "administrativo" ? "selected" : ""}>Administrativo</option>
+                <option value="operativo" ${tipo === "operativo" ? "selected" : ""}>Operativo</option>
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
             <button type="button" id="edit-base-cancel" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
-            <button type="submit" id="edit-base-submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto">Guardar</button>
+            <button type="submit" id="edit-base-submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto">Guardar cambios</button>
           </div>
         </form>
       </div>
@@ -1375,7 +1444,6 @@ function openEditBaseModal(
     document.body.style.overflow = "";
   }
 
-  document.body.style.overflow = "hidden";
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();
   });
@@ -1395,19 +1463,31 @@ function openEditBaseModal(
     ev.preventDefault();
     const fd = new FormData(form);
     const nombre_puesto = String(fd.get("nombre_puesto") ?? "").trim();
+    const areaRaw = String(fd.get("area") ?? "").trim();
+    const nivelRaw = String(fd.get("nivel_id") ?? "").trim();
+    const tipoRaw = String(fd.get("tipo") ?? "").trim();
+    const areaIdNum = areaRaw ? Number(areaRaw) : null;
+    const nivelIdNum = Number(nivelRaw);
+    const tipoValue: TipoPuestoPerfil | null =
+      tipoRaw === "administrativo" || tipoRaw === "operativo" ? tipoRaw : null;
 
-    if (!nombre_puesto) {
-      errorEl.textContent = "El nombre es requerido.";
+    if (!nombre_puesto || !areaRaw || !nivelRaw || Number.isNaN(nivelIdNum) || !tipoValue) {
+      errorEl.textContent = "Completa todos los campos requeridos.";
       errorEl.classList.remove("hidden");
       return;
     }
 
     const submitBtn = host.querySelector("#edit-base-submit") as HTMLButtonElement;
     submitBtn.disabled = true;
-    submitBtn.textContent = "Guardando...";
+    submitBtn.textContent = "Guardando…";
 
     try {
-      await updatePerfil(perfilId, { nombre_puesto });
+      await updatePerfil(perfilId, {
+        nombre_puesto,
+        area_id: areaIdNum,
+        nivel_id: nivelIdNum,
+        tipo: tipoValue,
+      });
       close();
       document.removeEventListener("keydown", escHandler);
       onSuccess();
@@ -1416,7 +1496,7 @@ function openEditBaseModal(
       errorEl.textContent = detail;
       errorEl.classList.remove("hidden");
       submitBtn.disabled = false;
-      submitBtn.textContent = "Guardar";
+      submitBtn.textContent = "Guardar cambios";
     }
   });
 }

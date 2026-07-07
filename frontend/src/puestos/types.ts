@@ -16,4 +16,5 @@ export type {
   GenerateAiResponse,
   PuestosPageStatus,
   PuestosFilterState,
+  TipoPuestoPerfil,
 } from "../dashboard/puestos/types.ts";

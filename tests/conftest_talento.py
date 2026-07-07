@@ -199,6 +199,7 @@ async def make_puesto_perfil(
         nombre=nombre,
         area_id=area_id,
         nivel_id=nivel_id,
+        tipo="administrativo",
         descripcion=descripcion,
         version=version,
         activo=activo,
