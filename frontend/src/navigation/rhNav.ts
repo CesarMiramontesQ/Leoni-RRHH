@@ -6,6 +6,7 @@ import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 import { COMEDOR_SIDEBAR_ITEM, COMEDOR_NAV_ITEMS } from "./comedorNav.ts";
 import { CURSOS_SIDEBAR_ITEM, getVisibleCursosNavItems } from "./cursosNav.ts";
+import { PERSONAL_EXTERNO_SIDEBAR_ITEM, getVisiblePersonalExternoNavItems } from "./personalExternoNav.ts";
 import { CUMPLIMIENTO_SIDEBAR_ITEM, getVisibleCumplimientoNavItems } from "./cumplimientoNav.ts";
 import { LABORALES_SIDEBAR_ITEM, LABORALES_NAV_ITEMS } from "./laboralesNav.ts";
 import { getVisibleLevelUpCategoriesForRhSidebar, LEVEL_UP_SIDEBAR_ITEM } from "./levelUpNav.ts";
@@ -31,10 +32,16 @@ export type RhNavKey =
   | "competencias"
   | "tareas-catalogo"
   | "evaluaciones"
+  | "pdi-gestion"
   | "capacidades"
   | "cursos"
   | "cursos-seguimiento"
   | "cursos-ajustes"
+  | "cursos-juntas"
+  | "personal-externo"
+  | "cursos-proveedores"
+  | "cursos-externos"
+  | "cursos-vencimientos"
   | "sesiones"
   | "opls"
   | "evidencias"
@@ -129,6 +136,17 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
       sectionKey: "cursos",
       iconSvgPaths: CURSOS_SIDEBAR_ITEM.svgPaths,
       items: cursosItems,
+    });
+  }
+
+  const personalExternoItems = getVisiblePersonalExternoNavItems(rol);
+  if (personalExternoItems.length > 0) {
+    sections.push({
+      id: "personal-externo",
+      title: PERSONAL_EXTERNO_SIDEBAR_ITEM.label,
+      sectionKey: "personal-externo",
+      iconSvgPaths: PERSONAL_EXTERNO_SIDEBAR_ITEM.svgPaths,
+      items: personalExternoItems,
     });
   }
 

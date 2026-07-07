@@ -231,6 +231,8 @@ from app.api.v1.horas_extra.router import router as horas_extra_router
 from app.api.v1.faltas_retardos.router import router as faltas_retardos_router
 from app.api.v1.viajes_laborales.router import router as viajes_laborales_router
 from app.api.v1.evaluacion360.router import router as evaluacion360_router
+from app.api.v1.juntas.router import router as juntas_router
+from app.api.v1.proveedores_externos.router import router as proveedores_externos_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -270,6 +272,8 @@ app.include_router(horas_extra_router)
 app.include_router(faltas_retardos_router)
 app.include_router(viajes_laborales_router)
 app.include_router(evaluacion360_router)
+app.include_router(juntas_router)
+app.include_router(proveedores_externos_router)
 
 
 # ── Root ──────────────────────────────────────────────────────

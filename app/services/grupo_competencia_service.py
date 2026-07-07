@@ -7,6 +7,7 @@ from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import GrupoCompetencia
+from app.repositories.competencia_repository import CompetenciaRepository
 from app.repositories.grupo_competencia_repository import GrupoCompetenciaRepository
 from app.schemas.grupos_competencia import (
     GrupoCompetenciaCreate,
@@ -14,12 +15,14 @@ from app.schemas.grupos_competencia import (
     GrupoCompetenciaResponse,
     GrupoCompetenciaUpdate,
 )
+from app.utils.competencia_categoria import categoria_desde_grupo_nombre
 
 
 class GrupoCompetenciaService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = GrupoCompetenciaRepository(db)
+        self.competencia_repo = CompetenciaRepository(db)
 
     @staticmethod
     def _get_rol(user: Empleado) -> str:
@@ -99,6 +102,9 @@ class GrupoCompetenciaService:
 
         await self.repo.update(id, {"nombre": data.nombre})
         grupo = await self.repo.get(id)
+        if grupo:
+            categoria = categoria_desde_grupo_nombre(grupo.nombre)
+            await self.competencia_repo.actualizar_categoria_por_grupo(grupo.id, categoria)
         return self._to_response(grupo)
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:

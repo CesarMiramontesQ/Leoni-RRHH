@@ -19,6 +19,30 @@ type RhModulePermissionsState = {
   enListaPermisos: boolean;
 };
 
+/** Claves legacy → hijas (alineado con app/core/rh_module_registry.py). */
+const LEGACY_MODULE_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  comedor: ["comedor-registro", "comedor-gestion", "comedor-planear"],
+  puestos: ["puestos-ajustes"],
+  cursos: [
+    "cursos-seguimiento",
+    "sesiones",
+    "cursos-ajustes",
+    "juntas",
+    "proveedores-externos",
+    "cursos-externos",
+    "cursos-vencimientos",
+  ],
+  "level-up": ["evaluacion-360"],
+};
+
+function moduleGranted(moduleKey: string): boolean {
+  if (state.modules[moduleKey] === true) return true;
+  for (const [legacy, targets] of Object.entries(LEGACY_MODULE_ALIASES)) {
+    if (targets.includes(moduleKey) && state.modules[legacy] === true) return true;
+  }
+  return false;
+}
+
 const state: RhModulePermissionsState = {
   loaded: false,
   enrolled: false,
@@ -89,14 +113,14 @@ export function canAccessRhPermisosAdmin(): boolean {
 export function hasExplicitModuleGrant(moduleKey: string): boolean {
   if (!state.enrolled) return false;
   if (isAdminUser()) return true;
-  return state.modules[moduleKey] === true;
+  return moduleGranted(moduleKey);
 }
 
 /** Control de acceso RH: admin operativo, Modo RH inscrito o grant explícito. */
 export function hasRhModule(moduleKey: string): boolean {
   if (isAdminUser() && isRhOperativoUiMode()) return true;
   if (!state.loaded) return true;
-  if (isNonRhRhMode() && state.enrolled) return state.modules[moduleKey] === true;
+  if (isNonRhRhMode() && state.enrolled) return moduleGranted(moduleKey);
   return hasExplicitModuleGrant(moduleKey);
 }
 

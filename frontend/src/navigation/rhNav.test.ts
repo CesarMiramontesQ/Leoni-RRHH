@@ -50,6 +50,7 @@ const allowedModules = new Set<string>([
   "tareas-catalogo",
   "puestos-ajustes",
   "evaluaciones",
+  "pdi-gestion",
   "opls",
   "evidencias",
   "sugerencias",
@@ -71,6 +72,7 @@ describe("rhNav sections", () => {
     allowedModules.add("tareas-catalogo");
     allowedModules.add("puestos-ajustes");
     allowedModules.add("evaluaciones");
+    allowedModules.add("pdi-gestion");
     allowedModules.add("opls");
     allowedModules.add("evidencias");
     allowedModules.add("sugerencias");
@@ -97,6 +99,28 @@ describe("rhNav sections", () => {
     expect(levelUpSection?.items.some((item) => item.key === "cursos")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "sesiones")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
+  });
+
+  it("expone Personal Externo como sección de primer nivel con sus tres subpáginas", async () => {
+    allowedModules.add("proveedores-externos");
+    allowedModules.add("cursos-externos");
+    allowedModules.add("cursos-vencimientos");
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("supervisor");
+
+    const peSection = sections.find((section) => section.id === "personal-externo");
+    const cursosSection = sections.find((section) => section.id === "cursos");
+
+    expect(peSection?.title).toBe("Personal Externo");
+    expect(peSection?.items.map((item) => item.key)).toEqual([
+      "cursos-proveedores",
+      "cursos-externos",
+      "cursos-vencimientos",
+    ]);
+    // Ya no cuelgan del acordeón Cursos.
+    expect(cursosSection?.items.some((item) => item.key === "cursos-proveedores")).toBe(false);
+    expect(cursosSection?.items.some((item) => item.key === "cursos-externos")).toBe(false);
+    expect(cursosSection?.items.some((item) => item.key === "cursos-vencimientos")).toBe(false);
   });
 
   it("expone Puestos como sección independiente sin duplicar ítems en Level Up", async () => {
@@ -129,6 +153,7 @@ describe("rhNav sections", () => {
     expect(cumplimientoSection?.title).toBe("Cumplimiento");
     expect(cumplimientoSection?.items.map((item) => item.key)).toEqual([
       "evaluaciones",
+      "pdi-gestion",
       "opls",
       "evidencias",
       "sugerencias",
@@ -215,6 +240,11 @@ describe("rhNav sections", () => {
         label: "Evaluaciones",
       }),
       expect.objectContaining({
+        key: "pdi-gestion",
+        href: "#/pdi-gestion",
+        label: "Gestión PDI",
+      }),
+      expect.objectContaining({
         key: "opls",
         href: "#/opls",
         label: "Manejo de OPLs",
@@ -266,6 +296,7 @@ describe("rhNav sections", () => {
 
   it("omite Cumplimiento cuando no hay ítems visibles", async () => {
     allowedModules.delete("evaluaciones");
+    allowedModules.delete("pdi-gestion");
     allowedModules.delete("opls");
     allowedModules.delete("evidencias");
     allowedModules.delete("sugerencias");

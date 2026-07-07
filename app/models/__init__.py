@@ -83,6 +83,16 @@ from app.models.level_up import (
     PlanDesarrollo,
     PlanEtapa,
 )
+from app.models.juntas import (
+    Junta,
+    JuntaAsistente,
+)
+from app.models.proveedores_externos import (
+    Proveedor,
+    ProveedorPersona,
+    CursoExterno,
+    ProveedorPersonaCurso,
+)
 from app.models.evaluacion360 import (
     Eval360Config,
     Eval360Escala,
@@ -186,6 +196,8 @@ __all__ = [
     "PlanDesarrollo",
     "PlanEtapa",
     "PlanDesarrolloIndividual",
+    "Junta",
+    "JuntaAsistente",
     "Eval360Config",
     "Eval360Escala",
     "Eval360Pregunta",

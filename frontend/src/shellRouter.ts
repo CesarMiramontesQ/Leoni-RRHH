@@ -3,16 +3,17 @@ import {
   empleadoMayAccessHash,
   isRhHomeHash,
   modulosMayAccessHash,
-  resolveRhOperativoLandingHash,
+  resolveRhModoHomeHash,
   resolveRhModeLandingHash,
   resolveRoutedHashForRol,
+  RH_MODO_INICIO_HASH,
   RH_SIN_PERMISOS_HASH,
   rhMayAccessHash,
   supervisorMayAccessHash,
   usesSupervisorRoutePolicy,
 } from "./navigation/shellNavPolicy.ts";
 import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
-import { isAdminUser, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
+import { isAdminUser, isNonRhRhMode, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
 import { mountActas } from "./pages/actas.ts";
@@ -32,6 +33,10 @@ import { mountMetricas } from "./pages/metricas.ts";
 import { mountSolicitudes } from "./pages/solicitudes.ts";
 import { mountCompetencias } from "./pages/competencias.ts";
 import { mountTareasCatalogo } from "./pages/tareasCatalogo.ts";
+import { mountCursosJuntas } from "./pages/cursosJuntas.ts";
+import { mountCursosProveedores } from "./pages/cursosProveedores.ts";
+import { mountCursosExternos } from "./pages/cursosExternos.ts";
+import { mountCursosVencimientos } from "./pages/cursosVencimientos.ts";
 import { mountEvaluaciones } from "./pages/evaluaciones.ts";
 import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
@@ -65,6 +70,7 @@ import { mountHorasExtra } from "./pages/horasExtra.ts";
 import { mountHorasExtraAprobaciones } from "./pages/horasExtraAprobaciones.ts";
 import { mountHorasExtraSolicitud } from "./pages/horasExtraSolicitud.ts";
 import { mountGestionPdi } from "./pages/gestionPdi.ts";
+import { mountRhModoInicio } from "./pages/rhModoInicio.ts";
 
 let routeAbort: AbortController | null = null;
 
@@ -88,6 +94,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     // RH-exclusiva (ajustes, actas, reporte comedor, evaluación 360) sería enviado a #/.
     const enrolledNonRh = !isAdminUser() && isModulosRhEnrolled();
     const adminRhOperativo = isAdminUser() && isRhOperativoUiMode();
+    const nonRhInRhMode = enrolledNonRh && isNonRhRhMode();
     if (!enrolledNonRh && !adminRhOperativo) {
       if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
         history.replaceState(null, "", "#/");
@@ -98,8 +105,8 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       }
     }
     const rol = getRolFromAccessToken();
-    if (isAdminUser() && isRhOperativoUiMode() && isRhHomeHash(rawHash) && !rhMayAccessHash("#/")) {
-      const landing = resolveRhOperativoLandingHash() ?? RH_SIN_PERMISOS_HASH;
+    if ((adminRhOperativo || nonRhInRhMode) && isRhHomeHash(rawHash) && !modulosMayAccessHash("#/", rol)) {
+      const landing = resolveRhModoHomeHash();
       if (landing !== rawHash) {
         history.replaceState(null, "", landing);
         rawHash = landing;
@@ -132,6 +139,11 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     destroyAllCharts();
     if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
       mountRhSinPermisosDisponibles(container);
+      return;
+    }
+
+    if (h.startsWith(RH_MODO_INICIO_HASH)) {
+      mountRhModoInicio(container);
       return;
     }
 
@@ -236,6 +248,22 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h === "#/cursos/seguimiento" || h.startsWith("#/cursos/seguimiento/")) {
       mountCursosSeguimiento(container);
+      return;
+    }
+    if (h.startsWith("#/cursos/juntas")) {
+      mountCursosJuntas(container, signal);
+      return;
+    }
+    if (h.startsWith("#/cursos/proveedores")) {
+      mountCursosProveedores(container, signal);
+      return;
+    }
+    if (h.startsWith("#/cursos/externos")) {
+      mountCursosExternos(container, signal);
+      return;
+    }
+    if (h.startsWith("#/cursos/vencimientos")) {
+      mountCursosVencimientos(container, signal);
       return;
     }
     if (h.startsWith("#/cursos")) {

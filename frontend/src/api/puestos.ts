@@ -5,6 +5,7 @@ import type {
   PerfilPuestoCreatePayload,
   PerfilPuestoUpdatePayload,
   GenerateAiResponse,
+  TipoPuestoPerfil,
 } from "../dashboard/puestos/types.ts";
 
 // ── Error type ────────────────────────────────────────────────────────
@@ -32,6 +33,10 @@ function throwIfNotOk(res: Response, detail: string): never {
   throw err;
 }
 
+function mapTipoPuestoPerfil(value: unknown): TipoPuestoPerfil {
+  return value === "operativo" ? "operativo" : "administrativo";
+}
+
 // ── Mapping helper ────────────────────────────────────────────────────
 function mapBackendToPerfilPuesto(p: Record<string, unknown>): PerfilPuesto {
   return {
@@ -41,6 +46,7 @@ function mapBackendToPerfilPuesto(p: Record<string, unknown>): PerfilPuesto {
     area: (p.area_nombre ?? "") as string,
     nivel_id: p.nivel_id as number,
     nivel_nombre: (p.nivel_nombre ?? "") as string,
+    tipo: mapTipoPuestoPerfil(p.tipo),
     recomendaciones_ia: [] as PerfilPuesto["recomendaciones_ia"],
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
@@ -111,6 +117,7 @@ export async function getPerfilesList(opts?: {
     area: (p.area_nombre ?? "") as string,
     nivel_id: p.nivel_id as number,
     nivel_nombre: (p.nivel_nombre ?? "") as string,
+    tipo: mapTipoPuestoPerfil(p.tipo),
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
   }));
@@ -127,9 +134,11 @@ export async function getPerfilById(id: number): Promise<PerfilPuesto> {
 /** POST /api/v1/puestos-perfil — crear perfil */
 export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<PerfilPuesto> {
   const body = {
+    codigo: payload.codigo,
     nombre: payload.nombre_puesto,
     nivel_id: payload.nivel_id,
     area_id: payload.area_id || null,
+    tipo: payload.tipo,
   };
   const res = await fetchWithAuth("/api/v1/puestos-perfil", {
     method: "POST",
@@ -143,9 +152,11 @@ export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<
 /** PUT /api/v1/puestos-perfil/:id — actualizar perfil */
 export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayload): Promise<PerfilPuesto> {
   const body: Record<string, unknown> = {};
+  if (payload.codigo) body.codigo = payload.codigo;
   if (payload.nombre_puesto) body.nombre = payload.nombre_puesto;
   if (payload.nivel_id !== undefined) body.nivel_id = payload.nivel_id;
   if (payload.area_id !== undefined) body.area_id = payload.area_id;
+  if (payload.tipo !== undefined) body.tipo = payload.tipo;
   const res = await fetchWithAuth(`/api/v1/puestos-perfil/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -197,6 +208,21 @@ export async function createPerfilTarea(
 ): Promise<PerfilTarea> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilTarea;
+}
+
+/** PUT /api/v1/perfiles/:id/tareas/:tareaId */
+export async function updatePerfilTarea(
+  perfilId: number,
+  tareaId: number,
+  body: { descripcion?: string; orden?: number; es_complemento?: boolean },
+): Promise<PerfilTarea> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/${tareaId}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -301,6 +327,8 @@ export type PerfilCompetencia = {
   competencia_nombre: string;
   tipo_competencia_id: number | null;
   tipo_nombre: string | null;
+  categoria: string | null;
+  grupo_nombre: string | null;
   grado_id: number;
   grado_nombre: string;
   nivel_requerido: number;

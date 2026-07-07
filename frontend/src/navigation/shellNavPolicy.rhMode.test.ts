@@ -84,14 +84,11 @@ describe("shellNavPolicy rh mode", () => {
     expect(resolveRhOperativoLandingHash()).toBe("#/metricas");
   });
 
-  it("resolveRhInitialHash redirige desde inicio cuando no hay dashboard", async () => {
+  it("resolveRhInitialHash redirige admin operativo sin dashboard a #/", async () => {
     allowedModules.clear();
     allowedModules.add("level-up");
-    const { resolveRhInitialHash, RH_SIN_PERMISOS_HASH } = await import("./shellNavPolicy.ts");
-    expect(resolveRhInitialHash("#/")).toBe("#/level-up/resumen");
-    expect(resolveRhInitialHash("#/")).not.toBe("#/");
-    allowedModules.clear();
-    expect(resolveRhInitialHash("#/")).toBe(RH_SIN_PERMISOS_HASH);
+    const { resolveRhInitialHash } = await import("./shellNavPolicy.ts");
+    expect(resolveRhInitialHash("#/")).toBe("#/");
   });
 
   it("resolveRhInitialHash conserva deep links válidos", async () => {
@@ -118,7 +115,7 @@ describe("shellNavPolicy rh mode", () => {
     expect(resolveRhModeLandingHash()).toBe("#/");
   });
 
-  it("resolveRhModeLandingHash en modo operativo usa dashboard o primera página permitida", async () => {
+  it("resolveRhModeLandingHash en modo operativo usa dashboard o rh-inicio", async () => {
     const { resolveRhModeLandingHash } = await import("./shellNavPolicy.ts");
     expect(resolveRhModeLandingHash()).toBe("#/");
 
@@ -128,6 +125,7 @@ describe("shellNavPolicy rh mode", () => {
     const { setAdminUser } = await import("../auth/rhUiMode.ts");
     setAdminUser(true);
     const { resolveRhModeLandingHash: landing } = await import("./shellNavPolicy.ts");
-    expect(landing()).toBe("#/metricas");
+    // Admin operativo siempre aterriza en dashboard aunque no tenga el módulo asignado.
+    expect(landing()).toBe("#/");
   });
 });

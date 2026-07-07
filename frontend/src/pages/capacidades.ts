@@ -73,6 +73,20 @@ function formatNoEmpleadoDisplay(no: string | number | null | undefined): string
   return String(no).replace(/\.0$/, "");
 }
 
+/** Filtra colaboradores por nombre O número de empleado (búsqueda parcial, case-insensitive). */
+function filterEmpleados(
+  empleados: MultihabilidadesEmpleado[],
+  searchFilter: string,
+): MultihabilidadesEmpleado[] {
+  const q = searchFilter.trim().toLowerCase();
+  if (!q) return empleados;
+  return empleados.filter(
+    (e) =>
+      e.nombre.toLowerCase().includes(q) ||
+      formatNoEmpleadoDisplay(e.no_empleado).toLowerCase().includes(q),
+  );
+}
+
 // ── Estados y skeletons ──────────────────────────────────────────────────────
 
 function kpiSkeletonCard(): string {
@@ -147,7 +161,7 @@ function renderNoSearchResults(): string {
   <div class="flex min-h-[200px] items-center justify-center rounded-2xl border border-slate-200/90 bg-slate-50/50 px-6 py-12 text-center">
     <div class="max-w-sm">
       <p class="text-sm font-semibold text-text-primary">Sin resultados para la búsqueda</p>
-      <p class="mt-1 text-sm text-text-muted">No hay colaboradores que coincidan con el nombre ingresado. Prueba con otro término.</p>
+      <p class="mt-1 text-sm text-text-muted">No hay colaboradores que coincidan con el nombre o número ingresado. Prueba con otro término.</p>
     </div>
   </div>`;
 }
@@ -217,7 +231,7 @@ function renderFilters(
           <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400" aria-hidden="true">
             <svg viewBox="0 0 20 20" fill="currentColor" class="size-5"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
           </span>
-          <input data-action="search-empleado" type="search" value="${escapeHtml(searchValue)}" placeholder="Nombre del colaborador…" autocomplete="off"
+          <input data-action="search-empleado" type="search" value="${escapeHtml(searchValue)}" placeholder="Nombre o número de empleado…" autocomplete="off"
             class="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" />
         </div>
       </div>
@@ -610,9 +624,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
     if (!selectedPuestoId || !matrizData) {
       content += `<div id="cap-results">${matrizLoading ? renderResultsSkeleton() : renderEmptyState()}</div>`;
     } else {
-      const filtered = searchFilter
-        ? matrizData.empleados.filter((e) => e.nombre.toLowerCase().includes(searchFilter.toLowerCase()))
-        : matrizData.empleados;
+      const filtered = filterEmpleados(matrizData.empleados, searchFilter);
       const searchActive = searchFilter.trim().length > 0;
 
       content += `<div id="cap-results" class="flex flex-col gap-4">`;
@@ -708,9 +720,7 @@ export function mountCapacidades(container: HTMLElement, signal: AbortSignal): v
       resultsEl.innerHTML = renderEmptyState();
       return;
     }
-    const filtered = searchFilter
-      ? matrizData.empleados.filter((e) => e.nombre.toLowerCase().includes(searchFilter.toLowerCase()))
-      : matrizData.empleados;
+    const filtered = filterEmpleados(matrizData.empleados, searchFilter);
     const searchActive = searchFilter.trim().length > 0;
 
     resultsEl.innerHTML =

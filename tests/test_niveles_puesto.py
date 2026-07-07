@@ -141,7 +141,7 @@ async def test_create_puesto_nivel_inexistente(client, db):
 
     response = await client.post(
         "/api/v1/puestos-perfil",
-        json={"nombre": "Perfil mal nivel", "nivel_id": 999999},
+        json={"codigo": "BAD-NIVEL-01", "nombre": "Perfil mal nivel", "nivel_id": 999999},
         headers=headers,
     )
 

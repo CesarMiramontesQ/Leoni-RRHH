@@ -1,26 +1,39 @@
 /**
  * Modal para editar tareas de un perfil de puesto (solo RH).
- * Permite buscar y asignar tareas del catálogo, crear nuevas inline,
- * eliminar y reordenar con drag & drop.
+ * Permite buscar y asignar tareas del catálogo, crear nuevas inline y eliminar.
  */
 
 import {
   getPerfilTareas,
   createPerfilTarea,
+  updatePerfilTarea,
   deletePerfilTarea,
-  reorderPerfilTareas,
   type PerfilTarea,
 } from "../../api/puestos.ts";
 import {
   getTareasCatalogo,
   createTareaCatalogo,
+  updateTareaCatalogo,
+  extractCategoriasFromCatalogo,
   isTareaCatalogoDuplicada,
   MSG_TAREA_DUPLICADA,
   type TareaCatalogo,
   type TareaCatalogoFetchError,
 } from "../../api/tareasCatalogo.ts";
+import { tareaTituloSubtitulo } from "./perfilTareaDisplay.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST, RH_LISTADO_BTN_DANGER } from "../../ui/uiTokens.ts";
+import {
+  MODAL_OVERLAY,
+  MODAL_PANEL,
+  FIELD_INPUT,
+  FIELD_FOCUS,
+  RH_LISTADO_BTN_PRIMARY,
+  RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_LABEL,
+  RH_LISTADO_SELECT,
+  RH_LISTADO_FOCUS_RING,
+  SELECT_CHEVRON,
+} from "../../ui/uiTokens.ts";
 
 export type EditarTareasModalHandle = {
   open: () => void;
@@ -32,6 +45,40 @@ export type EditarTareasModalOptions = {
   onSuccess: () => void;
 };
 
+type TipoFilter = "" | "principal" | "complemento";
+
+const SEARCH_PAGE_SIZE = 25;
+const SEARCH_DEBOUNCE_MS = 300;
+
+// ── Iconos (Heroicons, currentColor) ─────────────────────────────────────────
+const ICON_SEARCH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-5" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>`;
+const ICON_TRASH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4Z" clip-rule="evenodd"/></svg>`;
+const ICON_CLOSE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+const ICON_PLUS = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>`;
+const ICON_EDIT = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M2.695 14.763l-1.262 3.154a.75.75 0 0 0 .966.966l3.154-1.262a4.5 4.5 0 0 0 1.897-1.13L16.5 6.5a2.121 2.121 0 0 0-3-3L5.49 13.09a4.5 4.5 0 0 0-1.795 1.673ZM12.75 4.81l1.44 1.44-1.06 1.061-1.44-1.44 1.06-1.06Z"/></svg>`;
+
+/** Chip de tipo unificado: Principal (blue) / Complementaria (amber). */
+function tipoChip(esComplemento: boolean): string {
+  if (esComplemento) {
+    return `<span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900"><span class="size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span>Complementaria</span>`;
+  }
+  return `<span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-900"><span class="size-1.5 shrink-0 rounded-full bg-blue-500" aria-hidden="true"></span>Principal</span>`;
+}
+
+/** Chip neutral de categoría. */
+function categoriaChip(categoria: string | undefined): string {
+  if (!categoria?.trim()) return "";
+  return `<span class="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600" title="${escapeHtml(categoria.trim())}">${escapeHtml(categoria.trim())}</span>`;
+}
+
+function mergeCategoria(opciones: string[], categoria: string | undefined): string[] {
+  const label = categoria?.trim();
+  if (!label) return opciones;
+  const key = label.toLowerCase();
+  if (opciones.some((c) => c.toLowerCase() === key)) return opciones;
+  return [...opciones, label].sort((a, b) => a.localeCompare(b, "es"));
+}
+
 function overlayHtml(): string {
   return `
     <div
@@ -40,112 +87,230 @@ function overlayHtml(): string {
       role="presentation"
     >
       <div
-        class="${MODAL_PANEL} max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+        class="${MODAL_PANEL} max-w-lg flex max-h-[min(90vh,760px)] flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="editar-tareas-title"
       >
-        <div class="flex items-start justify-between gap-3 mb-4">
-          <h2 id="editar-tareas-title" class="text-lg font-semibold text-text-primary">Editar tareas</h2>
+        <header class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-6 pb-4 pt-5">
+          <div class="min-w-0">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Perfil de puesto</p>
+            <h2 id="editar-tareas-title" class="mt-0.5 text-lg font-semibold text-text-primary">Editar tareas</h2>
+            <p class="mt-1 text-sm text-text-muted">Asigna y clasifica las tareas del perfil.</p>
+          </div>
           <button
             type="button"
             data-close-tareas-modal
-            class="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary"
+            class="-mr-1.5 shrink-0 rounded-lg p-1.5 text-text-muted transition hover:bg-slate-100 hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40"
             aria-label="Cerrar"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true">
-              <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
+            ${ICON_CLOSE}
           </button>
-        </div>
-        <div id="editar-tareas-body">
+        </header>
+        <div id="editar-tareas-body" class="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <p class="text-sm text-text-muted">Cargando...</p>
         </div>
       </div>
     </div>`;
 }
 
-function renderTareasList(tareas: PerfilTarea[]): string {
-  if (tareas.length === 0) {
-    return `<p class="text-sm text-slate-500 italic py-2">Sin tareas registradas.</p>`;
-  }
-  return `
-    <div id="tareas-sortable" class="divide-y divide-slate-100 mb-4 max-h-56 overflow-y-auto">
-      ${tareas.map(t => `
-        <div class="flex items-center justify-between gap-2 py-2 cursor-grab active:cursor-grabbing select-none"
-             draggable="true" data-tarea-id="${t.id}">
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="flex size-5 shrink-0 items-center justify-center text-slate-400">
-              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 8h16M4 16h16" stroke-linecap="round"/></svg>
-            </span>
-            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue/10 font-mono text-[10px] font-bold text-leoni-blue" data-orden-badge>${t.orden}</span>
-            <span class="text-sm text-text-primary truncate">${escapeHtml(t.descripcion)}</span>
-            ${t.es_complemento ? `<span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Comp.</span>` : ""}
-          </div>
-          <button type="button" data-delete-tarea="${t.id}" class="${RH_LISTADO_BTN_DANGER} !px-2 !py-1 text-xs shrink-0" title="Eliminar">
-            <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </div>
-      `).join("")}
+function renderTareasList(tareas: PerfilTarea[], editingId: number | null): string {
+  const header = `
+    <div class="flex items-center justify-between gap-2">
+      <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Tareas del perfil</p>
+      <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">${tareas.length}</span>
     </div>`;
+
+  if (tareas.length === 0) {
+    return `
+    <section class="space-y-2">
+      ${header}
+      <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50/50 px-4 py-8 text-center">
+        <p class="text-sm font-semibold text-text-primary">Sin tareas asignadas</p>
+        <p class="mx-auto mt-1 max-w-xs text-xs text-text-muted">Busca en el catálogo o crea una nueva tarea para agregarla a este perfil.</p>
+      </div>
+    </section>`;
+  }
+
+  return `
+    <section class="space-y-2">
+      ${header}
+      <div id="tareas-list" class="max-h-64 space-y-1 overflow-y-auto pr-0.5">
+        ${tareas.map((t, i) => {
+          if (editingId === t.id) {
+            const catalogLinked = t.tarea_catalogo_id != null;
+            const nombreVal = catalogLinked ? (t.tarea_catalogo_nombre ?? t.descripcion) : "";
+            return `
+          <div class="rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3 space-y-3" data-edit-panel="${t.id}">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Editar tarea</p>
+            <div id="tarea-edit-error-${t.id}" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert"></div>
+            ${catalogLinked ? `
+            <div>
+              <label for="tarea-edit-nombre-${t.id}" class="${RH_LISTADO_LABEL}">Nombre</label>
+              <input id="tarea-edit-nombre-${t.id}" type="text" required value="${escapeHtml(nombreVal)}"
+                class="${FIELD_INPUT}" placeholder="Nombre corto" />
+            </div>` : ""}
+            <div>
+              <label for="tarea-edit-desc-${t.id}" class="${RH_LISTADO_LABEL}">Descripción</label>
+              <textarea id="tarea-edit-desc-${t.id}" required rows="3"
+                class="${FIELD_INPUT} min-h-[4.5rem] resize-y"
+                placeholder="Descripción de la tarea">${escapeHtml(t.descripcion)}</textarea>
+            </div>
+            ${catalogLinked ? `<p class="text-xs text-text-muted">Los cambios se aplican al catálogo y a todos los perfiles que usan esta tarea.</p>` : ""}
+            <div class="flex justify-end gap-2">
+              <button type="button" data-cancel-edit="${t.id}" class="${RH_LISTADO_BTN_GHOST} text-xs">Cancelar</button>
+              <button type="button" data-save-edit="${t.id}" class="${RH_LISTADO_BTN_PRIMARY} text-xs">Guardar</button>
+            </div>
+          </div>`;
+          }
+
+          const { titulo, subtitulo } = tareaTituloSubtitulo(t);
+          const subtituloHtml = subtitulo
+            ? `<span class="block truncate text-[11px] text-text-muted" title="${escapeHtml(subtitulo)}">${escapeHtml(subtitulo)}</span>`
+            : "";
+
+          return `
+          <div class="group flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 transition-colors hover:border-slate-200 hover:bg-active-tint"
+               data-tarea-id="${t.id}">
+            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue/10 font-mono text-[10px] font-bold tabular-nums text-leoni-blue" data-orden-badge>${i + 1}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm text-text-primary" title="${escapeHtml(titulo)}">${escapeHtml(titulo)}</span>
+              ${subtituloHtml}
+            </span>
+            ${tipoChip(t.es_complemento)}
+            <button type="button" data-edit-tarea="${t.id}" class="shrink-0 rounded-md p-1.5 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-leoni-blue focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40" title="Editar" aria-label="Editar tarea">
+              ${ICON_EDIT}
+            </button>
+            <button type="button" data-delete-tarea="${t.id}" class="shrink-0 rounded-md p-1.5 text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40" title="Eliminar" aria-label="Eliminar tarea">
+              ${ICON_TRASH}
+            </button>
+          </div>`;
+        }).join("")}
+      </div>
+    </section>`;
 }
 
-function renderAddForm(showCreateNew: boolean): string {
-  return `
-    <div class="border-t border-slate-200 pt-4 space-y-3">
-      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Agregar del catalogo</p>
+function renderAddForm(
+  showCreateNew: boolean,
+  filterTipo: TipoFilter,
+  filterCategoria: string,
+  categorias: string[],
+): string {
+  const catOpts = categorias
+    .map(
+      (c) =>
+        `<option value="${escapeHtml(c)}" ${filterCategoria.toLowerCase() === c.toLowerCase() ? "selected" : ""}>${escapeHtml(c)}</option>`,
+    )
+    .join("");
+  const datalistOpts = categorias.map((c) => `<option value="${escapeHtml(c)}"></option>`).join("");
 
-      <!-- Search -->
-      <div>
-        <input id="tarea-search" type="text" autocomplete="off"
-          class="${FIELD_INPUT}"
-          placeholder="Buscar tarea por nombre..." />
+  return `
+    <section class="space-y-3 border-t border-slate-100 pt-5">
+      <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Agregar del catálogo</p>
+
+      <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+        <!-- Combobox búsqueda catálogo -->
+        <div>
+          <label for="tarea-search" class="${RH_LISTADO_LABEL}">Buscar en catálogo</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">${ICON_SEARCH}</span>
+            <input
+              id="tarea-search"
+              type="search"
+              autocomplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              aria-controls="tarea-search-listbox"
+              class="block w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS}"
+              placeholder="Escribe para buscar en el catálogo…"
+            />
+          </div>
+          <p class="mt-1 text-xs text-text-muted">Escribe el nombre; si existe, selecciónala de la lista.</p>
+          <div
+            id="tarea-search-listbox"
+            role="listbox"
+            class="mt-1.5 hidden max-h-52 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-[0_4px_12px_rgba(10,22,40,0.08)]"
+          ></div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="grid grid-cols-2 gap-2">
+          <div class="min-w-0">
+            <label for="tarea-filter-tipo" class="${RH_LISTADO_LABEL}">Tipo</label>
+            <div class="grid grid-cols-1">
+              <select id="tarea-filter-tipo" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" aria-label="Filtrar por tipo">
+                <option value="" ${filterTipo === "" ? "selected" : ""}>Todos</option>
+                <option value="principal" ${filterTipo === "principal" ? "selected" : ""}>Principal</option>
+                <option value="complemento" ${filterTipo === "complemento" ? "selected" : ""}>Complementaria</option>
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div class="min-w-0">
+            <label for="tarea-filter-categoria" class="${RH_LISTADO_LABEL}">Categoría</label>
+            <div class="grid grid-cols-1">
+              <select id="tarea-filter-categoria" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" aria-label="Filtrar por categoría">
+                <option value="" ${filterCategoria === "" ? "selected" : ""}>Todas</option>
+                ${catOpts}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+        </div>
       </div>
-      <div id="tarea-search-results" class="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-1 hidden"></div>
 
       <!-- Selected + agregar -->
       <div id="tarea-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
-        <div id="tarea-selected-info" class="flex items-center justify-between"></div>
-        <div class="flex justify-end mt-2">
-          <button type="button" id="tarea-submit-assign" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Agregar al perfil</button>
+        <div id="tarea-selected-info" class="flex items-center justify-between gap-2"></div>
+        <div class="mt-3 flex justify-end">
+          <button type="button" id="tarea-submit-assign" class="${RH_LISTADO_BTN_PRIMARY} text-sm">${ICON_PLUS}<span>Agregar al perfil</span></button>
         </div>
       </div>
 
       <!-- Create new toggle -->
-      <div class="pt-2 border-t border-slate-100">
+      <div>
         <button type="button" id="tarea-toggle-create" class="${RH_LISTADO_BTN_GHOST} text-xs">
-          ${showCreateNew ? "Cerrar" : "+ Crear nueva tarea"}
+          ${showCreateNew ? "Cerrar" : "＋ Crear nueva tarea"}
         </button>
       </div>
 
       ${showCreateNew ? `
       <div id="tarea-create-form" class="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-        <p class="text-xs font-semibold text-slate-600">Nueva tarea en catalogo</p>
-        <div id="tarea-create-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert"></div>
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Nueva tarea en catálogo</p>
+        <div id="tarea-create-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Nombre</label>
+          <label for="tarea-new-nombre" class="${RH_LISTADO_LABEL}">Nombre</label>
           <input id="tarea-new-nombre" type="text" required
             class="${FIELD_INPUT}"
-            placeholder="Descripcion de la tarea" />
+            placeholder="Nombre corto para búsqueda" />
         </div>
         <div>
-          <label class="mb-1 block text-xs font-medium text-slate-600">Categoria (opcional)</label>
-          <input id="tarea-new-categoria" type="text"
+          <label for="tarea-new-descripcion" class="${RH_LISTADO_LABEL}">Descripción</label>
+          <textarea id="tarea-new-descripcion" required rows="3"
+            class="${FIELD_INPUT} min-h-[4.5rem] resize-y"
+            placeholder="Describe la tarea con el detalle del perfil"></textarea>
+        </div>
+        <div>
+          <label for="tarea-new-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="font-normal normal-case tracking-normal text-text-muted">(opcional — elige una o escribe una nueva)</span></label>
+          <input id="tarea-new-categoria" type="text" list="tarea-new-categoria-list" autocomplete="off"
             class="${FIELD_INPUT}"
-            placeholder="Ej: logistica, calidad, seguridad..." />
+            placeholder="Ej: logística, calidad, seguridad…" />
+          <datalist id="tarea-new-categoria-list">${datalistOpts}</datalist>
         </div>
-        <div class="flex items-end pb-1">
-          <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-            <input id="tarea-new-complemento" type="checkbox"
-              class="size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
-            Complementaria
-          </label>
-        </div>
+        <label class="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+          <input id="tarea-new-complemento" type="checkbox"
+            class="mt-0.5 size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
+          <span>
+            <span class="block text-sm font-medium text-text-primary">Tarea complementaria</span>
+            <span class="mt-0.5 block text-xs text-text-muted">Las principales definen el núcleo del perfil; las complementarias amplían funciones.</span>
+          </span>
+        </label>
         <div class="flex justify-end">
-          <button type="button" id="tarea-create-submit" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Crear y agregar al perfil</button>
+          <button type="button" id="tarea-create-submit" class="${RH_LISTADO_BTN_PRIMARY} text-sm">Crear y agregar</button>
         </div>
       </div>` : ""}
-    </div>`;
+    </section>`;
 }
 
 export function mountEditarTareasModal(
@@ -160,12 +325,27 @@ export function mountEditarTareasModal(
   let loading = false;
   let showCreateNew = false;
   let selectedCatalogo: TareaCatalogo | null = null;
+  let filterTipo: TipoFilter = "";
+  let filterCategoria = "";
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  let catalogoCache: TareaCatalogo[] = [];
+  let categoriasOpciones: string[] = [];
+  let searchResults: TareaCatalogo[] = [];
+  let searchLoading = false;
+  let searchError = "";
+  let highlightedIndex = -1;
+  let searchAbort: AbortController | null = null;
+  let comboboxOpen = false;
+  let clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
   let assignedCatalogoIds: Set<number> = new Set();
   let tareas: PerfilTarea[] = [];
+  let editingTareaId: number | null = null;
 
   function close(): void {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = null;
+    searchAbort?.abort();
+    searchAbort = null;
+    detachClickOutside();
     overlay.classList.add("hidden");
     overlay.classList.remove("flex");
     document.body.style.overflow = "";
@@ -174,18 +354,106 @@ export function mountEditarTareasModal(
 
   async function refreshList(): Promise<void> {
     try {
+      searchAbort?.abort();
+      searchAbort = null;
+      detachClickOutside();
+      comboboxOpen = false;
+      searchResults = [];
+      searchLoading = false;
+      searchError = "";
+      highlightedIndex = -1;
+
       tareas = await getPerfilTareas(options.perfilId);
       assignedCatalogoIds = new Set(
         tareas.filter(t => t.tarea_catalogo_id).map(t => t.tarea_catalogo_id as number),
       );
       selectedCatalogo = null;
-      body.innerHTML = renderTareasList(tareas) + renderAddForm(showCreateNew);
+      body.innerHTML =
+        renderTareasList(tareas, editingTareaId) +
+        renderAddForm(showCreateNew, filterTipo, filterCategoria, categoriasOpciones);
       bindDeleteButtons();
-      bindDragDrop();
+      bindEditButtons();
       bindInteractions();
     } catch {
       body.innerHTML = `<p class="text-sm text-red-600">Error al cargar tareas.</p>`;
     }
+  }
+
+  function bindEditButtons(): void {
+    body.querySelectorAll<HTMLButtonElement>("[data-edit-tarea]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        editingTareaId = Number(btn.dataset.editTarea);
+        void refreshList();
+      });
+    });
+
+    body.querySelectorAll<HTMLButtonElement>("[data-cancel-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        editingTareaId = null;
+        void refreshList();
+      });
+    });
+
+    body.querySelectorAll<HTMLButtonElement>("[data-save-edit]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const tareaId = Number(btn.dataset.saveEdit);
+        if (loading) return;
+        const tarea = tareas.find((t) => t.id === tareaId);
+        if (!tarea) return;
+
+        const errorEl = body.querySelector(`#tarea-edit-error-${tareaId}`) as HTMLElement | null;
+        const showError = (message: string) => {
+          if (!errorEl) return;
+          errorEl.textContent = message;
+          errorEl.classList.remove("hidden");
+        };
+
+        const descripcion = (
+          body.querySelector(`#tarea-edit-desc-${tareaId}`) as HTMLTextAreaElement
+        )?.value.trim();
+        if (!descripcion) {
+          showError("Indica la descripción de la tarea.");
+          return;
+        }
+
+        let nombre: string | undefined;
+        if (tarea.tarea_catalogo_id) {
+          nombre = (
+            body.querySelector(`#tarea-edit-nombre-${tareaId}`) as HTMLInputElement
+          )?.value.trim();
+          if (!nombre) {
+            showError("Indica el nombre de la tarea.");
+            return;
+          }
+        }
+
+        loading = true;
+        btn.disabled = true;
+        btn.textContent = "Guardando…";
+
+        try {
+          if (tarea.tarea_catalogo_id && nombre) {
+            await updateTareaCatalogo(tarea.tarea_catalogo_id, { nombre, descripcion });
+          } else {
+            await updatePerfilTarea(options.perfilId, tareaId, { descripcion });
+          }
+          editingTareaId = null;
+          options.onSuccess();
+          await refreshList();
+        } catch (err: unknown) {
+          const detail = (err as TareaCatalogoFetchError)?.detail ?? "No se pudo guardar la tarea.";
+          showError(detail);
+        } finally {
+          loading = false;
+          btn.disabled = false;
+          btn.textContent = "Guardar";
+        }
+      });
+    });
+  }
+
+  function nextOrden(): number {
+    return tareas.reduce((max, t) => Math.max(max, t.orden), 0) + 1;
   }
 
   function bindDeleteButtons(): void {
@@ -208,67 +476,6 @@ export function mountEditarTareasModal(
     });
   }
 
-  function bindDragDrop(): void {
-    const container = body.querySelector("#tareas-sortable") as HTMLElement | null;
-    if (!container) return;
-
-    let draggedEl: HTMLElement | null = null;
-
-    container.addEventListener("dragstart", (e) => {
-      draggedEl = (e.target as HTMLElement).closest("[data-tarea-id]");
-      if (draggedEl) {
-        draggedEl.classList.add("opacity-50");
-        (e as DragEvent).dataTransfer!.effectAllowed = "move";
-      }
-    });
-
-    container.addEventListener("dragend", () => {
-      if (draggedEl) {
-        draggedEl.classList.remove("opacity-50");
-        draggedEl = null;
-      }
-    });
-
-    container.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      (e as DragEvent).dataTransfer!.dropEffect = "move";
-      const target = (e.target as HTMLElement).closest<HTMLElement>("[data-tarea-id]");
-      if (target && target !== draggedEl) {
-        const rect = target.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        if ((e as DragEvent).clientY < midY) {
-          container.insertBefore(draggedEl!, target);
-        } else {
-          container.insertBefore(draggedEl!, target.nextSibling);
-        }
-      }
-    });
-
-    container.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      if (loading) return;
-      loading = true;
-
-      const rows = container.querySelectorAll<HTMLElement>("[data-tarea-id]");
-      const reorderItems: { id: number; orden: number }[] = [];
-      rows.forEach((row, i) => {
-        const id = Number(row.dataset.tareaId);
-        const newOrden = i + 1;
-        reorderItems.push({ id, orden: newOrden });
-        const badge = row.querySelector("[data-orden-badge]");
-        if (badge) badge.textContent = String(newOrden);
-      });
-      try {
-        await reorderPerfilTareas(options.perfilId, reorderItems);
-        options.onSuccess();
-      } catch {
-        await refreshList();
-      } finally {
-        loading = false;
-      }
-    });
-  }
-
   function bindInteractions(): void {
     bindSearch();
     bindAssignButton();
@@ -276,70 +483,247 @@ export function mountEditarTareasModal(
     bindCreateSubmit();
   }
 
+  function getSearchInput(): HTMLInputElement | null {
+    return body.querySelector("#tarea-search");
+  }
+
+  function getSearchListbox(): HTMLElement | null {
+    return body.querySelector("#tarea-search-listbox");
+  }
+
+  function detachClickOutside(): void {
+    if (clickOutsideHandler) {
+      document.removeEventListener("mousedown", clickOutsideHandler);
+      clickOutsideHandler = null;
+    }
+  }
+
+  function setComboboxExpanded(expanded: boolean): void {
+    comboboxOpen = expanded;
+    const input = getSearchInput();
+    if (input) input.setAttribute("aria-expanded", expanded ? "true" : "false");
+  }
+
+  function hideSearchDropdown(): void {
+    const listbox = getSearchListbox();
+    listbox?.classList.add("hidden");
+    highlightedIndex = -1;
+    setComboboxExpanded(false);
+    detachClickOutside();
+  }
+
+  function applyTipoFilter(items: TareaCatalogo[]): TareaCatalogo[] {
+    return items.filter((t) => {
+      if (assignedCatalogoIds.has(t.id)) return false;
+      if (filterTipo === "principal" && t.es_complemento) return false;
+      if (filterTipo === "complemento" && !t.es_complemento) return false;
+      return true;
+    });
+  }
+
+  function renderSearchDropdown(): void {
+    const listbox = getSearchListbox();
+    if (!listbox) return;
+
+    if (searchLoading) {
+      listbox.innerHTML = `<p class="px-2 py-3 text-center text-xs text-text-muted">Buscando…</p>`;
+      listbox.classList.remove("hidden");
+      setComboboxExpanded(true);
+      return;
+    }
+
+    if (searchError) {
+      listbox.innerHTML = `<p class="px-2 py-3 text-center text-xs text-red-600">${escapeHtml(searchError)}</p>`;
+      listbox.classList.remove("hidden");
+      setComboboxExpanded(true);
+      return;
+    }
+
+    const filtered = applyTipoFilter(searchResults);
+    if (filtered.length === 0) {
+      listbox.innerHTML = `<p class="px-2 py-3 text-center text-xs text-text-muted">No hay tareas que coincidan</p>`;
+    } else {
+      listbox.innerHTML = filtered
+        .map((t, i) => {
+          const active = i === highlightedIndex;
+          return `
+        <button
+          type="button"
+          role="option"
+          aria-selected="${active ? "true" : "false"}"
+          data-select-tarea="${t.id}"
+          data-option-index="${i}"
+          class="flex w-full flex-col gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-active-tint focus:bg-active-tint focus:outline-none${active ? " bg-active-tint" : ""}"
+        >
+          <span class="min-w-0 truncate text-sm font-medium text-text-primary" title="${escapeHtml(t.nombre)}">${escapeHtml(t.nombre)}</span>
+          ${t.descripcion?.trim() ? `<span class="min-w-0 truncate text-xs text-text-muted" title="${escapeHtml(t.descripcion)}">${escapeHtml(t.descripcion)}</span>` : ""}
+          <span class="flex flex-wrap items-center gap-1.5 pt-0.5">
+          ${categoriaChip(t.categoria)}
+          ${tipoChip(t.es_complemento)}
+          </span>
+        </button>`;
+        })
+        .join("");
+    }
+    listbox.classList.remove("hidden");
+    setComboboxExpanded(true);
+
+    if (!clickOutsideHandler) {
+      clickOutsideHandler = (e: MouseEvent) => {
+        const target = e.target as Node;
+        const input = getSearchInput();
+        const box = getSearchListbox();
+        if (input?.contains(target) || box?.contains(target)) return;
+        hideSearchDropdown();
+      };
+      document.addEventListener("mousedown", clickOutsideHandler);
+    }
+  }
+
+  async function doSearch(q: string): Promise<void> {
+    const trimmed = q.trim();
+    if (trimmed.length < 1) {
+      searchAbort?.abort();
+      searchAbort = null;
+      searchResults = [];
+      searchLoading = false;
+      searchError = "";
+      hideSearchDropdown();
+      return;
+    }
+
+    searchAbort?.abort();
+    const controller = new AbortController();
+    searchAbort = controller;
+
+    searchLoading = true;
+    searchError = "";
+    highlightedIndex = -1;
+    renderSearchDropdown();
+
+    try {
+      const items = await getTareasCatalogo({
+        busqueda: trimmed,
+        categoria: filterCategoria || undefined,
+        page_size: SEARCH_PAGE_SIZE,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      searchResults = items;
+      searchLoading = false;
+      renderSearchDropdown();
+    } catch (err: unknown) {
+      if (controller.signal.aborted) return;
+      searchLoading = false;
+      searchResults = [];
+      const detail = (err as TareaCatalogoFetchError)?.detail;
+      searchError = detail?.trim() || "No se pudo buscar en el catálogo.";
+      renderSearchDropdown();
+    }
+  }
+
+  function scheduleSearch(q: string): void {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      void doSearch(q);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
   function bindSearch(): void {
-    const searchInput = body.querySelector("#tarea-search") as HTMLInputElement | null;
-    const resultsEl = body.querySelector("#tarea-search-results") as HTMLElement | null;
-    if (!searchInput || !resultsEl) return;
+    const searchInput = getSearchInput();
+    const listbox = getSearchListbox();
+    if (!searchInput || !listbox) return;
 
     searchInput.addEventListener("input", () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        doSearch(searchInput.value.trim(), resultsEl);
-      }, 320);
+      scheduleSearch(searchInput.value);
     });
 
-    resultsEl.addEventListener("click", (e) => {
+    searchInput.addEventListener("keydown", (e) => {
+      const filtered = applyTipoFilter(searchResults);
+      if (e.key === "ArrowDown") {
+        if (!comboboxOpen && searchInput.value.trim().length >= 1) {
+          void doSearch(searchInput.value);
+          return;
+        }
+        if (filtered.length === 0) return;
+        e.preventDefault();
+        highlightedIndex = Math.min(highlightedIndex + 1, filtered.length - 1);
+        renderSearchDropdown();
+        const active = listbox.querySelector(`[data-option-index="${highlightedIndex}"]`);
+        active?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "ArrowUp") {
+        if (filtered.length === 0) return;
+        e.preventDefault();
+        highlightedIndex = Math.max(highlightedIndex - 1, 0);
+        renderSearchDropdown();
+        const active = listbox.querySelector(`[data-option-index="${highlightedIndex}"]`);
+        active?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter") {
+        if (!comboboxOpen || highlightedIndex < 0 || highlightedIndex >= filtered.length) return;
+        e.preventDefault();
+        selectTarea(filtered[highlightedIndex]);
+      } else if (e.key === "Escape") {
+        if (comboboxOpen) {
+          e.preventDefault();
+          e.stopPropagation();
+          hideSearchDropdown();
+        }
+      }
+    });
+
+    const tipoSelect = body.querySelector("#tarea-filter-tipo") as HTMLSelectElement | null;
+    tipoSelect?.addEventListener("change", () => {
+      filterTipo = tipoSelect.value as TipoFilter;
+      if (searchInput.value.trim().length >= 1) {
+        if (searchResults.length > 0) {
+          highlightedIndex = -1;
+          renderSearchDropdown();
+        } else {
+          scheduleSearch(searchInput.value);
+        }
+      }
+    });
+
+    const catSelect = body.querySelector("#tarea-filter-categoria") as HTMLSelectElement | null;
+    catSelect?.addEventListener("change", () => {
+      filterCategoria = catSelect.value;
+      if (searchInput.value.trim().length >= 1) {
+        scheduleSearch(searchInput.value);
+      }
+    });
+
+    listbox.addEventListener("click", (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-select-tarea]");
       if (!btn) return;
       const id = Number(btn.dataset.selectTarea);
-      const item = catalogoCache.find(t => t.id === id);
+      const item = searchResults.find((t) => t.id === id);
       if (item) selectTarea(item);
     });
   }
 
-  function doSearch(q: string, resultsEl: HTMLElement): void {
-    if (q.length < 2) {
-      resultsEl.classList.add("hidden");
-      return;
-    }
-    const lower = q.toLowerCase();
-    const filtered = catalogoCache.filter(t =>
-      !assignedCatalogoIds.has(t.id) &&
-      t.nombre.toLowerCase().includes(lower),
-    );
-    if (filtered.length === 0) {
-      resultsEl.innerHTML = `<p class="px-2 py-3 text-xs text-slate-500 text-center">Sin resultados</p>`;
-    } else {
-      resultsEl.innerHTML = filtered.slice(0, 10).map(t => `
-        <button type="button" data-select-tarea="${t.id}"
-          class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-leoni-blue/10">
-          <span class="text-sm font-medium text-text-primary">${escapeHtml(t.nombre)}</span>
-          ${t.categoria ? `<span class="text-[10px] text-slate-500">${escapeHtml(t.categoria)}</span>` : ""}
-          ${t.es_complemento ? `<span class="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600">Comp.</span>` : ""}
-        </button>
-      `).join("");
-    }
-    resultsEl.classList.remove("hidden");
-  }
-
   function selectTarea(item: TareaCatalogo): void {
     selectedCatalogo = item;
-    const resultsEl = body.querySelector("#tarea-search-results") as HTMLElement;
+    const listbox = getSearchListbox();
     const selectedRow = body.querySelector("#tarea-selected-row") as HTMLElement;
     const selectedInfo = body.querySelector("#tarea-selected-info") as HTMLElement;
-    const searchInput = body.querySelector("#tarea-search") as HTMLInputElement;
+    const searchInput = getSearchInput();
 
-    resultsEl.classList.add("hidden");
+    hideSearchDropdown();
+    searchResults = [];
+    searchError = "";
     selectedRow.classList.remove("hidden");
-    searchInput.value = "";
+    if (searchInput) searchInput.value = "";
 
     selectedInfo.innerHTML = `
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</span>
-        ${item.categoria ? `<span class="text-[10px] text-slate-500">${escapeHtml(item.categoria)}</span>` : ""}
-        ${item.es_complemento ? `<span class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-600">Comp.</span>` : ""}
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="min-w-0 truncate text-sm font-medium text-text-primary" title="${escapeHtml(item.nombre)}">${escapeHtml(item.nombre)}</span>
+          ${categoriaChip(item.categoria)}
+          ${tipoChip(item.es_complemento)}
+        </div>
+        ${item.descripcion?.trim() ? `<p class="mt-1 line-clamp-2 text-xs text-text-muted" title="${escapeHtml(item.descripcion)}">${escapeHtml(item.descripcion)}</p>` : ""}
       </div>
-      <button type="button" id="tarea-deselect" class="text-xs text-red-600 hover:underline">Quitar</button>`;
+      <button type="button" id="tarea-deselect" class="shrink-0 text-xs font-medium text-red-600 hover:underline">Quitar</button>`;
 
     selectedInfo.querySelector("#tarea-deselect")?.addEventListener("click", () => {
       selectedCatalogo = null;
@@ -354,10 +738,10 @@ export function mountEditarTareasModal(
       if (!selectedCatalogo || loading) return;
       loading = true;
       btn.disabled = true;
-      btn.textContent = "Agregando...";
+      btn.textContent = "Agregando…";
 
       try {
-        const orden = tareas.length + 1;
+        const orden = nextOrden();
         await createPerfilTarea(options.perfilId, {
           orden,
           tarea_catalogo_id: selectedCatalogo.id,
@@ -369,7 +753,7 @@ export function mountEditarTareasModal(
       } finally {
         loading = false;
         btn.disabled = false;
-        btn.textContent = "Agregar al perfil";
+        btn.innerHTML = `${ICON_PLUS}<span>Agregar al perfil</span>`;
       }
     });
   }
@@ -404,11 +788,16 @@ export function mountEditarTareasModal(
       clearError();
 
       const nombre = (body.querySelector("#tarea-new-nombre") as HTMLInputElement)?.value.trim();
+      const descripcion = (body.querySelector("#tarea-new-descripcion") as HTMLTextAreaElement)?.value.trim();
       const categoria = (body.querySelector("#tarea-new-categoria") as HTMLInputElement)?.value.trim() || undefined;
       const es_complemento = (body.querySelector("#tarea-new-complemento") as HTMLInputElement)?.checked ?? false;
 
       if (!nombre) {
         showError("Indica el nombre de la tarea.");
+        return;
+      }
+      if (!descripcion) {
+        showError("Indica la descripción de la tarea.");
         return;
       }
 
@@ -417,10 +806,10 @@ export function mountEditarTareasModal(
       btn.textContent = "Creando...";
 
       try {
-        const created = await createTareaCatalogo({ nombre, categoria, es_complemento });
-        catalogoCache.push(created);
+        const created = await createTareaCatalogo({ nombre, descripcion, categoria, es_complemento });
+        categoriasOpciones = mergeCategoria(categoriasOpciones, created.categoria);
 
-        const orden = tareas.length + 1;
+        const orden = nextOrden();
         await createPerfilTarea(options.perfilId, {
           orden,
           tarea_catalogo_id: created.id,
@@ -439,7 +828,7 @@ export function mountEditarTareasModal(
       } finally {
         loading = false;
         btn.disabled = false;
-        btn.textContent = "Crear y agregar al perfil";
+        btn.textContent = "Crear y agregar";
       }
     });
   }
@@ -454,9 +843,22 @@ export function mountEditarTareasModal(
   });
 
   function escHandler(e: KeyboardEvent): void {
-    if (e.key === "Escape" && !overlay.classList.contains("hidden")) {
+    if (e.key !== "Escape" || overlay.classList.contains("hidden")) return;
+    if (comboboxOpen) {
       e.preventDefault();
-      close();
+      hideSearchDropdown();
+      return;
+    }
+    e.preventDefault();
+    close();
+  }
+
+  async function loadCategoriasOpciones(): Promise<void> {
+    try {
+      const sample = await getTareasCatalogo({ page_size: 200 });
+      categoriasOpciones = extractCategoriasFromCatalogo(sample);
+    } catch {
+      categoriasOpciones = [];
     }
   }
 
@@ -468,11 +870,18 @@ export function mountEditarTareasModal(
       document.addEventListener("keydown", escHandler);
       showCreateNew = false;
       selectedCatalogo = null;
+      editingTareaId = null;
+      filterTipo = "";
+      filterCategoria = "";
+      searchResults = [];
+      searchLoading = false;
+      searchError = "";
+      highlightedIndex = -1;
+      comboboxOpen = false;
       body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
-      getTareasCatalogo({ page_size: 200 }).then(items => {
-        catalogoCache = items;
-      }).catch(() => { /* cache stays empty */ });
-      refreshList();
+      void loadCategoriasOpciones().finally(() => {
+        void refreshList();
+      });
     },
     close,
   };

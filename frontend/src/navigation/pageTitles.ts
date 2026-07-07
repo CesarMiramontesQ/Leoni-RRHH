@@ -14,6 +14,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/notificaciones"), titulo: "Notificaciones" },
   { match: (h) => h.startsWith("#/metricas"), titulo: "Métricas" },
   { match: (h) => h.startsWith("#/solicitudes"), titulo: "Solicitudes" },
+  { match: (h) => h.startsWith("#/pdi-gestion"), titulo: "Gestión PDI" },
   { match: (h) => h.startsWith("#/evaluaciones"), titulo: "Evaluaciones" },
   { match: (h) => h.startsWith("#/incidencias"), titulo: "Incidencias" },
   { match: (h) => h.startsWith("#/faltas-retardos"), titulo: "Faltas y retardos" },
@@ -26,6 +27,10 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/capacidades"), titulo: "Matriz de Multihabilidades" },
   { match: (h) => h.startsWith("#/cursos/seguimiento"), titulo: "Seguimiento de capacitaciones" },
   { match: (h) => h.startsWith("#/cursos/ajustes"), titulo: "Ajustes de cursos" },
+  { match: (h) => h.startsWith("#/cursos/juntas"), titulo: "Juntas" },
+  { match: (h) => h.startsWith("#/cursos/proveedores"), titulo: "Contratistas" },
+  { match: (h) => h.startsWith("#/cursos/externos"), titulo: "Cursos externos" },
+  { match: (h) => h.startsWith("#/cursos/vencimientos"), titulo: "Vencimientos" },
   { match: (h) => h.startsWith("#/cursos"), titulo: "Manejo de Cursos" },
   { match: (h) => h.startsWith("#/opls"), titulo: "Manejo de OPLs" },
   { match: (h) => h.startsWith("#/evidencias"), titulo: "Motor de Evidencias" },
@@ -45,6 +50,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/tareas-catalogo"), titulo: "Catalogo de Tareas" },
   { match: (h) => h.startsWith("#/level-up"), titulo: "Level Up" },
   { match: (h) => h.startsWith("#/ajustes/permisos-rh"), titulo: "Permisos RH" },
+  { match: (h) => h.startsWith("#/rh-inicio"), titulo: "Modo RH" },
   { match: (h) => h === "#/" || h === "#" || h === "", titulo: "Dashboard" },
 ];
 

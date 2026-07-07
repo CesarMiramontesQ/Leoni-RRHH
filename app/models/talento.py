@@ -46,6 +46,12 @@ if TYPE_CHECKING:
 
 class PuestoPerfil(Base):
     __tablename__ = "levelup_puestos_perfil"
+    __table_args__ = (
+        CheckConstraint(
+            "tipo IN ('administrativo', 'operativo')",
+            name="ck_levelup_puestos_perfil_tipo",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
@@ -55,6 +61,9 @@ class PuestoPerfil(Base):
     )
     nivel_id: Mapped[int] = mapped_column(
         ForeignKey("levelup_niveles_puesto.id"), nullable=False
+    )
+    tipo: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="administrativo", server_default="administrativo"
     )
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -616,6 +625,7 @@ class TareaCatalogo(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     categoria: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     es_complemento: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

@@ -23,6 +23,7 @@ vi.mock("../auth/payrollPermissions.ts", () => ({
 vi.mock("../auth/rhUiMode.ts", () => ({
   isAdminUser: () => false,
   isNonRhRhMode: () => nonRhRhMode,
+  hasRhPermisosActivos: () => grants.size > 0,
   isRhDirectorUiMode: () => false,
   isRhEmpleadoUiMode: () => false,
   isRhGerenteUiMode: () => false,
@@ -55,5 +56,70 @@ describe("shellNavPolicy no-RH en Modo RH", () => {
     expect(isShellNavItemVisibleForRol("supervisor", "actas")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "solicitudes")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "incidencias")).toBe(false);
+  });
+
+  it("resolveRhModeLandingHash sin dashboard aterriza en rh-inicio", async () => {
+    nonRhRhMode = true;
+    grants.add("actas");
+    const { resolveRhModeLandingHash, RH_MODO_INICIO_HASH } = await import("./shellNavPolicy.ts");
+    expect(resolveRhModeLandingHash()).toBe(RH_MODO_INICIO_HASH);
+  });
+
+  it("resolveRhInitialHash en Modo RH sin dashboard aterriza en rh-inicio", async () => {
+    nonRhRhMode = true;
+    grants.add("solicitudes");
+    const { resolveRhInitialHash, RH_MODO_INICIO_HASH } = await import("./shellNavPolicy.ts");
+    expect(resolveRhInitialHash("#/")).toBe(RH_MODO_INICIO_HASH);
+  });
+
+  it("resolveRhModoHomeHash con dashboard grant va a #/", async () => {
+    nonRhRhMode = true;
+    grants.add("dashboard");
+    grants.add("actas");
+    const { resolveRhModoHomeHash } = await import("./shellNavPolicy.ts");
+    expect(resolveRhModoHomeHash()).toBe("#/");
+  });
+
+  it("modulosMayAccessHash bloquea #/ en Modo RH sin grant de dashboard", async () => {
+    nonRhRhMode = true;
+    grants.add("actas");
+    const { modulosMayAccessHash } = await import("./shellNavPolicy.ts");
+    expect(modulosMayAccessHash("#/", "supervisor")).toBe(false);
+  });
+
+  it("modulosMayAccessHash permite rh-inicio con módulos activos", async () => {
+    nonRhRhMode = true;
+    grants.add("actas");
+    const { modulosMayAccessHash, RH_MODO_INICIO_HASH } = await import("./shellNavPolicy.ts");
+    expect(modulosMayAccessHash(RH_MODO_INICIO_HASH, "supervisor")).toBe(true);
+  });
+
+  it("modulosMayAccessHash permite sin-permisos-rh en Modo RH", async () => {
+    nonRhRhMode = true;
+    const { modulosMayAccessHash, RH_SIN_PERMISOS_HASH } = await import("./shellNavPolicy.ts");
+    expect(modulosMayAccessHash(RH_SIN_PERMISOS_HASH, "supervisor")).toBe(true);
+  });
+
+  it("pdi-gestion como único módulo aterriza en rh-inicio", async () => {
+    nonRhRhMode = true;
+    grants.add("pdi-gestion");
+    const { resolveRhModoHomeHash, RH_MODO_INICIO_HASH } = await import("./shellNavPolicy.ts");
+    expect(resolveRhModoHomeHash()).toBe(RH_MODO_INICIO_HASH);
+  });
+
+  it("empleados o comedor-registro como único módulo aterriza en rh-inicio", async () => {
+    nonRhRhMode = true;
+    grants.add("empleados");
+    const { resolveRhModoHomeHash, RH_MODO_INICIO_HASH } = await import("./shellNavPolicy.ts");
+    expect(resolveRhModoHomeHash()).toBe(RH_MODO_INICIO_HASH);
+
+    grants.clear();
+    grants.add("comedor-registro");
+    vi.resetModules();
+    nonRhRhMode = true;
+    const { resolveRhModoHomeHash: homeComedor, RH_MODO_INICIO_HASH: rhInicio } = await import("./shellNavPolicy.ts");
+    expect(homeComedor()).toBe(rhInicio);
+    const { isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(isShellNavItemVisibleForRol("empleado", "comedor")).toBe(true);
   });
 });

@@ -28,11 +28,13 @@ async def make_tarea_catalogo(
     db: AsyncSession,
     *,
     nombre: str = "Tarea de prueba",
+    descripcion: str | None = None,
     categoria: str | None = None,
     es_complemento: bool = False,
 ) -> TareaCatalogo:
     tarea = TareaCatalogo(
         nombre=nombre,
+        descripcion=descripcion,
         categoria=categoria,
         es_complemento=es_complemento,
         activo=True,
@@ -292,3 +294,188 @@ async def test_listar_tareas_perfil_incluye_catalogo_nombre(client: AsyncClient,
     assert len(data) == 1
     assert data[0]["tarea_catalogo_nombre"] == "Tarea catalogada"
     assert data[0]["tarea_catalogo_id"] == tarea_cat.id
+
+
+@pytest.mark.asyncio
+async def test_actualizar_tarea_catalogo_no_propaga_tarea_legacy_sin_fk(
+    client: AsyncClient, db
+):
+    """Tareas de perfil sin tarea_catalogo_id no reciben cambios del catálogo."""
+    from app.models.talento import PerfilTarea
+
+    rh = await make_empleado(db, rol="rh", email="tc_legacy_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, created_by=rh.id)
+    tarea_cat = await make_tarea_catalogo(db, nombre="Texto compartido legacy")
+
+    tarea = PerfilTarea(
+        puesto_perfil_id=perfil.id,
+        orden=1,
+        descripcion="Texto compartido legacy",
+        es_complemento=False,
+        tarea_catalogo_id=None,
+    )
+    db.add(tarea)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.patch(
+        f"/api/v1/tareas-catalogo/{tarea_cat.id}",
+        json={"nombre": "Nombre nuevo que no aplica a legacy"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    list_response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/tareas", headers=headers
+    )
+    assert list_response.status_code == 200
+    data = list_response.json()
+    assert len(data) == 1
+    assert data[0]["descripcion"] == "Texto compartido legacy"
+    assert data[0]["tarea_catalogo_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_crear_tarea_catalogo_con_descripcion(client: AsyncClient, db):
+    """POST /tareas-catalogo persiste nombre y descripcion."""
+    rh = await make_empleado(db, rol="rh", email="tc_desc_rh@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    payload = {
+        "nombre": "Supervisión entregas",
+        "descripcion": "Supervisar y validar entregas de material del almacén.",
+        "categoria": "logistica",
+    }
+    response = await client.post("/api/v1/tareas-catalogo", json=payload, headers=headers)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["nombre"] == "Supervisión entregas"
+    assert data["descripcion"] == "Supervisar y validar entregas de material del almacén."
+
+
+@pytest.mark.asyncio
+async def test_busqueda_tareas_catalogo_por_descripcion(client: AsyncClient, db):
+    """GET /tareas-catalogo?busqueda= encuentra por descripcion."""
+    rh = await make_empleado(db, rol="rh", email="tc_busq_desc_rh@leoni.test")
+    await make_tarea_catalogo(
+        db,
+        nombre="Tarea corta",
+        descripcion="Fragmento unico de busqueda xyz123",
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.get(
+        "/api/v1/tareas-catalogo",
+        params={"busqueda": "xyz123"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert any(i["nombre"] == "Tarea corta" for i in items)
+
+
+@pytest.mark.asyncio
+async def test_propaga_descripcion_a_perfiles(client: AsyncClient, db):
+    """Al actualizar descripcion del catalogo, los perfiles vinculados la reflejan."""
+    from app.models.talento import PerfilTarea
+
+    rh = await make_empleado(db, rol="rh", email="tc_prop_desc_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, created_by=rh.id)
+    tarea_cat = await make_tarea_catalogo(
+        db,
+        nombre="Nombre corto",
+        descripcion="Texto detallado original",
+    )
+
+    tarea = PerfilTarea(
+        puesto_perfil_id=perfil.id,
+        orden=1,
+        descripcion="Texto detallado original",
+        es_complemento=False,
+        tarea_catalogo_id=tarea_cat.id,
+    )
+    db.add(tarea)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.patch(
+        f"/api/v1/tareas-catalogo/{tarea_cat.id}",
+        json={"descripcion": "Texto detallado actualizado"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    list_response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/tareas", headers=headers
+    )
+    data = list_response.json()
+    assert data[0]["descripcion"] == "Texto detallado actualizado"
+    assert data[0]["tarea_catalogo_nombre"] == "Nombre corto"
+
+
+@pytest.mark.asyncio
+async def test_cambio_nombre_no_altera_descripcion_perfil_si_catalogo_tiene_descripcion(
+    client: AsyncClient, db
+):
+    """Cambiar solo nombre no modifica el texto mostrado cuando hay descripcion en catalogo."""
+    from app.models.talento import PerfilTarea
+
+    rh = await make_empleado(db, rol="rh", email="tc_nombre_only_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, created_by=rh.id)
+    tarea_cat = await make_tarea_catalogo(
+        db,
+        nombre="Nombre viejo",
+        descripcion="Descripcion estable en perfil",
+    )
+
+    tarea = PerfilTarea(
+        puesto_perfil_id=perfil.id,
+        orden=1,
+        descripcion="Descripcion estable en perfil",
+        es_complemento=False,
+        tarea_catalogo_id=tarea_cat.id,
+    )
+    db.add(tarea)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.patch(
+        f"/api/v1/tareas-catalogo/{tarea_cat.id}",
+        json={"nombre": "Nombre nuevo"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    list_response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/tareas", headers=headers
+    )
+    data = list_response.json()
+    assert data[0]["descripcion"] == "Descripcion estable en perfil"
+    assert data[0]["tarea_catalogo_nombre"] == "Nombre nuevo"
+
+
+@pytest.mark.asyncio
+async def test_crear_tarea_perfil_from_catalogo_usa_descripcion(client: AsyncClient, db):
+    """POST con tarea_catalogo_id resuelve descripcion detallada del catalogo."""
+    rh = await make_empleado(db, rol="rh", email="tc_assign_desc_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, created_by=rh.id)
+    tarea_cat = await make_tarea_catalogo(
+        db,
+        nombre="Auditar calidad",
+        descripcion="Auditar procesos de calidad en línea de producción.",
+    )
+    headers = await auth_headers(client, rh)
+
+    payload = {"orden": 1, "tarea_catalogo_id": tarea_cat.id}
+    response = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/tareas",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["descripcion"] == "Auditar procesos de calidad en línea de producción."
+    assert data["tarea_catalogo_nombre"] == "Auditar calidad"

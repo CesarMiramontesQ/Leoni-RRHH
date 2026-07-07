@@ -17,6 +17,7 @@ import type {
   PerfilPuestoListItem,
   PerfilPuestoCreatePayload,
   PuestosFilterState,
+  TipoPuestoPerfil,
 } from "../dashboard/puestos/types.ts";
 import { clearAuth } from "../auth/session.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
@@ -505,7 +506,7 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
 
 function renderModal(
   mode: "create" | "edit",
-  values: { codigo: string; nombre_puesto: string; area: string; nivel_id: string },
+  values: { codigo: string; nombre_puesto: string; area: string; nivel_id: string; tipo: TipoPuestoPerfil | "" },
   saving: boolean,
   areas: AreaOption[] = [],
   nivelesCatalog: NivelPuesto[] = [],
@@ -526,9 +527,9 @@ function renderModal(
       </div>
       <form data-action="modal-form" class="flex flex-col gap-4 px-6 py-5">
         <div>
-          <label for="puestos-modal-codigo" class="${RH_LISTADO_LABEL}">Código</label>
-          <input id="puestos-modal-codigo" name="codigo" type="text" placeholder="Se genera automáticamente" value="${escapeHtml(values.codigo)}" readonly
-            class="block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-text-muted ${FIELD_FOCUS}" />
+          <label for="puestos-modal-codigo" class="${RH_LISTADO_LABEL}">Código <span class="text-red-600" aria-hidden="true">*</span></label>
+          <input id="puestos-modal-codigo" name="codigo" type="text" required placeholder="Ej. OP-PROD-01" maxlength="20" value="${escapeHtml(values.codigo)}"
+            class="${FIELD_INPUT}" />
         </div>
         <div>
           <label for="puestos-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto <span class="text-red-600" aria-hidden="true">*</span></label>
@@ -551,6 +552,17 @@ function renderModal(
             <select id="puestos-modal-nivel" name="nivel_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
               <option value="" disabled ${!values.nivel_id ? "selected" : ""}>Selecciona un nivel…</option>
               ${nivelesCatalog.map((n) => `<option value="${n.id}" ${values.nivel_id === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`).join("")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </div>
+        <div>
+          <label for="puestos-modal-tipo" class="${RH_LISTADO_LABEL}">Tipo <span class="text-red-600" aria-hidden="true">*</span></label>
+          <div class="grid grid-cols-1">
+            <select id="puestos-modal-tipo" name="tipo" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+              <option value="" disabled ${!values.tipo ? "selected" : ""}>Selecciona un tipo…</option>
+              <option value="administrativo" ${values.tipo === "administrativo" ? "selected" : ""}>Administrativo</option>
+              <option value="operativo" ${values.tipo === "operativo" ? "selected" : ""}>Operativo</option>
             </select>
             ${SELECT_CHEVRON}
           </div>
@@ -637,7 +649,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   let modalMode: "create" | "edit" | "delete" | null = null;
   let modalSaving = false;
   let editingId: number | null = null;
-  let editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "" };
+  let editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "" as TipoPuestoPerfil | "" };
   let deletingItem: PerfilPuestoListItem | null = null;
 
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -722,7 +734,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     modalSaving = false;
     editingId = null;
     deletingItem = null;
-    editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "" };
+    editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "" };
     paintModal();
   }
 
@@ -771,7 +783,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
           case "create":
             modalMode = "create";
             editingId = null;
-            editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "" };
+            editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "administrativo" };
             paintModal();
             break;
           case "puestos-clear-filters":
@@ -789,6 +801,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
               nombre_puesto: item.nombre_puesto,
               area: item.area,
               nivel_id: String(item.nivel_id),
+              tipo: item.tipo,
             };
             paintModal();
             break;
@@ -887,14 +900,18 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const areaLabel = areasOptions.find((a) => a.id === areaId)?.label ?? "";
     const nivelRaw = (data.get("nivel_id") as string).trim();
     const nivelId = Number(nivelRaw);
+    const tipoRaw = (data.get("tipo") as string).trim();
+    const tipo: TipoPuestoPerfil | null =
+      tipoRaw === "administrativo" || tipoRaw === "operativo" ? tipoRaw : null;
     const payload: PerfilPuestoCreatePayload = {
       codigo: (data.get("codigo") as string).trim(),
       nombre_puesto: (data.get("nombre_puesto") as string).trim(),
       area: areaLabel,
       area_id: areaId,
       nivel_id: nivelId,
+      tipo: tipo ?? "administrativo",
     };
-    if (!payload.nombre_puesto || !nivelRaw || Number.isNaN(nivelId)) return;
+    if (!payload.codigo || !payload.nombre_puesto || !nivelRaw || Number.isNaN(nivelId) || !tipo) return;
 
     modalSaving = true;
     paintModal();

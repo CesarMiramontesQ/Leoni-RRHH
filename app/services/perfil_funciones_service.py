@@ -26,6 +26,7 @@ from app.models.talento import (
     PerfilTarea,
     PuestoPerfil,
     TareaCatalogo,
+    TipoCompetencia,
 )
 from app.repositories.competencia_repository import CompetenciaRequisitoRepository
 from app.repositories.cualificaciones_catalogo_repository import CualificacionCatalogoRepository
@@ -140,6 +141,9 @@ class PerfilFuncionesService:
     @staticmethod
     def _to_competencia_response(requisito: CompetenciaRequisito) -> PerfilCompetenciaResponse:
         comp = requisito.competencia
+        grupo_nombre = None
+        if comp and comp.tipo_competencia and comp.tipo_competencia.grupo_competencia:
+            grupo_nombre = comp.tipo_competencia.grupo_competencia.nombre
         return PerfilCompetenciaResponse(
             id=requisito.id,
             competencia_id=requisito.competencia_id,
@@ -150,6 +154,8 @@ class PerfilFuncionesService:
                 if comp and comp.tipo_competencia
                 else None
             ),
+            categoria=comp.categoria if comp else None,
+            grupo_nombre=grupo_nombre,
             grado_id=requisito.grado_id,
             grado_nombre=requisito.grado.nombre if requisito.grado else "",
             nivel_requerido=requisito.nivel_requerido,
@@ -177,7 +183,8 @@ class PerfilFuncionesService:
         """Si la tarea viene del catálogo, la descripción y tipo se resuelven desde ahí."""
         catalogo = t.tarea_catalogo
         if catalogo and t.tarea_catalogo_id:
-            descripcion = catalogo.nombre
+            desc = (catalogo.descripcion or "").strip()
+            descripcion = desc or catalogo.nombre
             es_complemento = catalogo.es_complemento
             catalogo_nombre = catalogo.nombre
         else:
@@ -239,7 +246,8 @@ class PerfilFuncionesService:
             if not tarea_cat:
                 raise NotFoundError(entidad="TareaCatalogo", id=data.tarea_catalogo_id)
             if not descripcion:
-                descripcion = tarea_cat.nombre
+                cat_desc = (tarea_cat.descripcion or "").strip()
+                descripcion = cat_desc or tarea_cat.nombre
             es_complemento = tarea_cat.es_complemento
 
         tarea = await self.tarea_repo.create({
@@ -295,6 +303,14 @@ class PerfilFuncionesService:
             raise NotFoundError(entidad="PerfilTarea", id=tarea_id)
 
         await self.tarea_repo.hard_delete(tarea_id)
+        await self._recompactar_ordenes_tareas(perfil_id)
+
+    async def _recompactar_ordenes_tareas(self, perfil_id: int) -> None:
+        tareas = await self.tarea_repo.list_by_perfil(perfil_id)
+        for i, tarea in enumerate(tareas, start=1):
+            if tarea.orden != i:
+                tarea.orden = i
+        await self.db.flush()
 
     async def reordenar_tareas(
         self, perfil_id: int, items: list, current_user: Empleado
@@ -504,7 +520,11 @@ class PerfilFuncionesService:
         from sqlalchemy.orm import selectinload
         result = await self.db.execute(
             select(Competencia)
-            .options(selectinload(Competencia.tipo_competencia))
+            .options(
+                selectinload(Competencia.tipo_competencia).selectinload(
+                    TipoCompetencia.grupo_competencia
+                )
+            )
             .where(Competencia.id == data.competencia_id)
         )
         catalogo = result.scalar_one_or_none()
@@ -616,9 +636,9 @@ class PerfilFuncionesService:
         result = await self.db.execute(
             select(CompetenciaRequisito)
             .options(
-                selectinload(CompetenciaRequisito.competencia).selectinload(
-                    Competencia.tipo_competencia
-                ),
+                selectinload(CompetenciaRequisito.competencia)
+                .selectinload(Competencia.tipo_competencia)
+                .selectinload(TipoCompetencia.grupo_competencia),
                 selectinload(CompetenciaRequisito.grado),
             )
             .where(
@@ -634,7 +654,6 @@ class PerfilFuncionesService:
 
         requisito.nivel_requerido = data.nivel_requerido
         await self.db.flush()
-        await self.db.refresh(requisito)
 
         return self._to_competencia_response(requisito)
 

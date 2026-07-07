@@ -6,7 +6,7 @@ Cubre:
   - CRUD completo (crear, listar, detalle, actualizar, eliminar)
   - Autorizacion por rol (solo RH muta, cualquier auth lee)
   - Validacion de payload
-  - Reglas de negocio: codigo secuencial, version increment, soft-delete
+  - Reglas de negocio: codigo unico manual, version increment, soft-delete
   - Filtrado y busqueda
   - Nombre duplicado → 409
   - Generacion con IA (Ollama mockeado)
@@ -25,8 +25,9 @@ from tests.conftest_talento import (
 )
 
 
-# Payload valido reutilizable — nivel_id se asigna en cada test
+# Payload valido reutilizable — nivel_id y codigo se asignan en cada test
 PERFIL_PAYLOAD_BASE = {
+    "codigo": "ING-PROC-01",
     "nombre": "Ingeniero de Procesos",
     "descripcion": "Optimizar procesos de manufactura",
 }
@@ -38,13 +39,18 @@ PERFIL_PAYLOAD_BASE = {
 
 @pytest.mark.asyncio
 async def test_create_puesto_perfil_success(client: AsyncClient, db):
-    """RH crea perfil exitosamente → 201, codigo generado, version=1."""
+    """RH crea perfil exitosamente → 201, codigo del usuario, version=1."""
     area = await make_area(db, descripcion="Manufactura")
     nivel = await make_nivel_puesto(db, nombre="Senior")
     rh = await make_empleado(db, rol="rh", email="pp_create_ok@leoni.test")
     headers = await auth_headers(client, rh)
 
-    payload = {**PERFIL_PAYLOAD_BASE, "area_id": area.area_id, "nivel_id": nivel.id}
+    payload = {
+        **PERFIL_PAYLOAD_BASE,
+        "codigo": "TEC-001",
+        "area_id": area.area_id,
+        "nivel_id": nivel.id,
+    }
     response = await client.post(
         "/api/v1/puestos-perfil",
         json=payload,
@@ -56,10 +62,11 @@ async def test_create_puesto_perfil_success(client: AsyncClient, db):
     assert body["nombre"] == "Ingeniero de Procesos"
     assert body["version"] == 1
     assert body["activo"] is True
-    assert body["codigo"].startswith("PRF-")
+    assert body["codigo"] == "TEC-001"
     assert body["area_id"] == area.area_id
     assert body["nivel_id"] == nivel.id
     assert body["nivel_nombre"] == "Senior"
+    assert body["tipo"] == "administrativo"
     assert body["created_by"] == rh.id
 
 
@@ -69,13 +76,18 @@ async def test_create_puesto_perfil_success(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_create_puesto_perfil_duplicate_nombre(client: AsyncClient, db):
-    """Crear perfil con nombre duplicado → 409."""
+    """Crear perfil con mismo nombre y mismo nivel → 409."""
     rh = await make_empleado(db, rol="rh", email="pp_dup@leoni.test")
     headers = await auth_headers(client, rh)
     nivel = await make_nivel_puesto(db, nombre="Nivel Dup")
 
     # Crear el primero
-    payload = {**PERFIL_PAYLOAD_BASE, "nombre": "Operador CNC Unico", "nivel_id": nivel.id}
+    payload = {
+        **PERFIL_PAYLOAD_BASE,
+        "nombre": "Operador CNC Unico",
+        "nivel_id": nivel.id,
+        "codigo": "OP-CNC-01",
+    }
     response1 = await client.post(
         "/api/v1/puestos-perfil",
         json=payload,
@@ -83,14 +95,105 @@ async def test_create_puesto_perfil_duplicate_nombre(client: AsyncClient, db):
     )
     assert response1.status_code == 201
 
-    # Intentar crear con mismo nombre
+    # Intentar crear con mismo nombre y mismo nivel (codigo distinto)
     response2 = await client.post(
         "/api/v1/puestos-perfil",
-        json=payload,
+        json={**payload, "codigo": "OP-CNC-02"},
         headers=headers,
     )
     assert response2.status_code == 409
     assert "ya existe" in response2.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# test_create_puesto_perfil_tipo_operativo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_puesto_perfil_tipo_operativo(client: AsyncClient, db):
+    """Crear perfil con tipo operativo explícito → 201."""
+    nivel = await make_nivel_puesto(db, nombre="Nivel Operativo")
+    rh = await make_empleado(db, rol="rh", email="pp_tipo_op@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            **PERFIL_PAYLOAD_BASE,
+            "codigo": "OP-LINEA-01",
+            "nombre": "Operador de Linea",
+            "nivel_id": nivel.id,
+            "tipo": "operativo",
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["tipo"] == "operativo"
+
+
+# ---------------------------------------------------------------------------
+# test_update_puesto_perfil_tipo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_update_puesto_perfil_tipo(client: AsyncClient, db):
+    """Actualizar tipo de perfil → 200 y persiste."""
+    area = await make_area(db, descripcion="Area Tipo Update")
+    rh = await make_empleado(db, rol="rh", email="pp_tipo_upd@leoni.test")
+    headers = await auth_headers(client, rh)
+    perfil = await make_puesto_perfil(
+        db, nombre="Perfil Tipo Update", area_id=area.area_id, nivel_id=(await make_nivel_puesto(db, nombre="Nivel Tipo")).id
+    )
+
+    response = await client.put(
+        f"/api/v1/puestos-perfil/{perfil.id}",
+        json={"tipo": "operativo"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["tipo"] == "operativo"
+
+
+# ---------------------------------------------------------------------------
+# test_create_puesto_perfil_same_nombre_different_nivel
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_puesto_perfil_same_nombre_different_nivel(client: AsyncClient, db):
+    """Mismo nombre con distinto nivel → 201 en ambos."""
+    rh = await make_empleado(db, rol="rh", email="pp_same_name@leoni.test")
+    headers = await auth_headers(client, rh)
+    nivel_jr = await make_nivel_puesto(db, nombre="JR")
+    nivel_senior = await make_nivel_puesto(db, nombre="Senior")
+
+    nombre = "Analista UL"
+    response1 = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            **PERFIL_PAYLOAD_BASE,
+            "nombre": nombre,
+            "nivel_id": nivel_jr.id,
+            "codigo": "AN-UL-JR",
+        },
+        headers=headers,
+    )
+    assert response1.status_code == 201
+
+    response2 = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            **PERFIL_PAYLOAD_BASE,
+            "nombre": nombre,
+            "nivel_id": nivel_senior.id,
+            "codigo": "AN-UL-SR",
+        },
+        headers=headers,
+    )
+    assert response2.status_code == 201
+    assert response2.json()["nombre"] == nombre
+    assert response2.json()["nivel_id"] == nivel_senior.id
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +209,7 @@ async def test_create_puesto_perfil_unauthorized(client: AsyncClient, db):
 
     response = await client.post(
         "/api/v1/puestos-perfil",
-        json={**PERFIL_PAYLOAD_BASE, "nivel_id": nivel.id},
+        json={**PERFIL_PAYLOAD_BASE, "codigo": "NOAUTH-01", "nivel_id": nivel.id},
         headers=headers,
     )
     assert response.status_code == 403
@@ -174,6 +277,61 @@ async def test_list_puestos_perfil_filter_area(client: AsyncClient, db):
 
 
 # ---------------------------------------------------------------------------
+# test_create_puesto_perfil_duplicate_codigo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_create_puesto_perfil_duplicate_codigo(client: AsyncClient, db):
+    """Crear perfil con codigo duplicado → 409."""
+    rh = await make_empleado(db, rol="rh", email="pp_dup_cod@leoni.test")
+    headers = await auth_headers(client, rh)
+    nivel = await make_nivel_puesto(db, nombre="Nivel Cod Dup")
+
+    await make_puesto_perfil(db, codigo="DUP-COD-01", nombre="Perfil Original", nivel_id=nivel.id)
+
+    response = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            **PERFIL_PAYLOAD_BASE,
+            "codigo": "DUP-COD-01",
+            "nombre": "Otro Perfil",
+            "nivel_id": nivel.id,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 409
+    assert "codigo" in response.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# test_update_puesto_perfil_codigo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_update_puesto_perfil_codigo(client: AsyncClient, db):
+    """Actualizar codigo de perfil → 200 y persiste."""
+    area = await make_area(db, descripcion="Area Cod Update")
+    rh = await make_empleado(db, rol="rh", email="pp_cod_upd@leoni.test")
+    headers = await auth_headers(client, rh)
+    perfil = await make_puesto_perfil(
+        db,
+        codigo="OLD-CODE-01",
+        nombre="Perfil Cod Update",
+        area_id=area.area_id,
+        nivel_id=(await make_nivel_puesto(db, nombre="Nivel Cod")).id,
+    )
+
+    response = await client.put(
+        f"/api/v1/puestos-perfil/{perfil.id}",
+        json={"codigo": "NEW-CODE-01"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["codigo"] == "NEW-CODE-01"
+
+
+# ---------------------------------------------------------------------------
 # test_list_puestos_perfil_filter_busqueda
 # ---------------------------------------------------------------------------
 
@@ -183,8 +341,8 @@ async def test_list_puestos_perfil_filter_busqueda(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="pp_filt_busq@leoni.test")
     headers = await auth_headers(client, rh)
 
-    await make_puesto_perfil(db, nombre="Soldador TIG Especial")
-    await make_puesto_perfil(db, nombre="Supervisor Logistica")
+    await make_puesto_perfil(db, codigo="SOL-TIG-01", nombre="Soldador TIG Especial")
+    await make_puesto_perfil(db, codigo="SUP-LOG-01", nombre="Supervisor Logistica")
 
     response = await client.get(
         "/api/v1/puestos-perfil?busqueda=Soldador",
@@ -278,6 +436,36 @@ async def test_update_puesto_perfil_increments_version(client: AsyncClient, db):
     )
     assert response2.status_code == 200
     assert response2.json()["version"] == 3
+
+
+# ---------------------------------------------------------------------------
+# test_update_puesto_perfil_duplicate_nombre_nivel
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_update_puesto_perfil_duplicate_nombre_nivel(client: AsyncClient, db):
+    """Actualizar nivel hacia combinación nombre+nivel ya existente → 409."""
+    area = await make_area(db, descripcion="Area Dup Update")
+    rh = await make_empleado(db, rol="rh", email="pp_dup_update@leoni.test")
+    headers = await auth_headers(client, rh)
+    nivel_jr = await make_nivel_puesto(db, nombre="JR Dup")
+    nivel_senior = await make_nivel_puesto(db, nombre="Senior Dup")
+
+    nombre = "Analista Dup Update"
+    perfil_jr = await make_puesto_perfil(
+        db, nombre=nombre, area_id=area.area_id, nivel_id=nivel_jr.id
+    )
+    await make_puesto_perfil(
+        db, nombre=nombre, area_id=area.area_id, nivel_id=nivel_senior.id
+    )
+
+    response = await client.put(
+        f"/api/v1/puestos-perfil/{perfil_jr.id}",
+        json={"nivel_id": nivel_senior.id},
+        headers=headers,
+    )
+    assert response.status_code == 409
+    assert "ya existe" in response.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------

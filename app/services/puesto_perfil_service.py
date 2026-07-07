@@ -3,7 +3,7 @@
 Logica de negocio para Puestos Perfil — Modulo Talento Fase 1.
 
 Responsabilidades:
-  - CRUD con auto-generacion de codigo PRF-YYYY-NNN
+  - CRUD con codigo proporcionado por el usuario (unico)
   - Versionado automatico en actualizaciones
   - Soft-delete (campo activo)
   - Integracion con Ollama para generacion de descripcion + competencias
@@ -64,6 +64,7 @@ class PuestoPerfilService:
             area_nombre=area_nombre,
             nivel_id=perfil.nivel_id,
             nivel_nombre=nivel_nombre,
+            tipo=perfil.tipo,
             descripcion=perfil.descripcion,
             version=perfil.version,
             activo=perfil.activo,
@@ -139,22 +140,25 @@ class PuestoPerfilService:
         if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede crear perfiles de puesto")
 
-        # Verificar duplicado
-        if await self.repo.exists_by_nombre(data.nombre):
+        if await self.repo.exists_by_codigo(data.codigo):
             raise ConflictError(
-                detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}'"
+                detail=f"Ya existe un perfil de puesto con el codigo '{data.codigo}'"
             )
 
-        # Generar codigo
-        codigo = await self.repo.get_next_codigo()
+        # Verificar duplicado (nombre + nivel)
+        if await self.repo.exists_by_nombre_y_nivel(data.nombre, data.nivel_id):
+            raise ConflictError(
+                detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}' y ese nivel"
+            )
 
         await self.nivel_service.validar_nivel_activo(data.nivel_id)
 
         perfil = await self.repo.create({
-            "codigo": codigo,
+            "codigo": data.codigo,
             "nombre": data.nombre,
             "area_id": data.area_id,
             "nivel_id": data.nivel_id,
+            "tipo": data.tipo,
             "descripcion": data.descripcion,
             "version": 1,
             "activo": True,
@@ -178,16 +182,24 @@ class PuestoPerfilService:
         if not perfil:
             raise NotFoundError(entidad="PuestoPerfil", id=id)
 
-        # Verificar duplicado de nombre si cambio
-        if data.nombre and data.nombre != perfil.nombre:
-            if await self.repo.exists_by_nombre(data.nombre, exclude_id=id):
-                raise ConflictError(
-                    detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}'"
-                )
+        new_nombre = data.nombre if data.nombre is not None else perfil.nombre
+        new_nivel_id = data.nivel_id if data.nivel_id is not None else perfil.nivel_id
+        if await self.repo.exists_by_nombre_y_nivel(
+            new_nombre, new_nivel_id, exclude_id=id
+        ):
+            raise ConflictError(
+                detail=f"Ya existe un perfil de puesto con el nombre '{new_nombre}' y ese nivel"
+            )
 
         # Construir dict de actualizacion (solo campos enviados)
         update_data: dict = {"updated_by": current_user.id}
 
+        if data.codigo is not None and data.codigo != perfil.codigo:
+            if await self.repo.exists_by_codigo(data.codigo, exclude_id=id):
+                raise ConflictError(
+                    detail=f"Ya existe un perfil de puesto con el codigo '{data.codigo}'"
+                )
+            update_data["codigo"] = data.codigo
         if data.nombre is not None:
             update_data["nombre"] = data.nombre
         if data.area_id is not None:
@@ -195,6 +207,8 @@ class PuestoPerfilService:
         if data.nivel_id is not None:
             await self.nivel_service.validar_nivel_activo(data.nivel_id)
             update_data["nivel_id"] = data.nivel_id
+        if data.tipo is not None:
+            update_data["tipo"] = data.tipo
         if data.descripcion is not None:
             update_data["descripcion"] = data.descripcion
 

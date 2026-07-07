@@ -15,6 +15,7 @@ from tests.conftest import auth_headers, make_empleado
 from tests.conftest_talento import (
     get_default_grado,
     make_competencia,
+    make_grupo_competencia,
     make_puesto_perfil,
     make_tipo_competencia,
 )
@@ -221,3 +222,172 @@ async def test_auto_orden_incrementa(client: AsyncClient, db: AsyncSession):
     assert resp2.status_code == 201
     assert resp1.json()["orden"] == 1
     assert resp2.json()["orden"] == 2
+
+
+# ===========================================================================
+# PROPAGACIÓN DESDE CATÁLOGO
+# ===========================================================================
+
+
+async def _asignar_competencia(
+    client: AsyncClient, headers: dict, perfil_id: int, comp_id: int, grado_id: int
+) -> None:
+    resp = await client.post(
+        f"/api/v1/perfiles/{perfil_id}/competencias",
+        json={"competencia_id": comp_id, "grado_id": grado_id, "nivel_requerido": 2},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_actualizar_competencia_catalogo_propaga_nombre_a_perfil(
+    client: AsyncClient, db: AsyncSession
+):
+    """Al editar el catálogo, el perfil vinculado refleja el nuevo nombre vía FK."""
+    rh = await make_empleado(db, rol="rh", email="pc_prop_nombre@leoni.test")
+    headers = await auth_headers(client, rh)
+    grado_id = await _grado_id(db)
+    perfil = await make_puesto_perfil(db, nombre="Puesto Prop Nombre")
+    comp = await make_competencia(db, nombre="Nombre Viejo", categoria="tecnica")
+    await _asignar_competencia(client, headers, perfil.id, comp.id, grado_id)
+
+    upd = await client.put(
+        f"/api/v1/competencias/{comp.id}",
+        json={"nombre": "Nombre Nuevo"},
+        headers=headers,
+    )
+    assert upd.status_code == 200
+
+    resp = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/competencias?grado_id={grado_id}",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    items = resp.json()
+    assert len(items) == 1
+    assert items[0]["competencia_nombre"] == "Nombre Nuevo"
+
+
+@pytest.mark.asyncio
+async def test_cambiar_tipo_competencia_propaga_a_perfil(
+    client: AsyncClient, db: AsyncSession
+):
+    """Cambiar tipo de la competencia actualiza tipo_nombre y grupo_nombre en el perfil."""
+    rh = await make_empleado(db, rol="rh", email="pc_prop_tipo@leoni.test")
+    headers = await auth_headers(client, rh)
+    grado_id = await _grado_id(db)
+    perfil = await make_puesto_perfil(db, nombre="Puesto Prop Tipo")
+
+    grupo_tec = await make_grupo_competencia(db, nombre="Técnica Prop")
+    grupo_blanda = await make_grupo_competencia(db, nombre="Habilidad blanda Prop")
+    tipo_viejo = await make_tipo_competencia(
+        db, nombre="Tipo Original", grupo_competencia_id=grupo_tec.id
+    )
+    tipo_nuevo = await make_tipo_competencia(
+        db, nombre="Tipo Nuevo", grupo_competencia_id=grupo_blanda.id
+    )
+    comp = await make_competencia(
+        db,
+        nombre="Comp Prop Tipo",
+        categoria="tecnica",
+        tipo_competencia_id=tipo_viejo.id,
+    )
+    await _asignar_competencia(client, headers, perfil.id, comp.id, grado_id)
+
+    upd = await client.put(
+        f"/api/v1/competencias/{comp.id}",
+        json={"tipo_competencia_id": tipo_nuevo.id},
+        headers=headers,
+    )
+    assert upd.status_code == 200
+
+    resp = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/competencias?grado_id={grado_id}",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    item = resp.json()[0]
+    assert item["tipo_competencia_id"] == tipo_nuevo.id
+    assert item["tipo_nombre"] == "Tipo Nuevo"
+    assert item["grupo_nombre"] == "Habilidad blanda Prop"
+    assert item["categoria"] == "blanda"
+
+
+@pytest.mark.asyncio
+async def test_actualizar_tipo_competencia_propaga_grupo_a_perfil(
+    client: AsyncClient, db: AsyncSession
+):
+    """Mover un tipo a otro grupo actualiza grupo_nombre y categoria en el perfil."""
+    rh = await make_empleado(db, rol="rh", email="pc_prop_tipo_grp@leoni.test")
+    headers = await auth_headers(client, rh)
+    grado_id = await _grado_id(db)
+    perfil = await make_puesto_perfil(db, nombre="Puesto Prop Tipo Grupo")
+
+    grupo_tec = await make_grupo_competencia(db, nombre="Técnica Cascade")
+    grupo_blanda = await make_grupo_competencia(db, nombre="Habilidad blanda Cascade")
+    tipo = await make_tipo_competencia(
+        db, nombre="Tipo Cascade", grupo_competencia_id=grupo_tec.id
+    )
+    comp = await make_competencia(
+        db,
+        nombre="Comp Cascade",
+        categoria="tecnica",
+        tipo_competencia_id=tipo.id,
+    )
+    await _asignar_competencia(client, headers, perfil.id, comp.id, grado_id)
+
+    patch = await client.patch(
+        f"/api/v1/tipos-competencia/{tipo.id}",
+        json={"nombre": "Tipo Cascade", "grupo_competencia_id": grupo_blanda.id},
+        headers=headers,
+    )
+    assert patch.status_code == 200
+
+    resp = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/competencias?grado_id={grado_id}",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    item = resp.json()[0]
+    assert item["grupo_nombre"] == "Habilidad blanda Cascade"
+    assert item["categoria"] == "blanda"
+
+
+@pytest.mark.asyncio
+async def test_actualizar_grupo_competencia_propaga_categoria_a_perfil(
+    client: AsyncClient, db: AsyncSession
+):
+    """Renombrar grupo recalcula categoria de competencias y se refleja en el perfil."""
+    rh = await make_empleado(db, rol="rh", email="pc_prop_grupo@leoni.test")
+    headers = await auth_headers(client, rh)
+    grado_id = await _grado_id(db)
+    perfil = await make_puesto_perfil(db, nombre="Puesto Prop Grupo")
+
+    grupo = await make_grupo_competencia(db, nombre="Habilidad blanda Grupo")
+    tipo = await make_tipo_competencia(
+        db, nombre="Tipo Grupo", grupo_competencia_id=grupo.id
+    )
+    comp = await make_competencia(
+        db,
+        nombre="Comp Grupo",
+        categoria="blanda",
+        tipo_competencia_id=tipo.id,
+    )
+    await _asignar_competencia(client, headers, perfil.id, comp.id, grado_id)
+
+    patch = await client.patch(
+        f"/api/v1/grupos-competencia/{grupo.id}",
+        json={"nombre": "Técnica Grupo Renombrado"},
+        headers=headers,
+    )
+    assert patch.status_code == 200
+
+    resp = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/competencias?grado_id={grado_id}",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    item = resp.json()[0]
+    assert item["grupo_nombre"] == "Técnica Grupo Renombrado"
+    assert item["categoria"] == "tecnica"

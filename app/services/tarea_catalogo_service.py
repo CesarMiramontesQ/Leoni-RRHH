@@ -23,6 +23,11 @@ class TareaCatalogoService:
         self.repo = TareaCatalogoRepository(db)
 
     @staticmethod
+    def _display_text(tarea: TareaCatalogo) -> str:
+        desc = (tarea.descripcion or "").strip()
+        return desc or tarea.nombre
+
+    @staticmethod
     def _get_rol(user: Empleado) -> str:
         return user.rol.nombre if user.rol else "empleado"
 
@@ -31,6 +36,7 @@ class TareaCatalogoService:
         return TareaCatalogoResponse(
             id=tarea.id,
             nombre=tarea.nombre,
+            descripcion=tarea.descripcion,
             categoria=tarea.categoria,
             es_complemento=tarea.es_complemento,
             activo=tarea.activo,
@@ -76,6 +82,7 @@ class TareaCatalogoService:
 
         tarea = await self.repo.create({
             "nombre": data.nombre,
+            "descripcion": data.descripcion,
             "categoria": data.categoria,
             "es_complemento": data.es_complemento,
             "activo": True,
@@ -99,6 +106,8 @@ class TareaCatalogoService:
         update_data: dict = {}
         if data.nombre is not None:
             update_data["nombre"] = data.nombre
+        if data.descripcion is not None:
+            update_data["descripcion"] = data.descripcion
         if data.categoria is not None:
             update_data["categoria"] = data.categoria
         if data.es_complemento is not None:
@@ -114,12 +123,27 @@ class TareaCatalogoService:
     async def _propagar_cambios_a_perfiles(
         self, catalogo_id: int, update_data: dict
     ) -> None:
-        """Sincroniza nombre/tipo en perfiles que referencian esta tarea del catálogo."""
+        """Sincroniza texto y tipo en perfiles que referencian esta tarea del catálogo.
+
+        Solo aplica a ``PerfilTarea`` con ``tarea_catalogo_id`` poblado. Las tareas
+        legacy (solo ``descripcion`` sin FK) no se actualizan; usar
+        ``python -m app.utils.backfill_perfil_tareas_catalogo`` para vincularlas.
+        """
+        tarea = await self.repo.get(catalogo_id)
+        if not tarea:
+            return
+
         perfil_updates: dict = {}
-        if "nombre" in update_data:
-            perfil_updates["descripcion"] = update_data["nombre"]
         if "es_complemento" in update_data:
             perfil_updates["es_complemento"] = update_data["es_complemento"]
+
+        display_changed = "descripcion" in update_data
+        if "nombre" in update_data and not (tarea.descripcion or "").strip():
+            display_changed = True
+
+        if display_changed:
+            perfil_updates["descripcion"] = self._display_text(tarea)
+
         if not perfil_updates:
             return
 

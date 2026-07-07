@@ -32,7 +32,10 @@ class RhModuleDef:
 _LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
     "comedor": ("comedor-registro", "comedor-gestion", "comedor-planear"),
     "puestos": ("puestos-ajustes",),
-    "cursos": ("cursos-seguimiento", "sesiones", "cursos-ajustes"),
+    "cursos": (
+        "cursos-seguimiento", "sesiones", "cursos-ajustes", "juntas",
+        "proveedores-externos", "cursos-externos", "cursos-vencimientos",
+    ),
     "level-up": ("evaluacion-360",),
 }
 
@@ -180,8 +183,8 @@ RH_MODULES: dict[str, RhModuleDef] = {
         key="cursos",
         label="Catálogo de cursos",
         group="Cursos",
-        nav_item_ids=("cursos-seguimiento", "cursos"),
-        hash_prefixes=("#/cursos/seguimiento", "#/cursos"),
+        nav_item_ids=("cursos",),
+        hash_prefixes=("#/cursos",),
         api_prefixes=("/api/v1/level-up/cursos",),
     ),
     "cursos-seguimiento": RhModuleDef(
@@ -223,6 +226,39 @@ RH_MODULES: dict[str, RhModuleDef] = {
         nav_item_ids=("cursos-ajustes",),
         hash_prefixes=("#/cursos/ajustes",),
         api_prefixes=("/api/v1/level-up/catalogos",),
+    ),
+    "juntas": RhModuleDef(
+        key="juntas",
+        label="Juntas",
+        group="Cursos",
+        nav_item_ids=("cursos-juntas",),
+        hash_prefixes=("#/cursos/juntas",),
+        api_prefixes=("/api/v1/juntas",),
+    ),
+    "proveedores-externos": RhModuleDef(
+        key="proveedores-externos",
+        label="Contratistas",
+        group="Personal Externo",
+        nav_item_ids=("cursos-proveedores",),
+        hash_prefixes=("#/cursos/proveedores",),
+        # Las 3 subpaginas comparten el backend; solo esta declara el api_prefix.
+        api_prefixes=("/api/v1/proveedores-externos",),
+    ),
+    "cursos-externos": RhModuleDef(
+        key="cursos-externos",
+        label="Cursos externos",
+        group="Personal Externo",
+        nav_item_ids=("cursos-externos",),
+        hash_prefixes=("#/cursos/externos",),
+        api_prefixes=(),
+    ),
+    "cursos-vencimientos": RhModuleDef(
+        key="cursos-vencimientos",
+        label="Vencimientos",
+        group="Personal Externo",
+        nav_item_ids=("cursos-vencimientos",),
+        hash_prefixes=("#/cursos/vencimientos",),
+        api_prefixes=(),
     ),
     "puestos": RhModuleDef(
         key="puestos",
@@ -300,6 +336,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/sugerencias",),
         api_prefixes=(),
     ),
+    "pdi-gestion": RhModuleDef(
+        key="pdi-gestion",
+        label="Gestión PDI",
+        group="Cumplimiento",
+        nav_item_ids=("pdi-gestion",),
+        hash_prefixes=("#/pdi-gestion",),
+        api_prefixes=("/api/v1/evaluaciones/pdi",),
+    ),
     "level-up": RhModuleDef(
         key="level-up",
         label="Resumen operativo",
@@ -332,6 +376,7 @@ RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
     "Comedor",
     "Nóminas",
     "Cursos",
+    "Personal Externo",
     "Puestos",
     "Cumplimiento",
     "Level Up",
@@ -471,9 +516,17 @@ def is_rh_self_service_api_path(path: str) -> bool:
     return any(_path_matches_prefix(path, prefix) for prefix in RH_SELF_SERVICE_API_PREFIXES)
 
 
+def _is_empleado_pdi_api_path(path: str) -> bool:
+    """CRUD PDI por empleado bajo /evaluaciones/empleado/{id}/pdi."""
+    return path.startswith("/api/v1/evaluaciones/empleado/") and "/pdi" in path
+
+
 def resolve_module_from_api_path(path: str) -> str | None:
     if any(_path_matches_prefix(path, exempt) for exempt in RH_MODULE_EXEMPT_API_PREFIXES):
         return None
+
+    if _is_empleado_pdi_api_path(path):
+        return "pdi-gestion"
 
     best_key: str | None = None
     best_len = -1

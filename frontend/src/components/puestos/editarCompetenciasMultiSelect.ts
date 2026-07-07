@@ -10,15 +10,18 @@ import { escapeHtml } from "../../ui/uiUtils.ts";
 import { getNivelRequeridoOptions, ensureMetodosCalificacionCompetenciaLoaded } from "../../ui/nivelCompetencia.ts";
 import { MODAL_OVERLAY, MODAL_PANEL, FIELD_FOCUS, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 
+export type EditarCompetenciasModalOpenOptions = {
+  gradoId: number;
+  gradoNombre?: string;
+};
+
 export type EditarCompetenciasModalHandle = {
-  open: () => void;
+  open: (opts: EditarCompetenciasModalOpenOptions) => void;
   close: () => void;
 };
 
 export type EditarCompetenciasModalOptions = {
   perfilId: number;
-  gradoId: number;
-  gradoNombre?: string;
   onSuccess: () => void;
 };
 
@@ -91,6 +94,8 @@ function optsFirstValue(): number {
 
 const COMPETENCIAS_MODAL_ROOT_ID = "editar-competencias-modal-root";
 
+let competenciasModalAc: AbortController | null = null;
+
 function ensureCompetenciasModalRoot(): HTMLElement {
   let root = document.getElementById(COMPETENCIAS_MODAL_ROOT_ID);
   if (!root) {
@@ -105,11 +110,18 @@ export function mountEditarCompetenciasModal(
   host: HTMLElement,
   options: EditarCompetenciasModalOptions,
 ): EditarCompetenciasModalHandle {
+  competenciasModalAc?.abort();
+  competenciasModalAc = new AbortController();
+  const signal = competenciasModalAc.signal;
+
   const modalRoot = ensureCompetenciasModalRoot();
-  modalRoot.innerHTML = overlayHtml(options.gradoNombre);
+  modalRoot.innerHTML = overlayHtml();
   host.innerHTML = "";
   const overlay = modalRoot.querySelector("#editar-competencias-overlay") as HTMLElement;
   const body = modalRoot.querySelector("#editar-competencias-body") as HTMLElement;
+
+  let gradoId = 0;
+  let gradoNombre: string | undefined;
 
   let catalogo: CatalogoItem[] = [];
   let tiposCatalogo: TipoCompetencia[] = [];
@@ -126,20 +138,26 @@ export function mountEditarCompetenciasModal(
   let saveError = "";
 
   function close(): void {
+    saving = false;
     overlay.classList.add("hidden");
     overlay.classList.remove("flex");
     document.body.style.overflow = "";
     document.removeEventListener("keydown", escHandler);
   }
 
+  function updateGradoHint(): void {
+    const hint = modalRoot.querySelector("#editar-competencias-grado-hint");
+    if (!hint) return;
+    hint.innerHTML = `Competencias para <strong>${escapeHtml(gradoNombre ?? "este grado")}</strong>. Selecciona el nivel mínimo requerido según los niveles configurados en ajustes.`;
+  }
+
   async function load(): Promise<void> {
-    saving = false;
     body.innerHTML = `<p class="text-sm text-text-muted">Cargando...</p>`;
     try {
       await ensureMetodosCalificacionCompetenciaLoaded(true);
       const [catalogoItems, perfilComps, tipos] = await Promise.all([
         getCompetencias({ page_size: 200 }),
-        getPerfilCompetencias(options.perfilId, options.gradoId),
+        getPerfilCompetencias(options.perfilId, gradoId),
         getTiposCompetencia({ page_size: 200 }),
       ]);
 
@@ -170,8 +188,10 @@ export function mountEditarCompetenciasModal(
       showCreate = false;
       searchQuery = "";
       searchSubcategoria = "";
+      saving = false;
       render();
     } catch {
+      saving = false;
       body.innerHTML = `<p class="text-sm text-red-600">Error al cargar datos</p>`;
     }
   }
@@ -430,7 +450,7 @@ export function mountEditarCompetenciasModal(
               ${SELECT_CHEVRON}
             </div>
           </div>
-          <button type="button" data-do-create class="${RH_LISTADO_BTN_PRIMARY} !px-3 !py-1.5 text-xs">Crear y agregar</button>
+          <button type="button" data-do-create class="${RH_LISTADO_BTN_PRIMARY} !px-3 !py-1.5 text-xs ${saving ? "opacity-50 pointer-events-none" : ""}">Crear y agregar</button>
           <button type="button" data-close-create class="text-slate-400 hover:text-slate-600 text-lg leading-none self-center">&times;</button>
         </div>
       </div>`;
@@ -529,7 +549,8 @@ export function mountEditarCompetenciasModal(
 
     const doCreate = target.closest<HTMLElement>("[data-do-create]");
     if (doCreate && !saving) {
-      handleCreate();
+      saving = true;
+      void handleCreate();
       return;
     }
 
@@ -546,9 +567,10 @@ export function mountEditarCompetenciasModal(
 
     const saveAllBtn = target.closest<HTMLElement>("[data-save-all]");
     if (saveAllBtn && !saving) {
-      saveAll();
+      saving = true;
+      void saveAll();
     }
-  });
+  }, { signal });
 
   body.addEventListener("input", (e) => {
     const target = e.target as HTMLElement;
@@ -561,7 +583,7 @@ export function mountEditarCompetenciasModal(
         input.setSelectionRange(input.value.length, input.value.length);
       }
     }
-  });
+  }, { signal });
 
   body.addEventListener("change", (e) => {
     const target = e.target as HTMLElement;
@@ -588,12 +610,15 @@ export function mountEditarCompetenciasModal(
       saveError = "";
       paintSaveFooter();
     }
-  });
+  }, { signal });
 
   async function handleCreate(): Promise<void> {
     const nombreInput = body.querySelector("[data-create-nombre]") as HTMLInputElement | null;
     const subcatSelect = body.querySelector("[data-create-subcat]") as HTMLSelectElement | null;
-    if (!nombreInput || !subcatSelect) return;
+    if (!nombreInput || !subcatSelect) {
+      saving = false;
+      return;
+    }
 
     const nombre = nombreInput.value.trim();
     const subcategoria = subcatSelect.value;
@@ -601,10 +626,12 @@ export function mountEditarCompetenciasModal(
     const nivelSelect = body.querySelector("[data-create-nivel]") as HTMLSelectElement | null;
     const nivel = Number.parseInt(nivelSelect?.value ?? "", 10);
     if (!nombre) {
+      saving = false;
       nombreInput.focus();
       return;
     }
     if (!isNivelValido(nivel)) {
+      saving = false;
       saveError = mensajeNivelRequerido();
       render();
       return;
@@ -617,7 +644,6 @@ export function mountEditarCompetenciasModal(
       return;
     }
 
-    saving = true;
     saveError = "";
     render();
     try {
@@ -628,10 +654,9 @@ export function mountEditarCompetenciasModal(
       });
       await createPerfilCompetencia(options.perfilId, {
         competencia_id: newComp.id,
-        grado_id: options.gradoId,
+        grado_id: gradoId,
         nivel_requerido: nivel,
       });
-      // Reload fresh data
       await load();
       options.onSuccess();
     } catch {
@@ -642,7 +667,6 @@ export function mountEditarCompetenciasModal(
   }
 
   async function saveAll(): Promise<void> {
-    saving = true;
     saveError = "";
     render();
     try {
@@ -685,7 +709,7 @@ export function mountEditarCompetenciasModal(
         }
 
         await syncPerfilCompetencias(options.perfilId, {
-          grado_id: options.gradoId,
+          grado_id: gradoId,
           tipo_competencia_id: sub.id,
           competencias,
         });
@@ -703,11 +727,11 @@ export function mountEditarCompetenciasModal(
 
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();
-  });
+  }, { signal });
 
   modalRoot.addEventListener("click", (e) => {
     if ((e.target as HTMLElement).closest("[data-close-competencias-modal]")) close();
-  });
+  }, { signal });
 
   function escHandler(e: KeyboardEvent): void {
     if (e.key === "Escape" && !overlay.classList.contains("hidden")) {
@@ -717,18 +741,21 @@ export function mountEditarCompetenciasModal(
   }
 
   return {
-    open: () => {
+    open: (opts: EditarCompetenciasModalOpenOptions) => {
+      gradoId = opts.gradoId;
+      gradoNombre = opts.gradoNombre;
+      updateGradoHint();
       overlay.classList.remove("hidden");
       overlay.classList.add("flex");
       document.body.style.overflow = "hidden";
       document.addEventListener("keydown", escHandler);
-      load();
+      void load();
     },
     close,
   };
 }
 
-function overlayHtml(gradoNombre?: string): string {
+function overlayHtml(): string {
   return `
     <div
       id="editar-competencias-overlay"
@@ -744,7 +771,7 @@ function overlayHtml(gradoNombre?: string): string {
         <div class="flex items-start justify-between gap-3 mb-4">
           <div>
             <h2 id="editar-competencias-title" class="text-lg font-semibold text-text-primary">Competencias demostradas</h2>
-            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Competencias para <strong>${escapeHtml(gradoNombre ?? "este grado")}</strong>. Selecciona el nivel mínimo requerido según los niveles configurados en ajustes.</p>
+            <p id="editar-competencias-grado-hint" class="text-xs text-slate-500 mt-0.5">Competencias para <strong>este grado</strong>. Selecciona el nivel mínimo requerido según los niveles configurados en ajustes.</p>
           </div>
           <button
             type="button"

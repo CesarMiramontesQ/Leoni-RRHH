@@ -32,7 +32,7 @@ async def listar_tareas_catalogo(
     page: int = Query(1, ge=1, description="Numero de pagina"),
     page_size: int = Query(50, ge=1, le=200, description="Items por pagina"),
     categoria: str | None = Query(None, description="Filtrar por categoria"),
-    busqueda: str | None = Query(None, description="Buscar por nombre"),
+    busqueda: str | None = Query(None, description="Buscar por nombre o descripcion"),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

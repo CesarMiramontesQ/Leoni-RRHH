@@ -3,11 +3,17 @@
 Repositorio de Competencias y CompetenciaRequisito — acceso a datos async.
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.talento import Competencia, CompetenciaRequisito, PuestoPerfil, TipoCompetencia
+from app.models.talento import (
+    Competencia,
+    CompetenciaRequisito,
+    GrupoCompetencia,
+    PuestoPerfil,
+    TipoCompetencia,
+)
 from app.repositories.base import BaseRepository
 
 
@@ -89,6 +95,35 @@ class CompetenciaRepository(BaseRepository[Competencia]):
         count = await self.db.scalar(query)
         return (count or 0) > 0
 
+    async def actualizar_categoria_por_tipo(self, tipo_id: int, categoria: str) -> int:
+        """Recalcula categoria denormalizada de competencias activas de un tipo."""
+        result = await self.db.execute(
+            update(Competencia)
+            .where(
+                Competencia.tipo_competencia_id == tipo_id,
+                Competencia.activo.is_(True),
+            )
+            .values(categoria=categoria)
+        )
+        await self.db.flush()
+        return result.rowcount or 0
+
+    async def actualizar_categoria_por_grupo(self, grupo_id: int, categoria: str) -> int:
+        """Recalcula categoria denormalizada de competencias activas cuyo tipo pertenece al grupo."""
+        subq = select(TipoCompetencia.id).where(
+            TipoCompetencia.grupo_competencia_id == grupo_id
+        )
+        result = await self.db.execute(
+            update(Competencia)
+            .where(
+                Competencia.tipo_competencia_id.in_(subq),
+                Competencia.activo.is_(True),
+            )
+            .values(categoria=categoria)
+        )
+        await self.db.flush()
+        return result.rowcount or 0
+
 
 class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
     def __init__(self, db: AsyncSession):
@@ -140,9 +175,9 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
         query = (
             select(CompetenciaRequisito)
             .options(
-                selectinload(CompetenciaRequisito.competencia).selectinload(
-                    Competencia.tipo_competencia
-                ),
+                selectinload(CompetenciaRequisito.competencia)
+                .selectinload(Competencia.tipo_competencia)
+                .selectinload(TipoCompetencia.grupo_competencia),
                 selectinload(CompetenciaRequisito.grado),
             )
             .where(CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id)

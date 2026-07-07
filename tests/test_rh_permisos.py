@@ -565,8 +565,51 @@ async def test_catalog_includes_submenu_modules(client: AsyncClient, db):
         "cursos-ajustes",
         "puestos-ajustes",
         "evaluacion-360",
+        "proveedores-externos",
+        "cursos-externos",
+        "cursos-vencimientos",
+        "competencias",
+        "tareas-catalogo",
+        "opls",
+        "evidencias",
+        "pdi-gestion",
     ):
         assert expected in keys
+
+
+@pytest.mark.asyncio
+async def test_catalog_covers_all_rh_modules(client: AsyncClient, db):
+    from app.core.rh_module_registry import all_module_keys, catalog_for_api
+
+    admin = await make_empleado(
+        db,
+        rol="rh",
+        email="rh_catalog_full@test.com",
+        puede_administrar_permisos_rh=True,
+    )
+    res = await client.get(
+        "/api/v1/rh-permisos/modulos",
+        headers=await auth_headers(client, admin),
+    )
+    assert res.status_code == 200
+    catalog_keys = {m["key"] for m in res.json()}
+    assert catalog_keys == set(all_module_keys())
+    assert {m["group"] for m in catalog_for_api()} >= {
+        "Personal Externo",
+        "Cumplimiento",
+    }
+
+
+def test_resolve_module_from_api_path_pdi_empleado():
+    from app.core.rh_module_registry import resolve_module_from_api_path
+
+    assert resolve_module_from_api_path("/api/v1/evaluaciones/empleado/42/pdi") == "pdi-gestion"
+    assert (
+        resolve_module_from_api_path("/api/v1/evaluaciones/empleado/42/pdi/99")
+        == "pdi-gestion"
+    )
+    assert resolve_module_from_api_path("/api/v1/evaluaciones/pdi/resumen") == "pdi-gestion"
+    assert resolve_module_from_api_path("/api/v1/evaluaciones/empleado/42") == "evaluaciones"
 
 
 @pytest.mark.asyncio
