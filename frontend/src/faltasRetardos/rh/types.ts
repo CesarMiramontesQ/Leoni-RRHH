@@ -1,5 +1,4 @@
 import type { FaltaRetardoListItem, FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
-import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 
 export type FaltasRetardosListFilters = {
   busqueda: string;
@@ -41,7 +40,6 @@ export type FaltasRetardosMetricasViewModel = {
   estadisticas: FaltasRetardosEstadisticasData | null;
   estadisticasStatus: "loading" | "ready" | "error";
   estadisticasErrorMessage?: string;
-  empleadosRetardosRanking: readonly SolicitudRankingRow[];
   tendenciaFiltros: { fecha_inicio: string; fecha_fin: string };
 };
 

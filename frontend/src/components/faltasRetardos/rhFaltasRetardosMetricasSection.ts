@@ -6,13 +6,6 @@ import {
 import type { FaltasRetardosMetricasViewModel } from "../../faltasRetardos/rh/types.ts";
 import type { FaltasRetardosEstadisticasData } from "../../faltasRetardos/rh/types.ts";
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
-import { cssVar } from "../../charts/chartTokens.ts";
-import {
-  renderDashEmpleadosRetardosChart,
-  RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
-} from "../dashboard/rhAnalyticsCharts.ts";
-import { mountRankingHorizontalBar } from "../solicitudes/rhSolicitudesAnalyticsCharts.ts";
-import type { SolicitudRankingRow } from "../../solicitudes/rh/computeSolicitudesAnalytics.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { empleadoLabelCorto } from "../../utils/empleadoLabelConNumero.ts";
 import { RH_LISTADO_SURFACE } from "./rhFaltasRetardosPageStyles.ts";
@@ -70,7 +63,6 @@ function chartsSkeleton(): string {
 
 function renderChartsContent(
   data: FaltasRetardosEstadisticasData,
-  empleadosRetardosRanking: readonly SolicitudRankingRow[],
   tendenciaFiltros: FaltasRetardosMetricasViewModel["tendenciaFiltros"],
 ): string {
   if (data.total_eventos <= 0) {
@@ -81,10 +73,6 @@ function renderChartsContent(
     ? renderFaltasRetardosTendenciaPorTipoChart(tendenciaData!)
     : `<div class="flex min-h-[280px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">${escapeHtml(FR_COPY.metricasSinDatos)}</div>`;
   const ranking = empleadosChartRows(data);
-  const retardosBody = renderDashEmpleadosRetardosChart(
-    empleadosRetardosRanking,
-    FR_COPY.metricasRetardosVacio,
-  );
   return `
     <div class="flex flex-col gap-4 sm:gap-5">
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
@@ -103,11 +91,6 @@ function renderChartsContent(
           )}
         </div>
       </div>
-      ${chartShell(
-        FR_COPY.metricasRetardosTitulo,
-        FR_COPY.metricasRetardosSub,
-        retardosBody,
-      )}
       ${chartShell(
         FR_COPY.metricasEmpleadosTitulo,
         FR_COPY.metricasEmpleadosSub,
@@ -136,18 +119,15 @@ export function renderRhFaltasRetardosMetricasSection(
     return `<div id="rh-fr-metricas-analytics" class="text-sm text-[color:var(--color-text-muted)]">${escapeHtml(FR_COPY.metricasSinDatos)}</div>`;
   }
   return `<div id="rh-fr-metricas-analytics" class="flex flex-col gap-4 sm:gap-5">
-    ${renderChartsContent(data, vm.empleadosRetardosRanking, vm.tendenciaFiltros)}
+    ${renderChartsContent(data, vm.tendenciaFiltros)}
   </div>`;
 }
 
 const FR_METRICAS_CHART_IDS = [
   RH_FR_TENDENCIA_CHART_ID,
   RH_FR_TIPO_BAR_CHART_ID,
-  RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
   RH_FR_EMPLEADOS_BAR_CHART_ID,
 ] as const;
-
-const RETARDOS_BAR_COLOR = cssVar("--color-accent", "#2563EB");
 
 export function mountRhFaltasRetardosMetricasCharts(
   root: ParentNode,
@@ -165,15 +145,6 @@ export function mountRhFaltasRetardosMetricasCharts(
     mountFaltasRetardosTendenciaPorTipoChart(root, tendencia!);
   }
   mountFaltasRetardosTipoBarChart(root, data.eventos_por_tipo ?? []);
-  if (vm.empleadosRetardosRanking.length > 0) {
-    mountRankingHorizontalBar(
-      root,
-      RH_DASH_RETARDOS_EMPLEADOS_BAR_ID,
-      vm.empleadosRetardosRanking,
-      RETARDOS_BAR_COLOR,
-      "Retardos",
-    );
-  }
   const rows = empleadosChartRows(data);
   if (rows.length > 0) {
     mountFaltasRetardosEmpleadosStackedBarChart(root, rows);
