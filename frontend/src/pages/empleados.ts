@@ -24,6 +24,15 @@ import {
 import { isSupervisorStructuredNavRol } from "../navigation/shellNavPolicy.ts";
 import { clearAuth } from "../auth/session.ts";
 import { downloadEmpleadosExcel } from "../empleados/exportEmpleadosExcel.ts";
+import {
+  applyKpiTarjetaClick,
+  clearKpiTarjetaFiltros,
+  kpiFiltrarContratos,
+  kpiFiltrarSinEmail,
+  kpiFiltrarSinLider,
+  type KpiTarjetaActiva,
+  type KpiTarjetaKind,
+} from "../empleados/empleadosKpiFilters.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { antiguedadAniosMeses, formatFechaIngreso } from "../utils/vista360Domain.ts";
@@ -154,12 +163,8 @@ type State = {
   activo_rh: "" | "true" | "false";
   /** Supervisor/gerente: vacío = activos API; inactivo | permiso. */
   estatus_lider: "" | "inactivo" | "permiso";
-  /** KPI: tabla solo colaboradores con contrato por vencer (30 días). */
-  kpi_filtrar_contratos: boolean;
-  /** KPI RH: tabla solo empleados activos sin líder asignado. */
-  kpi_filtrar_sin_lider: boolean;
-  /** KPI RH: tabla solo administrativos activos sin email registrado. */
-  kpi_filtrar_sin_email: boolean;
+  /** Tarjeta KPI activa como filtro de tabla (mutuamente excluyente). */
+  kpi_tarjeta_activa: KpiTarjetaActiva;
 };
 
 function parseOptionalInt(s: string): number | undefined {
@@ -190,11 +195,11 @@ function filtrosActivos(state: State, rh: boolean, liderUi: boolean): boolean {
   if (state.area_id) return true;
   if (state.puesto_id) return true;
   if (rh && state.activo_rh) return true;
-  if (rh && state.kpi_filtrar_sin_lider) return true;
-  if (rh && state.kpi_filtrar_sin_email) return true;
+  if (rh && kpiFiltrarSinLider(state)) return true;
+  if (rh && kpiFiltrarSinEmail(state)) return true;
   if (liderUi) {
     if (state.estatus_lider) return true;
-    if (state.kpi_filtrar_contratos) return true;
+    if (kpiFiltrarContratos(state)) return true;
   }
   return false;
 }
@@ -215,11 +220,11 @@ function buildEmpleadosListParams(state: State, isRhAdmin: boolean, kpiGestionEq
     area_id: parseOptionalInt(state.area_id),
     puesto_id: parseOptionalIntList(state.puesto_id),
     ...(isRhAdmin ? { activo: parseActivoRh(state.activo_rh) } : {}),
-    ...(isRhAdmin && state.kpi_filtrar_sin_lider ? { solo_sin_lider: true } : {}),
-    ...(isRhAdmin && state.kpi_filtrar_sin_email ? { solo_sin_email: true } : {}),
+    ...(isRhAdmin && kpiFiltrarSinLider(state) ? { solo_sin_lider: true } : {}),
+    ...(isRhAdmin && kpiFiltrarSinEmail(state) ? { solo_sin_email: true } : {}),
   };
   if (!kpiGestionEquipo || isRhAdmin) return base;
-  if (state.kpi_filtrar_contratos) base.solo_contratos_por_vencer = true;
+  if (kpiFiltrarContratos(state)) base.solo_contratos_por_vencer = true;
   if (state.estatus_lider) base.estatus = state.estatus_lider;
   return base;
 }
@@ -326,8 +331,8 @@ type RhKpiResaltado = { resaltarSinLider: boolean; resaltarSinEmail: boolean };
 
 function rhKpiUiDesdeState(s: State): RhKpiResaltado {
   return {
-    resaltarSinLider: s.kpi_filtrar_sin_lider,
-    resaltarSinEmail: s.kpi_filtrar_sin_email,
+    resaltarSinLider: kpiFiltrarSinLider(s),
+    resaltarSinEmail: kpiFiltrarSinEmail(s),
   };
 }
 
@@ -341,8 +346,8 @@ function kpiRhSinEmailCardRing(on: boolean): string {
 
 function liderKpiUiDesdeState(s: State): LiderKpiResaltado {
   return {
-    resaltarEquipo: !s.kpi_filtrar_contratos && !s.estatus_lider,
-    resaltarContratos: s.kpi_filtrar_contratos,
+    resaltarEquipo: s.kpi_tarjeta_activa === "" && !s.estatus_lider,
+    resaltarContratos: s.kpi_tarjeta_activa === "contratos",
   };
 }
 
@@ -378,7 +383,7 @@ function renderKpis(
         : "";
     return `
     <div class="${kpiLiderGridCls}">
-      <button type="button" data-emp-kpi="equipo" class="group flex w-full flex-col text-left transition ${kpiLiderCardCls} ${ringEq}">
+      <button type="button" data-emp-kpi="equipo" aria-pressed="${liderKpi.resaltarEquipo ? "true" : "false"}" class="group flex w-full flex-col text-left transition ${kpiLiderCardCls} ${ringEq}">
         <div class="flex items-start justify-between gap-3">
           <p class="text-sm font-semibold text-slate-600">Número de colaboradores</p>
           ${kpiMetricIconBox(
@@ -392,7 +397,7 @@ function renderKpis(
         <p class="${KPI_SUB_CLS}">Activo(s) en tu alcance · quita el filtro de contratos</p>
         <p class="${KPI_MICRO_CLS}">Clic para restablecer vista de equipo</p>
       </button>
-      <button type="button" data-emp-kpi="contratos" class="group flex w-full flex-col text-left transition ${kpiLiderCardCls} ${ringCt}">
+      <button type="button" data-emp-kpi="contratos" aria-pressed="${liderKpi.resaltarContratos ? "true" : "false"}" class="group flex w-full flex-col text-left transition ${kpiLiderCardCls} ${ringCt}">
         <div class="flex items-start justify-between gap-3">
           <p class="text-sm font-semibold text-slate-600">Contratos por vencer</p>
           ${kpiMetricIconBox("contrato", svgKpiContratoCalendario())}
@@ -488,7 +493,7 @@ function renderKpis(
         ${estadoContratosRh}
         <p class="${KPI_MICRO_CLS} mt-auto pt-2">Comparación vs mes anterior: no disponible</p>
       </article>
-      <button type="button" data-emp-kpi="sin-lider" class="group flex w-full flex-col text-left ${RH_EMPLEADOS_KPI_CARD_SHELL} border-amber-200/55 bg-linear-to-br from-white to-amber-50/95${sinLiderResaltar && !ringSinLiderFiltro ? " ring-2 ring-amber-300/45 ring-offset-2 ring-offset-white" : ""}${ringSinLiderFiltro}">
+      <button type="button" data-emp-kpi="sin-lider" aria-pressed="${rhKpi?.resaltarSinLider ? "true" : "false"}" class="group flex w-full flex-col text-left ${RH_EMPLEADOS_KPI_CARD_SHELL} border-amber-200/55 bg-linear-to-br from-white to-amber-50/95${sinLiderResaltar && !rhKpi?.resaltarSinLider && !rhKpi?.resaltarSinEmail ? " ring-2 ring-amber-300/45 ring-offset-2 ring-offset-white" : ""}${ringSinLiderFiltro}">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Sin Líder Asignado</h2>
           ${kpiMetricIconBox("sinLider", svgKpiSinLider())}
@@ -497,7 +502,7 @@ function renderKpis(
         <p class="${KPI_SUB_CLS}">Empleados activos sin responsable jerárquico</p>
         <p class="${KPI_MICRO_CLS} mt-auto pt-2">Clic para filtrar la tabla · otra vez para quitar</p>
       </button>
-      <button type="button" data-emp-kpi="sin-email" class="group flex w-full flex-col text-left ${RH_EMPLEADOS_KPI_CARD_SHELL} border-violet-200/55 bg-linear-to-br from-white to-violet-50/95${sinEmailResaltar && !ringSinEmailFiltro ? " ring-2 ring-violet-300/45 ring-offset-2 ring-offset-white" : ""}${ringSinEmailFiltro}">
+      <button type="button" data-emp-kpi="sin-email" aria-pressed="${rhKpi?.resaltarSinEmail ? "true" : "false"}" class="group flex w-full flex-col text-left ${RH_EMPLEADOS_KPI_CARD_SHELL} border-violet-200/55 bg-linear-to-br from-white to-violet-50/95${sinEmailResaltar && !rhKpi?.resaltarSinEmail && !rhKpi?.resaltarSinLider ? " ring-2 ring-violet-300/45 ring-offset-2 ring-offset-white" : ""}${ringSinEmailFiltro}">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Sin Email</h2>
           ${kpiMetricIconBox("sinEmail", svgKpiSinEmail())}
@@ -1296,9 +1301,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     puesto_id: "",
     activo_rh: "",
     estatus_lider: "",
-    kpi_filtrar_contratos: false,
-    kpi_filtrar_sin_lider: false,
-    kpi_filtrar_sin_email: false,
+    kpi_tarjeta_activa: "",
   };
 
   let resumenGestion: UsuarioResumen | null = null;
@@ -1563,29 +1566,20 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       const kpiBtn = t.closest<HTMLButtonElement>("[data-emp-kpi]");
       if (kpiBtn) {
         const kind = kpiBtn.getAttribute("data-emp-kpi");
-        if (kind === "sin-lider" && isRhAdmin) {
-          state.kpi_filtrar_sin_lider = !state.kpi_filtrar_sin_lider;
-          state.page = 1;
-          void loadPage();
-          return;
-        }
-        if (kind === "sin-email" && isRhAdmin) {
-          state.kpi_filtrar_sin_email = !state.kpi_filtrar_sin_email;
-          state.page = 1;
-          void loadPage();
-          return;
-        }
-        if (kpiGestionEquipo) {
-          if (kind === "equipo") {
-            state.kpi_filtrar_contratos = false;
-            state.estatus_lider = "";
+        if (
+          kind === "sin-lider" ||
+          kind === "sin-email" ||
+          kind === "equipo" ||
+          kind === "contratos"
+        ) {
+          const { changed } = applyKpiTarjetaClick(state, kind as KpiTarjetaKind, {
+            isRhAdmin,
+            kpiGestionEquipo,
+          });
+          if (changed) {
             state.page = 1;
-          } else if (kind === "contratos") {
-            state.kpi_filtrar_contratos = !state.kpi_filtrar_contratos;
-            if (state.kpi_filtrar_contratos) state.estatus_lider = "";
-            state.page = 1;
+            void loadPage();
           }
-          void loadPage();
           return;
         }
       }
@@ -1595,9 +1589,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         state.puesto_id = "";
         state.activo_rh = "";
         state.estatus_lider = "";
-        state.kpi_filtrar_contratos = false;
-        state.kpi_filtrar_sin_lider = false;
-        state.kpi_filtrar_sin_email = false;
+        clearKpiTarjetaFiltros(state);
         state.page = 1;
         void loadPage();
         return;
@@ -1649,7 +1641,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       if (kpiGestionEquipo && t.id === "emp-filter-lider-estatus") {
         const v = (t as HTMLSelectElement).value;
         state.estatus_lider = v === "inactivo" || v === "permiso" ? v : "";
-        state.kpi_filtrar_contratos = false;
+        clearKpiTarjetaFiltros(state);
         state.page = 1;
         void loadPage();
       }
