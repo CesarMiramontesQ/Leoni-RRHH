@@ -183,7 +183,8 @@ class PerfilFuncionesService:
         """Si la tarea viene del catálogo, la descripción y tipo se resuelven desde ahí."""
         catalogo = t.tarea_catalogo
         if catalogo and t.tarea_catalogo_id:
-            descripcion = catalogo.nombre
+            desc = (catalogo.descripcion or "").strip()
+            descripcion = desc or catalogo.nombre
             es_complemento = catalogo.es_complemento
             catalogo_nombre = catalogo.nombre
         else:
@@ -245,7 +246,8 @@ class PerfilFuncionesService:
             if not tarea_cat:
                 raise NotFoundError(entidad="TareaCatalogo", id=data.tarea_catalogo_id)
             if not descripcion:
-                descripcion = tarea_cat.nombre
+                cat_desc = (tarea_cat.descripcion or "").strip()
+                descripcion = cat_desc or tarea_cat.nombre
             es_complemento = tarea_cat.es_complemento
 
         tarea = await self.tarea_repo.create({

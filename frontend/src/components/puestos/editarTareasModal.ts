@@ -7,6 +7,7 @@
 import {
   getPerfilTareas,
   createPerfilTarea,
+  updatePerfilTarea,
   deletePerfilTarea,
   reorderPerfilTareas,
   type PerfilTarea,
@@ -14,6 +15,7 @@ import {
 import {
   getTareasCatalogo,
   createTareaCatalogo,
+  updateTareaCatalogo,
   extractCategoriasFromCatalogo,
   isTareaCatalogoDuplicada,
   MSG_TAREA_DUPLICADA,
@@ -55,6 +57,7 @@ const ICON_DRAG = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" a
 const ICON_TRASH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4Z" clip-rule="evenodd"/></svg>`;
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const ICON_PLUS = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>`;
+const ICON_EDIT = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M2.695 14.763l-1.262 3.154a.75.75 0 0 0 .966.966l3.154-1.262a4.5 4.5 0 0 0 1.897-1.13L16.5 6.5a2.121 2.121 0 0 0-3-3L5.49 13.09a4.5 4.5 0 0 0-1.795 1.673ZM12.75 4.81l1.44 1.44-1.06 1.061-1.44-1.44 1.06-1.06Z"/></svg>`;
 
 /** Chip de tipo unificado: Principal (blue) / Complementaria (amber). */
 function tipoChip(esComplemento: boolean): string {
@@ -113,7 +116,7 @@ function overlayHtml(): string {
     </div>`;
 }
 
-function renderTareasList(tareas: PerfilTarea[]): string {
+function renderTareasList(tareas: PerfilTarea[], editingId: number | null): string {
   const header = `
     <div class="flex items-center justify-between gap-2">
       <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Tareas del perfil</p>
@@ -135,18 +138,57 @@ function renderTareasList(tareas: PerfilTarea[]): string {
     <section class="space-y-2">
       ${header}
       <div id="tareas-sortable" class="max-h-64 space-y-1 overflow-y-auto pr-0.5">
-        ${tareas.map(t => `
+        ${tareas.map(t => {
+          if (editingId === t.id) {
+            const catalogLinked = t.tarea_catalogo_id != null;
+            const nombreVal = catalogLinked ? (t.tarea_catalogo_nombre ?? t.descripcion) : "";
+            return `
+          <div class="rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3 space-y-3" data-edit-panel="${t.id}">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Editar tarea</p>
+            <div id="tarea-edit-error-${t.id}" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert"></div>
+            ${catalogLinked ? `
+            <div>
+              <label for="tarea-edit-nombre-${t.id}" class="${RH_LISTADO_LABEL}">Nombre</label>
+              <input id="tarea-edit-nombre-${t.id}" type="text" required value="${escapeHtml(nombreVal)}"
+                class="${FIELD_INPUT}" placeholder="Nombre corto" />
+            </div>` : ""}
+            <div>
+              <label for="tarea-edit-desc-${t.id}" class="${RH_LISTADO_LABEL}">Descripción</label>
+              <textarea id="tarea-edit-desc-${t.id}" required rows="3"
+                class="${FIELD_INPUT} min-h-[4.5rem] resize-y"
+                placeholder="Descripción de la tarea">${escapeHtml(t.descripcion)}</textarea>
+            </div>
+            ${catalogLinked ? `<p class="text-xs text-text-muted">Los cambios se aplican al catálogo y a todos los perfiles que usan esta tarea.</p>` : ""}
+            <div class="flex justify-end gap-2">
+              <button type="button" data-cancel-edit="${t.id}" class="${RH_LISTADO_BTN_GHOST} text-xs">Cancelar</button>
+              <button type="button" data-save-edit="${t.id}" class="${RH_LISTADO_BTN_PRIMARY} text-xs">Guardar</button>
+            </div>
+          </div>`;
+          }
+
+          const nombreHint =
+            t.tarea_catalogo_nombre && t.tarea_catalogo_nombre !== t.descripcion
+              ? `<span class="block truncate text-[11px] text-text-muted" title="${escapeHtml(t.tarea_catalogo_nombre)}">${escapeHtml(t.tarea_catalogo_nombre)}</span>`
+              : "";
+
+          return `
           <div class="group flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 transition-colors hover:border-slate-200 hover:bg-active-tint active:cursor-grabbing"
                draggable="true" data-tarea-id="${t.id}">
             <span class="flex size-5 shrink-0 cursor-grab items-center justify-center text-slate-300 transition-colors group-hover:text-slate-400" aria-hidden="true">${ICON_DRAG}</span>
             <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue/10 font-mono text-[10px] font-bold tabular-nums text-leoni-blue" data-orden-badge>${t.orden}</span>
-            <span class="min-w-0 flex-1 truncate text-sm text-text-primary" title="${escapeHtml(t.descripcion)}">${escapeHtml(t.descripcion)}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm text-text-primary" title="${escapeHtml(t.descripcion)}">${escapeHtml(t.descripcion)}</span>
+              ${nombreHint}
+            </span>
             ${tipoChip(t.es_complemento)}
+            <button type="button" data-edit-tarea="${t.id}" class="shrink-0 rounded-md p-1.5 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-leoni-blue focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40" title="Editar" aria-label="Editar tarea">
+              ${ICON_EDIT}
+            </button>
             <button type="button" data-delete-tarea="${t.id}" class="shrink-0 rounded-md p-1.5 text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40" title="Eliminar" aria-label="Eliminar tarea">
               ${ICON_TRASH}
             </button>
-          </div>
-        `).join("")}
+          </div>`;
+        }).join("")}
       </div>
     </section>`;
 }
@@ -244,7 +286,13 @@ function renderAddForm(
           <label for="tarea-new-nombre" class="${RH_LISTADO_LABEL}">Nombre</label>
           <input id="tarea-new-nombre" type="text" required
             class="${FIELD_INPUT}"
-            placeholder="Descripción de la tarea" />
+            placeholder="Nombre corto para búsqueda" />
+        </div>
+        <div>
+          <label for="tarea-new-descripcion" class="${RH_LISTADO_LABEL}">Descripción</label>
+          <textarea id="tarea-new-descripcion" required rows="3"
+            class="${FIELD_INPUT} min-h-[4.5rem] resize-y"
+            placeholder="Describe la tarea con el detalle del perfil"></textarea>
         </div>
         <div>
           <label for="tarea-new-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="font-normal normal-case tracking-normal text-text-muted">(opcional — elige una o escribe una nueva)</span></label>
@@ -293,6 +341,7 @@ export function mountEditarTareasModal(
   let clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
   let assignedCatalogoIds: Set<number> = new Set();
   let tareas: PerfilTarea[] = [];
+  let editingTareaId: number | null = null;
 
   function close(): void {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -323,14 +372,88 @@ export function mountEditarTareasModal(
       );
       selectedCatalogo = null;
       body.innerHTML =
-        renderTareasList(tareas) +
+        renderTareasList(tareas, editingTareaId) +
         renderAddForm(showCreateNew, filterTipo, filterCategoria, categoriasOpciones);
       bindDeleteButtons();
+      bindEditButtons();
       bindDragDrop();
       bindInteractions();
     } catch {
       body.innerHTML = `<p class="text-sm text-red-600">Error al cargar tareas.</p>`;
     }
+  }
+
+  function bindEditButtons(): void {
+    body.querySelectorAll<HTMLButtonElement>("[data-edit-tarea]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        editingTareaId = Number(btn.dataset.editTarea);
+        void refreshList();
+      });
+    });
+
+    body.querySelectorAll<HTMLButtonElement>("[data-cancel-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        editingTareaId = null;
+        void refreshList();
+      });
+    });
+
+    body.querySelectorAll<HTMLButtonElement>("[data-save-edit]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const tareaId = Number(btn.dataset.saveEdit);
+        if (loading) return;
+        const tarea = tareas.find((t) => t.id === tareaId);
+        if (!tarea) return;
+
+        const errorEl = body.querySelector(`#tarea-edit-error-${tareaId}`) as HTMLElement | null;
+        const showError = (message: string) => {
+          if (!errorEl) return;
+          errorEl.textContent = message;
+          errorEl.classList.remove("hidden");
+        };
+
+        const descripcion = (
+          body.querySelector(`#tarea-edit-desc-${tareaId}`) as HTMLTextAreaElement
+        )?.value.trim();
+        if (!descripcion) {
+          showError("Indica la descripción de la tarea.");
+          return;
+        }
+
+        let nombre: string | undefined;
+        if (tarea.tarea_catalogo_id) {
+          nombre = (
+            body.querySelector(`#tarea-edit-nombre-${tareaId}`) as HTMLInputElement
+          )?.value.trim();
+          if (!nombre) {
+            showError("Indica el nombre de la tarea.");
+            return;
+          }
+        }
+
+        loading = true;
+        btn.disabled = true;
+        btn.textContent = "Guardando…";
+
+        try {
+          if (tarea.tarea_catalogo_id && nombre) {
+            await updateTareaCatalogo(tarea.tarea_catalogo_id, { nombre, descripcion });
+          } else {
+            await updatePerfilTarea(options.perfilId, tareaId, { descripcion });
+          }
+          editingTareaId = null;
+          options.onSuccess();
+          await refreshList();
+        } catch (err: unknown) {
+          const detail = (err as TareaCatalogoFetchError)?.detail ?? "No se pudo guardar la tarea.";
+          showError(detail);
+        } finally {
+          loading = false;
+          btn.disabled = false;
+          btn.textContent = "Guardar";
+        }
+      });
+    });
   }
 
   function bindDeleteButtons(): void {
@@ -491,11 +614,14 @@ export function mountEditarTareasModal(
           aria-selected="${active ? "true" : "false"}"
           data-select-tarea="${t.id}"
           data-option-index="${i}"
-          class="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-active-tint focus:bg-active-tint focus:outline-none${active ? " bg-active-tint" : ""}"
+          class="flex w-full flex-col gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-active-tint focus:bg-active-tint focus:outline-none${active ? " bg-active-tint" : ""}"
         >
-          <span class="min-w-0 flex-1 truncate text-sm font-medium text-text-primary" title="${escapeHtml(t.nombre)}">${escapeHtml(t.nombre)}</span>
+          <span class="min-w-0 truncate text-sm font-medium text-text-primary" title="${escapeHtml(t.nombre)}">${escapeHtml(t.nombre)}</span>
+          ${t.descripcion?.trim() ? `<span class="min-w-0 truncate text-xs text-text-muted" title="${escapeHtml(t.descripcion)}">${escapeHtml(t.descripcion)}</span>` : ""}
+          <span class="flex flex-wrap items-center gap-1.5 pt-0.5">
           ${categoriaChip(t.categoria)}
           ${tipoChip(t.es_complemento)}
+          </span>
         </button>`;
         })
         .join("");
@@ -650,10 +776,13 @@ export function mountEditarTareasModal(
     if (searchInput) searchInput.value = "";
 
     selectedInfo.innerHTML = `
-      <div class="flex min-w-0 flex-1 items-center gap-2">
-        <span class="min-w-0 truncate text-sm font-medium text-text-primary" title="${escapeHtml(item.nombre)}">${escapeHtml(item.nombre)}</span>
-        ${categoriaChip(item.categoria)}
-        ${tipoChip(item.es_complemento)}
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="min-w-0 truncate text-sm font-medium text-text-primary" title="${escapeHtml(item.nombre)}">${escapeHtml(item.nombre)}</span>
+          ${categoriaChip(item.categoria)}
+          ${tipoChip(item.es_complemento)}
+        </div>
+        ${item.descripcion?.trim() ? `<p class="mt-1 line-clamp-2 text-xs text-text-muted" title="${escapeHtml(item.descripcion)}">${escapeHtml(item.descripcion)}</p>` : ""}
       </div>
       <button type="button" id="tarea-deselect" class="shrink-0 text-xs font-medium text-red-600 hover:underline">Quitar</button>`;
 
@@ -720,11 +849,16 @@ export function mountEditarTareasModal(
       clearError();
 
       const nombre = (body.querySelector("#tarea-new-nombre") as HTMLInputElement)?.value.trim();
+      const descripcion = (body.querySelector("#tarea-new-descripcion") as HTMLTextAreaElement)?.value.trim();
       const categoria = (body.querySelector("#tarea-new-categoria") as HTMLInputElement)?.value.trim() || undefined;
       const es_complemento = (body.querySelector("#tarea-new-complemento") as HTMLInputElement)?.checked ?? false;
 
       if (!nombre) {
         showError("Indica el nombre de la tarea.");
+        return;
+      }
+      if (!descripcion) {
+        showError("Indica la descripción de la tarea.");
         return;
       }
 
@@ -733,7 +867,7 @@ export function mountEditarTareasModal(
       btn.textContent = "Creando...";
 
       try {
-        const created = await createTareaCatalogo({ nombre, categoria, es_complemento });
+        const created = await createTareaCatalogo({ nombre, descripcion, categoria, es_complemento });
         categoriasOpciones = mergeCategoria(categoriasOpciones, created.categoria);
 
         const orden = tareas.length + 1;
@@ -797,6 +931,7 @@ export function mountEditarTareasModal(
       document.addEventListener("keydown", escHandler);
       showCreateNew = false;
       selectedCatalogo = null;
+      editingTareaId = null;
       filterTipo = "";
       filterCategoria = "";
       searchResults = [];

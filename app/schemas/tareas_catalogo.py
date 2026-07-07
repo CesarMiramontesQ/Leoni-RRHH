@@ -11,6 +11,7 @@ class TareaCatalogoCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     nombre: str = Field(..., min_length=2, max_length=255)
+    descripcion: Optional[str] = Field(None, min_length=1)
     categoria: Optional[str] = Field(None, max_length=50)
     es_complemento: bool = False
 
@@ -19,6 +20,7 @@ class TareaCatalogoUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     nombre: Optional[str] = Field(None, min_length=2, max_length=255)
+    descripcion: Optional[str] = Field(None, min_length=1)
     categoria: Optional[str] = Field(None, max_length=50)
     es_complemento: Optional[bool] = None
 
@@ -28,6 +30,7 @@ class TareaCatalogoResponse(BaseModel):
 
     id: int
     nombre: str
+    descripcion: Optional[str] = None
     categoria: Optional[str] = None
     es_complemento: bool
     activo: bool

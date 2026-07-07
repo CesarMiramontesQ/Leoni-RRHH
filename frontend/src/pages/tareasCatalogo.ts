@@ -3,6 +3,7 @@ import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import {
   getTareasCatalogo,
   createTareaCatalogo,
+  updateTareaCatalogo,
   type TareaCatalogo,
   type TareaCatalogoFetchError,
 } from "../api/tareasCatalogo.ts";
@@ -112,7 +113,14 @@ function filterItems(items: TareaCatalogo[], filters: CatalogoFilters): TareaCat
   const cat = filters.categoria.trim().toLowerCase();
   const tipo = filters.tipo;
   return items.filter((t) => {
-    if (q && !(t.nombre.toLowerCase().includes(q) || (t.categoria?.toLowerCase().includes(q) ?? false))) {
+    if (
+      q &&
+      !(
+        t.nombre.toLowerCase().includes(q) ||
+        (t.descripcion?.toLowerCase().includes(q) ?? false) ||
+        (t.categoria?.toLowerCase().includes(q) ?? false)
+      )
+    ) {
       return false;
     }
     if (cat && (t.categoria?.trim().toLowerCase() ?? "") !== cat) return false;
@@ -381,10 +389,14 @@ function renderTableRows(pageItems: TareaCatalogo[]): string {
   return pageItems
     .map((t) => {
       const nombre = escapeHtml(t.nombre);
+      const descripcion = escapeHtml(t.descripcion?.trim() || "—");
       return `
     <tr class="tc-catalogo-row group">
       <td class="tc-col-nombre px-4 py-3.5 align-middle">
-        <p class="max-w-md truncate text-sm font-semibold text-text-primary" title="${nombre}">${nombre}</p>
+        <p class="max-w-xs truncate text-sm font-semibold text-text-primary" title="${nombre}">${nombre}</p>
+      </td>
+      <td class="px-4 py-3.5 align-middle">
+        <p class="max-w-md truncate text-sm text-text-secondary" title="${descripcion}">${descripcion}</p>
       </td>
       <td class="px-4 py-3.5 align-middle">${categoriaBadge(t.categoria)}</td>
       <td class="px-4 py-3.5 align-middle">${tipoBadge(t.es_complemento)}</td>
@@ -443,6 +455,7 @@ function renderCatalogoTable(
         <thead class="${RH_TABLE_HEAD}">
           <tr>
             <th scope="col" class="px-4 py-3.5 text-left">Nombre</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Descripción</th>
             <th scope="col" class="px-4 py-3.5 text-left">Categoría</th>
             <th scope="col" class="px-4 py-3.5 text-left">Tipo</th>
             <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
@@ -487,6 +500,7 @@ function renderReadyContent(
 function renderModal(editing: TareaCatalogo | null, categorias: string[]): string {
   const isEdit = !!editing;
   const nombre = editing?.nombre ?? "";
+  const descripcion = editing?.descripcion ?? "";
   const categoria = editing?.categoria ?? "";
   const categoriaOpts = categorias
     .map((c) => `<option value="${escapeHtml(c)}"></option>`)
@@ -510,7 +524,13 @@ function renderModal(editing: TareaCatalogo | null, categorias: string[]): strin
             <label for="tarea-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600" aria-hidden="true">*</span></label>
             <input id="tarea-modal-nombre" name="nombre" type="text" required value="${escapeHtml(nombre)}"
               class="${FIELD_INPUT}"
-              placeholder="Descripción de la tarea" />
+              placeholder="Nombre corto para búsqueda" />
+          </div>
+          <div>
+            <label for="tarea-modal-descripcion" class="${RH_LISTADO_LABEL}">Descripción <span class="text-red-600" aria-hidden="true">*</span></label>
+            <textarea id="tarea-modal-descripcion" name="descripcion" required rows="3"
+              class="${FIELD_INPUT} min-h-[5rem] resize-y"
+              placeholder="Describe la tarea con el detalle que verán los perfiles">${escapeHtml(descripcion)}</textarea>
           </div>
           <div>
             <label for="tarea-modal-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="text-text-muted font-normal">(opcional — elige una existente o escribe una nueva)</span></label>
@@ -770,10 +790,11 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
 
       const fd = new FormData(form as HTMLFormElement);
       const nombre = String(fd.get("nombre") ?? "").trim();
+      const descripcion = String(fd.get("descripcion") ?? "").trim();
       const categoria = String(fd.get("categoria") ?? "").trim() || undefined;
       const es_complemento = fd.has("es_complemento");
 
-      if (!nombre) return;
+      if (!nombre || !descripcion) return;
 
       const wasEdit = !!editingTarea;
       const submitBtn = (form as HTMLElement).querySelector<HTMLButtonElement>("button[type=submit]");
@@ -788,17 +809,15 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
         if (editingTarea) {
           const body: Record<string, unknown> = {};
           if (nombre !== editingTarea.nombre) body.nombre = nombre;
+          const prevDesc = editingTarea.descripcion?.trim() ?? "";
+          if (descripcion !== prevDesc) body.descripcion = descripcion;
           if (categoria !== editingTarea.categoria) body.categoria = categoria ?? null;
           if (es_complemento !== editingTarea.es_complemento) body.es_complemento = es_complemento;
           if (Object.keys(body).length > 0) {
-            await fetchWithAuth(`/api/v1/tareas-catalogo/${editingTarea.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            });
+            await updateTareaCatalogo(editingTarea.id, body);
           }
         } else {
-          await createTareaCatalogo({ nombre, categoria, es_complemento });
+          await createTareaCatalogo({ nombre, descripcion, categoria, es_complemento });
         }
         showModal = false;
         editingTarea = null;

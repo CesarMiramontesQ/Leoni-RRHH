@@ -616,6 +616,7 @@ class TareaCatalogo(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     categoria: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     es_complemento: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

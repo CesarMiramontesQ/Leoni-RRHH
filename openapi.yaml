@@ -41,6 +41,8 @@ tags:
     description: Gestion de competencias y matriz de competencias por area
   - name: Talento - Puestos Perfil
     description: Perfiles de puesto con competencias, habilidades y generacion IA
+  - name: Talento - Tareas Catalogo
+    description: Catalogo centralizado de tareas reutilizables en perfiles de puesto
   - name: Bono productividad
     description: Lectura de datos en la base externa bono_productividad (PostgreSQL)
   - name: Talento - Evaluaciones
@@ -3674,6 +3676,142 @@ components:
           type: integer
         page_size:
           type: integer
+
+    TareaCatalogoCreate:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 255
+        descripcion:
+          type: string
+          minLength: 1
+          nullable: true
+        categoria:
+          type: string
+          maxLength: 50
+          nullable: true
+        es_complemento:
+          type: boolean
+          default: false
+
+    TareaCatalogoUpdate:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 255
+        descripcion:
+          type: string
+          minLength: 1
+          nullable: true
+        categoria:
+          type: string
+          maxLength: 50
+          nullable: true
+        es_complemento:
+          type: boolean
+
+    TareaCatalogoResponse:
+      type: object
+      required: [id, nombre, es_complemento, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        descripcion:
+          type: string
+          nullable: true
+        categoria:
+          type: string
+          nullable: true
+        es_complemento:
+          type: boolean
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TareaCatalogoListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TareaCatalogoResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    PerfilTareaCreate:
+      type: object
+      required: [orden]
+      properties:
+        tarea_catalogo_id:
+          type: integer
+          nullable: true
+        orden:
+          type: integer
+          minimum: 1
+        descripcion:
+          type: string
+          minLength: 1
+          nullable: true
+        es_complemento:
+          type: boolean
+          default: false
+
+    PerfilTareaUpdate:
+      type: object
+      properties:
+        orden:
+          type: integer
+          minimum: 1
+        descripcion:
+          type: string
+          minLength: 1
+        es_complemento:
+          type: boolean
+
+    PerfilTareaResponse:
+      type: object
+      required: [id, puesto_perfil_id, orden, descripcion, es_complemento, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        puesto_perfil_id:
+          type: integer
+        orden:
+          type: integer
+        descripcion:
+          type: string
+          description: Texto mostrado; con catálogo vinculado usa descripcion del catálogo o nombre como fallback.
+        es_complemento:
+          type: boolean
+        tarea_catalogo_id:
+          type: integer
+          nullable: true
+        tarea_catalogo_nombre:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
     PuestoPerfilResponse:
       type: object
@@ -10165,6 +10303,112 @@ paths:
       responses:
         "204":
           description: Tipo eliminado
+
+  # ── Talento — Tareas Catalogo ─────────────────────────
+  /api/v1/tareas-catalogo:
+    get:
+      tags: [Talento - Tareas Catalogo]
+      summary: Listar tareas del catalogo
+      operationId: tareas_catalogo_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1, minimum: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+        - name: categoria
+          in: query
+          schema: { type: string }
+        - name: busqueda
+          in: query
+          description: Buscar por nombre o descripcion
+          schema: { type: string }
+      responses:
+        "200":
+          description: Listado paginado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TareaCatalogoListResponse"
+    post:
+      tags: [Talento - Tareas Catalogo]
+      summary: Crear tarea en catalogo
+      operationId: tareas_catalogo_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TareaCatalogoCreate"
+      responses:
+        "201":
+          description: Tarea creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TareaCatalogoResponse"
+  /api/v1/tareas-catalogo/{id}:
+    get:
+      tags: [Talento - Tareas Catalogo]
+      summary: Detalle de tarea del catalogo
+      operationId: tareas_catalogo_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Detalle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TareaCatalogoResponse"
+    patch:
+      tags: [Talento - Tareas Catalogo]
+      summary: Actualizar tarea del catalogo
+      operationId: tareas_catalogo_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TareaCatalogoUpdate"
+      responses:
+        "200":
+          description: Tarea actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TareaCatalogoResponse"
+    delete:
+      tags: [Talento - Tareas Catalogo]
+      summary: Desactivar tarea del catalogo
+      operationId: tareas_catalogo_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Tarea desactivada
 
   # ── Talento — Puestos Perfil ─────────────────────────
   /api/v1/puestos-perfil:

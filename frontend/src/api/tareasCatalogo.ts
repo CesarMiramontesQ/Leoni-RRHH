@@ -3,6 +3,7 @@ import { fetchWithAuth } from "./http.ts";
 export type TareaCatalogo = {
   id: number;
   nombre: string;
+  descripcion: string | undefined;
   categoria: string | undefined;
   es_complemento: boolean;
   activa: boolean;
@@ -11,7 +12,15 @@ export type TareaCatalogo = {
 
 export type TareaCatalogoCreatePayload = {
   nombre: string;
+  descripcion?: string;
   categoria?: string;
+  es_complemento?: boolean;
+};
+
+export type TareaCatalogoUpdatePayload = {
+  nombre?: string;
+  descripcion?: string | null;
+  categoria?: string | null;
   es_complemento?: boolean;
 };
 
@@ -26,6 +35,18 @@ export const MSG_TAREA_DUPLICADA =
 export function isTareaCatalogoDuplicada(err: unknown): boolean {
   const fe = err as TareaCatalogoFetchError;
   return fe?.status === 409;
+}
+
+function mapTareaCatalogo(t: Record<string, unknown>): TareaCatalogo {
+  return {
+    id: t.id as number,
+    nombre: (t.nombre ?? "") as string,
+    descripcion: (t.descripcion ?? undefined) as string | undefined,
+    categoria: (t.categoria ?? undefined) as string | undefined,
+    es_complemento: (t.es_complemento ?? false) as boolean,
+    activa: (t.activo ?? true) as boolean,
+    created_at: (t.created_at ?? "") as string,
+  };
 }
 
 async function readErrorDetail(res: Response): Promise<string> {
@@ -63,14 +84,7 @@ export async function getTareasCatalogo(opts?: {
   }
   const data = await res.json();
   const items = data.items ?? data;
-  return (items as Record<string, unknown>[]).map((t) => ({
-    id: t.id as number,
-    nombre: (t.nombre ?? "") as string,
-    categoria: (t.categoria ?? undefined) as string | undefined,
-    es_complemento: (t.es_complemento ?? false) as boolean,
-    activa: (t.activo ?? true) as boolean,
-    created_at: (t.created_at ?? "") as string,
-  }));
+  return (items as Record<string, unknown>[]).map(mapTareaCatalogo);
 }
 
 /** Extrae categorías distintas de ítems del catálogo (para filtros/datalist). */
@@ -93,6 +107,7 @@ export async function createTareaCatalogo(
   const body: Record<string, unknown> = {
     nombre: payload.nombre,
   };
+  if (payload.descripcion?.trim()) body.descripcion = payload.descripcion.trim();
   if (payload.categoria) body.categoria = payload.categoria;
   if (payload.es_complemento !== undefined) body.es_complemento = payload.es_complemento;
   const res = await fetchWithAuth("/api/v1/tareas-catalogo", {
@@ -104,13 +119,22 @@ export async function createTareaCatalogo(
     const detail = await readErrorDetail(res);
     throw { status: res.status, detail } as TareaCatalogoFetchError;
   }
-  const t = await res.json();
-  return {
-    id: t.id,
-    nombre: t.nombre ?? "",
-    categoria: t.categoria ?? undefined,
-    es_complemento: t.es_complemento ?? false,
-    activa: t.activo ?? true,
-    created_at: t.created_at ?? "",
-  };
+  return mapTareaCatalogo(await res.json());
+}
+
+/** PATCH /api/v1/tareas-catalogo/:id */
+export async function updateTareaCatalogo(
+  id: number,
+  payload: TareaCatalogoUpdatePayload,
+): Promise<TareaCatalogo> {
+  const res = await fetchWithAuth(`/api/v1/tareas-catalogo/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as TareaCatalogoFetchError;
+  }
+  return mapTareaCatalogo(await res.json());
 }

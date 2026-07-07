@@ -1,7 +1,7 @@
 # app/repositories/tarea_catalogo_repository.py
 """Repositorio de TareaCatalogo — acceso a datos async."""
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.talento import TareaCatalogo
@@ -25,7 +25,13 @@ class TareaCatalogoRepository(BaseRepository[TareaCatalogo]):
         if categoria:
             query = query.where(TareaCatalogo.categoria == categoria)
         if busqueda:
-            query = query.where(TareaCatalogo.nombre.ilike(f"%{busqueda}%"))
+            pattern = f"%{busqueda}%"
+            query = query.where(
+                or_(
+                    TareaCatalogo.nombre.ilike(pattern),
+                    TareaCatalogo.descripcion.ilike(pattern),
+                )
+            )
 
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query)

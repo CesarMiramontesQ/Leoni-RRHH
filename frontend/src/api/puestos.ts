@@ -204,6 +204,21 @@ export async function createPerfilTarea(
   return (await res.json()) as PerfilTarea;
 }
 
+/** PUT /api/v1/perfiles/:id/tareas/:tareaId */
+export async function updatePerfilTarea(
+  perfilId: number,
+  tareaId: number,
+  body: { descripcion?: string; orden?: number; es_complemento?: boolean },
+): Promise<PerfilTarea> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/${tareaId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as PerfilTarea;
+}
+
 /** DELETE /api/v1/perfiles/:id/tareas/:tareaId */
 export async function deletePerfilTarea(perfilId: number, tareaId: number): Promise<void> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/${tareaId}`, {
