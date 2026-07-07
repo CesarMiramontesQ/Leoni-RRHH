@@ -3271,8 +3271,13 @@ components:
     # ── Talento — Puestos Perfil ──────────────────────
     PuestoPerfilCreate:
       type: object
-      required: [nombre, nivel_id]
+      required: [codigo, nombre, nivel_id]
       properties:
+        codigo:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: Codigo unico del perfil, proporcionado por el usuario
         nombre:
           type: string
           minLength: 3
@@ -3298,6 +3303,11 @@ components:
     PuestoPerfilUpdate:
       type: object
       properties:
+        codigo:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: Codigo unico del perfil
         nombre:
           type: string
           minLength: 3
@@ -10468,7 +10478,7 @@ paths:
     post:
       tags: [Talento - Puestos Perfil]
       summary: Crear perfil de puesto
-      description: Auto-genera codigo unico. Solo rol RH.
+      description: Codigo proporcionado por el usuario, debe ser unico. Solo rol RH.
       operationId: puestos_perfil_create
       security:
         - BearerAuth: []
@@ -10486,7 +10496,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/PuestoPerfilResponse"
         "409":
-          description: Ya existe un perfil activo con la misma combinacion de nombre y nivel
+          description: Ya existe un perfil con el mismo codigo, o con la misma combinacion de nombre y nivel
         "422":
           description: Error de validacion
           content:
@@ -10559,7 +10569,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/PuestoPerfilResponse"
         "409":
-          description: Ya existe un perfil activo con la misma combinacion de nombre y nivel
+          description: Ya existe un perfil con el mismo codigo, o con la misma combinacion de nombre y nivel
         "422":
           description: Error de validacion
           content:

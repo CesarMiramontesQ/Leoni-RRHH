@@ -1381,7 +1381,7 @@ async function openEditBaseModal(
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 id="edit-base-title" class="text-lg font-semibold text-text-primary">Editar perfil</h2>
-              <p class="mt-1 text-sm text-text-muted">Nombre, área, nivel y tipo del puesto.</p>
+              <p class="mt-1 text-sm text-text-muted">Código, nombre, área, nivel y tipo del puesto.</p>
             </div>
             <button type="button" id="edit-base-close" class="rounded-lg p-1.5 text-text-muted transition hover:bg-slate-100 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-leoni-blue/40" aria-label="Cerrar">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true">
@@ -1392,6 +1392,11 @@ async function openEditBaseModal(
         </div>
         <p id="edit-base-error" class="mx-6 hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></p>
         <form id="form-edit-base" class="flex flex-col gap-4 px-6 py-5">
+          <div>
+            <label for="eb-codigo" class="${RH_LISTADO_LABEL}">Código <span class="text-red-600" aria-hidden="true">*</span></label>
+            <input id="eb-codigo" name="codigo" type="text" required maxlength="20" value="${escapeHtml(puesto.codigo)}"
+              class="${FIELD_INPUT}" />
+          </div>
           <div>
             <label for="eb-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto <span class="text-red-600" aria-hidden="true">*</span></label>
             <input id="eb-nombre" name="nombre_puesto" type="text" required value="${escapeHtml(puesto.nombre)}"
@@ -1462,6 +1467,7 @@ async function openEditBaseModal(
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const fd = new FormData(form);
+    const codigo = String(fd.get("codigo") ?? "").trim();
     const nombre_puesto = String(fd.get("nombre_puesto") ?? "").trim();
     const areaRaw = String(fd.get("area") ?? "").trim();
     const nivelRaw = String(fd.get("nivel_id") ?? "").trim();
@@ -1471,7 +1477,7 @@ async function openEditBaseModal(
     const tipoValue: TipoPuestoPerfil | null =
       tipoRaw === "administrativo" || tipoRaw === "operativo" ? tipoRaw : null;
 
-    if (!nombre_puesto || !areaRaw || !nivelRaw || Number.isNaN(nivelIdNum) || !tipoValue) {
+    if (!codigo || !nombre_puesto || !areaRaw || !nivelRaw || Number.isNaN(nivelIdNum) || !tipoValue) {
       errorEl.textContent = "Completa todos los campos requeridos.";
       errorEl.classList.remove("hidden");
       return;
@@ -1483,6 +1489,7 @@ async function openEditBaseModal(
 
     try {
       await updatePerfil(perfilId, {
+        codigo,
         nombre_puesto,
         area_id: areaIdNum,
         nivel_id: nivelIdNum,

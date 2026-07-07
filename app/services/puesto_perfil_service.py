@@ -3,7 +3,7 @@
 Logica de negocio para Puestos Perfil — Modulo Talento Fase 1.
 
 Responsabilidades:
-  - CRUD con auto-generacion de codigo PRF-YYYY-NNN
+  - CRUD con codigo proporcionado por el usuario (unico)
   - Versionado automatico en actualizaciones
   - Soft-delete (campo activo)
   - Integracion con Ollama para generacion de descripcion + competencias
@@ -140,19 +140,21 @@ class PuestoPerfilService:
         if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede crear perfiles de puesto")
 
+        if await self.repo.exists_by_codigo(data.codigo):
+            raise ConflictError(
+                detail=f"Ya existe un perfil de puesto con el codigo '{data.codigo}'"
+            )
+
         # Verificar duplicado (nombre + nivel)
         if await self.repo.exists_by_nombre_y_nivel(data.nombre, data.nivel_id):
             raise ConflictError(
                 detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}' y ese nivel"
             )
 
-        # Generar codigo
-        codigo = await self.repo.get_next_codigo()
-
         await self.nivel_service.validar_nivel_activo(data.nivel_id)
 
         perfil = await self.repo.create({
-            "codigo": codigo,
+            "codigo": data.codigo,
             "nombre": data.nombre,
             "area_id": data.area_id,
             "nivel_id": data.nivel_id,
@@ -192,6 +194,12 @@ class PuestoPerfilService:
         # Construir dict de actualizacion (solo campos enviados)
         update_data: dict = {"updated_by": current_user.id}
 
+        if data.codigo is not None and data.codigo != perfil.codigo:
+            if await self.repo.exists_by_codigo(data.codigo, exclude_id=id):
+                raise ConflictError(
+                    detail=f"Ya existe un perfil de puesto con el codigo '{data.codigo}'"
+                )
+            update_data["codigo"] = data.codigo
         if data.nombre is not None:
             update_data["nombre"] = data.nombre
         if data.area_id is not None:

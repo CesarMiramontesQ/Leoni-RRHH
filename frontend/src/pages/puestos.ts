@@ -527,9 +527,9 @@ function renderModal(
       </div>
       <form data-action="modal-form" class="flex flex-col gap-4 px-6 py-5">
         <div>
-          <label for="puestos-modal-codigo" class="${RH_LISTADO_LABEL}">Código</label>
-          <input id="puestos-modal-codigo" name="codigo" type="text" placeholder="Se genera automáticamente" value="${escapeHtml(values.codigo)}" readonly
-            class="block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-text-muted ${FIELD_FOCUS}" />
+          <label for="puestos-modal-codigo" class="${RH_LISTADO_LABEL}">Código <span class="text-red-600" aria-hidden="true">*</span></label>
+          <input id="puestos-modal-codigo" name="codigo" type="text" required placeholder="Ej. OP-PROD-01" maxlength="20" value="${escapeHtml(values.codigo)}"
+            class="${FIELD_INPUT}" />
         </div>
         <div>
           <label for="puestos-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto <span class="text-red-600" aria-hidden="true">*</span></label>
@@ -911,7 +911,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       nivel_id: nivelId,
       tipo: tipo ?? "administrativo",
     };
-    if (!payload.nombre_puesto || !nivelRaw || Number.isNaN(nivelId) || !tipo) return;
+    if (!payload.codigo || !payload.nombre_puesto || !nivelRaw || Number.isNaN(nivelId) || !tipo) return;
 
     modalSaving = true;
     paintModal();

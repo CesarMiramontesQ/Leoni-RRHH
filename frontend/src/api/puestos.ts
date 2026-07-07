@@ -134,6 +134,7 @@ export async function getPerfilById(id: number): Promise<PerfilPuesto> {
 /** POST /api/v1/puestos-perfil — crear perfil */
 export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<PerfilPuesto> {
   const body = {
+    codigo: payload.codigo,
     nombre: payload.nombre_puesto,
     nivel_id: payload.nivel_id,
     area_id: payload.area_id || null,
@@ -151,6 +152,7 @@ export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<
 /** PUT /api/v1/puestos-perfil/:id — actualizar perfil */
 export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayload): Promise<PerfilPuesto> {
   const body: Record<string, unknown> = {};
+  if (payload.codigo) body.codigo = payload.codigo;
   if (payload.nombre_puesto) body.nombre = payload.nombre_puesto;
   if (payload.nivel_id !== undefined) body.nivel_id = payload.nivel_id;
   if (payload.area_id !== undefined) body.area_id = payload.area_id;

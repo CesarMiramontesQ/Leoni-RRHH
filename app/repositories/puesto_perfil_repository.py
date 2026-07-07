@@ -3,9 +3,7 @@
 Repositorio de Puestos Perfil — acceso a datos async con SQLAlchemy.
 """
 
-from datetime import datetime, timezone
-
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -53,7 +51,13 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         if nivel_id is not None:
             query = query.where(PuestoPerfil.nivel_id == nivel_id)
         if busqueda:
-            query = query.where(PuestoPerfil.nombre.ilike(f"%{busqueda}%"))
+            pattern = f"%{busqueda}%"
+            query = query.where(
+                or_(
+                    PuestoPerfil.nombre.ilike(pattern),
+                    PuestoPerfil.codigo.ilike(pattern),
+                )
+            )
 
         # Count
         count_query = select(func.count()).select_from(query.subquery())
@@ -76,28 +80,17 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         )
         return list(result.scalars().all())
 
-    async def get_next_codigo(self) -> str:
-        """Genera el siguiente codigo PRF-{YYYY}-{NNN}."""
-        year = datetime.now(timezone.utc).year
-        prefix = f"PRF-{year}-"
-
-        # Buscar el maximo secuencial del anio actual
-        result = await self.db.execute(
-            select(func.max(PuestoPerfil.codigo))
-            .where(PuestoPerfil.codigo.like(f"{prefix}%"))
+    async def exists_by_codigo(
+        self, codigo: str, exclude_id: int | None = None
+    ) -> bool:
+        """Verifica si ya existe un puesto perfil con el mismo codigo."""
+        query = select(func.count()).select_from(PuestoPerfil).where(
+            PuestoPerfil.codigo.ilike(codigo),
         )
-        max_codigo = result.scalar_one_or_none()
-
-        if max_codigo:
-            try:
-                seq = int(max_codigo.replace(prefix, ""))
-                next_seq = seq + 1
-            except (ValueError, AttributeError):
-                next_seq = 1
-        else:
-            next_seq = 1
-
-        return f"{prefix}{next_seq:03d}"
+        if exclude_id:
+            query = query.where(PuestoPerfil.id != exclude_id)
+        count = await self.db.scalar(query)
+        return (count or 0) > 0
 
     async def exists_by_nombre_y_nivel(
         self, nombre: str, nivel_id: int, exclude_id: int | None = None

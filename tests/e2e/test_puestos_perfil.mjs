@@ -107,6 +107,7 @@ async function testNavigateToPuestos(page) {
 
 // ── Test 2: Create a Puesto ────────────────────────────────────────────────
 
+const TEST_PUESTO_CODIGO = `E2E-${Date.now().toString(36).slice(-6).toUpperCase()}`;
 const TEST_PUESTO_NOMBRE = `E2E Test Puesto ${Date.now()}`;
 const TEST_PUESTO_NOMBRE_EDITED = `${TEST_PUESTO_NOMBRE} Editado`;
 const TEST_PUESTO_NIVEL = "gerencial";
@@ -135,11 +136,21 @@ async function testCreatePuesto(page) {
   const modalTitle = await page.$("#puestos-modal-title");
   if (modalTitle) {
     const titleText = await modalTitle.textContent();
-    if (titleText.includes("Nuevo Perfil")) {
-      pass('Título del modal: "Nuevo Perfil de Puesto"');
+    if (titleText.includes("Nuevo perfil")) {
+      pass('Título del modal: "Nuevo perfil de puesto"');
     } else {
       fail(`Título del modal incorrecto: "${titleText}"`);
     }
+  }
+
+  // Fill codigo
+  const codigoInput = await page.$('#puestos-modal-codigo');
+  if (codigoInput) {
+    await codigoInput.fill(TEST_PUESTO_CODIGO);
+    pass(`Código llenado: "${TEST_PUESTO_CODIGO}"`);
+  } else {
+    fail("No se encontró input #puestos-modal-codigo");
+    return false;
   }
 
   // Fill nombre_puesto
@@ -179,14 +190,13 @@ async function testCreatePuesto(page) {
     return false;
   }
 
-  // Verify codigo field is readonly
-  const codigoInput = await page.$('#puestos-modal-codigo');
+  // Verify codigo field is editable
   if (codigoInput) {
     const isReadonly = await codigoInput.getAttribute("readonly");
-    if (isReadonly !== null) {
-      pass("Campo código es readonly (se genera automáticamente)");
+    if (isReadonly === null) {
+      pass("Campo código es editable");
     } else {
-      fail("Campo código debería ser readonly");
+      fail("Campo código no debería ser readonly");
     }
   }
 
