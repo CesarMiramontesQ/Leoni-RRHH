@@ -22,6 +22,7 @@ from app.repositories.bono_historico_incidencias_repository import (
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas.incidencias import (
     IncidenciaAreaTotalItem,
+    IncidenciaEmpleadoTipoCountItem,
     IncidenciaEmpleadoTotalItem,
     IncidenciaMesTipoItem,
     IncidenciaPeriodoTipoItem,
@@ -241,7 +242,7 @@ class IncidenciaFuentesService:
 
             areas_raw = await repo.aggregate_areas_top(filters, limit=10)
             subareas_raw = await repo.aggregate_subareas_top_with_area(filters, limit=10)
-            empleados_raw = await repo.aggregate_empleados_top(filters, limit=10)
+            empleados_raw = await repo.aggregate_empleados_top_por_tipo(filters, limit=10)
             tipos_raw = await repo.aggregate_tipos_con_totales(filters)
             mes_rows = await repo.aggregate_totales_por_mes(filters)
             mes_tipo_rows = await repo.aggregate_totales_por_mes_y_tipo(filters)
@@ -319,8 +320,16 @@ class IncidenciaFuentesService:
                         no_empleado=no,
                         nombre=nom,
                         total=cnt,
+                        por_tipo=[
+                            IncidenciaEmpleadoTipoCountItem(tipo=tipo, total=tipo_cnt)
+                            for tipo, tipo_cnt in sorted(
+                                por_tipo.items(),
+                                key=lambda x: (-x[1], x[0]),
+                            )
+                            if tipo_cnt > 0
+                        ],
                     )
-                    for eid, no, nom, cnt in empleados_raw
+                    for eid, no, nom, cnt, por_tipo in empleados_raw
                 ],
                 incidencias_por_tipo=incidencias_por_tipo,
                 incidencias_por_mes=incidencias_por_mes,

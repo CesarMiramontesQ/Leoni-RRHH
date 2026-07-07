@@ -5,15 +5,19 @@ import {
 } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import type { RhIncidenciaListFilters, RhIncidenciasAdminViewModel } from "../../incidencias/rh/types.ts";
 import {
+  empleadosSegCalChartRowsFromEstadisticas,
   mountIncidenciasAreasBarChart,
+  mountIncidenciasEmpleadosSegCalBarChart,
   mountIncidenciasTipoBarChart,
   mountIncidenciasSubareasBarChart,
   mountIncidenciasTendenciaPorTipoChart,
   RH_INC_AREAS_BAR_CHART_ID,
+  RH_INC_EMPLEADOS_SEG_CAL_BAR_CHART_ID,
   RH_INC_SUBAREAS_BAR_CHART_ID,
   RH_INC_TENDENCIA_CHART_ID,
   RH_INC_TIPO_BAR_CHART_ID,
   renderIncidenciasAreasBarChart,
+  renderIncidenciasEmpleadosSegCalBarChart,
   renderIncidenciasTipoBarChart,
   renderIncidenciasSubareasBarChart,
   renderIncidenciasTendenciaPorTipoChart,
@@ -188,11 +192,22 @@ function renderChartsContent(
     </section>`;
   const areasBody = renderIncidenciasAreasBarChart(d.areas_con_mas_incidencias);
   const subareasBody = renderIncidenciasSubareasBarChart(d.subareas_con_mas_incidencias);
+  const empleadosSegCalRows = empleadosSegCalChartRowsFromEstadisticas(d);
+  const empleadosSegCalBody = renderIncidenciasEmpleadosSegCalBarChart(
+    empleadosSegCalRows.length > 0,
+    INC_COPY.analiticaEmpleadosSegCalVacio,
+  );
   const rankings = `
     <section class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-label="${escapeIncHtml(INC_COPY.analiticaRankingsAria)}">
       ${cardShell("areas", INC_COPY.analiticaAreas, INC_COPY.analiticaAreasSub, areasBody, true)}
       ${cardShell("subareas", INC_COPY.analiticaSubareas, INC_COPY.analiticaSubareasSub, subareasBody, true)}
-    </section>`;
+    </section>
+    ${cardShell(
+      "empleados-seg-cal",
+      INC_COPY.analiticaEmpleadosSegCalTitulo,
+      INC_COPY.analiticaEmpleadosSegCalSub,
+      empleadosSegCalBody,
+    )}`;
   return `${bloquePrincipal}${rankings}`;
 }
 
@@ -228,6 +243,10 @@ export function renderRhIncidenciasChartsSection(vm: RhIncidenciasAdminViewModel
         <div class="grid grid-cols-1 gap-3 lg:grid-cols-2" aria-hidden="true">
           ${`<div class="${CARD} min-h-[260px] animate-pulse"><div class="mb-2 h-4 w-32 rounded bg-slate-200"></div><div class="h-48 rounded bg-slate-100"></div></div>`.repeat(2)}
         </div>
+        <div class="${CARD} min-h-[260px] animate-pulse" aria-hidden="true">
+          <div class="mb-2 h-4 w-56 rounded bg-slate-200"></div>
+          <div class="h-48 rounded bg-slate-100"></div>
+        </div>
       </div>`;
   }
   if (vm.estadisticasStatus === "error") {
@@ -257,6 +276,7 @@ const RH_INC_ANALYTICS_CHART_IDS = [
   RH_INC_TIPO_BAR_CHART_ID,
   RH_INC_AREAS_BAR_CHART_ID,
   RH_INC_SUBAREAS_BAR_CHART_ID,
+  RH_INC_EMPLEADOS_SEG_CAL_BAR_CHART_ID,
 ] as const;
 
 /** Monta Chart.js tras pintar la analítica de incidencias (página Incidencias o sección Métricas). */
@@ -278,4 +298,5 @@ export function mountRhIncidenciasAnalyticsCharts(
   mountIncidenciasTipoBarChart(root, d.incidencias_por_tipo ?? []);
   mountIncidenciasAreasBarChart(root, d.areas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
   mountIncidenciasSubareasBarChart(root, d.subareas_con_mas_incidencias ?? [], d.total_incidencias ?? 0);
+  mountIncidenciasEmpleadosSegCalBarChart(root, empleadosSegCalChartRowsFromEstadisticas(d));
 }

@@ -1825,6 +1825,15 @@ components:
           type: [string, "null"]
           description: Área más frecuente asociada a la subárea en el conjunto filtrado (heurística).
 
+    IncidenciaEmpleadoTipoCountItem:
+      type: object
+      required: [tipo, total]
+      properties:
+        tipo:
+          type: string
+        total:
+          type: integer
+
     IncidenciaEmpleadoTotalItem:
       type: object
       required: [empleado_id, total]
@@ -1837,6 +1846,10 @@ components:
           type: [string, "null"]
         total:
           type: integer
+        por_tipo:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncidenciaEmpleadoTipoCountItem"
 
     IncidenciaTipoDistribucionItem:
       type: object

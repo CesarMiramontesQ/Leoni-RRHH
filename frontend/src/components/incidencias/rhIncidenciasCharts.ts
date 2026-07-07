@@ -9,11 +9,15 @@ import type {
   RhDashboardTendenciaAgrupacion,
 } from "../../incidencias/rh/buildIncidenciasTendenciaPorTipo.ts";
 import { labelTipoIncidenciaUi } from "../../incidencias/rh/tipoIncidenciaDisplay.ts";
+import type { RhIncidenciasEstadisticasData } from "../../incidencias/rh/types.ts";
+import { empleadoLabelCorto } from "../../utils/empleadoLabelConNumero.ts";
+import { escapeHtml } from "../../ui/uiUtils.ts";
 
 export const RH_INC_TENDENCIA_CHART_ID = "rh-inc-tendencia-mes";
 export const RH_INC_TIPO_BAR_CHART_ID = "rh-inc-tipo-bar";
 export const RH_INC_AREAS_BAR_CHART_ID = "rh-inc-areas-bar";
 export const RH_INC_SUBAREAS_BAR_CHART_ID = "rh-inc-subareas-bar";
+export const RH_INC_EMPLEADOS_SEG_CAL_BAR_CHART_ID = "rh-inc-empleados-seg-cal-bar";
 
 /** Altura compartida del área de gráfica (tendencia + distribución por tipo). */
 export const RH_INC_ANALYTICS_CHART_HEIGHT_CLASS = "h-[280px]";
@@ -54,6 +58,17 @@ export function filterSerieMesSinFuturo(rows: readonly SerieMesRow[]): SerieMesR
 export type AreaRankingRow = { area: string; total: number };
 
 export type SubareaRankingRow = { subarea: string; total: number; area?: string | null };
+
+export type IncidenciaQuejaTipo = "Seguridad" | "Calidad";
+
+export type IncidenciaEmpleadoSegCalChartRow = {
+  label: string;
+  total: number;
+  byTipo: Partial<Record<IncidenciaQuejaTipo, number>>;
+};
+
+const EMPLEADOS_SEG_CAL_TOP = 5;
+const EMPLEADOS_STACKED_BAR_FILL_ALPHA = 0.5;
 
 /** Color por tipo (valores resueltos para canvas Chart.js). */
 function fillColorForTipo(tipoRaw: string): string {
@@ -526,4 +541,128 @@ export function mountIncidenciasTendenciaPorMesChart(root: ParentNode, rows: rea
       },
     };
   });
+}
+
+export function empleadosSegCalChartRowsFromEstadisticas(
+  data: Pick<RhIncidenciasEstadisticasData, "empleados_con_mas_incidencias">,
+): IncidenciaEmpleadoSegCalChartRow[] {
+  return (data.empleados_con_mas_incidencias ?? [])
+    .filter((e) => e.total > 0)
+    .map((e) => {
+      const byTipo: Partial<Record<IncidenciaQuejaTipo, number>> = {};
+      for (const item of e.por_tipo ?? []) {
+        if (item.total <= 0) continue;
+        const t = item.tipo.trim().toLowerCase();
+        if (t.includes("seguridad")) {
+          byTipo.Seguridad = (byTipo.Seguridad ?? 0) + item.total;
+        } else if (t.includes("calidad")) {
+          byTipo.Calidad = (byTipo.Calidad ?? 0) + item.total;
+        }
+      }
+      return {
+        label: empleadoLabelCorto(e.nombre, e.no_empleado),
+        total: e.total,
+        byTipo,
+      };
+    })
+    .slice(0, EMPLEADOS_SEG_CAL_TOP);
+}
+
+export function renderIncidenciasEmpleadosSegCalBarChart(
+  hasData: boolean,
+  emptyMessage: string,
+): string {
+  if (!hasData) {
+    return `<div class="flex min-h-[260px] items-center justify-center rounded-lg border border-dashed border-[color:var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[color:var(--color-text-muted)]">${escapeHtml(emptyMessage)}</div>`;
+  }
+  return `
+    <div class="flex min-h-[300px] w-full min-w-0 flex-1 flex-col justify-center">
+      ${renderChartCanvas({
+        chartId: RH_INC_EMPLEADOS_SEG_CAL_BAR_CHART_ID,
+        ariaLabel: "Personal con más quejas de seguridad y calidad por tipo",
+        heightClass: "h-[300px]",
+        className: "relative w-full min-w-0",
+      })}
+    </div>`;
+}
+
+function tiposQuejaPresentes(
+  rows: readonly IncidenciaEmpleadoSegCalChartRow[],
+): IncidenciaQuejaTipo[] {
+  const present = new Set<IncidenciaQuejaTipo>();
+  for (const row of rows) {
+    for (const [tipo, count] of Object.entries(row.byTipo)) {
+      if ((count ?? 0) > 0) present.add(tipo as IncidenciaQuejaTipo);
+    }
+  }
+  const ordered: IncidenciaQuejaTipo[] = ["Seguridad", "Calidad"];
+  return ordered.filter((t) => present.has(t));
+}
+
+export function mountIncidenciasEmpleadosSegCalBarChart(
+  root: ParentNode,
+  rows: readonly IncidenciaEmpleadoSegCalChartRow[],
+): void {
+  if (rows.length === 0) return;
+  const tipos = tiposQuejaPresentes(rows);
+  if (tipos.length === 0) return;
+  const labels = rows.map((r) => r.label);
+  mountChart(root, RH_INC_EMPLEADOS_SEG_CAL_BAR_CHART_ID, ({ colors }) => ({
+    type: "bar",
+    data: {
+      labels,
+      datasets: tipos.map((tipo) => {
+        const border = fillColorForTipo(tipo);
+        return {
+          label: tipo,
+          data: rows.map((row) => row.byTipo[tipo] ?? 0),
+          backgroundColor: colorConAlpha(border, EMPLEADOS_STACKED_BAR_FILL_ALPHA),
+          borderColor: border,
+          borderWidth: 1,
+          stack: "quejas",
+          borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 4, bottomRight: 4 },
+          borderSkipped: false,
+        };
+      }),
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", axis: "y", intersect: false },
+      plugins: {
+        legend: { position: "bottom", labels: { boxWidth: 12, padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const value = typeof ctx.parsed.x === "number" ? ctx.parsed.x : 0;
+              if (value <= 0) return "";
+              return ` ${ctx.dataset.label}: ${value}`;
+            },
+            footer: (items) => {
+              const idx = items[0]?.dataIndex ?? -1;
+              const row = rows[idx];
+              if (!row) return "";
+              return `Total: ${row.total}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: { color: colors.textMuted, font: { size: 10 }, precision: 0 },
+          grid: { color: colors.border },
+          border: { color: colors.border },
+        },
+        y: {
+          stacked: true,
+          ticks: { color: colors.textMuted, font: { size: 10 } },
+          grid: { display: false },
+          border: { color: colors.border },
+        },
+      },
+    },
+  }));
 }

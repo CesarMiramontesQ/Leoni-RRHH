@@ -276,6 +276,65 @@ class BonoHistoricoIncidenciasRepository:
                 )
             return out
 
+    async def aggregate_empleados_top_por_tipo(
+        self,
+        filters: IncidenciaFuenteFilters,
+        *,
+        limit: int = 10,
+    ) -> list[tuple[int, str | None, str | None, int, dict[str, int]]]:
+        where_sql, params = self._build_where(filters)
+        sql = (
+            "WITH base AS ("
+            "  SELECT empleado_id, no_empleado, nombre, tipo_incidencia "
+            f"  FROM ({self._from_sql(where_sql)}) AS sub"
+            "), totals AS ("
+            "  SELECT empleado_id, "
+            "  MAX(no_empleado) AS no_empleado, "
+            "  MAX(nombre) AS nombre, "
+            "  COUNT(*) AS cnt "
+            "  FROM base GROUP BY empleado_id "
+            "  ORDER BY cnt DESC LIMIT :f_limit"
+            "), by_tipo AS ("
+            "  SELECT b.empleado_id, b.tipo_incidencia, COUNT(*) AS tipo_cnt "
+            "  FROM base b "
+            "  INNER JOIN totals t ON t.empleado_id = b.empleado_id "
+            "  GROUP BY b.empleado_id, b.tipo_incidencia"
+            ") "
+            "SELECT t.empleado_id, t.no_empleado, t.nombre, t.cnt, "
+            "bt.tipo_incidencia, bt.tipo_cnt "
+            "FROM totals t "
+            "LEFT JOIN by_tipo bt ON bt.empleado_id = t.empleado_id "
+            "ORDER BY t.cnt DESC, t.empleado_id"
+        )
+        params = {**params, "f_limit": limit}
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql), params)
+            grouped: dict[int, tuple[str | None, str | None, int, dict[str, int]]] = {}
+            order: list[int] = []
+            for row in result.mappings().all():
+                emp_id = int(row["empleado_id"])
+                if emp_id not in grouped:
+                    no = row["no_empleado"]
+                    nom = row["nombre"]
+                    grouped[emp_id] = (
+                        str(no).strip() if no is not None and str(no).strip() else None,
+                        str(nom).strip() if nom is not None and str(nom).strip() else None,
+                        int(row["cnt"]),
+                        {},
+                    )
+                    order.append(emp_id)
+                tipo = row["tipo_incidencia"]
+                tipo_cnt = row["tipo_cnt"]
+                if tipo is not None and tipo_cnt is not None:
+                    tipo_str = str(tipo).strip()
+                    if tipo_str:
+                        _, _, _, por_tipo = grouped[emp_id]
+                        por_tipo[tipo_str] = por_tipo.get(tipo_str, 0) + int(tipo_cnt)
+            return [
+                (emp_id, grouped[emp_id][0], grouped[emp_id][1], grouped[emp_id][2], grouped[emp_id][3])
+                for emp_id in order
+            ]
+
     async def aggregate_tipos_con_totales(
         self, filters: IncidenciaFuenteFilters
     ) -> list[tuple[str, int]]:

@@ -107,6 +107,7 @@ export type RhIncidenciasEstadisticasData = {
     no_empleado: string | null;
     nombre: string | null;
     total: number;
+    por_tipo?: { tipo: string; total: number }[];
   }[];
   incidencias_por_tipo: { tipo: string; total: number; porcentaje: number }[];
   /** Serie mensual (YYYY-MM) desde el backend; vacía si no hay datos. */
