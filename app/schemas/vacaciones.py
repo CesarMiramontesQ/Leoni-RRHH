@@ -16,8 +16,8 @@ class VacacionesUpdate(BaseModel):
 
 
 class SaldoVacacionesRealResponse(BaseModel):
-    """Saldo real de días de gozo desde SQL Server datos-analisis (vista V_SALD_VAC)."""
+    """Saldo real de días de gozo desde SQL Server datos-analisis (función GET_SALDOS_VACACION)."""
 
     empleado_id: int
     no_empleado: int
-    saldo_gozo_total: float | None = None  # None = sin registro en la vista
+    saldo_gozo_total: float | None = None  # 0 si no hay periodos; None solo si no disponible

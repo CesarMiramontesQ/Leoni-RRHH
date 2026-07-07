@@ -1400,7 +1400,7 @@ components:
         saldo_gozo_total:
           type: number
           nullable: true
-          description: Suma de VS_S_GOZO; null si el empleado no tiene registro en V_SALD_VAC
+          description: Suma de VS_S_GOZO desde dbo.GET_SALDOS_VACACION(no_empleado); 0 si el empleado no tiene periodos
 
     HomeOfficeDisponibilidadResponse:
       type: object
@@ -7137,7 +7137,7 @@ paths:
   /api/v1/empleados/{empleado_id}/saldo-vacaciones-real:
     get:
       tags: [Empleados]
-      summary: Saldo real de días de gozo (SQL Server datos-analisis, vista V_SALD_VAC)
+      summary: Saldo real de días de gozo (SQL Server datos-analisis, función GET_SALDOS_VACACION)
       operationId: empleados_saldo_vacaciones_real_get
       security:
         - BearerAuth: []

@@ -175,7 +175,7 @@ async def get_saldo_vacaciones_real(
     current_user: Empleado = Depends(get_current_user),
     svc: VacacionesService = Depends(_vac_svc),
 ):
-    """Saldo real de días de gozo desde SQL Server datos-analisis (vista V_SALD_VAC)."""
+    """Saldo real de días de gozo desde SQL Server datos-analisis (función GET_SALDOS_VACACION)."""
     return await svc.obtener_saldo_real(empleado_id=empleado_id, current_user=current_user)
 
 

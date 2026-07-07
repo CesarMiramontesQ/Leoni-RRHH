@@ -1,8 +1,9 @@
 """
 Repositorio de solo lectura sobre SQL Server datos-analisis (motor separado de la app).
 
-Consulta el saldo de gozo de vacaciones desde la vista ``dbo.V_SALD_VAC``. La consulta vive
-en ``sql/datos_analisis_saldo_vacaciones.sql`` para facilitar ajustes de esquema.
+Consulta el saldo de gozo de vacaciones desde la función ``dbo.GET_SALDOS_VACACION(cb)``
+(mucho más rápida que la vista ``dbo.V_SALD_VAC``, que calcula para todos los empleados). La
+consulta vive en ``sql/datos_analisis_saldo_vacaciones.sql`` para facilitar ajustes de esquema.
 """
 
 from __future__ import annotations

@@ -66,7 +66,7 @@ class VacacionesService:
     async def obtener_saldo_real(
         self, empleado_id: int, current_user: Empleado
     ) -> SaldoVacacionesRealResponse:
-        """Saldo real de días de gozo desde SQL Server datos-analisis (vista V_SALD_VAC)."""
+        """Saldo real de días de gozo desde SQL Server datos-analisis (función GET_SALDOS_VACACION)."""
         empleado = await self.empleado_repo.get_by_empleado_id(empleado_id)
         if not empleado:
             raise NotFoundError(entidad="Empleado", id=empleado_id)
