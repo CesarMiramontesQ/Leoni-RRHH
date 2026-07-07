@@ -26,6 +26,7 @@ from app.models.talento import (
     PerfilTarea,
     PuestoPerfil,
     TareaCatalogo,
+    TipoCompetencia,
 )
 from app.repositories.competencia_repository import CompetenciaRequisitoRepository
 from app.repositories.cualificaciones_catalogo_repository import CualificacionCatalogoRepository
@@ -140,6 +141,9 @@ class PerfilFuncionesService:
     @staticmethod
     def _to_competencia_response(requisito: CompetenciaRequisito) -> PerfilCompetenciaResponse:
         comp = requisito.competencia
+        grupo_nombre = None
+        if comp and comp.tipo_competencia and comp.tipo_competencia.grupo_competencia:
+            grupo_nombre = comp.tipo_competencia.grupo_competencia.nombre
         return PerfilCompetenciaResponse(
             id=requisito.id,
             competencia_id=requisito.competencia_id,
@@ -150,6 +154,8 @@ class PerfilFuncionesService:
                 if comp and comp.tipo_competencia
                 else None
             ),
+            categoria=comp.categoria if comp else None,
+            grupo_nombre=grupo_nombre,
             grado_id=requisito.grado_id,
             grado_nombre=requisito.grado.nombre if requisito.grado else "",
             nivel_requerido=requisito.nivel_requerido,
@@ -504,7 +510,11 @@ class PerfilFuncionesService:
         from sqlalchemy.orm import selectinload
         result = await self.db.execute(
             select(Competencia)
-            .options(selectinload(Competencia.tipo_competencia))
+            .options(
+                selectinload(Competencia.tipo_competencia).selectinload(
+                    TipoCompetencia.grupo_competencia
+                )
+            )
             .where(Competencia.id == data.competencia_id)
         )
         catalogo = result.scalar_one_or_none()
@@ -616,9 +626,9 @@ class PerfilFuncionesService:
         result = await self.db.execute(
             select(CompetenciaRequisito)
             .options(
-                selectinload(CompetenciaRequisito.competencia).selectinload(
-                    Competencia.tipo_competencia
-                ),
+                selectinload(CompetenciaRequisito.competencia)
+                .selectinload(Competencia.tipo_competencia)
+                .selectinload(TipoCompetencia.grupo_competencia),
                 selectinload(CompetenciaRequisito.grado),
             )
             .where(
@@ -634,7 +644,6 @@ class PerfilFuncionesService:
 
         requisito.nivel_requerido = data.nivel_requerido
         await self.db.flush()
-        await self.db.refresh(requisito)
 
         return self._to_competencia_response(requisito)
 

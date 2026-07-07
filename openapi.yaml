@@ -4281,6 +4281,14 @@ components:
         tipo_nombre:
           type: string
           nullable: true
+        categoria:
+          type: string
+          nullable: true
+          description: Categoria de matriz (tecnica|blanda) derivada del grupo del tipo
+        grupo_nombre:
+          type: string
+          nullable: true
+          description: Nombre del grupo de competencia del tipo asociado
         grado_id:
           type: integer
         grado_nombre:

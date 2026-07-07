@@ -164,6 +164,8 @@ class PerfilCompetenciaResponse(BaseModel):
     competencia_nombre: str = ""
     tipo_competencia_id: Optional[int] = None
     tipo_nombre: Optional[str] = None
+    categoria: Optional[str] = None
+    grupo_nombre: Optional[str] = None
     grado_id: int
     grado_nombre: str = ""
     nivel_requerido: int = 0

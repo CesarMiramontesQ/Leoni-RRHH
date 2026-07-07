@@ -7,6 +7,7 @@ from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import TipoCompetencia
+from app.repositories.competencia_repository import CompetenciaRepository
 from app.repositories.tipo_competencia_repository import TipoCompetenciaRepository
 from app.schemas.tipos_competencia import (
     TipoCompetenciaCreate,
@@ -15,12 +16,14 @@ from app.schemas.tipos_competencia import (
     TipoCompetenciaUpdate,
 )
 from app.services.grupo_competencia_service import GrupoCompetenciaService
+from app.utils.competencia_categoria import categoria_desde_grupo_nombre
 
 
 class TipoCompetenciaService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = TipoCompetenciaRepository(db)
+        self.competencia_repo = CompetenciaRepository(db)
 
     @staticmethod
     def _get_rol(user: Empleado) -> str:
@@ -119,6 +122,9 @@ class TipoCompetenciaService:
             },
         )
         tipo = await self.repo.get_with_grupo(id)
+        if tipo and tipo.grupo_competencia:
+            categoria = categoria_desde_grupo_nombre(tipo.grupo_competencia.nombre)
+            await self.competencia_repo.actualizar_categoria_por_tipo(tipo.id, categoria)
         return self._to_response(tipo)
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:

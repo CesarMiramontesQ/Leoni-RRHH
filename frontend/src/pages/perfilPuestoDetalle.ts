@@ -21,7 +21,11 @@ import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { mountEditarTareasModal } from "../components/puestos/editarTareasModal.ts";
 import { mountEditarCualificacionesModal } from "../components/puestos/editarCualificacionesModal.ts";
 import { labelCriterio } from "../components/puestos/cualificacionCriterioFields.ts";
-import { TIPO_COMPETENCIA_LABELS } from "../ui/catalogoCompetenciaTipo.ts";
+import {
+  categoriaDesdeGrupoNombre,
+  grupoCompetenciaBadgeClasses,
+  type CategoriaCompetencia,
+} from "../ui/competenciaCategoria.ts";
 import { nivelRequeridoLabel, maxNivelActivoValor, ensureMetodosCalificacionCompetenciaLoaded } from "../ui/nivelCompetencia.ts";
 import { mountEditarCompetenciasModal } from "../components/puestos/editarCompetenciasMultiSelect.ts";
 import type { EditarCualificacionesModalHandle } from "../components/puestos/editarCualificacionesModal.ts";
@@ -58,7 +62,10 @@ interface Competencia {
   id: number;
   competencia_id: number;
   competencia_nombre: string;
-  subcategoria: string | null;
+  tipo_competencia_id: number | null;
+  tipo_nombre: string | null;
+  categoria: string | null;
+  grupo_nombre: string | null;
   nivel_requerido: number;
   orden: number | null;
 }
@@ -83,30 +90,10 @@ type ExecutiveSummary = {
 
 // ── Constantes de etiquetas ─────────────────────────────────────────────
 
-const CATEGORIA_LABELS: Record<string, string> = {
-  ...TIPO_COMPETENCIA_LABELS,
-  complementos: "Complementos",
-};
-
-/** Orden canónico de categorías para los renglones de la matriz de competencias. */
-const CATEGORIA_ORDER = [
-  "informatica",
-  "idiomas",
-  "profesional",
-  "social",
-  "personal",
-  "metodos",
-  "complementos",
-];
-
-const CATEGORIA_CHIP: Record<string, string> = {
-  informatica: "ppd-cat-chip ppd-cat-chip--informatica",
-  idiomas: "ppd-cat-chip ppd-cat-chip--idiomas",
-  profesional: "ppd-cat-chip ppd-cat-chip--profesional",
-  social: "ppd-cat-chip ppd-cat-chip--social",
-  personal: "ppd-cat-chip ppd-cat-chip--personal",
-  metodos: "ppd-cat-chip ppd-cat-chip--metodos",
-  complementos: "ppd-cat-chip ppd-cat-chip--complementos",
+/** Orden de categoría técnica/blanda para filas de la matriz. */
+const CATEGORIA_MATRIZ_ORDER: Record<string, number> = {
+  tecnica: 0,
+  blanda: 1,
 };
 
 const ICON_BACK = `<svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>`;
@@ -147,7 +134,10 @@ async function loadCompetenciasPorGrado(perfilId: number, grados: GradoPuesto[])
           id: c.id,
           competencia_id: c.competencia_id,
           competencia_nombre: c.competencia_nombre,
-          subcategoria: c.tipo_nombre,
+          tipo_competencia_id: c.tipo_competencia_id,
+          tipo_nombre: c.tipo_nombre,
+          categoria: c.categoria,
+          grupo_nombre: c.grupo_nombre,
           nivel_requerido: c.nivel_requerido,
           orden: c.orden,
         }));
@@ -561,6 +551,20 @@ function renderCompetenciasLegend(maxNivel: number): string {
 
 type CompMatrixEntry = { nombre: string; niveles: Map<number, number> };
 
+type CompTipoGroup = {
+  tipoId: number;
+  tipoNombre: string;
+  grupoNombre: string | null;
+  categoria: string | null;
+  comps: Map<number, CompMatrixEntry>;
+};
+
+function resolveCategoriaGrupo(categoria: string | null, grupoNombre: string | null): CategoriaCompetencia {
+  if (categoria === "tecnica" || categoria === "blanda") return categoria;
+  if (grupoNombre) return categoriaDesdeGrupoNombre(grupoNombre);
+  return "blanda";
+}
+
 function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
   const maxNivel = maxNivelActivoValor();
 
@@ -594,20 +598,32 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
     )
     .join("");
 
-  // Pivote: categoría → competencia_id → { nombre, nivel por grado }.
-  const byCat = new Map<string, Map<number, CompMatrixEntry>>();
+  // Pivote: tipo_competencia_id → competencia_id → { nombre, nivel por grado }.
+  const byTipo = new Map<number, CompTipoGroup>();
   for (const { grado, competencias } of porGrado) {
     for (const c of competencias) {
-      const cat = c.subcategoria ?? "sin_categoria";
-      let comps = byCat.get(cat);
-      if (!comps) {
-        comps = new Map();
-        byCat.set(cat, comps);
+      const tipoId = c.tipo_competencia_id ?? 0;
+      let grupo = byTipo.get(tipoId);
+      if (!grupo) {
+        grupo = {
+          tipoId,
+          tipoNombre: c.tipo_nombre?.trim() || "Sin tipo",
+          grupoNombre: c.grupo_nombre,
+          categoria: c.categoria,
+          comps: new Map(),
+        };
+        byTipo.set(tipoId, grupo);
+      } else {
+        if (c.tipo_nombre?.trim()) grupo.tipoNombre = c.tipo_nombre.trim();
+        if (c.grupo_nombre) grupo.grupoNombre = c.grupo_nombre;
+        if (c.categoria) grupo.categoria = c.categoria;
       }
-      let entry = comps.get(c.competencia_id);
+      let entry = grupo.comps.get(c.competencia_id);
       if (!entry) {
         entry = { nombre: c.competencia_nombre, niveles: new Map() };
-        comps.set(c.competencia_id, entry);
+        grupo.comps.set(c.competencia_id, entry);
+      } else if (c.competencia_nombre) {
+        entry.nombre = c.competencia_nombre;
       }
       if (c.nivel_requerido != null && c.nivel_requerido > 0) {
         entry.niveles.set(grado.id, c.nivel_requerido);
@@ -615,7 +631,7 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
     }
   }
 
-  const uniqueCount = Array.from(byCat.values()).reduce((s, m) => s + m.size, 0);
+  const uniqueCount = Array.from(byTipo.values()).reduce((s, g) => s + g.comps.size, 0);
 
   if (uniqueCount === 0) {
     const emptyHint = canEditarPerfilPuesto()
@@ -652,19 +668,22 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
     );
   }
 
-  const cats = Array.from(byCat.keys()).sort((a, b) => {
-    const ia = CATEGORIA_ORDER.indexOf(a);
-    const ib = CATEGORIA_ORDER.indexOf(b);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  const tipos = Array.from(byTipo.values()).sort((a, b) => {
+    const catA = CATEGORIA_MATRIZ_ORDER[resolveCategoriaGrupo(a.categoria, a.grupoNombre)] ?? 2;
+    const catB = CATEGORIA_MATRIZ_ORDER[resolveCategoriaGrupo(b.categoria, b.grupoNombre)] ?? 2;
+    if (catA !== catB) return catA - catB;
+    return a.tipoNombre.localeCompare(b.tipoNombre, "es");
   });
 
-  const bodyRows = cats
-    .map((cat) => {
-      const comps = byCat.get(cat)!;
-      const chipCls = CATEGORIA_CHIP[cat] ?? "ppd-cat-chip ppd-cat-chip--default";
-      const label = CATEGORIA_LABELS[cat] ?? cat;
-      const catRow = `<tr class="ppd-matrix-cat"><td colspan="${colCount}"><span class="${chipCls}">${escapeHtml(label)}</span></td></tr>`;
-      const compRows = Array.from(comps.values())
+  const bodyRows = tipos
+    .map((grupo) => {
+      const categoria = resolveCategoriaGrupo(grupo.categoria, grupo.grupoNombre);
+      const chipCls = grupoCompetenciaBadgeClasses(categoria);
+      const grupoLabel = grupo.grupoNombre
+        ? `<span class="ml-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${chipCls}">${escapeHtml(grupo.grupoNombre)}</span>`
+        : "";
+      const catRow = `<tr class="ppd-matrix-cat"><td colspan="${colCount}"><span class="text-xs font-semibold uppercase tracking-wide text-text-primary">${escapeHtml(grupo.tipoNombre)}</span>${grupoLabel}</td></tr>`;
+      const compRows = Array.from(grupo.comps.values())
         .map((entry) => {
           const cells = grados
             .map((g) => `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.niveles.get(g.id) ?? null)}</td>`)

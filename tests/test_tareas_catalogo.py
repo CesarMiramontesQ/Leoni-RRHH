@@ -292,3 +292,42 @@ async def test_listar_tareas_perfil_incluye_catalogo_nombre(client: AsyncClient,
     assert len(data) == 1
     assert data[0]["tarea_catalogo_nombre"] == "Tarea catalogada"
     assert data[0]["tarea_catalogo_id"] == tarea_cat.id
+
+
+@pytest.mark.asyncio
+async def test_actualizar_tarea_catalogo_no_propaga_tarea_legacy_sin_fk(
+    client: AsyncClient, db
+):
+    """Tareas de perfil sin tarea_catalogo_id no reciben cambios del catálogo."""
+    from app.models.talento import PerfilTarea
+
+    rh = await make_empleado(db, rol="rh", email="tc_legacy_rh@leoni.test")
+    perfil = await make_puesto_perfil(db, created_by=rh.id)
+    tarea_cat = await make_tarea_catalogo(db, nombre="Texto compartido legacy")
+
+    tarea = PerfilTarea(
+        puesto_perfil_id=perfil.id,
+        orden=1,
+        descripcion="Texto compartido legacy",
+        es_complemento=False,
+        tarea_catalogo_id=None,
+    )
+    db.add(tarea)
+    await db.flush()
+
+    headers = await auth_headers(client, rh)
+    response = await client.patch(
+        f"/api/v1/tareas-catalogo/{tarea_cat.id}",
+        json={"nombre": "Nombre nuevo que no aplica a legacy"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    list_response = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/tareas", headers=headers
+    )
+    assert list_response.status_code == 200
+    data = list_response.json()
+    assert len(data) == 1
+    assert data[0]["descripcion"] == "Texto compartido legacy"
+    assert data[0]["tarea_catalogo_id"] is None

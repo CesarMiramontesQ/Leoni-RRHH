@@ -301,6 +301,8 @@ export type PerfilCompetencia = {
   competencia_nombre: string;
   tipo_competencia_id: number | null;
   tipo_nombre: string | null;
+  categoria: string | null;
+  grupo_nombre: string | null;
   grado_id: number;
   grado_nombre: string;
   nivel_requerido: number;

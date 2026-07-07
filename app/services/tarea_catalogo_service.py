@@ -114,7 +114,12 @@ class TareaCatalogoService:
     async def _propagar_cambios_a_perfiles(
         self, catalogo_id: int, update_data: dict
     ) -> None:
-        """Sincroniza nombre/tipo en perfiles que referencian esta tarea del catálogo."""
+        """Sincroniza nombre/tipo en perfiles que referencian esta tarea del catálogo.
+
+        Solo aplica a ``PerfilTarea`` con ``tarea_catalogo_id`` poblado. Las tareas
+        legacy (solo ``descripcion`` sin FK) no se actualizan; usar
+        ``python -m app.utils.backfill_perfil_tareas_catalogo`` para vincularlas.
+        """
         perfil_updates: dict = {}
         if "nombre" in update_data:
             perfil_updates["descripcion"] = update_data["nombre"]
