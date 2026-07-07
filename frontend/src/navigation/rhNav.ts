@@ -32,6 +32,7 @@ export type RhNavKey =
   | "competencias"
   | "tareas-catalogo"
   | "evaluaciones"
+  | "pdi-gestion"
   | "capacidades"
   | "cursos"
   | "cursos-seguimiento"

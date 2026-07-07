@@ -130,6 +130,7 @@ export type AppShellNavItemId =
   | "comedor-planear"
   | "empleados"
   | "evaluaciones"
+  | "pdi-gestion"
   | "evaluacion-360"
   | "reportes"
   | "puestos"

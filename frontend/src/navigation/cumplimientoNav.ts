@@ -6,7 +6,7 @@ import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 import { LEVEL_UP_CUMPLIMIENTO_RH_SIDEBAR } from "./levelUpNav.ts";
 
-export type CumplimientoNavKey = "evaluaciones" | "opls" | "evidencias" | "sugerencias";
+export type CumplimientoNavKey = "evaluaciones" | "pdi-gestion" | "opls" | "evidencias" | "sugerencias";
 
 export type CumplimientoNavItem = {
   id: AppShellNavItemId;

@@ -50,6 +50,7 @@ const allowedModules = new Set<string>([
   "tareas-catalogo",
   "puestos-ajustes",
   "evaluaciones",
+  "pdi-gestion",
   "opls",
   "evidencias",
   "sugerencias",
@@ -71,6 +72,7 @@ describe("rhNav sections", () => {
     allowedModules.add("tareas-catalogo");
     allowedModules.add("puestos-ajustes");
     allowedModules.add("evaluaciones");
+    allowedModules.add("pdi-gestion");
     allowedModules.add("opls");
     allowedModules.add("evidencias");
     allowedModules.add("sugerencias");
@@ -151,6 +153,7 @@ describe("rhNav sections", () => {
     expect(cumplimientoSection?.title).toBe("Cumplimiento");
     expect(cumplimientoSection?.items.map((item) => item.key)).toEqual([
       "evaluaciones",
+      "pdi-gestion",
       "opls",
       "evidencias",
       "sugerencias",
@@ -237,6 +240,11 @@ describe("rhNav sections", () => {
         label: "Evaluaciones",
       }),
       expect.objectContaining({
+        key: "pdi-gestion",
+        href: "#/pdi-gestion",
+        label: "Gestión PDI",
+      }),
+      expect.objectContaining({
         key: "opls",
         href: "#/opls",
         label: "Manejo de OPLs",
@@ -288,6 +296,7 @@ describe("rhNav sections", () => {
 
   it("omite Cumplimiento cuando no hay ítems visibles", async () => {
     allowedModules.delete("evaluaciones");
+    allowedModules.delete("pdi-gestion");
     allowedModules.delete("opls");
     allowedModules.delete("evidencias");
     allowedModules.delete("sugerencias");
