@@ -34,7 +34,7 @@ export const RH_DASH_EMPLEADOS_DIRECTO_INDIRECTO_CHART_TITLE =
 const DIRECTO_BAR_COLOR = cssVar("--color-leoni-green", "#00C853");
 const INDIRECTO_BAR_COLOR = cssVar("--color-warning", "#F59E0B");
 const BAR_FILL_ALPHA = 0.85;
-const BAR_RADIUS = 4;
+const BAR_RADIUS = 0;
 
 export type RhDashEmpleadosClasificacionChartDef = {
   tipo: EmpleadosClasificacionTipo;

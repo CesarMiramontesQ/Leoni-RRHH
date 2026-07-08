@@ -123,8 +123,8 @@ export function mountEval360EmployeeCharts(root: ParentNode, empleado: EmpleadoE
     data: {
       labels,
       datasets: [
-        { label: "Autoevaluación", data: competencias.map((c) => c.autoevaluacion), backgroundColor: cssVar("--color-accent", "#2563EB"), borderRadius: 4 },
-        { label: "Evaluadores", data: competencias.map((c) => c.evaluadores), backgroundColor: cssVar("--color-success", "#22C55E"), borderRadius: 4 },
+        { label: "Autoevaluación", data: competencias.map((c) => c.autoevaluacion), backgroundColor: cssVar("--color-accent", "#2563EB"), borderRadius: 0 },
+        { label: "Evaluadores", data: competencias.map((c) => c.evaluadores), backgroundColor: cssVar("--color-success", "#22C55E"), borderRadius: 0 },
       ],
     },
     options: { ...chartCartesianScales(colors), plugins: { legend: { position: "bottom" } } },
@@ -183,8 +183,8 @@ export function mountEval360ResultadosCharts(root: ParentNode, competencias: Com
     data: {
       labels,
       datasets: [
-        { label: "Autoevaluación", data: competencias.map((c) => c.autoevaluacion), backgroundColor: cssVar("--color-accent", "#2563EB"), borderRadius: 4 },
-        { label: "Evaluadores", data: competencias.map((c) => c.evaluadores), backgroundColor: cssVar("--color-success", "#22C55E"), borderRadius: 4 },
+        { label: "Autoevaluación", data: competencias.map((c) => c.autoevaluacion), backgroundColor: cssVar("--color-accent", "#2563EB"), borderRadius: 0 },
+        { label: "Evaluadores", data: competencias.map((c) => c.evaluadores), backgroundColor: cssVar("--color-success", "#22C55E"), borderRadius: 0 },
       ],
     },
     options: { ...chartCartesianScales(colors), plugins: { legend: { position: "bottom" } } },
@@ -219,7 +219,7 @@ export function mountEval360ReportesCharts(root: ParentNode): void {
     type: "bar",
     data: {
       labels: COMPARATIVO_DEPARTAMENTO.map((d) => d.dept),
-      datasets: [{ label: "Promedio", data: COMPARATIVO_DEPARTAMENTO.map((d) => d.valor), backgroundColor: cssVar("--color-accent", "#2563EB"), borderRadius: 6 }],
+      datasets: [{ label: "Promedio", data: COMPARATIVO_DEPARTAMENTO.map((d) => d.valor), backgroundColor: cssVar("--color-accent", "#2563EB"), borderRadius: 0 }],
     },
     options: { ...chartCartesianScales(colors), indexAxis: "y" as const },
   }));
