@@ -153,10 +153,6 @@ describe("rhNav sections", () => {
     expect(cumplimientoSection?.title).toBe("Cumplimiento");
     expect(cumplimientoSection?.items.map((item) => item.key)).toEqual([
       "evaluaciones",
-      "pdi-gestion",
-      "opls",
-      "evidencias",
-      "sugerencias",
     ]);
     expect(levelUpSection?.items.some((item) => item.key === "evaluaciones")).toBe(false);
     expect(levelUpSection?.items.some((item) => item.key === "opls")).toBe(false);
@@ -239,26 +235,6 @@ describe("rhNav sections", () => {
         href: "#/evaluaciones",
         label: "Evaluaciones",
       }),
-      expect.objectContaining({
-        key: "pdi-gestion",
-        href: "#/pdi-gestion",
-        label: "Gestión PDI",
-      }),
-      expect.objectContaining({
-        key: "opls",
-        href: "#/opls",
-        label: "Manejo de OPLs",
-      }),
-      expect.objectContaining({
-        key: "evidencias",
-        href: "#/evidencias",
-        label: "Motor de Evidencias",
-      }),
-      expect.objectContaining({
-        key: "sugerencias",
-        href: "#/sugerencias",
-        label: "Motor de Sugerencias",
-      }),
     ]);
   });
 
@@ -296,10 +272,6 @@ describe("rhNav sections", () => {
 
   it("omite Cumplimiento cuando no hay ítems visibles", async () => {
     allowedModules.delete("evaluaciones");
-    allowedModules.delete("pdi-gestion");
-    allowedModules.delete("opls");
-    allowedModules.delete("evidencias");
-    allowedModules.delete("sugerencias");
 
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sections = getVisibleRhNavSections("supervisor");
