@@ -193,15 +193,7 @@ export const LEVEL_UP_CUMPLIMIENTO: readonly LevelUpAccessItem[] = [
   LEVEL_UP_ENCUESTAS,
 ];
 
-const RH_CUMPLIMIENTO_SIDEBAR_ITEM_KEYS: ReadonlySet<LevelUpNavKey> = new Set([
-  "evaluaciones",
-]);
-
 const RH_CURSOS_SIDEBAR_ITEM_KEYS: ReadonlySet<LevelUpNavKey> = new Set(["encuestas"]);
-
-/** Ítems de cumplimiento movidos al submenú RH «Cumplimiento». */
-export const LEVEL_UP_CUMPLIMIENTO_RH_SIDEBAR: readonly LevelUpAccessItem[] =
-  LEVEL_UP_CUMPLIMIENTO.filter((item) => RH_CUMPLIMIENTO_SIDEBAR_ITEM_KEYS.has(item.key));
 
 export const LEVEL_UP_CATEGORIES: readonly LevelUpCategory[] = [
   { id: "cursos", title: "Cursos", items: LEVEL_UP_CURSOS },
@@ -258,11 +250,7 @@ function filterRhSidebarLevelUpCategory(category: LevelUpCategory): LevelUpCateg
   if (category.id !== "cumplimiento") return category;
   return {
     ...category,
-    items: category.items.filter(
-      (item) =>
-        !RH_CUMPLIMIENTO_SIDEBAR_ITEM_KEYS.has(item.key) &&
-        !RH_CURSOS_SIDEBAR_ITEM_KEYS.has(item.key),
-    ),
+    items: category.items.filter((item) => !RH_CURSOS_SIDEBAR_ITEM_KEYS.has(item.key)),
   };
 }
 
