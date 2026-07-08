@@ -1488,6 +1488,14 @@ components:
             - $ref: "#/components/schemas/Vista360TurnoEmpleado"
           nullable: true
           description: Presente solo para rol rh; ausente o null para otros roles.
+        fecha_ingreso:
+          type: string
+          format: date
+          nullable: true
+          description: >-
+            Fecha de ingreso real (CB_FEC_ING de dbo.COLABORA en SQL Server
+            datos-analisis). null si la BD externa no está disponible; el
+            frontend cae al campo `registro`.
 
     MetricasUsuarioResponse:
       type: object

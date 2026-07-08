@@ -496,7 +496,8 @@ function renderVista360Content(
     title: "Antigüedad",
     iconSvg: iconCalendar,
     iconTone: "sky",
-    bodyHtml: antiguedadBodyHtml(u.registro),
+    // Fecha de ingreso real (CB_FEC_ING) con fallback al `registro` legacy si la BD externa no respondió.
+    bodyHtml: antiguedadBodyHtml(data.fecha_ingreso ?? u.registro),
   });
 
   const grid = `
