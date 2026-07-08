@@ -4,8 +4,7 @@
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isEmpleadoFlatNavRol, isShellNavItemVisibleForRol, isSupervisorStructuredNavRol } from "./shellNavPolicy.ts";
-import { hasExplicitModuleGrant, hasRhModule, isModulosRhEnrolled } from "../auth/rhModulePermissions.ts";
-import { isNonRhRhMode, isRhEmpleadoUiMode, isRhOperativoUiMode } from "../auth/rhUiMode.ts";
+import { isRhOperativoUiMode } from "../auth/rhUiMode.ts";
 
 export type LevelUpNavKey =
   | "level-up"
@@ -202,21 +201,6 @@ export const LEVEL_UP_CATEGORIES: readonly LevelUpCategory[] = [
   { id: "cumplimiento", title: "Cumplimiento", items: LEVEL_UP_CUMPLIMIENTO },
 ];
 
-const LEVEL_UP_RESUMEN_ITEM: LevelUpAccessItem = {
-  id: "level-up",
-  key: "level-up",
-  href: "#/level-up/resumen",
-  label: "Resumen operativo",
-  svgPaths: `<path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" stroke-linecap="round" stroke-linejoin="round" />`,
-};
-
-function hasLevelUpResumenModuleAccess(rol: string | null): boolean {
-  if (rol === "empleado" || isRhEmpleadoUiMode()) return false;
-  if (isRhOperativoUiMode() || isNonRhRhMode()) return hasRhModule("level-up");
-  if (isModulosRhEnrolled()) return hasExplicitModuleGrant("level-up");
-  return rol === "director" || rol === "gerente";
-}
-
 export const LEVEL_UP_SUB_NAV_KEYS: ReadonlySet<LevelUpNavKey> = new Set(
   LEVEL_UP_CATEGORIES.flatMap((category) => category.items.map((item) => item.key)),
 );
@@ -234,13 +218,10 @@ function filterVisibleItems(rol: string | null, items: readonly LevelUpAccessIte
 }
 
 export function getVisibleLevelUpCategories(rol: string | null): LevelUpCategory[] {
-  return LEVEL_UP_CATEGORIES.map((category) => {
-    let items = filterVisibleItems(rol, category.items);
-    if (category.id === "cumplimiento" && hasLevelUpResumenModuleAccess(rol)) {
-      items = [LEVEL_UP_RESUMEN_ITEM, ...items];
-    }
-    return { ...category, items };
-  }).filter((category) => category.items.length > 0);
+  return LEVEL_UP_CATEGORIES.map((category) => ({
+    ...category,
+    items: filterVisibleItems(rol, category.items),
+  })).filter((category) => category.items.length > 0);
 }
 
 /** Categorías Level Up visibles en el sidebar RH (sin secciones propias: Cursos, Puestos). */

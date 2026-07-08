@@ -153,7 +153,8 @@ describe("rhNav sections", () => {
     expect(cumplimientoSection).toBeUndefined();
     expect(levelUpSection?.items.some((item) => item.key === "evaluaciones")).toBe(true);
     expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "level-up")).toBe(true);
+    // "Resumen operativo" (key level-up) ya no se muestra en el submenú.
+    expect(levelUpSection?.items.some((item) => item.key === "level-up")).toBe(false);
   });
 
   it("conserva rutas y etiquetas originales de los ítems de Cursos", async () => {
