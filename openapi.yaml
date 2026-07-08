@@ -1386,6 +1386,45 @@ components:
           format: date-time
           nullable: true
 
+    SaldoVacacionesRealResponse:
+      type: object
+      required:
+        - empleado_id
+        - no_empleado
+        - saldo_gozo_total
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: integer
+        saldo_gozo_total:
+          type: number
+          nullable: true
+          description: Suma de VS_S_GOZO desde dbo.GET_SALDOS_VACACION(no_empleado); 0 si el empleado no tiene periodos
+
+    VacacionesDisponibleSolicitudResponse:
+      type: object
+      required:
+        - empleado_id
+        - no_empleado
+        - saldo_tress
+        - dias_comprometidos
+        - dias_disponibles
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: integer
+        saldo_tress:
+          type: number
+          description: Saldo total de gozo desde TRESS (GET_SALDOS_VACACION)
+        dias_comprometidos:
+          type: integer
+          description: Días de solicitudes de vacaciones en curso (pending/changes_requested)
+        dias_disponibles:
+          type: number
+          description: saldo_tress − dias_comprometidos
+
     HomeOfficeDisponibilidadResponse:
       type: object
       required:
@@ -1449,6 +1488,14 @@ components:
             - $ref: "#/components/schemas/Vista360TurnoEmpleado"
           nullable: true
           description: Presente solo para rol rh; ausente o null para otros roles.
+        fecha_ingreso:
+          type: string
+          format: date
+          nullable: true
+          description: >-
+            Fecha de ingreso real (CB_FEC_ING de dbo.COLABORA en SQL Server
+            datos-analisis). null si la BD externa no está disponible; el
+            frontend cae al campo `registro`.
 
     MetricasUsuarioResponse:
       type: object
@@ -7117,6 +7164,60 @@ paths:
           description: Empleado no encontrado
         "422":
           description: Validación de días disponibles
+
+  /api/v1/empleados/{empleado_id}/saldo-vacaciones-real:
+    get:
+      tags: [Empleados]
+      summary: Saldo real de días de gozo (SQL Server datos-analisis, función GET_SALDOS_VACACION)
+      operationId: empleados_saldo_vacaciones_real_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saldo real de días de gozo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaldoVacacionesRealResponse"
+        "403":
+          description: Sin permiso para consultar este empleado
+        "404":
+          description: Empleado no encontrado
+        "503":
+          description: Base datos-analisis no configurada o no disponible
+
+  /api/v1/empleados/{empleado_id}/vacaciones-disponibles-solicitud:
+    get:
+      tags: [Empleados]
+      summary: Días disponibles para solicitar vacaciones (saldo TRESS − comprometidos en curso)
+      operationId: empleados_vacaciones_disponibles_solicitud_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Días disponibles para solicitar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VacacionesDisponibleSolicitudResponse"
+        "403":
+          description: Sin permiso para consultar este empleado
+        "404":
+          description: Empleado no encontrado
+        "503":
+          description: No se pudo verificar el saldo (datos-analisis no disponible)
 
   /api/v1/empleados/{empleado_id}/home-office/disponibilidad:
     get:

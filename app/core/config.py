@@ -129,6 +129,14 @@ class Settings(BaseSettings):
     # TRESS SQL Server (Windows only)
     TRESS_ODBC_CONN: str = ""
 
+    # SQL Server datos-analisis (solo lectura; conexión on-demand)
+    DATOS_ANALISIS_DB_HOST: str = ""
+    DATOS_ANALISIS_DB_PORT: int = 1433
+    DATOS_ANALISIS_DB_NAME: str = ""
+    DATOS_ANALISIS_DB_USER: str = ""
+    DATOS_ANALISIS_DB_PASSWORD: str = ""
+    DATOS_ANALISIS_DB_DRIVER: str = "ODBC Driver 18 for SQL Server"
+
     # IT Mirror DB
     IT_MIRROR_DB_URL: str = ""
 

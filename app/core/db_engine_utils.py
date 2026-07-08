@@ -34,6 +34,37 @@ def build_asyncpg_url(
     )
 
 
+def build_mssql_aioodbc_url(
+    host: str,
+    port: int | str,
+    name: str,
+    user: str,
+    password: str,
+    driver: str = "ODBC Driver 18 for SQL Server",
+    trust_cert: bool = True,
+) -> str | None:
+    """
+    Arma la URL SQLAlchemy ``mssql+aioodbc`` desde componentes individuales.
+
+    SQL Server usa ``SERVER=host,puerto`` (coma, no dos puntos) y el ODBC Driver 18
+    exige cifrado por defecto; para servidores on-premise / contenedores con certificado
+    self-signed se envía ``TrustServerCertificate=yes;Encrypt=no``.
+
+    Devuelve ``None`` si faltan datos mínimos (host, nombre o usuario), de modo que el
+    llamador decida el fallback. La cadena ODBC completa se pasa URL-encoded en el
+    parámetro ``odbc_connect`` para soportar cualquier carácter especial.
+    """
+    if not (host and name and user):
+        return None
+    encrypt = "no"  # dev/on-prem; sube a "yes" si el server tiene cert válido
+    odbc = (
+        f"DRIVER={{{driver}}};SERVER={host.strip()},{int(port)};"
+        f"DATABASE={name.strip()};UID={user};PWD={password};"
+        f"TrustServerCertificate={'yes' if trust_cert else 'no'};Encrypt={encrypt}"
+    )
+    return f"mssql+aioodbc:///?odbc_connect={quote_plus(odbc)}"
+
+
 def normalizar_url_y_connect_args(url: str) -> tuple[str, dict]:
     """
     Normaliza parámetros de conexión para URLs asyncpg.

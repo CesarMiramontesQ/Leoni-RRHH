@@ -20,7 +20,11 @@ from app.core.config import settings
 from app.core.data_scope import effective_data_scope_for_module, empleado_ids_en_alcance
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
+from app.integrations.datos_analisis_db import DatosAnalisisReadClient
 from app.repositories.comedor_repository import ComedorRepository
+from app.repositories.datos_analisis_colaborador_repository import (
+    DatosAnalisisColaboradorRepository,
+)
 from app.models.empleados import Empleado
 from app.models.roles import Rol
 from app.models.solicitudes import Solicitud
@@ -54,6 +58,42 @@ from app.utils.audit_logger import audit_background
 from app.utils.clasificacion_empleado import clasificacion_es_administrativo
 
 _CLASIFICACION_TIPOS_DASHBOARD = ("administrativo", "directo", "indirecto")
+
+logger = logging.getLogger(__name__)
+
+
+async def _obtener_fecha_ingreso_datos_analisis(no_empleado: int) -> date | None:
+    """Fecha de ingreso (``CB_FEC_ING`` de ``dbo.COLABORA``) desde datos-analisis.
+
+    Degradación elegante: devuelve ``None`` (en vez de lanzar) si la BD externa no está
+    configurada, el driver no está disponible, o la consulta falla, para que la Vista 360
+    nunca se rompa por esta dependencia opcional. Se captura ``Exception`` a propósito: la
+    creación del engine puede fallar por driver ausente (``ModuleNotFoundError`` de aioodbc)
+    y la conexión por errores de red/ODBC, ninguno de los cuales debe tumbar el detalle.
+    """
+    try:
+        engine = DatosAnalisisReadClient.create_read_engine()
+    except Exception as exc:  # noqa: BLE001 - degradación elegante (driver/config ausente)
+        logger.warning(
+            "No se pudo crear engine datos-analisis para fecha de ingreso: %s",
+            type(exc).__name__,
+        )
+        return None
+    if engine is None:
+        return None
+    try:
+        return await DatosAnalisisColaboradorRepository(engine).get_fecha_ingreso(
+            cb_codigo=no_empleado
+        )
+    except Exception as exc:  # noqa: BLE001 - degradación elegante (BD externa opcional)
+        logger.warning(
+            "No se pudo obtener fecha de ingreso datos-analisis (no_empleado=%s): %s",
+            no_empleado,
+            type(exc).__name__,
+        )
+        return None
+    finally:
+        await engine.dispose()
 
 
 def _normalize_clasificacion_text(value: str) -> str:
@@ -91,8 +131,6 @@ def _clasificacion_display_label(descripcion: str, significado: str | None) -> s
     if sig and sig.lower() != desc.lower():
         return f"{desc} — {sig}" if desc else sig
     return desc or sig or "Sin nombre"
-
-logger = logging.getLogger(__name__)
 
 
 class UsuarioService:
@@ -580,6 +618,8 @@ class UsuarioService:
                     turno_txt = str(te.turno).strip()
             turno_empleado = Vista360TurnoEmpleado(comedor=comedor_txt, turno=turno_txt)
 
+        fecha_ingreso = await _obtener_fecha_ingreso_datos_analisis(usuario.no_empleado)
+
         return UsuarioVista360Response(
             usuario=UsuarioResponse.model_validate(usuario),
             solicitudes_recientes=[SolicitudBrief.model_validate(s) for s in solicitudes],
@@ -589,6 +629,7 @@ class UsuarioService:
                 usuario.id
             ),
             turno_empleado=turno_empleado,
+            fecha_ingreso=fecha_ingreso,
         )
 
     async def get_metricas(

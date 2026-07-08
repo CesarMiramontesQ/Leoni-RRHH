@@ -66,7 +66,9 @@ from app.schemas.solicitudes import (
     SolicitudResponse,
     SolicitudSolicitarCambiosBody,
 )
+from app.schemas.vacaciones import VacacionesDisponibleSolicitudResponse
 from app.services.notificacion_service import NotificacionService
+from app.services.vacaciones_service import VacacionesService
 from app.utils.audit_logger import audit_background
 
 logger = logging.getLogger(__name__)
@@ -100,6 +102,9 @@ _ESTADOS_DUPLICADO_EXACTO = frozenset({"pending", "approved", "overridden", "cha
 # Empalme/solape (mismo colaborador, rangos que se traslapan, cualquier tipo): se usa el
 # mismo conjunto de estados activos. Solicitudes rechazadas o canceladas no bloquean.
 _ESTADOS_EMPALME_ACTIVO = _ESTADOS_DUPLICADO_EXACTO
+# Solicitudes de vacaciones que "comprometen" días frente al saldo TRESS: en curso, aún no
+# enviadas a TRESS. Las aprobadas se excluyen (ya encoladas; TRESS bajará su saldo al procesar).
+_ESTADOS_VACACIONES_COMPROMETIDAS = frozenset({"pending", "changes_requested"})
 _MSG_SOLICITUD_YA_EXISTE = "Esta solicitud ya existe"
 
 
@@ -536,35 +541,80 @@ class SolicitudService:
             return dias_laborales_inclusive(fecha_inicio, fecha_fin)
         return _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
 
-    async def _debitar_saldo_vacaciones(
+    async def _dias_vacaciones_comprometidos(
         self,
-        *,
         empleado_id: int,
-        fecha_inicio: date,
-        fecha_fin: date,
-    ) -> None:
-        """Rebaja días disponibles al registrar o corregir una solicitud de vacaciones."""
-        necesarios = await self._dias_vacaciones_para_empleado(
-            empleado_id, fecha_inicio, fecha_fin
+        *,
+        exclude_solicitud_id: int | None = None,
+    ) -> int:
+        """Suma de días de las solicitudes de vacaciones EN CURSO del empleado.
+
+        Comprometido = solicitudes en ``_ESTADOS_VACACIONES_COMPROMETIDAS`` (pending /
+        changes_requested), que reservan días pero aún no se enviaron a TRESS. Las aprobadas
+        NO se cuentan: ya se encolaron a TRESS y su saldo bajará cuando nómina las procese.
+        """
+        solicitudes, _ = await self.repo.list_by_empleado(
+            empleado_id,
+            cursor=None,
+            limit=1000,
+            tipos_permitidos=["vacaciones"],
+            # Excluir todo lo que NO está comprometido (deja pending + changes_requested).
+            estados_excluidos=["approved", "rejected", "cancelled", "overridden"],
         )
-        await self.vacaciones_repo.debitar(empleado_id, necesarios)
+        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        administrativo = empleado is not None and empleado_es_administrativo(empleado)
+        total = 0
+        for s in solicitudes:
+            if exclude_solicitud_id is not None and s.id == exclude_solicitud_id:
+                continue
+            if administrativo:
+                total += dias_laborales_inclusive(s.fecha_inicio, s.fecha_fin)
+            else:
+                total += _dias_solicitud_inclusive(s.fecha_inicio, s.fecha_fin)
+        return total
+
+    async def obtener_disponible_vacaciones(
+        self, *, empleado_id: int, current_user: Empleado
+    ) -> VacacionesDisponibleSolicitudResponse:
+        """Días disponibles para solicitar = saldo TRESS − comprometidos en curso.
+
+        Bloquea (503) si TRESS no está disponible (vía ``obtener_saldo_real``).
+        """
+        saldo_resp = await VacacionesService(self.db).obtener_saldo_real(
+            empleado_id, current_user
+        )
+        saldo_tress = saldo_resp.saldo_gozo_total or 0.0
+        comprometidos = await self._dias_vacaciones_comprometidos(empleado_id)
+        return VacacionesDisponibleSolicitudResponse(
+            empleado_id=empleado_id,
+            no_empleado=saldo_resp.no_empleado,
+            saldo_tress=saldo_tress,
+            dias_comprometidos=comprometidos,
+            dias_disponibles=saldo_tress - comprometidos,
+        )
 
     async def _validar_creacion_vacaciones(
         self,
         *,
         empleado_id: int,
+        current_user: Empleado,
         fecha_inicio: date,
         fecha_fin: date,
+        exclude_solicitud_id: int | None = None,
     ) -> None:
-        """Impide alta de vacaciones sin saldo o con días solicitados mayores al disponible."""
-        saldo = await self.vacaciones_repo.get_dias_disponibles(empleado_id)
-        if saldo <= 0:
-            raise DomainValidationError(
-                detail=(
-                    "No cuentas con días de vacaciones disponibles "
-                    "para presentar una solicitud."
-                )
-            )
+        """Impide alta de vacaciones sin saldo TRESS disponible o con días > disponible.
+
+        Fuente del saldo: TRESS (``GET_SALDOS_VACACION``) menos días comprometidos en
+        solicitudes en curso. Si TRESS no responde, ``obtener_saldo_real`` bloquea (503).
+        """
+        saldo_resp = await VacacionesService(self.db).obtener_saldo_real(
+            empleado_id, current_user
+        )
+        saldo_tress = saldo_resp.saldo_gozo_total or 0.0
+        comprometidos = await self._dias_vacaciones_comprometidos(
+            empleado_id, exclude_solicitud_id=exclude_solicitud_id
+        )
+        disponible = saldo_tress - comprometidos
         necesarios = await self._dias_vacaciones_para_empleado(
             empleado_id, fecha_inicio, fecha_fin
         )
@@ -572,26 +622,20 @@ class SolicitudService:
             raise DomainValidationError(
                 detail="El rango debe incluir al menos un día de vacaciones."
             )
-        if necesarios > saldo:
+        if disponible <= 0:
             raise DomainValidationError(
                 detail=(
-                    f"Saldo insuficiente: hay {saldo} día(s) disponible(s) "
+                    "No cuentas con días de vacaciones disponibles "
+                    "para presentar una solicitud."
+                )
+            )
+        if necesarios > disponible:
+            raise DomainValidationError(
+                detail=(
+                    f"Saldo insuficiente: hay {disponible:g} día(s) disponible(s) "
                     f"y se solicitan {necesarios}."
                 )
             )
-
-    async def _restaurar_saldo_vacaciones(
-        self,
-        *,
-        empleado_id: int,
-        fecha_inicio: date,
-        fecha_fin: date,
-    ) -> None:
-        """Devuelve días al saldo (cancelación, rechazo o corrección de fechas)."""
-        dias = await self._dias_vacaciones_para_empleado(
-            empleado_id, fecha_inicio, fecha_fin
-        )
-        await self.vacaciones_repo.acreditar(empleado_id, dias)
 
     async def _validar_creacion_home_office(
         self,
@@ -820,11 +864,7 @@ class SolicitudService:
         if data.tipo == "vacaciones":
             await self._validar_creacion_vacaciones(
                 empleado_id=target.id,
-                fecha_inicio=fecha_inicio,
-                fecha_fin=fecha_fin,
-            )
-            await self._debitar_saldo_vacaciones(
-                empleado_id=target.id,
+                current_user=current_user,
                 fecha_inicio=fecha_inicio,
                 fecha_fin=fecha_fin,
             )
@@ -1069,12 +1109,7 @@ class SolicitudService:
                 )
 
         datos_antes = {"estado": solicitud.estado}
-        if solicitud.tipo == "vacaciones":
-            await self._restaurar_saldo_vacaciones(
-                empleado_id=solicitud.empleado_id,
-                fecha_inicio=solicitud.fecha_inicio,
-                fecha_fin=solicitud.fecha_fin,
-            )
+        # Saldo de vacaciones dormante: la fuente es TRESS; no hay reintegro interno.
         await self.repo.update(solicitud_id, {"estado": "rejected"})
         await self.aprobacion_repo.create({
             "solicitud_id": solicitud_id,
@@ -1319,15 +1354,14 @@ class SolicitudService:
             )
 
         if solicitud.tipo == "vacaciones":
-            await self._restaurar_saldo_vacaciones(
+            # Revalida las nuevas fechas contra el disponible TRESS, excluyendo esta misma
+            # solicitud del cómputo de comprometidos (evita contarse a sí misma).
+            await self._validar_creacion_vacaciones(
                 empleado_id=current_user.id,
-                fecha_inicio=solicitud.fecha_inicio,
-                fecha_fin=solicitud.fecha_fin,
-            )
-            await self._debitar_saldo_vacaciones(
-                empleado_id=current_user.id,
+                current_user=current_user,
                 fecha_inicio=data.fecha_inicio,
                 fecha_fin=data.fecha_fin,
+                exclude_solicitud_id=solicitud.id,
             )
 
         datos_antes = {
@@ -1417,12 +1451,7 @@ class SolicitudService:
             )
 
         datos_antes = {"estado": solicitud.estado}
-        if solicitud.tipo == "vacaciones":
-            await self._restaurar_saldo_vacaciones(
-                empleado_id=solicitud.empleado_id,
-                fecha_inicio=solicitud.fecha_inicio,
-                fecha_fin=solicitud.fecha_fin,
-            )
+        # Saldo de vacaciones dormante: la fuente es TRESS; no hay reintegro interno.
         solicitud = await self.repo.update(solicitud_id, {"estado": "cancelled"})
 
         audit_background(

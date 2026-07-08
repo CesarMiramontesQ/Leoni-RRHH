@@ -27,7 +27,12 @@ from app.schemas.usuarios import (
     UsuarioVista360Response,
 )
 from app.schemas.solicitudes import HomeOfficeDisponibilidadResponse
-from app.schemas.vacaciones import VacacionesResponse, VacacionesUpdate
+from app.schemas.vacaciones import (
+    SaldoVacacionesRealResponse,
+    VacacionesDisponibleSolicitudResponse,
+    VacacionesResponse,
+    VacacionesUpdate,
+)
 from app.services.acta_service import ActaService
 from app.services.empleado_foto_service import EmpleadoFotoService
 from app.services.solicitud_service import SolicitudService
@@ -160,6 +165,34 @@ async def get_vacaciones_empleado(
 ):
     """Saldo de días de vacaciones del empleado."""
     return await svc.obtener_saldo(empleado_id=empleado_id, current_user=current_user)
+
+
+@router.get(
+    "/{empleado_id}/saldo-vacaciones-real",
+    response_model=SaldoVacacionesRealResponse,
+)
+async def get_saldo_vacaciones_real(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    svc: VacacionesService = Depends(_vac_svc),
+):
+    """Saldo real de días de gozo desde SQL Server datos-analisis (función GET_SALDOS_VACACION)."""
+    return await svc.obtener_saldo_real(empleado_id=empleado_id, current_user=current_user)
+
+
+@router.get(
+    "/{empleado_id}/vacaciones-disponibles-solicitud",
+    response_model=VacacionesDisponibleSolicitudResponse,
+)
+async def get_vacaciones_disponibles_solicitud(
+    empleado_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    svc: SolicitudService = Depends(_sol_svc),
+):
+    """Días disponibles para solicitar vacaciones = saldo TRESS − comprometidos en curso."""
+    return await svc.obtener_disponible_vacaciones(
+        empleado_id=empleado_id, current_user=current_user
+    )
 
 
 @router.put("/{empleado_id}/vacaciones", response_model=VacacionesResponse)

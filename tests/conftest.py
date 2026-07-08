@@ -153,6 +153,9 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     Integraciones externas mockeadas:
       - encolar_tress: no inserta en tress_robot_queue
       - _log_action_background: no abre sesion secundaria
+      - obtener_saldo_gozo_tress: saldo TRESS (datos-analisis) alto por defecto (999),
+        para que las creaciones de vacaciones no fallen con 503; los tests que necesiten
+        otro valor lo sobreescriben con monkeypatch.
     """
 
     async def override_get_db():
@@ -170,6 +173,11 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             "app.utils.audit_logger._log_action_background",
             new_callable=AsyncMock,
             return_value=None,
+        ),
+        patch(
+            "app.services.vacaciones_service.obtener_saldo_gozo_tress",
+            new_callable=AsyncMock,
+            return_value=999.0,
         ),
     ):
         async with AsyncClient(

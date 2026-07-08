@@ -39,7 +39,11 @@ async def test_rh_actualiza_y_consulta_saldo(client: AsyncClient, db: AsyncSessi
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_vacaciones_rebaja_saldo(client: AsyncClient, db: AsyncSession):
+async def test_crear_solicitud_vacaciones_no_toca_saldo_interno(
+    client: AsyncClient, db: AsyncSession
+):
+    """La fuente del saldo es TRESS (mock en conftest = 999); el saldo interno quedó
+    dormante y NO se debita al crear una solicitud de vacaciones."""
     empleado = await make_empleado(
         db, rol="empleado", email="vac-debit@test", dias_vacaciones=10
     )
@@ -58,4 +62,4 @@ async def test_crear_solicitud_vacaciones_rebaja_saldo(client: AsyncClient, db: 
         )
     )
     row = result.scalar_one()
-    assert row.dias == 5
+    assert row.dias == 10  # saldo interno intacto
