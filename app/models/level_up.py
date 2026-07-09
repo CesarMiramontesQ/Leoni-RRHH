@@ -285,9 +285,6 @@ class Curso(Base):
     clasificacion_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_curso_clasificacion.id"), nullable=True
     )
-    proveedor_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("levelup_curso_proveedor.id"), nullable=True
-    )
     instructor_tipo: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     instructor_empleado_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("empleados.empleado_id"), nullable=True
@@ -312,7 +309,6 @@ class Curso(Base):
     categoria_rel = relationship("CursoCategoria", foreign_keys=[categoria_id], lazy="joined")
     tipo_rel = relationship("CursoTipo", foreign_keys=[tipo_id], lazy="joined")
     clasificacion_rel = relationship("CursoClasificacion", foreign_keys=[clasificacion_id], lazy="joined")
-    proveedor_rel = relationship("CursoProveedor", foreign_keys=[proveedor_id], lazy="joined")
     instructor_externo_rel = relationship("CursoInstructorExterno", foreign_keys=[instructor_externo_id], lazy="joined")
     instructor_empleado_rel = relationship("Empleado", foreign_keys=[instructor_empleado_id], lazy="joined")
 
@@ -353,6 +349,9 @@ class CursoSesion(Base):
     instructor_externo_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_curso_instructor_externo.id"), nullable=True
     )
+    proveedor_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_curso_proveedor.id"), nullable=True
+    )
     costo: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     cupo_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -371,6 +370,7 @@ class CursoSesion(Base):
     curso: Mapped["Curso"] = relationship("Curso", back_populates="sesiones")
     instructor_externo_rel = relationship("CursoInstructorExterno", foreign_keys=[instructor_externo_id], lazy="joined")
     instructor_empleado_rel = relationship("Empleado", foreign_keys=[instructor_empleado_id], lazy="joined")
+    proveedor_rel = relationship("CursoProveedor", foreign_keys=[proveedor_id], lazy="joined")
     puestos: Mapped[List["CursoPuesto"]] = relationship(
         "CursoPuesto", back_populates="sesion"
     )

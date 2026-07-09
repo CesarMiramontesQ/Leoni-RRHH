@@ -375,7 +375,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     tipo_id: string;
     duracion_horas: string;
     categoria_id: string;
-    proveedor_id: string;
     centro_costos: string;
     descripcion: string;
     obligatorio: boolean;
@@ -434,11 +433,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     categoriasCatalog: CursoCatSimple[];
     tiposCatalog: CursoCatSimple[];
     clasificacionesCatalog: CursoCatSimple[];
-    showNuevoProveedorPanel: boolean;
-    nuevoProveedorNombre: string;
-    nuevoProveedorSaving: boolean;
-    nuevoProveedorError: string;
-    pendingProveedorId: number | null;
     cursoModalDraft: CursoModalDraft | null;
   }
 
@@ -495,11 +489,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     categoriasCatalog: [],
     tiposCatalog: [],
     clasificacionesCatalog: [],
-    showNuevoProveedorPanel: false,
-    nuevoProveedorNombre: "",
-    nuevoProveedorSaving: false,
-    nuevoProveedorError: "",
-    pendingProveedorId: null,
     cursoModalDraft: null,
   };
 
@@ -543,19 +532,113 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     state.instructoresCatalogLoading = true;
     render();
     try {
-      const [internos, externos] = await Promise.all([
+      const [internos, externos, proveedores] = await Promise.all([
         getInstructoresInternos({ page: 1, page_size: 200, solo_activos: true }),
         getInstructoresExternos({ page: 1, page_size: 200, solo_activos: true }),
+        getProveedores({ page: 1, page_size: 200, solo_activos: true }),
       ]);
       state.instructoresInternos = internos.items;
       state.instructoresExternos = externos.items;
+      state.proveedoresCatalog = proveedores.items;
     } catch {
       state.instructoresInternos = [];
       state.instructoresExternos = [];
+      state.proveedoresCatalog = [];
     }
     state.instructoresCatalogLoading = false;
     render();
     toggleSesionInstructorFields(state.sesionModalTipo);
+  }
+
+  function renderSesionProveedorFields(): string {
+    const loading = state.instructoresCatalogLoading;
+    const disabled = loading ? " disabled" : "";
+    let options = loading
+      ? `<option value="" selected>Cargando proveedores…</option>`
+      : `<option value="">— Sin proveedor —</option>`;
+    if (!loading) {
+      for (const p of state.proveedoresCatalog) {
+        options += `<option value="${p.id}">${escapeHtml(p.nombre)}</option>`;
+      }
+    }
+    return `
+      <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Proveedor</label>
+        <select name="proveedor_id" data-sesion-proveedor-select class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}"${disabled}>
+          ${options}
+        </select>
+        <button type="button" data-action="toggle-sesion-proveedor" class="mt-2 text-xs font-semibold text-[#1e40af] hover:underline">+ Crear nuevo proveedor</button>
+        <div data-sesion-nuevo-proveedor class="hidden mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 space-y-2">
+          <label for="sesion-nuevo-proveedor-nombre" class="block text-xs font-medium text-slate-600">Nombre del proveedor</label>
+          <input id="sesion-nuevo-proveedor-nombre" type="text" maxlength="255" data-sesion-nuevo-proveedor-nombre class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
+          <p data-sesion-nuevo-proveedor-error class="hidden text-xs text-red-700" role="alert"></p>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" data-action="save-sesion-nuevo-proveedor" class="${BTN_PRIMARY} text-xs">Guardar proveedor</button>
+            <button type="button" data-action="cancel-sesion-proveedor" class="${BTN_SECONDARY} text-xs">Cancelar</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Panel "crear proveedor" de la sesión: manejado por DOM (sin render) para no
+  // perder los datos ya escritos en el formulario de sesión. Devuelve true si
+  // el click fue consumido.
+  async function handleSesionProveedorClick(t: HTMLElement): Promise<boolean> {
+    const form = container.querySelector<HTMLFormElement>("[data-form='create-sesion']");
+    if (!form) return false;
+    const panel = () => form.querySelector<HTMLElement>("[data-sesion-nuevo-proveedor]");
+    const input = () => form.querySelector<HTMLInputElement>("[data-sesion-nuevo-proveedor-nombre]");
+    const errEl = () => form.querySelector<HTMLElement>("[data-sesion-nuevo-proveedor-error]");
+
+    if (t.closest("[data-action='toggle-sesion-proveedor']")) {
+      const p = panel();
+      p?.classList.toggle("hidden");
+      if (p && !p.classList.contains("hidden")) input()?.focus();
+      return true;
+    }
+
+    if (t.closest("[data-action='cancel-sesion-proveedor']")) {
+      panel()?.classList.add("hidden");
+      const i = input();
+      if (i) i.value = "";
+      errEl()?.classList.add("hidden");
+      return true;
+    }
+
+    const saveBtn = t.closest<HTMLButtonElement>("[data-action='save-sesion-nuevo-proveedor']");
+    if (saveBtn) {
+      const err = errEl();
+      const showErr = (msg: string) => { if (err) { err.textContent = msg; err.classList.remove("hidden"); } };
+      const nombre = (input()?.value ?? "").trim();
+      if (nombre.length < 2) { showErr("El nombre debe tener al menos 2 caracteres."); return true; }
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Guardando…";
+      try {
+        const created = await createProveedor({ nombre });
+        state.proveedoresCatalog = [...state.proveedoresCatalog, created]
+          .sort((a, b) => a.nombre.localeCompare(b.nombre));
+        const select = form.querySelector<HTMLSelectElement>("[data-sesion-proveedor-select]");
+        if (select) {
+          const opt = document.createElement("option");
+          opt.value = String(created.id);
+          opt.textContent = created.nombre;
+          select.appendChild(opt);
+          select.value = String(created.id);
+        }
+        panel()?.classList.add("hidden");
+        const i = input();
+        if (i) i.value = "";
+        err?.classList.add("hidden");
+      } catch (e: unknown) {
+        showErr((e as { detail?: string }).detail ?? "No se pudo crear el proveedor.");
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Guardar proveedor";
+      }
+      return true;
+    }
+
+    return false;
   }
 
   async function loadCursos() {
@@ -585,19 +668,10 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       tipo_id: String(fd.get("tipo_id") ?? ""),
       duracion_horas: String(fd.get("duracion_horas") ?? ""),
       categoria_id: String(fd.get("categoria_id") ?? ""),
-      proveedor_id: String(fd.get("proveedor_id") ?? ""),
       centro_costos: String(fd.get("centro_costos") ?? ""),
       descripcion: String(fd.get("descripcion") ?? ""),
       obligatorio: form.querySelector<HTMLInputElement>("[name='obligatorio']")?.checked ?? false,
     };
-  }
-
-  function resetProveedorPanelState(): void {
-    state.showNuevoProveedorPanel = false;
-    state.nuevoProveedorNombre = "";
-    state.nuevoProveedorSaving = false;
-    state.nuevoProveedorError = "";
-    state.pendingProveedorId = null;
   }
 
   async function loadCursoModalCatalogos(): Promise<void> {
@@ -605,21 +679,18 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     render();
     const params = { page: 1, page_size: 200, solo_activos: true };
     try {
-      const [categorias, tipos, clasificaciones, proveedores] = await Promise.all([
+      const [categorias, tipos, clasificaciones] = await Promise.all([
         getCategorias(params),
         getTipos(params),
         getClasificaciones(params),
-        getProveedores(params),
       ]);
       state.categoriasCatalog = categorias.items;
       state.tiposCatalog = tipos.items;
       state.clasificacionesCatalog = clasificaciones.items;
-      state.proveedoresCatalog = proveedores.items;
     } catch {
       state.categoriasCatalog = [];
       state.tiposCatalog = [];
       state.clasificacionesCatalog = [];
-      state.proveedoresCatalog = [];
     }
     state.proveedoresLoading = false;
     render();
@@ -656,10 +727,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     return `<select name="${name}" class="${modalFieldCls}"${disabled}>${options}</select>`;
   }
 
-  async function loadProveedoresForCursoModal(): Promise<void> {
-    await loadCursoModalCatalogos();
-  }
-
   async function openCursoModal(curso: Curso | null): Promise<void> {
     if (curso) {
       state.editingCurso = curso;
@@ -673,7 +740,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     state.tiposCatalog = [];
     state.clasificacionesCatalog = [];
     state.cursoModalDraft = null;
-    resetProveedorPanelState();
     render();
     await loadCursoModalCatalogos();
   }
@@ -687,86 +753,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     state.clasificacionesCatalog = [];
     state.proveedoresLoading = false;
     state.cursoModalDraft = null;
-    resetProveedorPanelState();
-  }
-
-  async function saveNuevoProveedorFromCursoModal(): Promise<void> {
-    const nombre = state.nuevoProveedorNombre.trim();
-    if (nombre.length < 2) {
-      state.nuevoProveedorError = "El nombre debe tener al menos 2 caracteres.";
-      render();
-      return;
-    }
-    state.nuevoProveedorSaving = true;
-    state.nuevoProveedorError = "";
-    render();
-    try {
-      const created = await createProveedor({ nombre });
-      state.proveedoresCatalog = [...state.proveedoresCatalog, created]
-        .sort((a, b) => a.nombre.localeCompare(b.nombre));
-      if (state.cursoModalDraft) state.cursoModalDraft.proveedor_id = String(created.id);
-      state.pendingProveedorId = created.id;
-      state.showNuevoProveedorPanel = false;
-      state.nuevoProveedorNombre = "";
-      state.nuevoProveedorSaving = false;
-      state.nuevoProveedorError = "";
-      render();
-      container.querySelector<HTMLInputElement>('form[data-action="submit-curso"] input[name="nombre"]')?.focus();
-    } catch (err: unknown) {
-      state.nuevoProveedorSaving = false;
-      state.nuevoProveedorError = (err as { detail?: string }).detail ?? "No se pudo crear el proveedor.";
-      render();
-    }
-  }
-
-  function renderProveedorSectionForCurso(
-    c: Curso | null,
-    draft: CursoModalDraft | null,
-    modalFieldCls: string,
-  ): string {
-    const selectedId = state.pendingProveedorId
-      ?? (draft?.proveedor_id ? Number(draft.proveedor_id) : null)
-      ?? c?.proveedor_id
-      ?? null;
-    const proveedores = state.proveedoresCatalog;
-    const matched = proveedores.some((p) => p.id === selectedId);
-    const disabled = state.proveedoresLoading ? " disabled" : "";
-    let options = state.proveedoresLoading
-      ? `<option value="" selected>Cargando proveedores…</option>`
-      : `<option value="">Seleccionar proveedor…</option>`;
-    if (!state.proveedoresLoading) {
-      for (const p of proveedores) {
-        const isSelected = p.id === selectedId ? " selected" : "";
-        options += `<option value="${p.id}"${isSelected}>${escapeHtml(p.nombre)}</option>`;
-      }
-      if (selectedId && !matched) {
-        options += `<option value="${selectedId}" selected>${escapeHtml(c?.proveedor_nombre ?? "Proveedor")} (inactivo)</option>`;
-      }
-    }
-    const panel = state.showNuevoProveedorPanel ? `
-      <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3 space-y-3">
-        <p class="text-xs font-semibold text-text-primary">Nuevo proveedor</p>
-        <div>
-          <label for="nuevo-proveedor-nombre" class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600" aria-hidden="true">*</span></label>
-          <input id="nuevo-proveedor-nombre" type="text" data-action="nuevo-proveedor-nombre" maxlength="255" value="${escapeHtml(state.nuevoProveedorNombre)}" class="${modalFieldCls}" />
-        </div>
-        ${state.nuevoProveedorError ? `<p class="text-xs text-red-700" role="alert">${escapeHtml(state.nuevoProveedorError)}</p>` : ""}
-        <div class="flex flex-wrap gap-2">
-          <button type="button" data-action="save-nuevo-proveedor" class="${RH_LISTADO_BTN_PRIMARY} text-xs" ${state.nuevoProveedorSaving ? "disabled" : ""}>${state.nuevoProveedorSaving ? "Guardando…" : "Guardar proveedor"}</button>
-          <button type="button" data-action="cancel-nuevo-proveedor" class="${BTN_SECONDARY} text-xs">Cancelar</button>
-        </div>
-      </div>` : "";
-    return `
-      <div class="grid grid-cols-1">
-        <select name="proveedor_id" class="${FILTER_SELECT_CLS}"${disabled}>
-          ${options}
-        </select>
-        ${SELECT_CHEVRON}
-      </div>
-      <button type="button" data-action="toggle-nuevo-proveedor" class="mt-2 ${RH_LISTADO_BTN_GHOST} text-xs">
-        ${state.showNuevoProveedorPanel ? "Ocultar formulario" : "+ Crear nuevo proveedor"}
-      </button>
-      ${panel}`;
   }
 
   function cursoCatBadge(cat: string | null): string {
@@ -977,7 +963,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       </div>
       <div class="min-w-0 flex-1">
         <button data-action="view-curso" data-id="${c.id}" class="text-left text-sm font-semibold leading-snug text-text-primary line-clamp-2 transition hover:text-leoni-blue hover:underline">${escapeHtml(c.nombre)}</button>
-        <p class="mt-1.5 text-xs text-text-muted">${escapeHtml(c.proveedor_nombre ?? "—")} · ${horas}${c.cupo_max ? ` · cupo ${c.cupo_max}` : ""}</p>
+        <p class="mt-1.5 text-xs text-text-muted">${horas}${c.cupo_max ? ` · cupo ${c.cupo_max}` : ""}</p>
       </div>
       ${c.instructor_nombre ? `
       <div class="flex items-center gap-2">
@@ -1111,10 +1097,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
                 c?.categoria_nombre ? catalogItemLabel(c.categoria_nombre, CATEGORIA_LABELS) : null,
               )}
             </div>
-          </div>
-          <div>
-            <label class="${RH_LISTADO_LABEL}">Proveedor</label>
-            ${renderProveedorSectionForCurso(c, d, modalFieldCls)}
           </div>
           <div>
             <label class="${RH_LISTADO_LABEL}">Centro de costos</label>
@@ -1269,7 +1251,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             ${field("Nombre", c.nombre)}
             ${field("Categoría", CATEGORIA_LABELS[c.categoria_nombre ?? ""] ?? c.categoria_nombre)}
             ${field("Clasificación", CLASIFICACION_LABELS[c.clasificacion_nombre ?? ""] ?? c.clasificacion_nombre)}
-            ${field("Proveedor", c.proveedor_nombre)}
             ${field("Duración", horas)}
             ${field("Cupo máximo", c.cupo_max ? String(c.cupo_max) : null)}
             ${field("Modalidad", c.modalidad)}
@@ -1863,6 +1844,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
             </div>
           </div>
           ${renderSesionInstructorFields()}
+          ${renderSesionProveedorFields()}
           <div>
             <label class="block text-xs font-medium text-slate-600 mb-1">Costo</label>
             <input type="number" name="costo" min="0" step="0.01" class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm ${FIELD_FOCUS}" />
@@ -2149,36 +2131,7 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
       return;
     }
 
-    if (t.closest("[data-action='toggle-nuevo-proveedor']")) {
-      captureCursoModalDraft();
-      state.showNuevoProveedorPanel = !state.showNuevoProveedorPanel;
-      if (!state.showNuevoProveedorPanel) {
-        state.nuevoProveedorNombre = "";
-        state.nuevoProveedorError = "";
-      }
-      render();
-      if (state.showNuevoProveedorPanel) {
-        container.querySelector<HTMLInputElement>("#nuevo-proveedor-nombre")?.focus();
-      }
-      return;
-    }
-
-    if (t.closest("[data-action='cancel-nuevo-proveedor']")) {
-      captureCursoModalDraft();
-      state.showNuevoProveedorPanel = false;
-      state.nuevoProveedorNombre = "";
-      state.nuevoProveedorError = "";
-      render();
-      return;
-    }
-
-    if (t.closest("[data-action='save-nuevo-proveedor']")) {
-      captureCursoModalDraft();
-      const input = container.querySelector<HTMLInputElement>("[data-action='nuevo-proveedor-nombre']");
-      state.nuevoProveedorNombre = input?.value ?? state.nuevoProveedorNombre;
-      await saveNuevoProveedorFromCursoModal();
-      return;
-    }
+    if (await handleSesionProveedorClick(t)) return;
 
     const closeBtn = t.closest<HTMLElement>("[data-action='close-curso-modal']");
     if (closeBtn) {
@@ -2729,10 +2682,6 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
 
   function handleInput(e: Event): void {
     const t = e.target as HTMLInputElement;
-    if (t.matches("[data-action='nuevo-proveedor-nombre']")) {
-      state.nuevoProveedorNombre = t.value;
-      return;
-    }
     if (t.matches("[data-action='cursos-search']")) {
       state.filters.busqueda = t.value;
       if (searchTimeout) clearTimeout(searchTimeout);
@@ -2821,6 +2770,8 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
         costo: fd.get("costo") ? Number(fd.get("costo")) : undefined,
         notas: (fd.get("notas") as string) || undefined,
       };
+      const proveedorIdRaw = fd.get("proveedor_id");
+      if (proveedorIdRaw) payload.proveedor_id = Number(proveedorIdRaw);
       const tipo = (fd.get("tipo") as string) || "";
       if (tipo) {
         payload.tipo = tipo;
@@ -2881,11 +2832,9 @@ export function mountCursos(container: HTMLElement, signal: AbortSignal): void {
     const categoriaIdRaw = fd.get("categoria_id");
     const tipoIdRaw = fd.get("tipo_id");
     const clasificacionIdRaw = fd.get("clasificacion_id");
-    const proveedorIdRaw = fd.get("proveedor_id");
     if (categoriaIdRaw) payload.categoria_id = Number(categoriaIdRaw);
     if (tipoIdRaw) payload.tipo_id = Number(tipoIdRaw);
     if (clasificacionIdRaw) payload.clasificacion_id = Number(clasificacionIdRaw);
-    if (proveedorIdRaw) payload.proveedor_id = Number(proveedorIdRaw);
 
     if (!payload.nombre) return;
 

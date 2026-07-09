@@ -253,7 +253,8 @@ class EncuestaRepository:
                 func.avg(EncuestaPostCurso.score_aplicabilidad),
             )
             .join(EncuestaPostCurso, EncuestaPostCurso.curso_id == Curso.id)
-            .outerjoin(CursoProveedor, CursoProveedor.id == Curso.proveedor_id)
+            .outerjoin(CursoSesion, CursoSesion.id == EncuestaPostCurso.sesion_id)
+            .outerjoin(CursoProveedor, CursoProveedor.id == CursoSesion.proveedor_id)
             .group_by(Curso.id, Curso.nombre, CursoProveedor.nombre)
             .order_by(func.count(EncuestaPostCurso.id).desc())
         )
