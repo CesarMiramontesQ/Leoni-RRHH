@@ -107,6 +107,11 @@ async def test_aprobar_vacaciones_falla_tress_queda_pending(client: AsyncClient,
         "app.services.solicitud_service.registrar_vacaciones_en_tress",
         _fail,
     )
+    audit_mock = AsyncMock()
+    monkeypatch.setattr(
+        "app.utils.audit_logger._log_action_background",
+        audit_mock,
+    )
 
     supervisor = await make_empleado(db, rol="supervisor", email="vac_tress_fail_sup@test")
     subordinado = await make_empleado(
@@ -135,6 +140,67 @@ async def test_aprobar_vacaciones_falla_tress_queda_pending(client: AsyncClient,
 
     await db.refresh(solicitud)
     assert solicitud.estado == "pending"
+
+    # BackgroundTasks de httpx/ASGI ejecutan el audit de fallo
+    assert audit_mock.await_count >= 1
+    failed_calls = [
+        c for c in audit_mock.await_args_list
+        if c.kwargs.get("accion") == "TRESS_VACACIONES_INSERT_FAILED"
+    ]
+    assert len(failed_calls) == 1
+    assert failed_calls[0].kwargs["entidad_id"] == solicitud.id
+    assert "traslapan" in (failed_calls[0].kwargs["datos_despues"] or {}).get("error", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_aprobar_vacaciones_ok_registra_audit_tress(client: AsyncClient, db, monkeypatch):
+    registrar = AsyncMock(
+        return_value=InsertarVacacionResult(
+            ok=True, codigo_error=None, mensaje="ok", nueva_llave=77
+        )
+    )
+    monkeypatch.setattr(
+        "app.services.solicitud_service.registrar_vacaciones_en_tress",
+        registrar,
+    )
+    audit_mock = AsyncMock()
+    monkeypatch.setattr(
+        "app.utils.audit_logger._log_action_background",
+        audit_mock,
+    )
+
+    supervisor = await make_empleado(db, rol="supervisor", email="vac_tress_audit_ok_sup@test")
+    subordinado = await make_empleado(
+        db,
+        rol="empleado",
+        email="vac_tress_audit_ok_sub@test",
+        lider_id=supervisor.empleado_id,
+    )
+    solicitud = await make_solicitud(
+        db,
+        empleado_id=subordinado.id,
+        tipo="vacaciones",
+        estado="pending",
+        fecha_inicio=date(2026, 7, 15),
+        fecha_fin=date(2026, 7, 17),
+    )
+
+    headers = await auth_headers(client, supervisor)
+    res = await client.put(
+        f"/api/v1/solicitudes/{solicitud.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers,
+    )
+    assert res.status_code == 200
+
+    ok_calls = [
+        c for c in audit_mock.await_args_list
+        if c.kwargs.get("accion") == "TRESS_VACACIONES_INSERT_OK"
+    ]
+    assert len(ok_calls) == 1
+    assert ok_calls[0].kwargs["datos_despues"]["nueva_llave"] == 77
+    assert ok_calls[0].kwargs["entidad_id"] == solicitud.id
+
 
 
 @pytest.mark.asyncio

@@ -183,7 +183,11 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         patch(
             "app.services.solicitud_service.registrar_vacaciones_en_tress",
             new_callable=AsyncMock,
-            return_value=None,
+            return_value=type(
+                "TressResult",
+                (),
+                {"ok": True, "nueva_llave": 1, "mensaje": "ok", "codigo_error": None},
+            )(),
         ),
     ):
         async with AsyncClient(
