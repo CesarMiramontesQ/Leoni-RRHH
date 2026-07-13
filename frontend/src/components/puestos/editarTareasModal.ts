@@ -42,10 +42,13 @@ export type EditarTareasModalHandle = {
 
 export type EditarTareasModalOptions = {
   perfilId: number;
+  grados?: { id: number; nombre: string; orden: number }[];
   onSuccess: () => void;
 };
 
 type TipoFilter = "" | "principal" | "complemento";
+/** "" = general (grado_id null); number as string = grado id */
+type AlcanceValue = "" | string;
 
 const SEARCH_PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -63,6 +66,14 @@ function tipoChip(esComplemento: boolean): string {
     return `<span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900"><span class="size-1.5 shrink-0 rounded-full bg-amber-500" aria-hidden="true"></span>Complementaria</span>`;
   }
   return `<span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-900"><span class="size-1.5 shrink-0 rounded-full bg-blue-500" aria-hidden="true"></span>Principal</span>`;
+}
+
+function alcanceChip(tarea: PerfilTarea): string {
+  if (tarea.es_general || tarea.grado_id == null) {
+    return `<span class="inline-flex shrink-0 items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-800">General</span>`;
+  }
+  const nombre = (tarea.grado_nombre ?? "").trim() || `Grado #${tarea.grado_id}`;
+  return `<span class="inline-flex max-w-[7rem] truncate shrink-0 items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700" title="${escapeHtml(nombre)}">${escapeHtml(nombre)}</span>`;
 }
 
 /** Chip neutral de categoría. */
@@ -178,6 +189,7 @@ function renderTareasList(tareas: PerfilTarea[], editingId: number | null): stri
               ${subtituloHtml}
             </span>
             ${tipoChip(t.es_complemento)}
+            ${alcanceChip(t)}
             <button type="button" data-edit-tarea="${t.id}" class="shrink-0 rounded-md p-1.5 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-leoni-blue focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40" title="Editar" aria-label="Editar tarea">
               ${ICON_EDIT}
             </button>
@@ -195,6 +207,8 @@ function renderAddForm(
   filterTipo: TipoFilter,
   filterCategoria: string,
   categorias: string[],
+  grados: { id: number; nombre: string; orden: number }[],
+  alcance: AlcanceValue,
 ): string {
   const catOpts = categorias
     .map(
@@ -203,12 +217,31 @@ function renderAddForm(
     )
     .join("");
   const datalistOpts = categorias.map((c) => `<option value="${escapeHtml(c)}"></option>`).join("");
+  const gradoOpts = [...grados]
+    .sort((a, b) => a.orden - b.orden)
+    .map(
+      (g) =>
+        `<option value="${g.id}" ${alcance === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+    )
+    .join("");
 
   return `
     <section class="space-y-3 border-t border-slate-100 pt-5">
       <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Agregar del catálogo</p>
 
       <div class="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+        <div>
+          <label for="tarea-alcance" class="${RH_LISTADO_LABEL}">Alcance <span class="text-red-600">*</span></label>
+          <div class="grid grid-cols-1">
+            <select id="tarea-alcance" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}" aria-label="Alcance de la tarea">
+              <option value="" ${alcance === "" ? "selected" : ""}>General</option>
+              ${gradoOpts}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+          <p class="mt-1 text-xs text-text-muted">General aplica a todo el perfil; o elige un grado concreto.</p>
+        </div>
+
         <!-- Combobox búsqueda catálogo -->
         <div>
           <label for="tarea-search" class="${RH_LISTADO_LABEL}">Buscar en catálogo</label>
@@ -327,6 +360,8 @@ export function mountEditarTareasModal(
   let selectedCatalogo: TareaCatalogo | null = null;
   let filterTipo: TipoFilter = "";
   let filterCategoria = "";
+  let alcance: AlcanceValue = "";
+  const gradosPerfil = [...(options.grados ?? [])].sort((a, b) => a.orden - b.orden);
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let categoriasOpciones: string[] = [];
   let searchResults: TareaCatalogo[] = [];
@@ -370,7 +405,7 @@ export function mountEditarTareasModal(
       selectedCatalogo = null;
       body.innerHTML =
         renderTareasList(tareas, editingTareaId) +
-        renderAddForm(showCreateNew, filterTipo, filterCategoria, categoriasOpciones);
+        renderAddForm(showCreateNew, filterTipo, filterCategoria, categoriasOpciones, gradosPerfil, alcance);
       bindDeleteButtons();
       bindEditButtons();
       bindInteractions();
@@ -481,6 +516,20 @@ export function mountEditarTareasModal(
     bindAssignButton();
     bindCreateToggle();
     bindCreateSubmit();
+    bindAlcanceSelect();
+  }
+
+  function resolveGradoId(): number | null {
+    if (!alcance) return null;
+    const id = Number(alcance);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }
+
+  function bindAlcanceSelect(): void {
+    const sel = body.querySelector("#tarea-alcance") as HTMLSelectElement | null;
+    sel?.addEventListener("change", () => {
+      alcance = sel.value as AlcanceValue;
+    });
   }
 
   function getSearchInput(): HTMLInputElement | null {
@@ -745,6 +794,7 @@ export function mountEditarTareasModal(
         await createPerfilTarea(options.perfilId, {
           orden,
           tarea_catalogo_id: selectedCatalogo.id,
+          grado_id: resolveGradoId(),
         });
         options.onSuccess();
         await refreshList();
@@ -813,6 +863,7 @@ export function mountEditarTareasModal(
         await createPerfilTarea(options.perfilId, {
           orden,
           tarea_catalogo_id: created.id,
+          grado_id: resolveGradoId(),
         });
 
         showCreateNew = false;
@@ -873,6 +924,7 @@ export function mountEditarTareasModal(
       editingTareaId = null;
       filterTipo = "";
       filterCategoria = "";
+      alcance = "";
       searchResults = [];
       searchLoading = false;
       searchError = "";

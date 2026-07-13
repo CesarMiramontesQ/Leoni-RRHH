@@ -34,12 +34,10 @@ import type { EditarCompetenciasModalHandle } from "../components/puestos/editar
 import type { EditarCualificacionesModalHandle } from "../components/puestos/editarCualificacionesModal.ts";
 import type { EditarTareasModalHandle } from "../components/puestos/editarTareasModal.ts";
 import { getPerfilCompetencias, getPerfilCualificaciones, updatePerfil, getAreasOptions, type PerfilCualificacion, type AreaOption } from "../api/puestos.ts";
-import { getNivelesPuesto } from "../api/nivelesPuesto.ts";
-import type { NivelPuesto } from "../dashboard/nivelesPuesto/types.ts";
 import type { TipoPuestoPerfil } from "../dashboard/puestos/types.ts";
+import { gradoIdsEntre, type GradoPerfilItem } from "../dashboard/puestos/types.ts";
 import type { CriterioRequerido } from "../dashboard/cualificaciones/types.ts";
 import { getGradosPuesto } from "../api/gradosPuesto.ts";
-import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
 import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
 
@@ -51,8 +49,7 @@ interface PuestoPerfilInfo {
   nombre: string;
   area_id: number | null;
   area_nombre: string | null;
-  nivel_id: number;
-  nivel_nombre: string | null;
+  grados: GradoPerfilItem[];
   tipo: TipoPuestoPerfil;
   descripcion: string | null;
   version: number;
@@ -67,6 +64,9 @@ interface Tarea {
   es_complemento: boolean;
   tarea_catalogo_id?: number | null;
   tarea_catalogo_nombre?: string | null;
+  grado_id?: number | null;
+  grado_nombre?: string | null;
+  es_general?: boolean;
 }
 
 interface Competencia {
@@ -77,6 +77,8 @@ interface Competencia {
   tipo_nombre: string | null;
   categoria: string | null;
   grupo_nombre: string | null;
+  grado_id: number | null;
+  es_general: boolean;
   nivel_requerido: number;
   orden: number | null;
 }
@@ -129,30 +131,46 @@ function safeText(value: string | null | undefined, fallback = "—"): string {
 }
 
 type CompetenciasPorGrado = {
-  grado: GradoPuesto;
+  grado: GradoPerfilItem;
   competencias: Competencia[];
 };
 
-async function loadCompetenciasPorGrado(perfilId: number, grados: GradoPuesto[]): Promise<CompetenciasPorGrado[]> {
-  const activos = grados.filter((g) => g.activo);
-  if (activos.length === 0) return [];
+function mapCompetenciaApi(c: {
+  id: number;
+  competencia_id: number;
+  competencia_nombre: string;
+  tipo_competencia_id: number | null;
+  tipo_nombre: string | null;
+  categoria: string | null;
+  grupo_nombre: string | null;
+  grado_id: number | null;
+  es_general: boolean;
+  nivel_requerido: number;
+  orden: number | null;
+}): Competencia {
+  return {
+    id: c.id,
+    competencia_id: c.competencia_id,
+    competencia_nombre: c.competencia_nombre,
+    tipo_competencia_id: c.tipo_competencia_id,
+    tipo_nombre: c.tipo_nombre,
+    categoria: c.categoria,
+    grupo_nombre: c.grupo_nombre,
+    grado_id: c.grado_id ?? null,
+    es_general: Boolean(c.es_general || c.grado_id == null),
+    nivel_requerido: c.nivel_requerido,
+    orden: c.orden,
+  };
+}
+
+async function loadCompetenciasPorGrado(perfilId: number, grados: GradoPerfilItem[]): Promise<CompetenciasPorGrado[]> {
+  if (grados.length === 0) return [];
 
   const porGrado = await Promise.all(
-    activos.map(async (grado) => {
+    grados.map(async (grado) => {
       try {
         const items = await getPerfilCompetencias(perfilId, grado.id);
-        const competencias = items.map((c) => ({
-          id: c.id,
-          competencia_id: c.competencia_id,
-          competencia_nombre: c.competencia_nombre,
-          tipo_competencia_id: c.tipo_competencia_id,
-          tipo_nombre: c.tipo_nombre,
-          categoria: c.categoria,
-          grupo_nombre: c.grupo_nombre,
-          nivel_requerido: c.nivel_requerido,
-          orden: c.orden,
-        }));
-        return { grado, competencias };
+        return { grado, competencias: items.map(mapCompetenciaApi) };
       } catch {
         return { grado, competencias: [] as Competencia[] };
       }
@@ -160,6 +178,19 @@ async function loadCompetenciasPorGrado(perfilId: number, grados: GradoPuesto[])
   );
 
   return porGrado;
+}
+
+function gradosLabel(grados: GradoPerfilItem[]): string {
+  if (!grados.length) return "Sin grados";
+  return grados.map((g) => g.nombre).join(", ");
+}
+
+function badgeAlcanceGeneral(): string {
+  return `<span class="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-800 ring-1 ring-violet-200/80">General</span>`;
+}
+
+function badgeAlcanceGrado(nombre: string): string {
+  return `<span class="inline-flex max-w-[8rem] truncate items-center rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200/80" title="${escapeHtml(nombre)}">${escapeHtml(nombre)}</span>`;
 }
 
 function formatFecha(iso: string | undefined): string | null {
@@ -227,6 +258,11 @@ function sectionEditBtn(action: string, label: string): string {
 function gradoColEditBtn(gradoId: number, label: string): string {
   if (!canEditarPerfilPuesto()) return "";
   return `<button type="button" data-action="edit-competencias" data-grado-id="${gradoId}" class="ppd-matrix-edit" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${ICON_PENCIL}</button>`;
+}
+
+function generalColEditBtn(): string {
+  if (!canEditarPerfilPuesto()) return "";
+  return `<button type="button" data-action="edit-competencias" data-alcance="general" class="ppd-matrix-edit" title="Editar competencias generales" aria-label="Editar competencias generales">${ICON_PENCIL}</button>`;
 }
 
 function emptyState(message: string, hint?: string): string {
@@ -298,7 +334,7 @@ function renderHeader(puesto: PuestoPerfilInfo, empleadosCount: number, perfilId
           </div>
           <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(puesto.nombre)}</h1>
           <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-text-secondary">
-            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${safeText(puesto.area_nombre)}</strong> · ${safeText(puesto.nivel_nombre)}</span></span>
+            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${safeText(puesto.area_nombre)}</strong> · ${escapeHtml(gradosLabel(puesto.grados ?? []))}</span></span>
             <span class="inline-flex items-center gap-1.5">${ICON_USERS}<span><strong class="font-semibold tabular-nums text-text-primary">${empleadosCount}</strong> empleado${empleadosCount !== 1 ? "s" : ""} asignado${empleadosCount !== 1 ? "s" : ""}</span></span>
             ${fechaActualizacion ? `<span class="text-xs text-text-muted">Actualizado ${escapeHtml(fechaActualizacion)}</span>` : ""}
           </div>
@@ -434,15 +470,24 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
   const renderList = (items: Tarea[]) =>
     items
       .map((t) => {
-        const { titulo, subtitulo } = tareaTituloSubtitulo(t);
+          const { titulo, subtitulo } = tareaTituloSubtitulo(t);
         const subtituloHtml = subtitulo
           ? `<p class="mt-0.5 text-xs leading-relaxed text-text-muted" title="${escapeHtml(subtitulo)}">${escapeHtml(subtitulo)}</p>`
           : "";
+        const alcanceBadge =
+          t.es_general || t.grado_id == null
+            ? badgeAlcanceGeneral()
+            : t.grado_nombre
+              ? badgeAlcanceGrado(t.grado_nombre)
+              : "";
         return `
       <li class="ppd-task-item group flex gap-3 rounded-lg border border-transparent px-2 py-2.5 transition hover:border-slate-200/90 hover:bg-slate-50/80">
         <span class="ppd-task-orden flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 font-mono text-xs font-bold text-blue-800 ring-1 ring-blue-200/60" aria-hidden="true">${t.orden}</span>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium leading-relaxed text-text-primary" title="${escapeHtml(titulo)}">${escapeHtml(titulo)}</p>
+          <div class="flex flex-wrap items-center gap-2">
+            <p class="text-sm font-medium leading-relaxed text-text-primary" title="${escapeHtml(titulo)}">${escapeHtml(titulo)}</p>
+            ${alcanceBadge}
+          </div>
           ${subtituloHtml}
         </div>
       </li>`;
@@ -567,7 +612,12 @@ function renderCompetenciasLegend(maxNivel: number): string {
   return `<div class="ppd-matrix-legend" role="note" aria-label="Escala de niveles">${items}</div>`;
 }
 
-type CompMatrixEntry = { nombre: string; niveles: Map<number, number> };
+type CompMatrixEntry = {
+  nombre: string;
+  niveles: Map<number, number>;
+  es_general: boolean;
+  nivel_general: number | null;
+};
 
 type CompTipoGroup = {
   tipoId: number;
@@ -595,14 +645,22 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
       "edit-competencias",
       "Editar competencias",
       emptyState(
-        "Configura grados en Ajustes de perfiles antes de asignar competencias",
-        canEditarPerfilPuesto() ? "Define grados de progresión y luego asigna competencias por grado." : undefined,
+        "Configura grados en el perfil antes de asignar competencias",
+        canEditarPerfilPuesto() ? "Define el rango de grados del perfil y luego asigna competencias por grado o generales." : undefined,
       ),
     );
   }
 
   const grados = porGrado.map((p) => p.grado);
-  const colCount = grados.length + 1;
+  const colCount = grados.length + 2; // competencia + general + grados
+
+  const generalHead = `
+      <th scope="col" class="ppd-matrix-col">
+        <div class="ppd-matrix-col-head">
+          <span class="ppd-matrix-col-name">General</span>
+          ${generalColEditBtn()}
+        </div>
+      </th>`;
 
   const headCells = grados
     .map(
@@ -616,7 +674,7 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
     )
     .join("");
 
-  // Pivote: tipo_competencia_id → competencia_id → { nombre, nivel por grado }.
+  // Pivote: tipo_competencia_id → competencia_id → { nombre, nivel por grado / general }.
   const byTipo = new Map<number, CompTipoGroup>();
   for (const { grado, competencias } of porGrado) {
     for (const c of competencias) {
@@ -638,12 +696,17 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
       }
       let entry = grupo.comps.get(c.competencia_id);
       if (!entry) {
-        entry = { nombre: c.competencia_nombre, niveles: new Map() };
+        entry = { nombre: c.competencia_nombre, niveles: new Map(), es_general: false, nivel_general: null };
         grupo.comps.set(c.competencia_id, entry);
       } else if (c.competencia_nombre) {
         entry.nombre = c.competencia_nombre;
       }
-      if (c.nivel_requerido != null && c.nivel_requerido > 0) {
+      if (c.es_general) {
+        entry.es_general = true;
+        if (c.nivel_requerido != null && c.nivel_requerido > 0) {
+          entry.nivel_general = c.nivel_requerido;
+        }
+      } else if (c.nivel_requerido != null && c.nivel_requerido > 0) {
         entry.niveles.set(grado.id, c.nivel_requerido);
       }
     }
@@ -653,7 +716,7 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
 
   if (uniqueCount === 0) {
     const emptyHint = canEditarPerfilPuesto()
-      ? " Usa el lápiz en cada grado para agregar competencias del catálogo o crear nuevas."
+      ? " Usa el lápiz en General o en cada grado para agregar competencias del catálogo o crear nuevas."
       : "";
     const body = `
     ${renderCompetenciasLegend(maxNivel)}
@@ -662,6 +725,7 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
         <thead>
           <tr>
             <th scope="col" class="ppd-matrix-corner">Competencia</th>
+            ${generalHead}
             ${headCells}
           </tr>
         </thead>
@@ -703,12 +767,16 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
       const catRow = `<tr class="ppd-matrix-cat"><td colspan="${colCount}"><span class="text-xs font-semibold uppercase tracking-wide text-text-primary">${escapeHtml(grupo.tipoNombre)}</span>${grupoLabel}</td></tr>`;
       const compRows = Array.from(grupo.comps.values())
         .map((entry) => {
-          const cells = grados
-            .map((g) => `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.niveles.get(g.id) ?? null)}</td>`)
-            .join("");
+          const generalBadge = entry.es_general
+            ? `<span class="ml-1.5 align-middle">${badgeAlcanceGeneral()}</span>`
+            : "";
+          const cells = [
+            `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.nivel_general)}</td>`,
+            ...grados.map((g) => `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.niveles.get(g.id) ?? null)}</td>`),
+          ].join("");
           return `
           <tr class="ppd-matrix-row">
-            <th scope="row" class="ppd-matrix-name" title="${escapeHtml(entry.nombre)}">${escapeHtml(entry.nombre)}</th>
+            <th scope="row" class="ppd-matrix-name" title="${escapeHtml(entry.nombre)}">${escapeHtml(entry.nombre)}${generalBadge}</th>
             ${cells}
           </tr>`;
         })
@@ -724,6 +792,7 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
         <thead>
           <tr>
             <th scope="col" class="ppd-matrix-corner">Competencia</th>
+            ${generalHead}
             ${headCells}
           </tr>
         </thead>
@@ -865,7 +934,7 @@ type PerfilDetalleController = {
   reload: () => void;
   puesto: PuestoPerfilInfo | null;
   cursosList: CursoPuestoItem[];
-  grados: GradoPuesto[];
+  grados: GradoPerfilItem[];
   tareasModal: EditarTareasModalHandle | null;
   cualModal: EditarCualificacionesModalHandle | null;
   competenciasModal: EditarCompetenciasModalHandle | null;
@@ -875,49 +944,24 @@ const perfilDetalleControllers = new WeakMap<HTMLElement, PerfilDetalleControlle
 
 async function openEditarCompetenciasModal(
   ctrl: PerfilDetalleController,
-  host: HTMLElement | null,
-  gradoId?: number,
+  opts?: { gradoId?: number; alcanceGeneral?: boolean },
 ): Promise<void> {
-  let grado = gradoId != null ? ctrl.grados.find((g) => g.id === gradoId && g.activo) : undefined;
+  if (opts?.alcanceGeneral) {
+    ctrl.competenciasModal?.open({ gradoId: null, gradoNombre: "General" });
+    return;
+  }
+
+  let grado = opts?.gradoId != null ? ctrl.grados.find((g) => g.id === opts.gradoId) : undefined;
   if (!grado) {
-    grado = ctrl.grados.find((g) => g.activo) ?? ctrl.grados[0];
+    grado = ctrl.grados[0];
   }
   if (!grado) {
-    if (host) {
-      showPerfilDetalleNotice(
-        host,
-        "Configura al menos un grado de puesto en Ajustes de perfiles → Grados en puestos antes de asignar competencias.",
-      );
-    }
+    // Sin grados en el perfil: permitir editar solo generales
+    ctrl.competenciasModal?.open({ gradoId: null, gradoNombre: "General" });
     return;
   }
 
   ctrl.competenciasModal?.open({ gradoId: grado.id, gradoNombre: grado.nombre });
-}
-
-function showPerfilDetalleNotice(host: HTMLElement, message: string): void {
-  const overlayId = "perfil-detalle-notice-overlay";
-  host.innerHTML = `
-    <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
-      <div class="ppd-modal-panel ${MODAL_PANEL} max-w-md p-6" role="alertdialog" aria-modal="true" aria-labelledby="perfil-detalle-notice-title">
-        <h2 id="perfil-detalle-notice-title" class="text-lg font-semibold text-text-primary">No se puede editar competencias</h2>
-        <p class="mt-2 text-sm text-text-secondary">${escapeHtml(message)}</p>
-        <div class="mt-6 flex justify-end">
-          <button type="button" data-perfil-detalle-notice-close class="${RH_LISTADO_BTN_PRIMARY}">Entendido</button>
-        </div>
-      </div>
-    </div>`;
-
-  const overlay = host.querySelector(`#${overlayId}`) as HTMLElement;
-  const close = () => {
-    host.innerHTML = "";
-    document.body.style.overflow = "";
-  };
-  document.body.style.overflow = "hidden";
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) close();
-  });
-  host.querySelector("[data-perfil-detalle-notice-close]")?.addEventListener("click", close);
 }
 
 async function handlePerfilDetalleClick(container: HTMLElement, ev: Event): Promise<void> {
@@ -938,12 +982,9 @@ async function handlePerfilDetalleClick(container: HTMLElement, ev: Event): Prom
       ctrl.cualModal?.open();
       break;
     case "edit-competencias": {
+      const alcanceGeneral = btn.dataset.alcance === "general";
       const gradoId = btn.dataset.gradoId ? Number(btn.dataset.gradoId) : undefined;
-      await openEditarCompetenciasModal(
-        ctrl,
-        inner.querySelector("#modal-host-competencias") as HTMLElement | null,
-        gradoId,
-      );
+      await openEditarCompetenciasModal(ctrl, { gradoId, alcanceGeneral });
       break;
     }
     case "edit-base": {
@@ -1056,12 +1097,10 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
   try {
     await ensureMetodosCalificacionCompetenciaLoaded();
-    const gradosActivos = (await getGradosPuesto().catch(() => [])).filter((g) => g.activo);
-    const [puesto, tareas, cualificaciones, competenciasPorGrado, asignaciones, cursosAsignados] = await Promise.all([
+    const [puesto, tareas, cualificaciones, asignaciones, cursosAsignados] = await Promise.all([
       fetchJson<PuestoPerfilInfo>(`/api/v1/puestos-perfil/${perfilId}`, token),
       fetchJson<Tarea[]>(`/api/v1/perfiles/${perfilId}/tareas`, token),
       getPerfilCualificaciones(perfilId).catch(() => [] as PerfilCualificacion[]),
-      loadCompetenciasPorGrado(perfilId, gradosActivos),
       fetchJson<AsignacionResumen[]>(`/api/v1/perfiles/${perfilId}/asignaciones`, token),
       getCursosPuesto(perfilId).catch(() => [] as CursoPuestoItem[]),
     ]);
@@ -1070,6 +1109,13 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       inner.innerHTML = `<div class="${RH_LISTADO_PAGE_OUTER}"><p class="text-sm text-red-600">Perfil no encontrado (ID: ${perfilId})</p></div>`;
       return;
     }
+
+    const gradosPerfil: GradoPerfilItem[] = Array.isArray(puesto.grados)
+      ? [...puesto.grados].sort((a, b) => a.orden - b.orden)
+      : [];
+    puesto.grados = gradosPerfil;
+
+    const competenciasPorGrado = await loadCompetenciasPorGrado(perfilId, gradosPerfil);
 
     const tareasList = tareas ?? [];
     const cualifList = cualificaciones ?? [];
@@ -1123,7 +1169,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
     if (ctrl) {
       ctrl.puesto = puesto;
       ctrl.cursosList = cursosList;
-      ctrl.grados = gradosActivos;
+      ctrl.grados = gradosPerfil;
     }
 
     if (canEditarPerfilPuesto() && ctrl) {
@@ -1132,6 +1178,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       const tareasHost = contentEl.querySelector("#modal-host-tareas") as HTMLElement;
       ctrl.tareasModal = mountEditarTareasModal(tareasHost, {
         perfilId,
+        grados: gradosPerfil,
         onSuccess: () => void refreshTareasEnPagina(container, perfilId),
       });
 
@@ -1141,6 +1188,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
       const competenciasHost = contentEl.querySelector("#modal-host-competencias") as HTMLElement;
       ctrl.competenciasModal = mountEditarCompetenciasModal(competenciasHost, {
         perfilId,
+        grados: gradosPerfil,
         onSuccess: reload,
       });
     }
@@ -1345,12 +1393,17 @@ async function openEditBaseModal(
   document.body.style.overflow = "hidden";
 
   let areas: AreaOption[] = [];
-  let niveles: NivelPuesto[] = [];
+  let gradosCatalogo: { id: number; nombre: string; orden: number }[] = [];
   try {
-    [areas, niveles] = await Promise.all([
+    const [areasRes, gradosRes] = await Promise.all([
       getAreasOptions(),
-      getNivelesPuesto({ page_size: 200 }),
+      getGradosPuesto({ page_size: 200 }),
     ]);
+    areas = areasRes;
+    gradosCatalogo = gradosRes
+      .filter((g) => g.activo)
+      .sort((a, b) => a.orden - b.orden)
+      .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.orden }));
   } catch {
     host.innerHTML = "";
     document.body.style.overflow = "";
@@ -1358,8 +1411,11 @@ async function openEditBaseModal(
   }
 
   const areaId = puesto.area_id != null ? String(puesto.area_id) : "";
-  const nivelId = String(puesto.nivel_id);
   const tipo = puesto.tipo === "operativo" ? "operativo" : "administrativo";
+  const gradosActuales = [...(puesto.grados ?? [])].sort((a, b) => a.orden - b.orden);
+  const gradoDesdeId = gradosActuales[0]?.id != null ? String(gradosActuales[0].id) : "";
+  const gradoHastaId =
+    gradosActuales.length > 0 ? String(gradosActuales[gradosActuales.length - 1].id) : "";
 
   const areaOpts = areas
     .map(
@@ -1367,12 +1423,13 @@ async function openEditBaseModal(
         `<option value="${a.id}" ${areaId === String(a.id) ? "selected" : ""}>${escapeHtml(a.label)}</option>`,
     )
     .join("");
-  const nivelOpts = niveles
-    .map(
-      (n) =>
-        `<option value="${n.id}" ${nivelId === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`,
-    )
-    .join("");
+  const gradoOpts = (selectedId: string) =>
+    gradosCatalogo
+      .map(
+        (g) =>
+          `<option value="${g.id}" ${selectedId === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+      )
+      .join("");
 
   host.innerHTML = `
     <div id="${overlayId}" class="ppd-modal-backdrop ${MODAL_OVERLAY}" role="presentation">
@@ -1381,7 +1438,7 @@ async function openEditBaseModal(
           <div class="flex items-start justify-between gap-3">
             <div>
               <h2 id="edit-base-title" class="text-lg font-semibold text-text-primary">Editar perfil</h2>
-              <p class="mt-1 text-sm text-text-muted">Código, nombre, área, nivel y tipo del puesto.</p>
+              <p class="mt-1 text-sm text-text-muted">Código, nombre, área, rango de grados y tipo del puesto.</p>
             </div>
             <button type="button" id="edit-base-close" class="rounded-lg p-1.5 text-text-muted transition hover:bg-slate-100 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-leoni-blue/40" aria-label="Cerrar">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true">
@@ -1412,16 +1469,29 @@ async function openEditBaseModal(
               ${SELECT_CHEVRON}
             </div>
           </div>
-          <div>
-            <label for="eb-nivel" class="${RH_LISTADO_LABEL}">Nivel <span class="text-red-600" aria-hidden="true">*</span></label>
-            <div class="grid grid-cols-1">
-              <select id="eb-nivel" name="nivel_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-                <option value="" disabled ${!nivelId ? "selected" : ""}>Selecciona un nivel…</option>
-                ${nivelOpts}
-              </select>
-              ${SELECT_CHEVRON}
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label for="eb-grado-desde" class="${RH_LISTADO_LABEL}">Grado desde <span class="text-red-600" aria-hidden="true">*</span></label>
+              <div class="grid grid-cols-1">
+                <select id="eb-grado-desde" name="grado_desde" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                  <option value="" disabled ${!gradoDesdeId ? "selected" : ""}>Seleccionar…</option>
+                  ${gradoOpts(gradoDesdeId)}
+                </select>
+                ${SELECT_CHEVRON}
+              </div>
+            </div>
+            <div>
+              <label for="eb-grado-hasta" class="${RH_LISTADO_LABEL}">Grado hasta <span class="text-red-600" aria-hidden="true">*</span></label>
+              <div class="grid grid-cols-1">
+                <select id="eb-grado-hasta" name="grado_hasta" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                  <option value="" disabled ${!gradoHastaId ? "selected" : ""}>Seleccionar…</option>
+                  ${gradoOpts(gradoHastaId)}
+                </select>
+                ${SELECT_CHEVRON}
+              </div>
             </div>
           </div>
+          <p class="text-xs text-text-muted">Se incluirán todos los grados consecutivos entre ambos extremos.</p>
           <div>
             <label for="eb-tipo" class="${RH_LISTADO_LABEL}">Tipo <span class="text-red-600" aria-hidden="true">*</span></label>
             <div class="grid grid-cols-1">
@@ -1470,15 +1540,31 @@ async function openEditBaseModal(
     const codigo = String(fd.get("codigo") ?? "").trim();
     const nombre_puesto = String(fd.get("nombre_puesto") ?? "").trim();
     const areaRaw = String(fd.get("area") ?? "").trim();
-    const nivelRaw = String(fd.get("nivel_id") ?? "").trim();
+    const gradoDesdeRaw = String(fd.get("grado_desde") ?? "").trim();
+    const gradoHastaRaw = String(fd.get("grado_hasta") ?? "").trim();
     const tipoRaw = String(fd.get("tipo") ?? "").trim();
-    const areaIdNum = areaRaw ? Number(areaRaw) : null;
-    const nivelIdNum = Number(nivelRaw);
+    const areaIdNum = areaRaw ? Number(areaRaw) : NaN;
+    const gradoDesdeNum = Number(gradoDesdeRaw);
+    const gradoHastaNum = Number(gradoHastaRaw);
     const tipoValue: TipoPuestoPerfil | null =
       tipoRaw === "administrativo" || tipoRaw === "operativo" ? tipoRaw : null;
 
-    if (!codigo || !nombre_puesto || !areaRaw || !nivelRaw || Number.isNaN(nivelIdNum) || !tipoValue) {
-      errorEl.textContent = "Completa todos los campos requeridos.";
+    const grado_ids = gradoIdsEntre(gradosCatalogo, gradoDesdeNum, gradoHastaNum);
+
+    if (
+      !codigo ||
+      !nombre_puesto ||
+      !areaRaw ||
+      Number.isNaN(areaIdNum) ||
+      !gradoDesdeRaw ||
+      !gradoHastaRaw ||
+      grado_ids.length === 0 ||
+      !tipoValue
+    ) {
+      errorEl.textContent =
+        grado_ids.length === 0 && gradoDesdeRaw && gradoHastaRaw
+          ? "El rango de grados no es válido."
+          : "Completa todos los campos requeridos.";
       errorEl.classList.remove("hidden");
       return;
     }
@@ -1492,7 +1578,7 @@ async function openEditBaseModal(
         codigo,
         nombre_puesto,
         area_id: areaIdNum,
-        nivel_id: nivelIdNum,
+        grado_ids,
         tipo: tipoValue,
       });
       close();

@@ -867,7 +867,7 @@ export function mountCompetencias(container: HTMLElement, _signal: AbortSignal):
         return;
       }
 
-      if (t.matches("[data-action='puesto-niveles-puesto']")) {
+      if (t.matches("[data-action='puesto-perfil-select']")) {
         matrizModel.puestoId = (t as HTMLSelectElement).value;
         matrizModel.pending.clear();
         void (async () => {

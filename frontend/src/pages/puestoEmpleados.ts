@@ -39,7 +39,7 @@ interface AsignacionItem {
   id: number;
   empleado_id: number;
   grado_id: number;
-  grado_nombre: string;
+  grado_nombre: string | null;
   nombre_empleado: string | null;
   no_empleado: string | null;
   departamento: string | null;
@@ -53,7 +53,7 @@ interface PerfilHeader {
   codigo: string;
   nombre: string;
   area_nombre: string;
-  nivel: string;
+  grados: { id: number; nombre: string; orden: number }[];
 }
 
 type AcuseEstado = "completo" | "parcial" | "pendiente";
@@ -95,14 +95,9 @@ function canGestionarPuestos(): boolean {
   return hasRhModule("puestos");
 }
 
-function nivelLabel(nivel: string): string {
-  const map: Record<string, string> = {
-    operativo: "Operativo",
-    mando_medio: "Mando Medio",
-    gerencial: "Gerencial",
-    directivo: "Directivo",
-  };
-  return map[nivel] ?? nivel;
+function gradosPerfilLabel(grados: { nombre: string }[]): string {
+  if (!grados.length) return "";
+  return grados.map((g) => g.nombre).join(", ");
 }
 
 function formatNoEmpleado(no: string | null): string {
@@ -319,8 +314,8 @@ function renderHero(perfil: PerfilHeader, metrics: PageMetrics, showAsignar: boo
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <span class="inline-flex items-center rounded-md border border-slate-200 bg-white px-2.5 py-1 font-mono text-xs font-semibold text-slate-700 shadow-sm">${escapeHtml(perfil.codigo)}</span>
             ${
-              perfil.nivel
-                ? `<span class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm"><span class="font-medium text-blue-500/80">Nivel</span>${escapeHtml(nivelLabel(perfil.nivel))}</span>`
+              perfil.grados.length > 0
+                ? `<span class="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm"><span class="font-medium text-blue-500/80">Grados</span>${escapeHtml(gradosPerfilLabel(perfil.grados))}</span>`
                 : ""
             }
           </div>
@@ -716,6 +711,7 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
     const modalHost = ensurePpeModalHost("modal-host-asignar");
     asignarModal = mountAsignarEmpleadoModal(modalHost, {
       perfilId,
+      grados: perfil?.grados ?? [],
       onSuccess: () => void loadData(),
     });
   }
@@ -889,15 +885,25 @@ export function mountPuestoEmpleados(container: HTMLElement, perfilId: number): 
       }
 
       const perfilJson = await perfilRes.json();
+      const gradosRaw = Array.isArray(perfilJson.grados) ? perfilJson.grados : [];
       perfil = {
         id: perfilJson.id,
         codigo: perfilJson.codigo ?? "",
         nombre: perfilJson.nombre ?? "",
         area_nombre: perfilJson.area_nombre ?? "",
-        nivel: perfilJson.nivel_nombre ?? "",
+        grados: gradosRaw
+          .map((g: { id: number; nombre?: string; orden?: number }) => ({
+            id: g.id as number,
+            nombre: String(g.nombre ?? ""),
+            orden: Number(g.orden ?? 0),
+          }))
+          .sort((a: { orden: number }, b: { orden: number }) => a.orden - b.orden),
       };
 
-      asignaciones = await asigRes.json();
+      asignaciones = (await asigRes.json()).map((a: Record<string, unknown>) => ({
+        ...a,
+        grado_nombre: (a.grado_nombre as string | null | undefined) ?? null,
+      }));
       refreshView();
     } catch {
       pageRoot.innerHTML = `<p class="text-sm text-red-600">Error de conexión</p>`;

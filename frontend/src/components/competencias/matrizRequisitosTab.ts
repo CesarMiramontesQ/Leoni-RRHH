@@ -198,7 +198,7 @@ export function renderMatrizRequisitosTab(model: MatrizRequisitosModel): string 
           <div>
             <label for="comp-puesto-select" class="mb-1.5 block text-xs font-semibold text-text-secondary">Perfil de puesto</label>
             <div class="grid grid-cols-1">
-              <select id="comp-puesto-select" data-action="puesto-niveles-puesto" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm font-medium text-text-primary shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+              <select id="comp-puesto-select" data-action="puesto-perfil-select" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm font-medium text-text-primary shadow-sm ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
                 <option value="">— Seleccionar puesto —</option>
                 ${puestosOpts}
               </select>

@@ -11,7 +11,8 @@ import { getNivelRequeridoOptions, ensureMetodosCalificacionCompetenciaLoaded } 
 import { MODAL_OVERLAY, MODAL_PANEL, FIELD_FOCUS, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 
 export type EditarCompetenciasModalOpenOptions = {
-  gradoId: number;
+  /** null = competencias generales del perfil */
+  gradoId: number | null;
   gradoNombre?: string;
 };
 
@@ -22,6 +23,7 @@ export type EditarCompetenciasModalHandle = {
 
 export type EditarCompetenciasModalOptions = {
   perfilId: number;
+  grados?: { id: number; nombre: string; orden: number }[];
   onSuccess: () => void;
 };
 
@@ -42,7 +44,16 @@ type AssignedItem = {
   tipo_competencia_id: number | null;
   tipo_nombre: string | null;
   nivel_requerido: number;
+  es_general: boolean;
 };
+
+function badgeGeneralReadonly(): string {
+  return `<span class="inline-flex items-center rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-800 ring-1 ring-violet-200/80" title="Se edita en alcance General">General</span>`;
+}
+
+function badgeGeneralEditable(): string {
+  return `<span class="inline-flex items-center rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-800 ring-1 ring-violet-200/80">General</span>`;
+}
 
 function tipoChipColors(tipoId: number, tipos: TipoCompetencia[]): string {
   const idx = tipos.findIndex((t) => t.id === tipoId);
@@ -120,12 +131,16 @@ export function mountEditarCompetenciasModal(
   const overlay = modalRoot.querySelector("#editar-competencias-overlay") as HTMLElement;
   const body = modalRoot.querySelector("#editar-competencias-body") as HTMLElement;
 
-  let gradoId = 0;
+  /** null = alcance general */
+  let gradoId: number | null = null;
   let gradoNombre: string | undefined;
+  const gradosPerfil = [...(options.grados ?? [])].sort((a, b) => a.orden - b.orden);
 
   let catalogo: CatalogoItem[] = [];
   let tiposCatalogo: TipoCompetencia[] = [];
   let assigned: AssignedItem[] = [];
+  /** Generales visibles solo-lectura cuando el alcance es un grado concreto */
+  let readonlyGenerales: AssignedItem[] = [];
   let pendingRemovals: Set<number> = new Set();
   let pendingAdds: Map<number, number> = new Map();
   let pendingNivelUpdates: Map<number, number> = new Map();
@@ -136,6 +151,10 @@ export function mountEditarCompetenciasModal(
   let showCreate = false;
   let pickNivelCompId: number | null = null;
   let saveError = "";
+
+  function isAlcanceGeneral(): boolean {
+    return gradoId == null;
+  }
 
   function close(): void {
     saving = false;
@@ -148,7 +167,31 @@ export function mountEditarCompetenciasModal(
   function updateGradoHint(): void {
     const hint = modalRoot.querySelector("#editar-competencias-grado-hint");
     if (!hint) return;
-    hint.innerHTML = `Competencias para <strong>${escapeHtml(gradoNombre ?? "este grado")}</strong>. Selecciona el nivel mínimo requerido según los niveles configurados en ajustes.`;
+    if (isAlcanceGeneral()) {
+      hint.innerHTML = `Competencias de alcance <strong>General</strong> (aplican a todos los grados). Selecciona el nivel mínimo requerido.`;
+    } else {
+      hint.innerHTML = `Competencias para <strong>${escapeHtml(gradoNombre ?? "este grado")}</strong>. Las generales se muestran solo lectura; edítalas cambiando el alcance a General.`;
+    }
+  }
+
+  function renderAlcanceSelect(): string {
+    const gradoOpts = gradosPerfil
+      .map(
+        (g) =>
+          `<option value="${g.id}" ${gradoId === g.id ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+      )
+      .join("");
+    return `
+      <div class="mb-4">
+        <label for="editar-comp-alcance" class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Alcance</label>
+        <div class="relative grid grid-cols-1">
+          <select id="editar-comp-alcance" data-alcance-select class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} cursor-pointer">
+            <option value="general" ${isAlcanceGeneral() ? "selected" : ""}>General</option>
+            ${gradoOpts}
+          </select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>`;
   }
 
   async function load(): Promise<void> {
@@ -157,7 +200,9 @@ export function mountEditarCompetenciasModal(
       await ensureMetodosCalificacionCompetenciaLoaded(true);
       const [catalogoItems, perfilComps, tipos] = await Promise.all([
         getCompetencias({ page_size: 200 }),
-        getPerfilCompetencias(options.perfilId, gradoId),
+        isAlcanceGeneral()
+          ? getPerfilCompetencias(options.perfilId)
+          : getPerfilCompetencias(options.perfilId, gradoId),
         getTiposCompetencia({ page_size: 200 }),
       ]);
 
@@ -168,7 +213,7 @@ export function mountEditarCompetenciasModal(
         .filter((c) => tipoIds.has(c.tipo_competencia_id))
         .map((c) => ({ id: c.id, nombre: c.nombre, tipo_competencia_id: c.tipo_competencia_id }));
 
-      assigned = perfilComps
+      const mapped = perfilComps
         .filter((c) => c.tipo_competencia_id && tipoIds.has(c.tipo_competencia_id))
         .map((c) => ({
           requisito_id: c.id,
@@ -177,7 +222,18 @@ export function mountEditarCompetenciasModal(
           tipo_competencia_id: c.tipo_competencia_id,
           tipo_nombre: c.tipo_nombre,
           nivel_requerido: c.nivel_requerido ?? 0,
+          es_general: Boolean(c.es_general || c.grado_id == null),
         }));
+
+      if (isAlcanceGeneral()) {
+        // Solo generales editables; no mezclar específicas del listado completo
+        assigned = mapped.filter((c) => c.es_general);
+        readonlyGenerales = [];
+      } else {
+        // Sync de grado: solo específicas editables; generales en solo lectura
+        assigned = mapped.filter((c) => !c.es_general);
+        readonlyGenerales = mapped.filter((c) => c.es_general);
+      }
 
       pendingRemovals = new Set();
       pendingAdds = new Map();
@@ -189,6 +245,7 @@ export function mountEditarCompetenciasModal(
       searchQuery = "";
       searchSubcategoria = "";
       saving = false;
+      updateGradoHint();
       render();
     } catch {
       saving = false;
@@ -248,18 +305,22 @@ export function mountEditarCompetenciasModal(
       const chips = [
         ...g.assigned.map((a) => {
           const nivel = effectiveNivel(a);
+          const alcanceBadge = isAlcanceGeneral() ? badgeGeneralEditable() : "";
           return `
           <span class="inline-flex flex-wrap items-center gap-1 rounded-md border ${colors} px-2 py-1 text-xs font-medium">
             <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
+            ${alcanceBadge}
             ${compactNivelSelect(resolveNivelForSelect(nivel), `data-nivel-assigned="${a.requisito_id}"`)}
             <button type="button" data-remove-req="${a.requisito_id}" class="text-current opacity-50 hover:opacity-100" aria-label="Quitar">×</button>
           </span>`;
         }),
         ...g.adding.map((a) => {
           const nivel = effectiveNivelAdd(a.id);
+          const alcanceBadge = isAlcanceGeneral() ? badgeGeneralEditable() : "";
           return `
           <span class="inline-flex flex-wrap items-center gap-1 rounded-md border border-dashed ${colors} px-2 py-1 text-xs font-medium opacity-90">
             <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
+            ${alcanceBadge}
             ${compactNivelSelect(resolveNivelForSelect(nivel), `data-nivel-pending-add="${a.id}"`)}
             <button type="button" data-undo-add="${a.id}" class="text-current opacity-50 hover:opacity-100" aria-label="Deshacer">×</button>
           </span>`;
@@ -276,12 +337,38 @@ export function mountEditarCompetenciasModal(
         </div>`;
     }).filter(Boolean).join("");
 
+    const readonlySection =
+      !isAlcanceGeneral() && readonlyGenerales.length > 0
+        ? `
+      <div class="mb-4 rounded-lg border border-violet-100 bg-violet-50/40 p-3">
+        <p class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-violet-800">Generales (solo lectura)</p>
+        <p class="mb-2 text-[11px] text-violet-700/80">Cámbialas en alcance General; no se eliminan al guardar este grado.</p>
+        <div class="flex flex-wrap gap-1.5">
+          ${readonlyGenerales
+            .map((a) => {
+              const colors =
+                a.tipo_competencia_id != null
+                  ? tipoChipColors(a.tipo_competencia_id, tiposCatalogo)
+                  : "bg-slate-100 text-slate-600 border-slate-200";
+              return `<span class="inline-flex items-center gap-1 rounded-md border ${colors} px-2 py-1 text-xs font-medium opacity-80">
+                <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
+                ${badgeGeneralReadonly()}
+                <span class="text-[10px] tabular-nums opacity-70">N${a.nivel_requerido}</span>
+              </span>`;
+            })
+            .join("")}
+        </div>
+      </div>`
+        : "";
+
     const searchPanel = showSearch ? renderSearchPanel() : "";
     const createPanel = showCreate ? renderCreatePanel() : "";
     const sinNiveles = getNivelRequeridoOptions().length === 0;
 
     body.innerHTML = `
+      ${renderAlcanceSelect()}
       ${sinNiveles ? `<p class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">No hay niveles de competencia cargados. Configúralos en <a href="#/puestos/ajustes" class="font-semibold underline">Ajustes de perfiles de puesto</a> y vuelve a abrir este diálogo.</p>` : ""}
+      ${readonlySection}
       ${sections || `<p class="text-sm text-slate-400 italic mb-4">Sin competencias asignadas</p>`}
 
       <div class="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4">
@@ -587,6 +674,19 @@ export function mountEditarCompetenciasModal(
 
   body.addEventListener("change", (e) => {
     const target = e.target as HTMLElement;
+    if (target.matches("[data-alcance-select]")) {
+      const val = (target as HTMLSelectElement).value;
+      if (val === "general") {
+        gradoId = null;
+        gradoNombre = "General";
+      } else {
+        const id = Number.parseInt(val, 10);
+        gradoId = Number.isFinite(id) ? id : null;
+        gradoNombre = gradosPerfil.find((g) => g.id === gradoId)?.nombre ?? gradoNombre;
+      }
+      void load();
+      return;
+    }
     if (target.matches("[data-search-subcat]")) {
       searchSubcategoria = (target as HTMLSelectElement).value;
       render();
@@ -654,7 +754,7 @@ export function mountEditarCompetenciasModal(
       });
       await createPerfilCompetencia(options.perfilId, {
         competencia_id: newComp.id,
-        grado_id: gradoId,
+        grado_id: isAlcanceGeneral() ? null : gradoId,
         nivel_requerido: nivel,
       });
       await load();
@@ -696,7 +796,7 @@ export function mountEditarCompetenciasModal(
 
         for (const compId of addsInSub) {
           const nivel = pendingAdds.get(compId);
-          if (!isNivelValido(nivel)) {
+          if (nivel == null || !isNivelValido(nivel)) {
             const c = catalogo.find((cat) => cat.id === compId);
             saveError = `${mensajeNivelRequerido()} Competencia: «${c?.nombre ?? "competencia"}».`;
             saving = false;
@@ -709,7 +809,7 @@ export function mountEditarCompetenciasModal(
         }
 
         await syncPerfilCompetencias(options.perfilId, {
-          grado_id: gradoId,
+          grado_id: isAlcanceGeneral() ? null : gradoId,
           tipo_competencia_id: sub.id,
           competencias,
         });
@@ -742,8 +842,11 @@ export function mountEditarCompetenciasModal(
 
   return {
     open: (opts: EditarCompetenciasModalOpenOptions) => {
-      gradoId = opts.gradoId;
-      gradoNombre = opts.gradoNombre;
+      gradoId = opts.gradoId ?? null;
+      gradoNombre = opts.gradoNombre ?? (gradoId == null ? "General" : undefined);
+      if (gradoId != null && !gradoNombre) {
+        gradoNombre = gradosPerfil.find((g) => g.id === gradoId)?.nombre;
+      }
       updateGradoHint();
       overlay.classList.remove("hidden");
       overlay.classList.add("flex");

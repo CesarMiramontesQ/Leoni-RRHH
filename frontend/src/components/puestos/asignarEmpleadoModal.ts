@@ -1,6 +1,6 @@
 import { getGradosPuesto } from "../../api/gradosPuesto.ts";
-import { createPerfilAsignacion, buscarEmpleadosDisponiblesPerfil } from "../../api/puestos.ts";
-import type { GradoPuesto } from "../../dashboard/gradosPuesto/types.ts";
+import { createPerfilAsignacion, buscarEmpleadosDisponiblesPerfil, getPerfilById } from "../../api/puestos.ts";
+import type { GradoPerfilItem } from "../../dashboard/puestos/types.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, FIELD_FOCUS, RH_LISTADO_LABEL, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 
@@ -11,6 +11,8 @@ export type AsignarEmpleadoModalHandle = {
 
 export type AsignarEmpleadoModalOptions = {
   perfilId: number;
+  /** Grados del perfil; si no se pasan, se cargan del perfil o se filtran del catálogo. */
+  grados?: GradoPerfilItem[];
   onSuccess: () => void;
 };
 
@@ -65,7 +67,7 @@ function overlayHtml(): string {
                 </select>
                 ${SELECT_CHEVRON}
               </div>
-              <p class="mt-1 text-xs text-text-muted">El empleado se evaluará contra las competencias de este grado.</p>
+              <p class="mt-1 text-xs text-text-muted">Solo grados definidos en este perfil. El empleado se evaluará contra las competencias de este grado.</p>
             </div>
             <p id="asignar-error" class="hidden rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert"></p>
             <div class="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
@@ -90,7 +92,7 @@ export function mountAsignarEmpleadoModal(
   const seleccionEl = host.querySelector("#asignar-seleccion") as HTMLElement;
   const errorEl = host.querySelector("#asignar-error") as HTMLElement;
   const gradoSelect = host.querySelector("#asignar-grado") as HTMLSelectElement;
-  let gradosCatalogo: GradoPuesto[] = [];
+  let gradosPerfil: GradoPerfilItem[] = options.grados ? [...options.grados] : [];
   const submitBtn = host.querySelector("#asignar-submit") as HTMLButtonElement;
   const form = host.querySelector("#form-asignar-empleado") as HTMLFormElement;
 
@@ -106,16 +108,46 @@ export function mountAsignarEmpleadoModal(
     resetState();
   }
 
+  function fillGradoSelect(grados: GradoPerfilItem[]): void {
+    const sorted = [...grados].sort((a, b) => a.orden - b.orden);
+    if (sorted.length === 0) {
+      gradoSelect.innerHTML = `<option value="">Sin grados en el perfil</option>`;
+      return;
+    }
+    const defaultGrado = sorted[0];
+    gradoSelect.innerHTML = sorted
+      .map(
+        (g) =>
+          `<option value="${g.id}" ${g.id === defaultGrado.id ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+      )
+      .join("");
+  }
+
   async function loadGrados(): Promise<void> {
     try {
-      gradosCatalogo = await getGradosPuesto({ page_size: 200 });
-      const defaultGrado = gradosCatalogo.find((g) => g.orden === 1) ?? gradosCatalogo[0];
-      gradoSelect.innerHTML = gradosCatalogo
-        .map(
-          (g) =>
-            `<option value="${g.id}" ${defaultGrado && g.id === defaultGrado.id ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
-        )
-        .join("");
+      if (options.grados && options.grados.length > 0) {
+        gradosPerfil = [...options.grados].sort((a, b) => a.orden - b.orden);
+        fillGradoSelect(gradosPerfil);
+        return;
+      }
+
+      const perfil = await getPerfilById(options.perfilId);
+      if (perfil.grados?.length) {
+        gradosPerfil = [...perfil.grados].sort((a, b) => a.orden - b.orden);
+        fillGradoSelect(gradosPerfil);
+        return;
+      }
+
+      // Fallback: catálogo global filtrado (si el perfil aún no trae grados embebidos)
+      const catalogo = await getGradosPuesto({ page_size: 200 });
+      const perfilIds = new Set((options.grados ?? []).map((g) => g.id));
+      const filtrados = perfilIds.size
+        ? catalogo.filter((g) => perfilIds.has(g.id))
+        : catalogo.filter((g) => g.activo);
+      gradosPerfil = filtrados
+        .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.orden }))
+        .sort((a, b) => a.orden - b.orden);
+      fillGradoSelect(gradosPerfil);
     } catch {
       gradoSelect.innerHTML = `<option value="">No se pudieron cargar grados</option>`;
     }
@@ -223,6 +255,15 @@ export function mountAsignarEmpleadoModal(
     const gradoId = Number(gradoSelect.value);
     if (!Number.isFinite(gradoId) || gradoId <= 0) {
       errorEl.textContent = "Selecciona un grado válido.";
+      errorEl.classList.remove("hidden");
+      loading = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Asignar";
+      return;
+    }
+
+    if (gradosPerfil.length > 0 && !gradosPerfil.some((g) => g.id === gradoId)) {
+      errorEl.textContent = "El grado debe pertenecer al perfil.";
       errorEl.classList.remove("hidden");
       loading = false;
       submitBtn.disabled = false;

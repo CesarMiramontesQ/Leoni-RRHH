@@ -11,13 +11,15 @@ import {
   type AreaOption,
   type PerfilTarjetaItem,
 } from "../api/puestos.ts";
-import { getNivelesPuesto } from "../api/nivelesPuesto.ts";
-import type { NivelPuesto } from "../dashboard/nivelesPuesto/types.ts";
-import type {
-  PerfilPuestoListItem,
-  PerfilPuestoCreatePayload,
-  PuestosFilterState,
-  TipoPuestoPerfil,
+import { getGradosPuesto } from "../api/gradosPuesto.ts";
+import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
+import {
+  gradoIdsEntre,
+  type GradoPerfilItem,
+  type PerfilPuestoListItem,
+  type PerfilPuestoCreatePayload,
+  type PuestosFilterState,
+  type TipoPuestoPerfil,
 } from "../dashboard/puestos/types.ts";
 import { clearAuth } from "../auth/session.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
@@ -59,6 +61,21 @@ const BRECHAS_REF_MAX = 15;
 
 // ── Helpers de negocio ────────────────────────────────────────────────────
 
+type GradoLike = { id: number; nombre: string; orden: number };
+
+function formatGradosLabel(grados: GradoLike[]): string {
+  if (!grados.length) return "—";
+  const sorted = [...grados].sort((a, b) => a.orden - b.orden);
+  if (sorted.length === 1) return sorted[0].nombre;
+  return `${sorted[0].nombre} – ${sorted[sorted.length - 1].nombre}`;
+}
+
+function gradosMinMaxIds(grados: GradoPerfilItem[]): { desde: string; hasta: string } {
+  if (!grados.length) return { desde: "", hasta: "" };
+  const sorted = [...grados].sort((a, b) => a.orden - b.orden);
+  return { desde: String(sorted[0].id), hasta: String(sorted[sorted.length - 1].id) };
+}
+
 function filterItems(items: PerfilPuestoListItem[], filters: PuestosFilterState): PerfilPuestoListItem[] {
   let result = items;
   if (filters.q.trim()) {
@@ -71,8 +88,8 @@ function filterItems(items: PerfilPuestoListItem[], filters: PuestosFilterState)
     );
   }
   if (filters.area) result = result.filter((p) => p.area === filters.area);
-  if (filters.nivel_id) {
-    result = result.filter((p) => String(p.nivel_id) === filters.nivel_id);
+  if (filters.grado_id) {
+    result = result.filter((p) => p.grados.some((g) => String(g.id) === filters.grado_id));
   }
   return result;
 }
@@ -89,14 +106,14 @@ function filterTarjetas(items: PerfilTarjetaItem[], filters: PuestosFilterState)
     );
   }
   if (filters.area) result = result.filter((p) => p.area_nombre === filters.area);
-  if (filters.nivel_id) {
-    result = result.filter((p) => String(p.nivel_id) === filters.nivel_id);
+  if (filters.grado_id) {
+    result = result.filter((p) => p.grados.some((g) => String(g.id) === filters.grado_id));
   }
   return result;
 }
 
 function hasActiveFilters(filters: PuestosFilterState): boolean {
-  return Boolean(filters.q.trim() || filters.area || filters.nivel_id);
+  return Boolean(filters.q.trim() || filters.area || filters.grado_id);
 }
 
 // ── Métricas derivadas (mismos datos, sin nuevas consultas) ─────────────
@@ -277,13 +294,13 @@ function renderViewToggle(active: "tabla" | "tarjetas"): string {
   </div>`;
 }
 
-function renderFilterActiveChips(filters: PuestosFilterState, nivelesCatalog: NivelPuesto[]): string {
+function renderFilterActiveChips(filters: PuestosFilterState, gradosCatalog: GradoPuesto[]): string {
   const chips: string[] = [];
   if (filters.q.trim()) chips.push(`Búsqueda: “${escapeHtml(filters.q.trim())}”`);
   if (filters.area) chips.push(`Área: ${escapeHtml(filters.area)}`);
-  if (filters.nivel_id) {
-    const label = nivelesCatalog.find((n) => String(n.id) === filters.nivel_id)?.nombre ?? filters.nivel_id;
-    chips.push(`Nivel: ${escapeHtml(label)}`);
+  if (filters.grado_id) {
+    const label = gradosCatalog.find((g) => String(g.id) === filters.grado_id)?.nombre ?? filters.grado_id;
+    chips.push(`Grado: ${escapeHtml(label)}`);
   }
   if (chips.length === 0) return "";
   return `<div class="puestos-filter-chips flex flex-wrap items-center gap-2 border-t border-slate-100/90 pt-3">
@@ -301,7 +318,7 @@ function renderFilterActiveChips(filters: PuestosFilterState, nivelesCatalog: Ni
 function renderFilterBar(
   filters: PuestosFilterState,
   areas: AreaOption[],
-  nivelesCatalog: NivelPuesto[],
+  gradosCatalog: GradoPuesto[],
   visibleCount: number,
   totalCount: number,
 ): string {
@@ -311,10 +328,10 @@ function renderFilterBar(
         `<option value="${escapeHtml(a.label)}" ${filters.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`,
     )
     .join("");
-  const nivelOpts = nivelesCatalog
+  const gradoOpts = gradosCatalog
     .map(
-      (n) =>
-        `<option value="${n.id}" ${filters.nivel_id === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`,
+      (g) =>
+        `<option value="${g.id}" ${filters.grado_id === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
     )
     .join("");
   const hasActive = hasActiveFilters(filters);
@@ -327,7 +344,7 @@ function renderFilterBar(
     <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-sm font-semibold text-text-primary">Buscar y filtrar</h2>
-        <p class="mt-0.5 text-xs text-text-muted">Localiza perfiles por código, nombre, área o nivel organizacional.</p>
+        <p class="mt-0.5 text-xs text-text-muted">Localiza perfiles por código, nombre, área o grado.</p>
       </div>
       <p class="text-xs text-text-muted" aria-live="polite">${resultsLine}</p>
     </div>
@@ -358,18 +375,18 @@ function renderFilterBar(
         </div>
       </div>
       <div class="min-w-0">
-        <label for="puestos-filter-nivel" class="${RH_LISTADO_LABEL}">Nivel</label>
+        <label for="puestos-filter-grado" class="${RH_LISTADO_LABEL}">Grado</label>
         <div class="grid grid-cols-1">
-          <select id="puestos-filter-nivel" data-action="filter-nivel" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-            <option value="" ${filters.nivel_id === "" ? "selected" : ""}>Todos los niveles</option>
-            ${nivelOpts}
+          <select id="puestos-filter-grado" data-action="filter-grado" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+            <option value="" ${filters.grado_id === "" ? "selected" : ""}>Todos los grados</option>
+            ${gradoOpts}
           </select>
           ${SELECT_CHEVRON}
         </div>
       </div>
     </div>
     ${hasActive ? `<span class="mt-3 inline-flex size-2 rounded-full bg-leoni-blue" aria-hidden="true" title="Hay filtros activos"></span>` : ""}
-    ${renderFilterActiveChips(filters, nivelesCatalog)}
+    ${renderFilterActiveChips(filters, gradosCatalog)}
   </section>`;
 }
 
@@ -415,7 +432,11 @@ function renderCardGrid(tarjetas: PerfilTarjetaItem[], totalSource: number): str
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-1.5">
             <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-600">${escapeHtml(p.codigo)}</span>
-            ${p.nivel_nombre ? `<span class="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700"><span class="text-[9px] font-semibold uppercase tracking-wide text-blue-500">Nivel</span>${escapeHtml(p.nivel_nombre)}</span>` : ""}
+            ${
+              p.grados.length
+                ? `<span class="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700"><span class="text-[9px] font-semibold uppercase tracking-wide text-blue-500">Grado</span>${escapeHtml(formatGradosLabel(p.grados))}</span>`
+                : ""
+            }
           </div>
           <h3 class="mt-2 text-base font-semibold leading-snug text-text-primary">${escapeHtml(p.nombre)}</h3>
           <p class="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
@@ -472,7 +493,7 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
       <td class="whitespace-nowrap px-4 py-3.5 text-sm font-semibold tabular-nums text-text-primary">${escapeHtml(p.codigo)}</td>
       <td class="px-4 py-3.5 text-sm font-medium text-text-primary">${escapeHtml(p.nombre_puesto)}</td>
       <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.area)}</td>
-      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.nivel_nombre)}</td>
+      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(formatGradosLabel(p.grados))}</td>
       <td class="whitespace-nowrap px-4 py-3.5 text-sm tabular-nums text-text-muted">${escapeHtml(p.version)}</td>
       <td class="px-3 py-3 align-middle">
         <div class="flex items-center justify-end gap-1">
@@ -493,7 +514,7 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
             <th scope="col" class="px-4 py-3.5 text-left">Código</th>
             <th scope="col" class="px-4 py-3.5 text-left">Nombre</th>
             <th scope="col" class="px-4 py-3.5 text-left">Área</th>
-            <th scope="col" class="px-4 py-3.5 text-left">Nivel</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Grados</th>
             <th scope="col" class="px-4 py-3.5 text-left">Versión</th>
             <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
           </tr>
@@ -506,10 +527,17 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
 
 function renderModal(
   mode: "create" | "edit",
-  values: { codigo: string; nombre_puesto: string; area: string; nivel_id: string; tipo: TipoPuestoPerfil | "" },
+  values: {
+    codigo: string;
+    nombre_puesto: string;
+    area: string;
+    grado_desde_id: string;
+    grado_hasta_id: string;
+    tipo: TipoPuestoPerfil | "";
+  },
   saving: boolean,
   areas: AreaOption[] = [],
-  nivelesCatalog: NivelPuesto[] = [],
+  gradosCatalog: GradoPuesto[] = [],
 ): string {
   const title = mode === "create" ? "Nuevo perfil de puesto" : "Editar perfil de puesto";
   const subtitle =
@@ -517,6 +545,13 @@ function renderModal(
       ? "Define la posición organizacional base para competencias y evaluaciones."
       : "Los cambios se reflejan en el catálogo y en las vistas de detalle.";
   const submitLabel = saving ? "Guardando…" : mode === "create" ? "Crear perfil" : "Guardar cambios";
+  const gradoOpts = (selectedId: string) =>
+    gradosCatalog
+      .map(
+        (g) =>
+          `<option value="${g.id}" ${selectedId === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+      )
+      .join("");
 
   return `
   <div data-action="modal-backdrop" class="puestos-modal-backdrop ${MODAL_OVERLAY}">
@@ -546,14 +581,26 @@ function renderModal(
             ${SELECT_CHEVRON}
           </div>
         </div>
-        <div>
-          <label for="puestos-modal-nivel" class="${RH_LISTADO_LABEL}">Nivel <span class="text-red-600" aria-hidden="true">*</span></label>
-          <div class="grid grid-cols-1">
-            <select id="puestos-modal-nivel" name="nivel_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-              <option value="" disabled ${!values.nivel_id ? "selected" : ""}>Selecciona un nivel…</option>
-              ${nivelesCatalog.map((n) => `<option value="${n.id}" ${values.nivel_id === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`).join("")}
-            </select>
-            ${SELECT_CHEVRON}
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label for="puestos-modal-grado-desde" class="${RH_LISTADO_LABEL}">Grado desde <span class="text-red-600" aria-hidden="true">*</span></label>
+            <div class="grid grid-cols-1">
+              <select id="puestos-modal-grado-desde" name="grado_desde_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="" disabled ${!values.grado_desde_id ? "selected" : ""}>Selecciona…</option>
+                ${gradoOpts(values.grado_desde_id)}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div>
+            <label for="puestos-modal-grado-hasta" class="${RH_LISTADO_LABEL}">Grado hasta <span class="text-red-600" aria-hidden="true">*</span></label>
+            <div class="grid grid-cols-1">
+              <select id="puestos-modal-grado-hasta" name="grado_hasta_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="" disabled ${!values.grado_hasta_id ? "selected" : ""}>Selecciona…</option>
+                ${gradoOpts(values.grado_hasta_id)}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
           </div>
         </div>
         <div>
@@ -640,16 +687,23 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   let allItems: PerfilPuestoListItem[] = [];
   let tarjetasData: PerfilTarjetaItem[] = [];
   let areasOptions: AreaOption[] = [];
-  let nivelesCatalog: NivelPuesto[] = [];
+  let gradosCatalog: GradoPuesto[] = [];
   let status: "loading" | "ready" | "error" = "loading";
   let errorMessage = "";
-  const filters: PuestosFilterState = { q: "", area: "", nivel_id: "" };
+  const filters: PuestosFilterState = { q: "", area: "", grado_id: "" };
   let viewMode: "tabla" | "tarjetas" = "tarjetas";
 
   let modalMode: "create" | "edit" | "delete" | null = null;
   let modalSaving = false;
   let editingId: number | null = null;
-  let editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "" as TipoPuestoPerfil | "" };
+  let editingValues = {
+    codigo: "",
+    nombre_puesto: "",
+    area: "",
+    grado_desde_id: "",
+    grado_hasta_id: "",
+    tipo: "" as TipoPuestoPerfil | "",
+  };
   let deletingItem: PerfilPuestoListItem | null = null;
 
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -672,7 +726,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   function clearFilters(): void {
     filters.q = "";
     filters.area = "";
-    filters.nivel_id = "";
+    filters.grado_id = "";
     paint();
   }
 
@@ -712,7 +766,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       <div id="puestos-root" class="${RH_LISTADO_PAGE_OUTER}">
         ${renderLevelUpBackBar()}
         ${renderPageHeader()}
-        ${renderFilterBar(filters, areasOptions, nivelesCatalog, filtered.length, sourceTotal)}
+        ${renderFilterBar(filters, areasOptions, gradosCatalog, filtered.length, sourceTotal)}
         <div class="flex flex-col gap-4 sm:gap-5">${mainContent}</div>
       </div>`;
   }
@@ -721,7 +775,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const host = modalHost();
     if (!host) return;
     if (modalMode === "create" || modalMode === "edit") {
-      host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions, nivelesCatalog);
+      host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions, gradosCatalog);
     } else if (modalMode === "delete" && deletingItem) {
       host.innerHTML = renderDeleteConfirm(deletingItem.nombre_puesto, modalSaving);
     } else {
@@ -734,7 +788,14 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     modalSaving = false;
     editingId = null;
     deletingItem = null;
-    editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "" };
+    editingValues = {
+      codigo: "",
+      nombre_puesto: "",
+      area: "",
+      grado_desde_id: "",
+      grado_hasta_id: "",
+      tipo: "",
+    };
     paintModal();
   }
 
@@ -742,16 +803,16 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     status = "loading";
     paint();
     try {
-      const [items, areas, tarjetas, niveles] = await Promise.all([
+      const [items, areas, tarjetas, grados] = await Promise.all([
         getPerfilesList(),
         getAreasOptions(),
         getResumenTarjetas(),
-        getNivelesPuesto({ page_size: 200 }),
+        getGradosPuesto({ page_size: 200 }),
       ]);
       allItems = items;
       areasOptions = areas;
       tarjetasData = tarjetas;
-      nivelesCatalog = niveles;
+      gradosCatalog = grados;
       status = "ready";
       paint();
     } catch (e: unknown) {
@@ -783,7 +844,14 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
           case "create":
             modalMode = "create";
             editingId = null;
-            editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "administrativo" };
+            editingValues = {
+              codigo: "",
+              nombre_puesto: "",
+              area: "",
+              grado_desde_id: "",
+              grado_hasta_id: "",
+              tipo: "administrativo",
+            };
             paintModal();
             break;
           case "puestos-clear-filters":
@@ -796,13 +864,17 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
             if (!item) return;
             modalMode = "edit";
             editingId = id;
-            editingValues = {
-              codigo: item.codigo,
-              nombre_puesto: item.nombre_puesto,
-              area: item.area,
-              nivel_id: String(item.nivel_id),
-              tipo: item.tipo,
-            };
+            {
+              const rango = gradosMinMaxIds(item.grados);
+              editingValues = {
+                codigo: item.codigo,
+                nombre_puesto: item.nombre_puesto,
+                area: item.area,
+                grado_desde_id: rango.desde,
+                grado_hasta_id: rango.hasta,
+                tipo: item.tipo,
+              };
+            }
             paintModal();
             break;
           }
@@ -876,8 +948,8 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
         if (action === "filter-area") {
           filters.area = (t as HTMLSelectElement).value;
           paint();
-        } else if (action === "filter-nivel") {
-          filters.nivel_id = (t as HTMLSelectElement).value;
+        } else if (action === "filter-grado") {
+          filters.grado_id = (t as HTMLSelectElement).value;
           paint();
         }
       },
@@ -896,22 +968,38 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   async function handleSave(form: HTMLFormElement): Promise<void> {
     const data = new FormData(form);
     const areaValue = (data.get("area") as string).trim();
-    const areaId = areaValue ? Number(areaValue) : null;
+    const areaId = areaValue ? Number(areaValue) : NaN;
     const areaLabel = areasOptions.find((a) => a.id === areaId)?.label ?? "";
-    const nivelRaw = (data.get("nivel_id") as string).trim();
-    const nivelId = Number(nivelRaw);
+    const desdeRaw = (data.get("grado_desde_id") as string).trim();
+    const hastaRaw = (data.get("grado_hasta_id") as string).trim();
+    const desdeId = Number(desdeRaw);
+    const hastaId = Number(hastaRaw);
+    const grado_ids = gradoIdsEntre(gradosCatalog, desdeId, hastaId);
     const tipoRaw = (data.get("tipo") as string).trim();
     const tipo: TipoPuestoPerfil | null =
       tipoRaw === "administrativo" || tipoRaw === "operativo" ? tipoRaw : null;
+    if (
+      !(data.get("codigo") as string).trim() ||
+      !(data.get("nombre_puesto") as string).trim() ||
+      Number.isNaN(areaId) ||
+      !areaLabel ||
+      !desdeRaw ||
+      !hastaRaw ||
+      Number.isNaN(desdeId) ||
+      Number.isNaN(hastaId) ||
+      grado_ids.length === 0 ||
+      !tipo
+    ) {
+      return;
+    }
     const payload: PerfilPuestoCreatePayload = {
       codigo: (data.get("codigo") as string).trim(),
       nombre_puesto: (data.get("nombre_puesto") as string).trim(),
       area: areaLabel,
       area_id: areaId,
-      nivel_id: nivelId,
-      tipo: tipo ?? "administrativo",
+      grado_ids,
+      tipo,
     };
-    if (!payload.codigo || !payload.nombre_puesto || !nivelRaw || Number.isNaN(nivelId) || !tipo) return;
 
     modalSaving = true;
     paintModal();

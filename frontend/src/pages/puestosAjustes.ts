@@ -4,7 +4,6 @@ import { mountGruposCompetenciaSection } from "../components/puestos/ajustes/gru
 import { mountMetodosCalificacionCompetenciaSection } from "../components/puestos/ajustes/metodosCalificacionCompetenciaSection.ts";
 import { mountMetodosCalificacionSection } from "../components/puestos/ajustes/metodosCalificacionSection.ts";
 import { mountGradosSection } from "../components/puestos/ajustes/gradosSection.ts";
-import { mountNivelesSection } from "../components/puestos/ajustes/nivelesSection.ts";
 import { mountTiposCompetenciaSection } from "../components/puestos/ajustes/tiposCompetenciaSection.ts";
 import { mountTiposCualificacionSection } from "../components/puestos/ajustes/tiposCualificacionSection.ts";
 import { pageHeading, RH_LISTADO_PAGE_OUTER } from "../ui/uiTokens.ts";
@@ -39,22 +38,13 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
         "Catálogos que alimentan los perfiles de puesto y la matriz de competencias.",
       )}
       <div id="puestos-ajustes-sections" class="flex flex-col gap-6 sm:gap-8">
-        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8">
-          ${renderSectionGroup(
-            "Estructura",
-            "Grados en puestos",
-            "Catálogo global de grados de progresión (Grado 1–4). Las competencias requeridas se definen por grado.",
-            "puestos-ajustes-grados-title",
-            `<div id="puestos-ajustes-grados" class="min-w-0"></div>`,
-          )}
-          ${renderSectionGroup(
-            "Estructura",
-            "Niveles en puestos",
-            "Catálogo de niveles organizacionales para perfiles de puesto.",
-            "puestos-ajustes-niveles-title",
-            `<div id="puestos-ajustes-niveles" class="min-w-0"></div>`,
-          )}
-        </div>
+        ${renderSectionGroup(
+          "Estructura",
+          "Grados en puestos",
+          "Catálogo global de grados de progresión. Cada perfil de puesto se asocia a un rango consecutivo de estos grados.",
+          "puestos-ajustes-grados-title",
+          `<div id="puestos-ajustes-grados" class="min-w-0"></div>`,
+        )}
         ${renderSectionGroup(
           "Matriz de competencias",
           "Competencias",
@@ -85,11 +75,6 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
   const gradosHost = container.querySelector("#puestos-ajustes-grados");
   if (gradosHost instanceof HTMLElement) {
     mountGradosSection(gradosHost, signal);
-  }
-
-  const nivelesHost = container.querySelector("#puestos-ajustes-niveles");
-  if (nivelesHost instanceof HTMLElement) {
-    mountNivelesSection(nivelesHost, signal);
   }
 
   const gruposHost = container.querySelector("#puestos-ajustes-grupos");

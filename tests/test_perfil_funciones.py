@@ -1265,3 +1265,77 @@ async def test_gap_na_siempre_cumple(client: AsyncClient, db):
     assert gap["cumple"] is True
 
 
+
+
+@pytest.mark.asyncio
+async def test_tarea_general_y_especifica_por_grado(client: AsyncClient, db):
+    """Tareas generales (grado_id null) se combinan al filtrar por grado."""
+    from tests.conftest_talento import make_grados_consecutivos
+
+    area = await make_area(db, descripcion="Tareas Grado Scope")
+    rh = await make_empleado(db, rol="rh", email="pf_tarea_grado@leoni.test")
+    g1, g2 = await make_grados_consecutivos(db, ordenes=[1, 2])
+    perfil = await make_puesto_perfil(
+        db, area_id=area.area_id, created_by=rh.id, grado_ids=[g1.id, g2.id]
+    )
+    headers = await auth_headers(client, rh)
+
+    resp_gen = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/tareas",
+        json={"orden": 1, "descripcion": "Tarea general", "grado_id": None},
+        headers=headers,
+    )
+    assert resp_gen.status_code == 201
+    assert resp_gen.json()["es_general"] is True
+
+    resp_esp = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/tareas",
+        json={"orden": 2, "descripcion": "Tarea grado 2", "grado_id": g2.id},
+        headers=headers,
+    )
+    assert resp_esp.status_code == 201
+    assert resp_esp.json()["es_general"] is False
+    assert resp_esp.json()["grado_id"] == g2.id
+
+    resp = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/tareas?grado_id={g2.id}",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    descs = {t["descripcion"] for t in resp.json()}
+    assert "Tarea general" in descs
+    assert "Tarea grado 2" in descs
+
+    resp1 = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/tareas?grado_id={g1.id}",
+        headers=headers,
+    )
+    descs1 = {t["descripcion"] for t in resp1.json()}
+    assert "Tarea general" in descs1
+    assert "Tarea grado 2" not in descs1
+
+
+@pytest.mark.asyncio
+async def test_asignacion_grado_fuera_del_perfil_retorna_422(client: AsyncClient, db):
+    """No se puede asignar persona con grado que no pertenece al perfil."""
+    from tests.conftest_talento import make_grados_consecutivos
+
+    area = await make_area(db, descripcion="Asign Grado Fuera")
+    rh = await make_empleado(db, rol="rh", email="pf_asig_fuera@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="pf_asig_emp@leoni.test")
+    g1, g2, g3 = await make_grados_consecutivos(db, ordenes=[1, 2, 3])
+    perfil = await make_puesto_perfil(
+        db, area_id=area.area_id, created_by=rh.id, grado_ids=[g1.id, g2.id]
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/asignaciones",
+        json={
+            "puesto_perfil_id": perfil.id,
+            "empleado_id": emp.id,
+            "grado_id": g3.id,
+        },
+        headers=headers,
+    )
+    assert response.status_code == 422

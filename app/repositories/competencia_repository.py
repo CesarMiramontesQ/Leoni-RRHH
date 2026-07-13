@@ -130,16 +130,21 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
         super().__init__(CompetenciaRequisito, db)
 
     async def get_by_pair(
-        self, competencia_id: int, puesto_perfil_id: int, grado_id: int
+        self,
+        competencia_id: int,
+        puesto_perfil_id: int,
+        grado_id: int | None,
     ) -> CompetenciaRequisito | None:
-        """Obtiene el requisito por par competencia-puesto-grado."""
-        result = await self.db.execute(
-            select(CompetenciaRequisito).where(
-                CompetenciaRequisito.competencia_id == competencia_id,
-                CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
-                CompetenciaRequisito.grado_id == grado_id,
-            )
+        """Obtiene el requisito por par competencia-puesto-grado (None = general)."""
+        query = select(CompetenciaRequisito).where(
+            CompetenciaRequisito.competencia_id == competencia_id,
+            CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
         )
+        if grado_id is None:
+            query = query.where(CompetenciaRequisito.grado_id.is_(None))
+        else:
+            query = query.where(CompetenciaRequisito.grado_id == grado_id)
+        result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
     async def list_by_puesto(self, puesto_perfil_id: int) -> list[CompetenciaRequisito]:
@@ -171,7 +176,13 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
     async def list_by_puesto_with_competencia(
         self, puesto_perfil_id: int, grado_id: int | None = None
     ) -> list[CompetenciaRequisito]:
-        """Lista requisitos de un puesto con eager load de competencia, ordenados por orden."""
+        """Lista requisitos de un puesto.
+
+        Si grado_id se indica, incluye específicas de ese grado + generales
+        (grado_id IS NULL). Si es None, lista todas.
+        """
+        from sqlalchemy import or_
+
         query = (
             select(CompetenciaRequisito)
             .options(
@@ -183,44 +194,57 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
             .where(CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id)
         )
         if grado_id is not None:
-            query = query.where(CompetenciaRequisito.grado_id == grado_id)
+            query = query.where(
+                or_(
+                    CompetenciaRequisito.grado_id == grado_id,
+                    CompetenciaRequisito.grado_id.is_(None),
+                )
+            )
         query = query.order_by(
-            CompetenciaRequisito.orden.nulls_last(), CompetenciaRequisito.id
+            CompetenciaRequisito.grado_id.nulls_first(),
+            CompetenciaRequisito.orden.nulls_last(),
+            CompetenciaRequisito.id,
         )
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def exists_by_competencia_and_perfil(
-        self, competencia_id: int, puesto_perfil_id: int, grado_id: int
+        self,
+        competencia_id: int,
+        puesto_perfil_id: int,
+        grado_id: int | None,
     ) -> bool:
-        """Verifica si ya existe la combinacion competencia+puesto+grado."""
-        result = await self.db.execute(
-            select(CompetenciaRequisito.id)
-            .where(
-                CompetenciaRequisito.competencia_id == competencia_id,
-                CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
-                CompetenciaRequisito.grado_id == grado_id,
-            )
-            .limit(1)
+        """Verifica si ya existe la combinacion competencia+puesto+grado (None = general)."""
+        query = select(CompetenciaRequisito.id).where(
+            CompetenciaRequisito.competencia_id == competencia_id,
+            CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
         )
+        if grado_id is None:
+            query = query.where(CompetenciaRequisito.grado_id.is_(None))
+        else:
+            query = query.where(CompetenciaRequisito.grado_id == grado_id)
+        result = await self.db.execute(query.limit(1))
         return result.scalar_one_or_none() is not None
 
-    async def max_orden(self, puesto_perfil_id: int, grado_id: int) -> int:
-        """Obtiene el maximo orden actual para un puesto y grado."""
-        result = await self.db.execute(
-            select(func.coalesce(func.max(CompetenciaRequisito.orden), 0))
-            .where(
-                CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
-                CompetenciaRequisito.grado_id == grado_id,
-            )
+    async def max_orden(
+        self, puesto_perfil_id: int, grado_id: int | None
+    ) -> int:
+        """Obtiene el maximo orden actual para un puesto y grado (None = generales)."""
+        query = select(func.coalesce(func.max(CompetenciaRequisito.orden), 0)).where(
+            CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
         )
+        if grado_id is None:
+            query = query.where(CompetenciaRequisito.grado_id.is_(None))
+        else:
+            query = query.where(CompetenciaRequisito.grado_id == grado_id)
+        result = await self.db.execute(query)
         return result.scalar_one()
 
     async def upsert(
         self,
         competencia_id: int,
         puesto_perfil_id: int,
-        grado_id: int,
+        grado_id: int | None,
         nivel_requerido: int,
     ) -> CompetenciaRequisito:
         """Crea o actualiza un requisito de competencia. Nivel 0 se mantiene (no elimina)."""
@@ -253,20 +277,29 @@ class CompetenciaRequisitoRepository(BaseRepository[CompetenciaRequisito]):
         return result.scalar_one() or 0
 
     async def list_by_puesto_and_tipo(
-        self, puesto_perfil_id: int, tipo_competencia_id: int, grado_id: int
+        self,
+        puesto_perfil_id: int,
+        tipo_competencia_id: int,
+        grado_id: int | None,
     ) -> list[CompetenciaRequisito]:
-        """Lista requisitos de un puesto filtrados por tipo de competencia y grado."""
-        result = await self.db.execute(
+        """Lista requisitos de un puesto filtrados por tipo y grado (None = generales)."""
+        query = (
             select(CompetenciaRequisito)
             .join(Competencia, CompetenciaRequisito.competencia_id == Competencia.id)
             .options(selectinload(CompetenciaRequisito.competencia))
             .where(
                 CompetenciaRequisito.puesto_perfil_id == puesto_perfil_id,
-                CompetenciaRequisito.grado_id == grado_id,
                 Competencia.tipo_competencia_id == tipo_competencia_id,
             )
-            .order_by(CompetenciaRequisito.orden.nulls_last(), CompetenciaRequisito.id)
         )
+        if grado_id is None:
+            query = query.where(CompetenciaRequisito.grado_id.is_(None))
+        else:
+            query = query.where(CompetenciaRequisito.grado_id == grado_id)
+        query = query.order_by(
+            CompetenciaRequisito.orden.nulls_last(), CompetenciaRequisito.id
+        )
+        result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def delete_by_ids(self, ids: list[int]) -> int:

@@ -78,6 +78,9 @@ class PerfilTareaCreate(BaseModel):
     orden: int = Field(..., ge=1)
     descripcion: Optional[str] = Field(None, min_length=1)
     es_complemento: bool = False
+    grado_id: Optional[int] = Field(
+        None, gt=0, description="Null = tarea general (todos los grados del perfil)"
+    )
 
     @model_validator(mode="after")
     def check_source(self) -> "PerfilTareaCreate":
@@ -92,6 +95,16 @@ class PerfilTareaUpdate(BaseModel):
     orden: Optional[int] = Field(None, ge=1)
     descripcion: Optional[str] = Field(None, min_length=1)
     es_complemento: Optional[bool] = None
+    grado_id: Optional[int] = Field(
+        None,
+        description="Null = general; omitir para no cambiar; >0 = grado específico",
+    )
+
+    @model_validator(mode="after")
+    def check_grado_id(self) -> "PerfilTareaUpdate":
+        if self.grado_id is not None and self.grado_id <= 0:
+            raise ValueError("grado_id debe ser mayor que 0")
+        return self
 
 
 class PerfilTareaResponse(BaseModel):
@@ -104,6 +117,9 @@ class PerfilTareaResponse(BaseModel):
     es_complemento: bool
     tarea_catalogo_id: Optional[int] = None
     tarea_catalogo_nombre: Optional[str] = None
+    grado_id: Optional[int] = None
+    grado_nombre: Optional[str] = None
+    es_general: bool = True
     created_at: datetime
     updated_at: datetime
 
@@ -148,7 +164,9 @@ class PerfilCualificacionResponse(BaseModel):
 
 class PerfilCompetenciaCreate(BaseModel):
     competencia_id: int
-    grado_id: int = Field(..., gt=0)
+    grado_id: Optional[int] = Field(
+        None, gt=0, description="Null = competencia general (todos los grados del perfil)"
+    )
     nivel_requerido: int = Field(..., ge=1, description="Nivel mínimo requerido (valor del catálogo)")
 
 
@@ -166,8 +184,9 @@ class PerfilCompetenciaResponse(BaseModel):
     tipo_nombre: Optional[str] = None
     categoria: Optional[str] = None
     grupo_nombre: Optional[str] = None
-    grado_id: int
-    grado_nombre: str = ""
+    grado_id: Optional[int] = None
+    grado_nombre: Optional[str] = None
+    es_general: bool = False
     nivel_requerido: int = 0
     orden: Optional[int] = None
 
@@ -297,7 +316,9 @@ class PerfilCompetenciaSyncItem(BaseModel):
 
 
 class PerfilCompetenciaSyncBody(BaseModel):
-    grado_id: int = Field(..., gt=0)
+    grado_id: Optional[int] = Field(
+        None, gt=0, description="Null = sync de competencias generales del perfil"
+    )
     tipo_competencia_id: int = Field(..., gt=0)
     competencias: list[PerfilCompetenciaSyncItem] = Field(default_factory=list)
     # Legado: si se envía sin `competencias`, se interpreta nivel 1 en altas nuevas.

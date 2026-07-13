@@ -37,6 +37,20 @@ function mapTipoPuestoPerfil(value: unknown): TipoPuestoPerfil {
   return value === "operativo" ? "operativo" : "administrativo";
 }
 
+function mapGrados(raw: unknown): { id: number; nombre: string; orden: number }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((g) => {
+      const item = g as Record<string, unknown>;
+      return {
+        id: item.id as number,
+        nombre: String(item.nombre ?? ""),
+        orden: Number(item.orden ?? 0),
+      };
+    })
+    .sort((a, b) => a.orden - b.orden);
+}
+
 // ── Mapping helper ────────────────────────────────────────────────────
 function mapBackendToPerfilPuesto(p: Record<string, unknown>): PerfilPuesto {
   return {
@@ -44,8 +58,8 @@ function mapBackendToPerfilPuesto(p: Record<string, unknown>): PerfilPuesto {
     codigo: (p.codigo ?? "") as string,
     nombre_puesto: (p.nombre ?? "") as string,
     area: (p.area_nombre ?? "") as string,
-    nivel_id: p.nivel_id as number,
-    nivel_nombre: (p.nivel_nombre ?? "") as string,
+    area_id: (p.area_id as number | null) ?? null,
+    grados: mapGrados(p.grados),
     tipo: mapTipoPuestoPerfil(p.tipo),
     recomendaciones_ia: [] as PerfilPuesto["recomendaciones_ia"],
     version: String(p.version ?? "1"),
@@ -75,8 +89,7 @@ export type PerfilTarjetaItem = {
   codigo: string;
   nombre: string;
   area_nombre: string | null;
-  nivel_id: number;
-  nivel_nombre: string;
+  grados: { id: number; nombre: string; orden: number }[];
   personas: number;
   cumplimiento_pct: number;
   brechas: number;
@@ -95,6 +108,7 @@ export async function getResumenTarjetas(): Promise<PerfilTarjetaItem[]> {
 /** GET /api/v1/puestos-perfil — listado para tabla */
 export async function getPerfilesList(opts?: {
   area_id?: number;
+  grado_id?: number;
   page_size?: number;
   page?: number;
   busqueda?: string;
@@ -105,6 +119,7 @@ export async function getPerfilesList(opts?: {
     page_size: String(pageSize),
   });
   if (opts?.area_id) qs.set("area_id", String(opts.area_id));
+  if (opts?.grado_id) qs.set("grado_id", String(opts.grado_id));
   if (opts?.busqueda?.trim()) qs.set("busqueda", opts.busqueda.trim());
   const res = await fetchWithAuth(`/api/v1/puestos-perfil?${qs}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
@@ -115,8 +130,8 @@ export async function getPerfilesList(opts?: {
     codigo: p.codigo as string,
     nombre_puesto: (p.nombre ?? "") as string,
     area: (p.area_nombre ?? "") as string,
-    nivel_id: p.nivel_id as number,
-    nivel_nombre: (p.nivel_nombre ?? "") as string,
+    area_id: (p.area_id as number | null) ?? null,
+    grados: mapGrados(p.grados),
     tipo: mapTipoPuestoPerfil(p.tipo),
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
@@ -136,8 +151,8 @@ export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<
   const body = {
     codigo: payload.codigo,
     nombre: payload.nombre_puesto,
-    nivel_id: payload.nivel_id,
-    area_id: payload.area_id || null,
+    area_id: payload.area_id,
+    grado_ids: payload.grado_ids,
     tipo: payload.tipo,
   };
   const res = await fetchWithAuth("/api/v1/puestos-perfil", {
@@ -154,7 +169,7 @@ export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayloa
   const body: Record<string, unknown> = {};
   if (payload.codigo) body.codigo = payload.codigo;
   if (payload.nombre_puesto) body.nombre = payload.nombre_puesto;
-  if (payload.nivel_id !== undefined) body.nivel_id = payload.nivel_id;
+  if (payload.grado_ids !== undefined) body.grado_ids = payload.grado_ids;
   if (payload.area_id !== undefined) body.area_id = payload.area_id;
   if (payload.tipo !== undefined) body.tipo = payload.tipo;
   const res = await fetchWithAuth(`/api/v1/puestos-perfil/${id}`, {
@@ -192,11 +207,20 @@ export type PerfilTarea = {
   es_complemento: boolean;
   tarea_catalogo_id: number | null;
   tarea_catalogo_nombre: string | null;
+  grado_id: number | null;
+  grado_nombre: string | null;
+  es_general: boolean;
 };
 
 /** GET /api/v1/perfiles/:id/tareas */
-export async function getPerfilTareas(perfilId: number): Promise<PerfilTarea[]> {
-  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas`);
+export async function getPerfilTareas(
+  perfilId: number,
+  opts?: { grado_id?: number },
+): Promise<PerfilTarea[]> {
+  const qs = new URLSearchParams();
+  if (opts?.grado_id) qs.set("grado_id", String(opts.grado_id));
+  const suffix = qs.toString() ? `?${qs}` : "";
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas${suffix}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as PerfilTarea[];
 }
@@ -204,7 +228,13 @@ export async function getPerfilTareas(perfilId: number): Promise<PerfilTarea[]> 
 /** POST /api/v1/perfiles/:id/tareas */
 export async function createPerfilTarea(
   perfilId: number,
-  body: { orden: number; descripcion?: string; es_complemento?: boolean; tarea_catalogo_id?: number },
+  body: {
+    orden: number;
+    descripcion?: string;
+    es_complemento?: boolean;
+    tarea_catalogo_id?: number;
+    grado_id?: number | null;
+  },
 ): Promise<PerfilTarea> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas`, {
     method: "POST",
@@ -219,7 +249,12 @@ export async function createPerfilTarea(
 export async function updatePerfilTarea(
   perfilId: number,
   tareaId: number,
-  body: { descripcion?: string; orden?: number; es_complemento?: boolean },
+  body: {
+    descripcion?: string;
+    orden?: number;
+    es_complemento?: boolean;
+    grado_id?: number | null;
+  },
 ): Promise<PerfilTarea> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/${tareaId}`, {
     method: "PUT",
@@ -329,18 +364,22 @@ export type PerfilCompetencia = {
   tipo_nombre: string | null;
   categoria: string | null;
   grupo_nombre: string | null;
-  grado_id: number;
-  grado_nombre: string;
+  grado_id: number | null;
+  grado_nombre: string | null;
+  es_general: boolean;
   nivel_requerido: number;
   orden: number | null;
 };
 
-/** GET /api/v1/perfiles/:id/competencias?grado_id= */
+/** GET /api/v1/perfiles/:id/competencias — con grado_id: específicas + generales */
 export async function getPerfilCompetencias(
   perfilId: number,
-  gradoId: number,
+  gradoId?: number | null,
 ): Promise<PerfilCompetencia[]> {
-  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias?grado_id=${gradoId}`);
+  const qs = new URLSearchParams();
+  if (gradoId != null) qs.set("grado_id", String(gradoId));
+  const suffix = qs.toString() ? `?${qs}` : "";
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias${suffix}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as PerfilCompetencia[];
 }
@@ -348,7 +387,7 @@ export async function getPerfilCompetencias(
 /** POST /api/v1/perfiles/:id/competencias — agrega competencia del catálogo */
 export async function createPerfilCompetencia(
   perfilId: number,
-  body: { competencia_id: number; grado_id: number; nivel_requerido: number },
+  body: { competencia_id: number; grado_id?: number | null; nivel_requerido: number },
 ): Promise<PerfilCompetencia> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
     method: "POST",
@@ -368,7 +407,7 @@ export type PerfilCompetenciaSyncItem = {
 export async function syncPerfilCompetencias(
   perfilId: number,
   body: {
-    grado_id: number;
+    grado_id?: number | null;
     tipo_competencia_id: number;
     competencias: PerfilCompetenciaSyncItem[];
   },

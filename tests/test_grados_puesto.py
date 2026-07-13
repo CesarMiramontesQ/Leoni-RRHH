@@ -107,7 +107,9 @@ async def test_competencias_por_grado_y_gap_filtrado(client: AsyncClient, db):
 
     grado1 = await get_default_grado(db)
     grado2 = await make_grado_puesto(db, nombre="Grado 2 Test", orden=2)
-    perfil = await make_puesto_perfil(db, nombre="Puesto Grados")
+    perfil = await make_puesto_perfil(
+        db, nombre="Puesto Grados", grado_ids=[grado1.id, grado2.id]
+    )
     comp1 = await make_competencia(db, nombre="Comp G1", categoria="tecnica")
     comp2 = await make_competencia(db, nombre="Comp G2", categoria="tecnica")
 
@@ -158,7 +160,9 @@ async def test_sync_competencias_no_borra_otro_grado(client: AsyncClient, db):
 
     grado1 = await get_default_grado(db)
     grado2 = await make_grado_puesto(db, nombre="Grado 2 Sync", orden=3)
-    perfil = await make_puesto_perfil(db, nombre="Puesto Sync Grado")
+    perfil = await make_puesto_perfil(
+        db, nombre="Puesto Sync Grado", grado_ids=[grado1.id, grado2.id]
+    )
     from tests.conftest_talento import make_tipo_competencia
 
     tipo = await make_tipo_competencia(db, nombre="Tipo Sync Grado")

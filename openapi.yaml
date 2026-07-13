@@ -4016,6 +4016,11 @@ components:
         es_complemento:
           type: boolean
           default: false
+        grado_id:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: Null = tarea general (todos los grados del perfil)
 
     PerfilTareaUpdate:
       type: object
@@ -4028,10 +4033,14 @@ components:
           minLength: 1
         es_complemento:
           type: boolean
+        grado_id:
+          type: integer
+          nullable: true
+          description: Null = general; omitir para no cambiar
 
     PerfilTareaResponse:
       type: object
-      required: [id, puesto_perfil_id, orden, descripcion, es_complemento, created_at, updated_at]
+      required: [id, puesto_perfil_id, orden, descripcion, es_complemento, es_general, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -4041,7 +4050,6 @@ components:
           type: integer
         descripcion:
           type: string
-          description: Texto mostrado; con catálogo vinculado usa descripcion del catálogo o nombre como fallback.
         es_complemento:
           type: boolean
         tarea_catalogo_id:
@@ -4050,6 +4058,15 @@ components:
         tarea_catalogo_nombre:
           type: string
           nullable: true
+        grado_id:
+          type: integer
+          nullable: true
+        grado_nombre:
+          type: string
+          nullable: true
+        es_general:
+          type: boolean
+          description: True cuando grado_id es null (aplica a todos los grados)
         created_at:
           type: string
           format: date-time
@@ -4646,7 +4663,7 @@ components:
 
     PerfilCompetenciaResponse:
       type: object
-      required: [id, competencia_id, competencia_nombre, grado_id, grado_nombre, nivel_requerido]
+      required: [id, competencia_id, competencia_nombre, es_general, nivel_requerido]
       properties:
         id:
           type: integer
@@ -4670,8 +4687,14 @@ components:
           description: Nombre del grupo de competencia del tipo asociado
         grado_id:
           type: integer
+          nullable: true
+          description: Null = competencia general
         grado_nombre:
           type: string
+          nullable: true
+        es_general:
+          type: boolean
+          description: True cuando grado_id es null (aplica a todos los grados)
         nivel_requerido:
           type: integer
         orden:
@@ -4680,13 +4703,15 @@ components:
 
     PerfilCompetenciaCreate:
       type: object
-      required: [competencia_id, grado_id, nivel_requerido]
+      required: [competencia_id, nivel_requerido]
       properties:
         competencia_id:
           type: integer
         grado_id:
           type: integer
+          nullable: true
           minimum: 1
+          description: Null = competencia general (todos los grados del perfil)
         nivel_requerido:
           type: integer
           minimum: 1
@@ -4715,11 +4740,13 @@ components:
 
     PerfilCompetenciaSyncBody:
       type: object
-      required: [grado_id, tipo_competencia_id]
+      required: [tipo_competencia_id]
       properties:
         grado_id:
           type: integer
+          nullable: true
           minimum: 1
+          description: Null = sync de competencias generales
         tipo_competencia_id:
           type: integer
           minimum: 1
@@ -12009,13 +12036,14 @@ paths:
             type: integer
         - name: grado_id
           in: query
-          required: true
+          required: false
           schema:
             type: integer
             minimum: 1
+          description: Si se indica, específicas del grado + generales; si se omite, todas
       responses:
         "200":
-          description: Lista de competencias del grado
+          description: Lista de competencias (generales + específicas del grado)
           content:
             application/json:
               schema:
