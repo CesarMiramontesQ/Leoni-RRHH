@@ -35,7 +35,7 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
     expect(html).toContain("Colaborador de la solicitud");
   });
 
-  it("en creación mantiene pestañas de tipo y select de empleado", () => {
+  it("en creación mantiene búsqueda combobox de empleado", () => {
     const html = buildFormHtml({
       ...base,
       tipo: "home_office",
@@ -45,7 +45,10 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
       submitLabel: "Enviar solicitud",
     });
     expect(html).toContain("data-rh-nr-tipo=");
-    expect(html).toContain('id="rh-nr-empleado"');
+    expect(html).toContain('id="rh-nr-empleado-q"');
+    expect(html).toContain('id="rh-nr-empleado-id"');
+    expect(html).toContain('id="rh-nr-empleado-listbox"');
+    expect(html).not.toContain('id="rh-nr-empleado"');
   });
 
   it("no renderiza campo de comentarios", () => {
