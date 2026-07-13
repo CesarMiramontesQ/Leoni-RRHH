@@ -21,7 +21,6 @@ from app.models.talento import (
     PerfilFuncionesCompetencia,
     PerfilFuncionesTarea,
     PerfilTarea,
-    PuestoPerfil,
 )
 from app.repositories.base import BaseRepository
 
@@ -121,7 +120,7 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
             select(PerfilFunciones)
             .options(
                 selectinload(PerfilFunciones.empleado),
-                selectinload(PerfilFunciones.puesto_perfil).selectinload(PuestoPerfil.nivel),
+                selectinload(PerfilFunciones.puesto_perfil),
                 selectinload(PerfilFunciones.grado),
             )
             .where(PerfilFunciones.activo.is_(True))

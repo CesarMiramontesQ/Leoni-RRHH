@@ -27,7 +27,6 @@ from app.models.talento import (
     GrupoCompetencia,
     MetodoCalificacion,
     MetodoCalificacionCompetencia,
-    NivelPuesto,
     OpcionCalificacion,
     PerfilFunciones,
     PuestoPerfil,
@@ -69,22 +68,6 @@ async def make_area(
     await db.flush()
     await db.refresh(area)
     return area
-
-
-async def make_nivel_puesto(
-    db: AsyncSession,
-    *,
-    nombre: str | None = None,
-    activo: bool = True,
-) -> NivelPuesto:
-    """Factory para crear un NivelPuesto en el catalogo."""
-    uid = uuid.uuid4().hex[:6]
-    _nombre = nombre or f"Nivel Test {uid}"
-    nivel = NivelPuesto(nombre=_nombre, activo=activo)
-    db.add(nivel)
-    await db.flush()
-    await db.refresh(nivel)
-    return nivel
 
 
 async def make_grado_puesto(
@@ -198,7 +181,6 @@ async def make_puesto_perfil(
     codigo: str | None = None,
     nombre: str = "Ingeniero de Procesos",
     area_id: int | None = None,
-    nivel_id: int | None = None,
     grado_ids: list[int] | None = None,
     descripcion: str | None = "Optimizar procesos de manufactura",
     version: int = 1,
@@ -223,17 +205,12 @@ async def make_puesto_perfil(
     # updated_by: default al mismo que created_by si no se especifica
     _updated_by = created_by if updated_by is _UNSET else updated_by
 
-    if nivel_id is None:
-        nivel = await make_nivel_puesto(db)
-        nivel_id = nivel.id
-
     await ensure_metodos_calificacion_competencia(db)
 
     perfil = PuestoPerfil(
         codigo=_codigo,
         nombre=nombre,
         area_id=area_id,
-        nivel_id=nivel_id,
         tipo="administrativo",
         descripcion=descripcion,
         version=version,

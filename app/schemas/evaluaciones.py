@@ -86,7 +86,6 @@ class EmpleadoConPerfilItem(BaseModel):
     puesto_perfil_id: int
     puesto_nombre: Optional[str] = None
     puesto_codigo: Optional[str] = None
-    nivel_puesto: Optional[str] = None
     grado_id: Optional[int] = None
     grado_nombre: Optional[str] = None
     departamento: Optional[str] = None
@@ -104,7 +103,7 @@ class EmpleadoResumenResponse(BaseModel):
     empleado_nombre: str
     area_nombre: Optional[str] = None
     puesto_nombre: Optional[str] = None
-    nivel_puesto: Optional[str] = None
+    grado_nombre: Optional[str] = None
     departamento: Optional[str] = None
     evaluador_nombre: Optional[str] = None
     competencias_alineadas: int = 0

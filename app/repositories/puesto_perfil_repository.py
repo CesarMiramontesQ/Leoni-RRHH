@@ -3,18 +3,21 @@
 Repositorio de Puestos Perfil — acceso a datos async con SQLAlchemy.
 """
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.level_up import CursoPuesto
 from app.models.talento import (
     CompetenciaRequisito,
+    GradoPuesto,
     PerfilCualificacion,
     PerfilFunciones,
     PerfilFuncionesCualificacion,
     PerfilFuncionesCompetencia,
+    PerfilTarea,
     PuestoPerfil,
+    PuestoPerfilGrado,
 )
 from app.repositories.base import BaseRepository
 
@@ -26,7 +29,12 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
     async def get_with_relations(self, id: int) -> PuestoPerfil | None:
         result = await self.db.execute(
             select(PuestoPerfil)
-            .options(selectinload(PuestoPerfil.area), selectinload(PuestoPerfil.nivel))
+            .options(
+                selectinload(PuestoPerfil.area),
+                selectinload(PuestoPerfil.grados_config).selectinload(
+                    PuestoPerfilGrado.grado
+                ),
+            )
             .where(PuestoPerfil.id == id, PuestoPerfil.activo.is_(True))
         )
         return result.scalar_one_or_none()
@@ -36,20 +44,29 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         offset: int,
         limit: int,
         area_id: int | None = None,
-        nivel_id: int | None = None,
+        grado_id: int | None = None,
         busqueda: str | None = None,
     ) -> tuple[list[PuestoPerfil], int]:
         """Lista paginada con filtros opcionales. Retorna (items, total)."""
         query = (
             select(PuestoPerfil)
-            .options(selectinload(PuestoPerfil.area), selectinload(PuestoPerfil.nivel))
+            .options(
+                selectinload(PuestoPerfil.area),
+                selectinload(PuestoPerfil.grados_config).selectinload(
+                    PuestoPerfilGrado.grado
+                ),
+            )
             .where(PuestoPerfil.activo.is_(True))
         )
 
         if area_id is not None:
             query = query.where(PuestoPerfil.area_id == area_id)
-        if nivel_id is not None:
-            query = query.where(PuestoPerfil.nivel_id == nivel_id)
+        if grado_id is not None:
+            query = query.where(
+                PuestoPerfil.grados_config.any(
+                    PuestoPerfilGrado.grado_id == grado_id
+                )
+            )
         if busqueda:
             pattern = f"%{busqueda}%"
             query = query.where(
@@ -74,7 +91,11 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         """Lista todos los puestos perfil activos de un area."""
         result = await self.db.execute(
             select(PuestoPerfil)
-            .options(selectinload(PuestoPerfil.nivel))
+            .options(
+                selectinload(PuestoPerfil.grados_config).selectinload(
+                    PuestoPerfilGrado.grado
+                )
+            )
             .where(PuestoPerfil.area_id == area_id, PuestoPerfil.activo.is_(True))
             .order_by(PuestoPerfil.nombre)
         )
@@ -92,19 +113,104 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         count = await self.db.scalar(query)
         return (count or 0) > 0
 
-    async def exists_by_nombre_y_nivel(
-        self, nombre: str, nivel_id: int, exclude_id: int | None = None
+    async def exists_by_nombre_y_area(
+        self, nombre: str, area_id: int, exclude_id: int | None = None
     ) -> bool:
-        """Verifica si ya existe un puesto perfil activo con el mismo nombre y nivel."""
+        """Verifica si ya existe un puesto perfil activo con el mismo nombre y area."""
         query = select(func.count()).select_from(PuestoPerfil).where(
             PuestoPerfil.nombre.ilike(nombre),
-            PuestoPerfil.nivel_id == nivel_id,
+            PuestoPerfil.area_id == area_id,
             PuestoPerfil.activo.is_(True),
         )
         if exclude_id:
             query = query.where(PuestoPerfil.id != exclude_id)
         count = await self.db.scalar(query)
         return (count or 0) > 0
+
+    # ── Grados por perfil ─────────────────────────────────────────────────────
+
+    async def grados_ocupados_en_area(
+        self,
+        area_id: int,
+        grado_ids: list[int],
+        exclude_perfil_id: int | None = None,
+    ) -> list[tuple[str, str]]:
+        """Devuelve [(grado_nombre, perfil_nombre)] de grados ya usados por otros
+        perfiles activos de la misma area."""
+        if not grado_ids:
+            return []
+        query = (
+            select(GradoPuesto.nombre, PuestoPerfil.nombre)
+            .select_from(PuestoPerfilGrado)
+            .join(PuestoPerfil, PuestoPerfilGrado.puesto_perfil_id == PuestoPerfil.id)
+            .join(GradoPuesto, PuestoPerfilGrado.grado_id == GradoPuesto.id)
+            .where(
+                PuestoPerfil.area_id == area_id,
+                PuestoPerfil.activo.is_(True),
+                PuestoPerfilGrado.grado_id.in_(grado_ids),
+            )
+        )
+        if exclude_perfil_id is not None:
+            query = query.where(PuestoPerfil.id != exclude_perfil_id)
+        result = await self.db.execute(query)
+        return [(row[0], row[1]) for row in result.all()]
+
+    async def get_grado_ids(self, perfil_id: int) -> set[int]:
+        """Conjunto de grado_ids configurados para un perfil."""
+        result = await self.db.execute(
+            select(PuestoPerfilGrado.grado_id).where(
+                PuestoPerfilGrado.puesto_perfil_id == perfil_id
+            )
+        )
+        return set(result.scalars().all())
+
+    async def set_grados(self, perfil_id: int, grado_ids: list[int]) -> None:
+        """Reemplaza (delete + insert) los grados configurados de un perfil."""
+        await self.db.execute(
+            delete(PuestoPerfilGrado).where(
+                PuestoPerfilGrado.puesto_perfil_id == perfil_id
+            )
+        )
+        for grado_id in grado_ids:
+            self.db.add(
+                PuestoPerfilGrado(puesto_perfil_id=perfil_id, grado_id=grado_id)
+            )
+        await self.db.flush()
+
+    async def grados_en_uso_por_perfil(
+        self, perfil_id: int, grado_ids: list[int]
+    ) -> dict[str, int]:
+        """Cuenta requisitos/tareas/asignaciones activas que usan alguno de los
+        grados indicados dentro del perfil. Devuelve solo las claves con conteo > 0."""
+        if not grado_ids:
+            return {}
+        reqs = await self.db.scalar(
+            select(func.count()).select_from(CompetenciaRequisito).where(
+                CompetenciaRequisito.puesto_perfil_id == perfil_id,
+                CompetenciaRequisito.grado_id.in_(grado_ids),
+            )
+        )
+        tareas = await self.db.scalar(
+            select(func.count()).select_from(PerfilTarea).where(
+                PerfilTarea.puesto_perfil_id == perfil_id,
+                PerfilTarea.grado_id.in_(grado_ids),
+            )
+        )
+        asignaciones = await self.db.scalar(
+            select(func.count()).select_from(PerfilFunciones).where(
+                PerfilFunciones.puesto_perfil_id == perfil_id,
+                PerfilFunciones.grado_id.in_(grado_ids),
+                PerfilFunciones.activo.is_(True),
+            )
+        )
+        uso: dict[str, int] = {}
+        if reqs:
+            uso["requisitos"] = reqs
+        if tareas:
+            uso["tareas"] = tareas
+        if asignaciones:
+            uso["asignaciones"] = asignaciones
+        return uso
 
     async def get_resumen_tarjetas(self) -> list[dict]:
         """Obtiene perfiles activos con metricas agregadas para la vista de tarjetas."""
@@ -177,7 +283,6 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 PuestoPerfil.id,
                 PuestoPerfil.codigo,
                 PuestoPerfil.nombre,
-                PuestoPerfil.nivel_id,
                 func.coalesce(personas_sq.c.personas, 0).label("personas"),
                 func.coalesce(cualif_count_sq.c.total_cualif, 0).label("total_cualif"),
                 func.coalesce(comp_count_sq.c.total_comp, 0).label("total_comp"),
@@ -222,27 +327,38 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 "id": row.id,
                 "codigo": row.codigo,
                 "nombre": row.nombre,
-                "nivel_id": row.nivel_id,
-                "nivel_nombre": "",  # se completa en la segunda pasada
+                "grados": [],  # se completa en la segunda pasada
                 "personas": personas,
                 "cumplimiento_pct": cumplimiento_pct,
                 "brechas": brechas,
                 "cursos": row.cursos,
             })
 
-        # Cargar area_nombre y nivel_nombre en segunda pasada (selectinload no
+        # Cargar area_nombre y grados en segunda pasada (selectinload no
         # funciona con columnas explícitas, cargamos por separado)
         perfil_ids = [item["id"] for item in items]
         if perfil_ids:
             perfiles_result = await self.db.execute(
                 select(PuestoPerfil)
-                .options(selectinload(PuestoPerfil.area), selectinload(PuestoPerfil.nivel))
+                .options(
+                    selectinload(PuestoPerfil.area),
+                    selectinload(PuestoPerfil.grados_config).selectinload(
+                        PuestoPerfilGrado.grado
+                    ),
+                )
                 .where(PuestoPerfil.id.in_(perfil_ids))
             )
             perfiles_map = {p.id: p for p in perfiles_result.scalars().all()}
             for item in items:
                 perfil = perfiles_map.get(item["id"])
                 item["area_nombre"] = perfil.area.descripcion if perfil and perfil.area else None
-                item["nivel_nombre"] = perfil.nivel.nombre if perfil and perfil.nivel else ""
+                item["grados"] = sorted(
+                    (
+                        {"id": g.grado.id, "nombre": g.grado.nombre, "orden": g.grado.orden}
+                        for g in (perfil.grados_config if perfil else [])
+                        if g.grado
+                    ),
+                    key=lambda x: x["orden"],
+                )
 
         return items

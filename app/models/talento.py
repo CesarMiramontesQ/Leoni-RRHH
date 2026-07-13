@@ -60,9 +60,6 @@ class PuestoPerfil(Base):
     area_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("areas.area_id"), nullable=True
     )
-    nivel_id: Mapped[int] = mapped_column(
-        ForeignKey("levelup_niveles_puesto.id"), nullable=False
-    )
     tipo: Mapped[str] = mapped_column(
         String(50), nullable=False, default="administrativo", server_default="administrativo"
     )
@@ -104,7 +101,6 @@ class PuestoPerfil(Base):
 
     # Relationships
     area: Mapped[Optional["Area"]] = relationship("Area", foreign_keys=[area_id])
-    nivel: Mapped["NivelPuesto"] = relationship("NivelPuesto", back_populates="puestos_perfil")
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="puesto_perfil", cascade="all, delete-orphan"
     )
@@ -632,29 +628,6 @@ class MetodoCalificacionCompetencia(Base):
             f"<MetodoCalificacionCompetencia id={self.id} valor={self.valor} "
             f"nombre={self.nombre} orden={self.orden}>"
         )
-
-
-class NivelPuesto(Base):
-    """Catalogo de niveles organizacionales para perfiles de puesto."""
-
-    __tablename__ = "levelup_niveles_puesto"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-    puestos_perfil: Mapped[List["PuestoPerfil"]] = relationship(
-        "PuestoPerfil", back_populates="nivel"
-    )
-
-    def __repr__(self) -> str:
-        return f"<NivelPuesto id={self.id} nombre={self.nombre}>"
 
 
 class TareaCatalogo(Base):

@@ -42,7 +42,7 @@ from app.models.talento import (
     Capacitacion, Inscripcion,
     TareaCatalogo, PerfilTarea, PerfilCualificacion,
     PerfilFunciones, PerfilFuncionesCualificacion, PerfilFuncionesCompetencia,
-    PerfilFuncionesTarea, NivelPuesto, GradoPuesto, PuestoPerfilGrado,
+    PerfilFuncionesTarea, GradoPuesto, PuestoPerfilGrado,
     TipoCompetencia, GrupoCompetencia,
     TipoCualificacionCatalogo, MetodoCalificacion, OpcionCalificacion, CualificacionCatalogo,
     MetodoCalificacionCompetencia,
