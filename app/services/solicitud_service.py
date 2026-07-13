@@ -14,9 +14,10 @@ Jerarquia supervisor/gerente: una sola aprobacion o rechazo valido basta (superv
 de linea o gerente con el solicitante en su subarbol jerarquico, en cualquier orden; no hay segunda
 etapa obligatoria).
 
-Al aprobar: estado `approved`, registro de aprobacion, cola TRESS y notificacion in-app al requisitor
-en la misma transaccion del request (rollback conjunto si falla cualquier paso).
-Al rechazar/cancelar: NO se encola en TRESS.
+Al aprobar: estado `approved`, registro de aprobacion, push a TRESS (vacaciones = INSERT
+SQL sincrono; otros tipos = cola robot) y notificacion in-app al requisitor.
+Vacaciones: primero INSERT en TRESS; si falla, la solicitud sigue pending.
+Al rechazar/cancelar: NO se envia a TRESS.
 """
 
 import logging
@@ -43,10 +44,11 @@ from app.core.exceptions import (
     ConflictError,
     DomainValidationError,
     ForbiddenError,
+    LeoniException,
     NotFoundError,
-
 )
 from app.integrations.tress.queue import encolar_tress
+from app.services.tress_vacaciones_service import registrar_vacaciones_en_tress
 from app.models.empleados import Empleado
 from app.models.solicitudes import Solicitud
 from app.repositories.comedor_repository import ComedorAccesoRepository
@@ -70,6 +72,7 @@ from app.schemas.vacaciones import VacacionesDisponibleSolicitudResponse
 from app.services.notificacion_service import NotificacionService
 from app.services.vacaciones_service import VacacionesService
 from app.utils.audit_logger import audit_background
+from app.utils import audit_logger as audit_logger_mod
 
 logger = logging.getLogger(__name__)
 
@@ -551,7 +554,7 @@ class SolicitudService:
 
         Comprometido = solicitudes en ``_ESTADOS_VACACIONES_COMPROMETIDAS`` (pending /
         changes_requested), que reservan días pero aún no se enviaron a TRESS. Las aprobadas
-        NO se cuentan: ya se encolaron a TRESS y su saldo bajará cuando nómina las procese.
+        NO se cuentan: al aprobar ya se insertaron en TRESS y su saldo allí ya bajó.
         """
         solicitudes, _ = await self.repo.list_by_empleado(
             empleado_id,
@@ -950,6 +953,65 @@ class SolicitudService:
         datos_antes = {"estado": solicitud.estado, "nivel_actual": solicitud.nivel_actual}
         no_empleado_solicitante = solicitud.empleado.no_empleado
 
+        # Vacaciones: INSERT en TRESS antes de marcar approved (si falla, sigue pending).
+        tress_vacacion_llave: int | None = None
+        if solicitud.tipo == "vacaciones":
+            dias = await self._dias_vacaciones_para_empleado(
+                solicitud.empleado_id,
+                solicitud.fecha_inicio,
+                solicitud.fecha_fin,
+            )
+            tress_payload = {
+                "no_empleado": int(no_empleado_solicitante),
+                "fecha_inicio": str(solicitud.fecha_inicio),
+                "fecha_fin": str(solicitud.fecha_fin),
+                "dias_gozo": dias,
+                "dias_pago": dias,
+            }
+            try:
+                tress_result = await registrar_vacaciones_en_tress(
+                    no_empleado=int(no_empleado_solicitante),
+                    fecha_inicio=solicitud.fecha_inicio,
+                    fecha_fin=solicitud.fecha_fin,
+                    dias_gozo=dias,
+                    dias_pago=dias,
+                )
+            except LeoniException as exc:
+                # Commit en sesion propia YA (no BackgroundTask): en 4xx/5xx Starlette
+                # no ejecuta tasks y el rollback del request borraria un log sincrono.
+                await audit_logger_mod._log_action_background(
+                    accion="TRESS_VACACIONES_INSERT_FAILED",
+                    modulo="solicitudes",
+                    usuario_id=current_user.id,
+                    entidad_id=solicitud_id,
+                    datos_antes={
+                        "estado": solicitud.estado,
+                        **tress_payload,
+                    },
+                    datos_despues={
+                        "ok": False,
+                        "error": exc.detail,
+                        "codigo": exc.code,
+                    },
+                )
+                raise
+
+            tress_vacacion_llave = getattr(tress_result, "nueva_llave", None)
+            audit_background(
+                background_tasks=background_tasks,
+                db=self.db,
+                accion="TRESS_VACACIONES_INSERT_OK",
+                modulo="solicitudes",
+                usuario_id=current_user.id,
+                entidad_id=solicitud_id,
+                datos_antes=tress_payload,
+                datos_despues={
+                    "ok": True,
+                    "nueva_llave": tress_vacacion_llave,
+                    "mensaje": getattr(tress_result, "mensaje", None),
+                },
+            )
+
         if not await self.repo.marcar_estado_aprobada_si_pending(solicitud_id):
             raise ConflictError(
                 detail="La solicitud ya no esta pendiente; no se puede completar la aprobacion."
@@ -967,17 +1029,18 @@ class SolicitudService:
             "comentario": aprobacion.comentario,
         })
 
-        accion_tress = _TRESS_ACCION_MAP.get(solicitud.tipo, "REGISTRAR_VACACIONES")
-        await encolar_tress(
-            db=self.db,
-            accion=accion_tress,
-            payload={
-                "empleado_num": no_empleado_solicitante,
-                "fecha_inicio": str(solicitud.fecha_inicio),
-                "fecha_fin": str(solicitud.fecha_fin),
-                "referencia_id": solicitud.id,
-            },
-        )
+        if solicitud.tipo != "vacaciones":
+            accion_tress = _TRESS_ACCION_MAP.get(solicitud.tipo, "REGISTRAR_VACACIONES")
+            await encolar_tress(
+                db=self.db,
+                accion=accion_tress,
+                payload={
+                    "empleado_num": no_empleado_solicitante,
+                    "fecha_inicio": str(solicitud.fecha_inicio),
+                    "fecha_fin": str(solicitud.fecha_fin),
+                    "referencia_id": solicitud.id,
+                },
+            )
 
         await self._cancelar_reservas_comedor_si_vacaciones_aprobadas(
             solicitud=solicitud,
@@ -1018,6 +1081,11 @@ class SolicitudService:
                 "estado": ESTADO_SOLICITUD_APROBADA,
                 "aprobador_id": current_user.id,
                 "solicitud_aprobacion_id": aprob_row.id,
+                **(
+                    {"tress_vacacion_llave": tress_vacacion_llave}
+                    if solicitud.tipo == "vacaciones"
+                    else {}
+                ),
             },
         )
 

@@ -41,7 +41,7 @@ export function solicitudDetalleShellHtml(): string {
       role="presentation"
     >
       <div
-        class="flex max-h-[min(94vh,920px)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-white to-slate-50/40 shadow-[0_34px_80px_-20px_rgba(15,23,42,0.28)] [color-scheme:light] sm:max-w-2xl"
+        class="relative flex max-h-[min(94vh,920px)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-white to-slate-50/40 shadow-[0_34px_80px_-20px_rgba(15,23,42,0.28)] [color-scheme:light] sm:max-w-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="rh-sd-title"
@@ -66,6 +66,20 @@ export function solicitudDetalleShellHtml(): string {
           </div>
         </header>
         <div id="rh-sd-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-6"></div>
+        <div
+          id="rh-sd-tress-loading"
+          class="absolute inset-0 z-10 hidden flex-col items-center justify-center gap-3 bg-white/90 px-6 text-center backdrop-blur-[2px]"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <svg class="size-8 animate-spin text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <p id="rh-sd-tress-loading-title" class="text-base font-semibold text-[var(--color-primary)]">${escapeHtml(SD_COPY.agregandoVacaciones)}</p>
+          <p class="max-w-xs text-sm text-slate-500">${escapeHtml(SD_COPY.agregandoVacacionesHint)}</p>
+        </div>
       </div>
     </div>`;
 }

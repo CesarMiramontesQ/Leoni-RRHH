@@ -1,9 +1,12 @@
 """
-Cliente de solo lectura hacia SQL Server ``datos-analisis``.
+Cliente hacia SQL Server ``datos-analisis`` / TRESS.
 
 Coexiste con la conexión principal de la app (``app.core.database`` / ``DATABASE_URL``)
 y con la de Bono; no comparte motor, pool ni sesión con ellas. Usa el dialecto
 ``mssql+aioodbc`` (ODBC Driver 18, instalado en la imagen del backend).
+
+La misma conexión sirve para lectura (saldos) y escritura (INSERT vacaciones al aprobar);
+el usuario ODBC debe tener los permisos necesarios en producción.
 """
 
 from __future__ import annotations
@@ -17,8 +20,7 @@ from app.core.db_engine_utils import build_mssql_aioodbc_url
 
 class DatosAnalisisReadClient:
     """
-    Segunda conexión SQL Server exclusiva para lectura sobre la BD configurada con
-    ``DATOS_ANALISIS_DB_*``.
+    Segunda conexión SQL Server sobre la BD configurada con ``DATOS_ANALISIS_DB_*``.
     """
 
     @staticmethod
@@ -39,6 +41,22 @@ class DatosAnalisisReadClient:
         if not url:
             return None
         return create_async_engine(url, pool_pre_ping=True)
+
+    @staticmethod
+    def create_write_engine() -> AsyncEngine | None:
+        """
+        Motor async en AUTOCOMMIT para batches T-SQL con BEGIN/COMMIT propios.
+
+        El llamador debe ``await engine.dispose()`` al terminar.
+        """
+        url = DatosAnalisisReadClient.build_async_database_url()
+        if not url:
+            return None
+        return create_async_engine(
+            url,
+            pool_pre_ping=True,
+            isolation_level="AUTOCOMMIT",
+        )
 
     @staticmethod
     async def run_connection_self_test() -> tuple[bool, str]:
@@ -69,6 +87,9 @@ class DatosAnalisisReadClient:
         finally:
             await engine.dispose()
 
+
+# Alias de intención para callers de escritura
+DatosAnalisisWriteClient = DatosAnalisisReadClient
 
 # Alias explícito para quien prefiera nombre de “conexión” en singular
 datos_analisis_read_client = DatosAnalisisReadClient

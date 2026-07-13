@@ -129,13 +129,18 @@ class Settings(BaseSettings):
     # TRESS SQL Server (Windows only)
     TRESS_ODBC_CONN: str = ""
 
-    # SQL Server datos-analisis (solo lectura; conexión on-demand)
+    # SQL Server datos-analisis / TRESS (lectura de saldos + escritura de vacaciones)
     DATOS_ANALISIS_DB_HOST: str = ""
     DATOS_ANALISIS_DB_PORT: int = 1433
     DATOS_ANALISIS_DB_NAME: str = ""
     DATOS_ANALISIS_DB_USER: str = ""
     DATOS_ANALISIS_DB_PASSWORD: str = ""
     DATOS_ANALISIS_DB_DRIVER: str = "ODBC Driver 18 for SQL Server"
+
+    # Vacaciones → TRESS (INSERT dbo.VACACION al aprobar)
+    TRESS_VACACIONES_NOM_TIPO: int = 1
+    TRESS_VACACIONES_US_CODIGO: str = "49"
+    TRESS_VACACIONES_DRY_RUN: bool = False
 
     # IT Mirror DB
     IT_MIRROR_DB_URL: str = ""
