@@ -156,6 +156,7 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
       - obtener_saldo_gozo_tress: saldo TRESS (datos-analisis) alto por defecto (999),
         para que las creaciones de vacaciones no fallen con 503; los tests que necesiten
         otro valor lo sobreescriben con monkeypatch.
+      - registrar_vacaciones_en_tress: INSERT TRESS al aprobar; mockeado OK por defecto.
     """
 
     async def override_get_db():
@@ -178,6 +179,11 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             "app.services.vacaciones_service.obtener_saldo_gozo_tress",
             new_callable=AsyncMock,
             return_value=999.0,
+        ),
+        patch(
+            "app.services.solicitud_service.registrar_vacaciones_en_tress",
+            new_callable=AsyncMock,
+            return_value=None,
         ),
     ):
         async with AsyncClient(

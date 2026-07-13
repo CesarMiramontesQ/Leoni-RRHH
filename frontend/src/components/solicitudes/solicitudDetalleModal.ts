@@ -78,18 +78,31 @@ export function mountSolicitudDetalleModal(
     el.classList.add("hidden");
   }
 
-  function setActionBusy(on: boolean): void {
+  function setTressLoadingOverlay(on: boolean): void {
+    const el = host.querySelector("#rh-sd-tress-loading") as HTMLElement | null;
+    if (!el) return;
+    el.classList.toggle("hidden", !on);
+    el.classList.toggle("flex", on);
+    el.setAttribute("aria-busy", on ? "true" : "false");
+  }
+
+  function setActionBusy(on: boolean, opts?: { agregandoVacaciones?: boolean }): void {
     busy = on;
+    const agregandoVacaciones = opts?.agregandoVacaciones === true;
+    setTressLoadingOverlay(on && agregandoVacaciones);
     const banner = host.querySelector("#rh-sd-busy-banner") as HTMLElement | null;
     if (banner) {
-      banner.textContent = on ? SD_COPY.procesando : "";
-      banner.classList.toggle("hidden", !on);
+      const showBanner = on && !agregandoVacaciones;
+      banner.textContent = showBanner ? SD_COPY.procesando : "";
+      banner.classList.toggle("hidden", !showBanner);
     }
     const ids = ["rh-sd-btn-aprobar", "rh-sd-btn-cambios", "rh-sd-btn-rechazar"];
     for (const id of ids) {
       const b = host.querySelector(`#${id}`) as HTMLButtonElement | null;
       if (b) b.disabled = on;
     }
+    const closeBtn = host.querySelector("[data-rh-sd-close]") as HTMLButtonElement | null;
+    if (closeBtn) closeBtn.disabled = on;
     const toggle = host.querySelector("#rh-sd-toggle-internal") as HTMLButtonElement | null;
     if (toggle) toggle.disabled = on;
     const ta = host.querySelector("#rh-sd-internal-ta") as HTMLTextAreaElement | null;
@@ -130,7 +143,8 @@ export function mountSolicitudDetalleModal(
       return;
     }
 
-    setActionBusy(true);
+    const agregandoVacaciones = accion === "aprobar" && fila.tipo === "vacaciones";
+    setActionBusy(true, { agregandoVacaciones });
     try {
       const res = await ejecutarDecisionSolicitudSubmit(
         { solicitudId, accion, comentario_interno },
