@@ -75,7 +75,6 @@ export type PerfilPuestoCreatePayload = {
   area: string;
   area_id: number;
   grado_ids: number[];
-  tipo: TipoPuestoPerfil;
 };
 
 export type PerfilPuestoUpdatePayload = {
@@ -84,7 +83,6 @@ export type PerfilPuestoUpdatePayload = {
   area?: string;
   area_id?: number;
   grado_ids?: number[];
-  tipo?: TipoPuestoPerfil;
 };
 
 // ── Respuesta de generacion IA ────────────────────────────────────────

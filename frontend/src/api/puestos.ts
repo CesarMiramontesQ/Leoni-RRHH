@@ -153,7 +153,6 @@ export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<
     nombre: payload.nombre_puesto,
     area_id: payload.area_id,
     grado_ids: payload.grado_ids,
-    tipo: payload.tipo,
   };
   const res = await fetchWithAuth("/api/v1/puestos-perfil", {
     method: "POST",
@@ -171,7 +170,6 @@ export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayloa
   if (payload.nombre_puesto) body.nombre = payload.nombre_puesto;
   if (payload.grado_ids !== undefined) body.grado_ids = payload.grado_ids;
   if (payload.area_id !== undefined) body.area_id = payload.area_id;
-  if (payload.tipo !== undefined) body.tipo = payload.tipo;
   const res = await fetchWithAuth(`/api/v1/puestos-perfil/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
