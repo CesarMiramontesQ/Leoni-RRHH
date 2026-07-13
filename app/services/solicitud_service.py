@@ -577,9 +577,16 @@ class SolicitudService:
         return total
 
     async def obtener_disponible_vacaciones(
-        self, *, empleado_id: int, current_user: Empleado
+        self,
+        *,
+        empleado_id: int,
+        current_user: Empleado,
+        exclude_solicitud_id: int | None = None,
     ) -> VacacionesDisponibleSolicitudResponse:
         """Días disponibles para solicitar = saldo TRESS − comprometidos en curso.
+
+        ``exclude_solicitud_id`` omite esa solicitud al sumar comprometidos (útil en
+        detalle de una pendiente: saldo *antes* de esa solicitud).
 
         Bloquea (503) si TRESS no está disponible (vía ``obtener_saldo_real``).
         """
@@ -587,7 +594,9 @@ class SolicitudService:
             empleado_id, current_user
         )
         saldo_tress = saldo_resp.saldo_gozo_total or 0.0
-        comprometidos = await self._dias_vacaciones_comprometidos(empleado_id)
+        comprometidos = await self._dias_vacaciones_comprometidos(
+            empleado_id, exclude_solicitud_id=exclude_solicitud_id
+        )
         return VacacionesDisponibleSolicitudResponse(
             empleado_id=empleado_id,
             no_empleado=saldo_resp.no_empleado,

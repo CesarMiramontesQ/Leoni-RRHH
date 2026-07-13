@@ -43,6 +43,7 @@ import {
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import {
   applyRhModalLiveFeedback,
+  buildEmpleadoListboxHtml,
   buildFormHtml,
   buildInfoHomeOfficeHtml,
   buildInfoVacacionesHtml,
@@ -146,6 +147,11 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let lastSearchQ = "";
   let empleadoSearchQ = "";
+  let empleadoListboxOpen = false;
+  let empleadoSearchLoading = false;
+  let empleadoHighlightIndex = -1;
+  /** Invalida respuestas de búsqueda obsoletas al escribir rápido. */
+  let empleadoSearchSeq = 0;
   /** Personal vs equipo (solo supervisor cuando `supervisorSolicitudSubjectSelector`). */
   let solicitudSubjectSupervisor: SupervisorSolicitudSujeto = "personal";
 
@@ -312,6 +318,57 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     };
   }
 
+  function restoreEmpleadoSearchFocus(caret?: number): void {
+    const q = host.querySelector("#rh-nr-empleado-q") as HTMLInputElement | null;
+    if (!q) return;
+    q.focus();
+    const pos = caret ?? q.value.length;
+    try {
+      q.setSelectionRange(pos, pos);
+    } catch {
+      /* type=search en algunos navegadores */
+    }
+  }
+
+  /** Actualiza solo el listbox/ARIA sin recrear el input (evita saltos de cursor). */
+  function syncEmpleadoListboxDom(): void {
+    const wrap = host.querySelector("[data-rh-nr-empleado-combobox]");
+    const input = host.querySelector("#rh-nr-empleado-q") as HTMLInputElement | null;
+    if (!wrap) return;
+    const selectedId =
+      (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ?? "";
+    const html = buildEmpleadoListboxHtml({
+      items: listaEmpleadosParaSelector(),
+      selectedId,
+      highlightIndex: empleadoHighlightIndex,
+      loading: empleadoSearchLoading,
+      query: empleadoSearchQ,
+      open: empleadoListboxOpen,
+    });
+    const existing = wrap.querySelector("#rh-nr-empleado-listbox");
+    if (existing) existing.outerHTML = html;
+    else wrap.insertAdjacentHTML("beforeend", html);
+
+    if (input) {
+      input.setAttribute("aria-expanded", empleadoListboxOpen ? "true" : "false");
+      if (empleadoListboxOpen && empleadoHighlightIndex >= 0) {
+        input.setAttribute(
+          "aria-activedescendant",
+          `rh-nr-empleado-opt-${empleadoHighlightIndex}`,
+        );
+      } else {
+        input.removeAttribute("aria-activedescendant");
+      }
+    }
+  }
+
+  function selectedEmpleadoItemFromId(selectedId: string): UsuarioListItem | null {
+    if (!selectedId.trim()) return null;
+    const idNum = Number.parseInt(selectedId, 10);
+    if (!Number.isFinite(idNum)) return null;
+    return empleadoEnCache(idNum) ?? listaEmpleadosParaSelector().find((u) => u.id === idNum) ?? null;
+  }
+
   async function loadEmpleados(q: string): Promise<void> {
     try {
       const pg = await getEmpleadosPage({ page: 1, page_size: 100, q: q.trim(), activo: true });
@@ -452,6 +509,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       contextoHoPuedeSolicitarMes,
     );
     const itemsParaSelector = listaEmpleadosParaSelector();
+    const selectedItem = selectedEmpleadoItemFromId(selectedEmpleadoId);
 
     modalBody.innerHTML = buildFormHtml({
       tipo,
@@ -459,7 +517,11 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       showUnpaidLeaveType: options.allowUnpaidLeaveType === true,
       items: itemsParaSelector,
       selectedEmpleadoId,
+      selectedEmpleadoItem: selectedItem,
       empleadoSearchQ,
+      empleadoListboxOpen,
+      empleadoSearchLoading,
+      empleadoHighlightIndex,
       fechaInicio: fechaInicioEff,
       fechaFin,
       motivo,
@@ -488,7 +550,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         ? "La solicitud queda registrada a tu nombre. No puedes elegir otro colaborador en este modo."
         : undefined,
       empleadoBusquedaAyuda: supervisorSolicitudEquipo ?
-        "Busca a un colaborador de tu equipo según tu alcance en el directorio. Tu propio usuario no aparece en el listado."
+        "Escribe nombre o número de un colaborador de tu equipo. Elige de la lista; tu propio usuario no aparece."
       : undefined,
       supervisorOcultarPermisoSinGoceEnTipo:
         showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "personal" ? true : undefined,
@@ -501,7 +563,6 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   function bindFormInteractions(): void {
     const form = host.querySelector("#rh-nr-form") as HTMLFormElement | null;
     const qInput = host.querySelector("#rh-nr-empleado-q") as HTMLInputElement | null;
-    const sel = host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null;
     const inicio = host.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
     const fin = host.querySelector("#rh-nr-fin") as HTMLInputElement | null;
     const motivo = host.querySelector("#rh-nr-motivo") as HTMLTextAreaElement | null;
@@ -539,6 +600,27 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           inicio.value = rango.fechaInicio;
           fin.value = rango.fechaFin;
         }
+      }
+    }
+
+    async function aplicarSeleccionEmpleado(empleadoIdRaw: string): Promise<void> {
+      const snapEmp = readFormSnapshot();
+      try {
+        if (empleadoIdRaw === "") {
+          await refreshContextForEmpleado(null);
+        } else {
+          const id = Number.parseInt(empleadoIdRaw, 10);
+          await refreshContextForEmpleado(Number.isFinite(id) ? id : null);
+        }
+        renderForm({
+          selectedId: empleadoIdRaw,
+          fechaInicio: snapEmp.fechaInicio,
+          fechaFin: snapEmp.fechaFin,
+          motivo: snapEmp.motivo,
+        });
+        hideError();
+      } catch {
+        showError("No se pudo actualizar la información del empleado.");
       }
     }
 
@@ -596,12 +678,15 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           solicitudSubjectSupervisor = v;
           empleadoSearchQ = "";
           lastSearchQ = "";
+          empleadoListboxOpen = false;
+          empleadoSearchLoading = false;
+          empleadoHighlightIndex = -1;
           hideError();
           const snapSubject = readFormSnapshot();
           void (async (): Promise<void> => {
             try {
               if (v === "team") {
-                await loadEmpleados("");
+                empleadosCache = [];
                 renderForm({
                   selectedId: "",
                   fechaInicio: snapSubject.fechaInicio,
@@ -637,58 +722,135 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       );
     });
 
-    if (sel) {
-      qInput?.addEventListener(
+    if (qInput) {
+      qInput.addEventListener(
         "input",
         () => {
           empleadoSearchQ = qInput.value;
           const q = qInput.value;
+          empleadoListboxOpen = q.trim().length >= 1;
+          empleadoHighlightIndex = -1;
           if (searchTimer) clearTimeout(searchTimer);
+          if (!empleadoListboxOpen) {
+            empleadoSearchLoading = false;
+            empleadoSearchSeq += 1;
+            syncEmpleadoListboxDom();
+            return;
+          }
+          empleadoSearchLoading = true;
+          syncEmpleadoListboxDom();
+          const seq = ++empleadoSearchSeq;
           searchTimer = setTimeout(async () => {
-            if (q === lastSearchQ) return;
-            lastSearchQ = q;
             try {
-              const prev = (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ?? "";
               await loadEmpleados(q);
-              renderForm({ selectedId: prev });
-              const pid = prev ? Number.parseInt(prev, 10) : NaN;
-              await refreshContextForEmpleado(Number.isFinite(pid) ? pid : null);
-              renderForm({ selectedId: prev });
+              if (seq !== empleadoSearchSeq) return;
+              const live =
+                (host.querySelector("#rh-nr-empleado-q") as HTMLInputElement | null)?.value ?? "";
+              if (live !== q) return;
+              empleadoSearchLoading = false;
+              empleadoListboxOpen = live.trim().length >= 1;
+              empleadoHighlightIndex = listaEmpleadosParaSelector().length > 0 ? 0 : -1;
+              lastSearchQ = q;
+              syncEmpleadoListboxDom();
             } catch {
+              if (seq !== empleadoSearchSeq) return;
+              empleadoSearchLoading = false;
+              syncEmpleadoListboxDom();
               showError("No se pudo cargar el listado de empleados.");
             }
-          }, 320);
+          }, 300);
         },
         { signal: options.signal },
       );
 
-      sel?.addEventListener(
-        "change",
+      qInput.addEventListener(
+        "keydown",
+        (e: KeyboardEvent) => {
+          const pool = listaEmpleadosParaSelector();
+          if (e.key === "Escape") {
+            if (!empleadoListboxOpen) return;
+            e.preventDefault();
+            e.stopPropagation();
+            empleadoListboxOpen = false;
+            empleadoHighlightIndex = -1;
+            syncEmpleadoListboxDom();
+            return;
+          }
+          if (!empleadoListboxOpen || pool.length === 0) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            empleadoHighlightIndex =
+              empleadoHighlightIndex < 0 ? 0 : Math.min(pool.length - 1, empleadoHighlightIndex + 1);
+            syncEmpleadoListboxDom();
+            return;
+          }
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            empleadoHighlightIndex =
+              empleadoHighlightIndex <= 0 ? 0 : empleadoHighlightIndex - 1;
+            syncEmpleadoListboxDom();
+            return;
+          }
+          if (e.key === "Enter") {
+            if (empleadoHighlightIndex < 0 || empleadoHighlightIndex >= pool.length) return;
+            e.preventDefault();
+            const picked = pool[empleadoHighlightIndex];
+            if (!picked) return;
+            empleadoListboxOpen = false;
+            empleadoSearchQ = "";
+            lastSearchQ = "";
+            empleadoHighlightIndex = -1;
+            void aplicarSeleccionEmpleado(String(picked.id));
+          }
+        },
+        { signal: options.signal },
+      );
+
+      const comboboxWrap = host.querySelector("[data-rh-nr-empleado-combobox]");
+      comboboxWrap?.addEventListener(
+        "mousedown",
+        (e) => {
+          const btn = (e.target as HTMLElement | null)?.closest?.(
+            "[data-rh-nr-empleado-pick]",
+          ) as HTMLElement | null;
+          if (!btn) return;
+          e.preventDefault();
+          const id = btn.getAttribute("data-rh-nr-empleado-pick") ?? "";
+          if (!id) return;
+          empleadoListboxOpen = false;
+          empleadoSearchQ = "";
+          lastSearchQ = "";
+          empleadoHighlightIndex = -1;
+          void aplicarSeleccionEmpleado(id);
+        },
+        { signal: options.signal },
+      );
+
+      host.querySelector("[data-rh-nr-empleado-clear]")?.addEventListener(
+        "click",
         () => {
-          const v = sel.value;
-          const snapEmp = readFormSnapshot();
-          void (async (): Promise<void> => {
-            try {
-              if (v === "") {
-                await refreshContextForEmpleado(null);
-              } else {
-                const id = Number.parseInt(v, 10);
-                await refreshContextForEmpleado(Number.isFinite(id) ? id : null);
-              }
-              renderForm({
-                selectedId: v,
-                fechaInicio: snapEmp.fechaInicio,
-                fechaFin: snapEmp.fechaFin,
-                motivo: snapEmp.motivo,
-              });
-              hideError();
-            } catch {
-              showError("No se pudo actualizar la información del empleado.");
-            }
+          empleadoSearchQ = "";
+          lastSearchQ = "";
+          empleadoListboxOpen = false;
+          empleadoHighlightIndex = -1;
+          empleadoSearchSeq += 1;
+          void (async () => {
+            await aplicarSeleccionEmpleado("");
+            restoreEmpleadoSearchFocus();
           })();
         },
         { signal: options.signal },
       );
+
+      const clickOutside = (e: MouseEvent) => {
+        const wrap = host.querySelector("[data-rh-nr-empleado-combobox]");
+        if (!wrap || !empleadoListboxOpen) return;
+        if (wrap.contains(e.target as Node)) return;
+        empleadoListboxOpen = false;
+        empleadoHighlightIndex = -1;
+        syncEmpleadoListboxDom();
+      };
+      document.addEventListener("mousedown", clickOutside, { signal: options.signal });
     }
 
     inicio?.addEventListener(
@@ -1074,20 +1236,18 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           const abreSupervisorPersonal =
             showSupervisorSujeto && solicitudSubjectSupervisor === "personal";
 
+          empleadoSearchQ = "";
+          lastSearchQ = "";
+          empleadoListboxOpen = false;
+          empleadoSearchLoading = false;
+          empleadoHighlightIndex = -1;
+
           if (abreSupervisorPersonal) {
             empleadosCache = [];
-          } else {
-            await loadEmpleados("");
-            if (prefill != null && !empleadosCache.some((u) => u.id === prefill)) {
-              await loadEmpleados(String(prefill));
-            }
-            const poolAbierto = listaEmpleadosParaSelector();
-            if (prefill != null && !poolAbierto.some((u) => u.id === prefill)) {
-              await loadEmpleados(String(prefill));
-            }
+          } else if (prefill != null) {
+            await loadEmpleados(String(prefill));
             const poolFinal = listaEmpleadosParaSelector();
-            selectedId =
-              prefill != null && poolFinal.some((u) => u.id === prefill) ? String(prefill) : "";
+            selectedId = poolFinal.some((u) => u.id === prefill) ? String(prefill) : "";
           }
 
           const today = new Date();
@@ -1107,7 +1267,9 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                 : null;
           await refreshContextForEmpleado(ctxEmpDir);
           (
-            host.querySelector(abreSupervisorPersonal ? "#rh-nr-inicio" : "#rh-nr-empleado") as HTMLElement | null
+            host.querySelector(
+              abreSupervisorPersonal ? "#rh-nr-inicio" : "#rh-nr-empleado-q",
+            ) as HTMLElement | null
           )?.focus();
         } else {
           await refreshContextForEmpleado(fixedSelfId);

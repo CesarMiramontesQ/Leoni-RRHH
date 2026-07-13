@@ -7185,6 +7185,12 @@ paths:
           required: true
           schema:
             type: integer
+        - name: excluir_solicitud_id
+          in: query
+          required: false
+          description: Excluir solicitud al sumar comprometidos (detalle de una pendiente)
+          schema:
+            type: integer
       responses:
         "200":
           description: Días disponibles para solicitar

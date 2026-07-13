@@ -75,6 +75,45 @@ async def test_disponible_resta_solicitudes_en_curso(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_disponible_excluir_solicitud_id(client: AsyncClient, db):
+    emp = await make_empleado(db, rol="empleado", email="disp-ex@test", dias_vacaciones=0)
+    sol = await make_solicitud(
+        db,
+        empleado_id=emp.id,
+        tipo="vacaciones",
+        estado="pending",
+        fecha_inicio=date(2026, 6, 1),
+        fecha_fin=date(2026, 6, 3),  # 3 días
+    )
+    await make_solicitud(
+        db,
+        empleado_id=emp.id,
+        tipo="vacaciones",
+        estado="pending",
+        fecha_inicio=date(2026, 7, 1),
+        fecha_fin=date(2026, 7, 2),  # 2 días (siguen comprometidos)
+    )
+    headers = await auth_headers(client, emp)
+
+    sin_excluir = await client.get(
+        f"/api/v1/empleados/{emp.id}/vacaciones-disponibles-solicitud", headers=headers
+    )
+    assert sin_excluir.status_code == 200
+    assert sin_excluir.json()["dias_comprometidos"] == 5
+    assert sin_excluir.json()["dias_disponibles"] == 994.0
+
+    con_excluir = await client.get(
+        f"/api/v1/empleados/{emp.id}/vacaciones-disponibles-solicitud",
+        params={"excluir_solicitud_id": sol.id},
+        headers=headers,
+    )
+    assert con_excluir.status_code == 200
+    body = con_excluir.json()
+    assert body["dias_comprometidos"] == 2
+    assert body["dias_disponibles"] == 997.0
+
+
+@pytest.mark.asyncio
 async def test_crear_bloquea_saldo_insuficiente(client: AsyncClient, db, set_saldo_tress):
     set_saldo_tress(3.0)
     emp = await make_empleado(db, rol="empleado", email="insuf@test", dias_vacaciones=0)

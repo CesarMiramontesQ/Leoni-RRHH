@@ -155,6 +155,96 @@ export function buildEmpleadoOptions(
   return head + rest;
 }
 
+/** Listbox de resultados bajo el buscador (combobox server-side). */
+export function buildEmpleadoListboxHtml(opts: {
+  items: readonly UsuarioListItem[];
+  selectedId: string;
+  highlightIndex: number;
+  loading: boolean;
+  query: string;
+  open: boolean;
+}): string {
+  if (!opts.open) {
+    return `<ul id="rh-nr-empleado-listbox" role="listbox" hidden class="hidden" aria-label="Resultados de empleados"></ul>`;
+  }
+  const q = opts.query.trim();
+  let body: string;
+  if (q.length < 1) {
+    body = `<li class="px-3 py-2.5 text-xs text-slate-500" role="presentation">Escribe al menos un carácter para buscar.</li>`;
+  } else if (opts.loading) {
+    body = `<li class="px-3 py-2.5 text-xs text-slate-500" role="presentation">Buscando…</li>`;
+  } else if (opts.items.length === 0) {
+    body = `<li class="px-3 py-2.5 text-xs text-slate-500" role="presentation">No se encontraron coincidencias.</li>`;
+  } else {
+    body = opts.items
+      .map((u, i) => {
+        const v = String(u.id);
+        const active = i === opts.highlightIndex;
+        const selected = v === opts.selectedId;
+        const name = formatNombreEmpleadoUi(u.nombre).trim() || u.nombre.trim() || "Sin nombre";
+        const no = formatNoEmpleadoDisplay(u.no_empleado);
+        const area = u.area?.descripcion?.trim() || "—";
+        const rowCls = active || selected
+          ? "bg-leoni-blue/[0.08] text-slate-900"
+          : "text-slate-800 hover:bg-slate-50";
+        return `
+        <li role="option" id="rh-nr-empleado-opt-${i}" aria-selected="${active || selected ? "true" : "false"}">
+          <button
+            type="button"
+            data-rh-nr-empleado-pick="${escapeHtml(v)}"
+            data-option-index="${i}"
+            class="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors ${rowCls}"
+          >
+            <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+              ${escapeHtml(name.slice(0, 2).toUpperCase())}
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-semibold">${escapeHtml(name)}</span>
+              <span class="mt-0.5 block truncate text-xs text-slate-500">${escapeHtml(no)} · ${escapeHtml(area)}</span>
+            </span>
+            ${
+              selected
+                ? `<span class="mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue text-white" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="currentColor" class="size-3"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-8 8a1 1 0 0 1-1.42-.007l-4-4a1 1 0 0 1 1.414-1.414l3.293 3.294 7.293-7.294a1 1 0 0 1 1.414.007Z" clip-rule="evenodd"/></svg>
+                  </span>`
+                : ""
+            }
+          </button>
+        </li>`;
+      })
+      .join("");
+  }
+  return `
+    <ul
+      id="rh-nr-empleado-listbox"
+      role="listbox"
+      aria-label="Resultados de empleados"
+      class="absolute left-0 right-0 z-30 mt-1.5 max-h-52 overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white py-1 shadow-md shadow-slate-900/10"
+    >${body}</ul>`;
+}
+
+export function buildEmpleadoSeleccionadoCardHtml(u: UsuarioListItem | null): string {
+  if (!u) return "";
+  const name = formatNombreEmpleadoUi(u.nombre).trim() || u.nombre.trim() || "Sin nombre";
+  const no = formatNoEmpleadoDisplay(u.no_empleado);
+  const area = u.area?.descripcion?.trim() || "—";
+  return `
+    <div class="flex items-start gap-3 rounded-xl border border-leoni-blue/25 bg-leoni-blue/[0.04] px-3.5 py-3" data-rh-nr-empleado-selected>
+      <span class="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue/15 text-xs font-semibold text-leoni-blue">
+        ${escapeHtml(name.slice(0, 2).toUpperCase())}
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-semibold text-slate-900">${escapeHtml(name)}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500">${escapeHtml(no)} · ${escapeHtml(area)}</p>
+      </div>
+      <button
+        type="button"
+        data-rh-nr-empleado-clear
+        class="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40"
+      >Cambiar</button>
+    </div>`;
+}
+
 function iconSvgVacaciones(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5 shrink-0" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z" />
@@ -297,7 +387,13 @@ export type RhNewRequestFormParams = {
   showUnpaidLeaveType?: boolean;
   items: UsuarioListItem[];
   selectedEmpleadoId: string;
+  /** Ficha del colaborador elegido (puede no estar en `items` tras otra búsqueda). */
+  selectedEmpleadoItem?: UsuarioListItem | null;
   empleadoSearchQ: string;
+  /** Listbox abierto (resultados bajo el buscador). */
+  empleadoListboxOpen?: boolean;
+  empleadoSearchLoading?: boolean;
+  empleadoHighlightIndex?: number;
   fechaInicio: string;
   fechaFin: string;
   motivo: string;
@@ -475,11 +571,31 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
   const empleadoTituloSeccion = revision ? "Colaborador de la solicitud" : "Solicitante";
   const empleadoSectionIntro =
     (p.empleadoBusquedaAyuda ?? "").trim() ||
-    "Busca y selecciona la persona para la que registras la solicitud.";
+    "Escribe el nombre o número y elige de la lista. No hace falta abrir un desplegable aparte.";
 
   const supervisorSujetoSection =
     p.showSupervisorSolicitudSubject && !revision
       ? buildSupervisorSolicitudSubjectHtml(p.supervisorSolicitudSubject ?? "personal")
+      : "";
+
+  const selectedFromItems =
+    p.selectedEmpleadoItem ??
+    (p.selectedEmpleadoId.trim() !== ""
+      ? (p.items.find((u) => String(u.id) === p.selectedEmpleadoId) ?? null)
+      : null);
+  const listboxOpen = p.empleadoListboxOpen === true;
+  const listboxHtml = buildEmpleadoListboxHtml({
+    items: p.items,
+    selectedId: p.selectedEmpleadoId,
+    highlightIndex: p.empleadoHighlightIndex ?? -1,
+    loading: p.empleadoSearchLoading === true,
+    query: p.empleadoSearchQ,
+    open: listboxOpen,
+  });
+  const selectedCardHtml = buildEmpleadoSeleccionadoCardHtml(selectedFromItems);
+  const activeDescendant =
+    listboxOpen && (p.empleadoHighlightIndex ?? -1) >= 0
+      ? ` aria-activedescendant="rh-nr-empleado-opt-${p.empleadoHighlightIndex}"`
       : "";
 
   const empleadoBlock = selfMode
@@ -495,7 +611,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         <div class="space-y-3">
           <div>
             <label for="rh-nr-empleado-q" class="${LABEL}">Buscar empleado</label>
-            <div class="relative">
+            <div class="relative" data-rh-nr-empleado-combobox>
               ${searchIcon}
               <input
                 id="rh-nr-empleado-q"
@@ -503,24 +619,19 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
                 autocomplete="off"
                 role="combobox"
                 aria-autocomplete="list"
-                aria-expanded="false"
-                aria-controls="rh-nr-empleado"
+                aria-expanded="${listboxOpen ? "true" : "false"}"
+                aria-controls="rh-nr-empleado-listbox"
+                ${activeDescendant}
                 data-rh-nr-empleado-search
                 placeholder="Nombre o número de empleado…"
                 value="${escapeHtml(p.empleadoSearchQ)}"
                 class="${CONTROL} pl-10"
               />
+              ${listboxHtml}
             </div>
           </div>
-          <div>
-            <label for="rh-nr-empleado" class="${LABEL}">Empleado seleccionado</label>
-            <div class="grid grid-cols-1">
-              <select id="rh-nr-empleado" name="empleado_id" required class="col-start-1 row-start-1 ${CONTROL} cursor-pointer appearance-none pr-10 font-medium">
-                ${buildEmpleadoOptions(p.items, p.selectedEmpleadoId)}
-              </select>
-              ${NR_SELECT_CHEVRON}
-            </div>
-          </div>
+          ${selectedCardHtml}
+          <input type="hidden" name="empleado_id" id="rh-nr-empleado-id" value="${escapeHtml(p.selectedEmpleadoId)}" required />
         </div>
       </section>`;
 
@@ -953,11 +1064,11 @@ export function applyRhModalLiveFeedback(
   contextoVac: number | null,
   contextoHoPuedeSolicitarMes: boolean | null = null,
 ): void {
-  /** Empleado fijo: portal o corrección (hidden sin `<select>`). */
+  /** Empleado fijo: portal o corrección (hidden sin buscador). */
   const selfMode =
     modalHost.querySelector("#rh-nr-form[data-rh-nr-self]") != null ||
-    (modalHost.querySelector("#rh-nr-empleado-id") != null &&
-      modalHost.querySelector("#rh-nr-empleado") == null);
+    (modalHost.querySelector("#rh-nr-empleado-q") == null &&
+      modalHost.querySelector("#rh-nr-empleado-id") != null);
   const sel = modalHost.querySelector("#rh-nr-empleado") as HTMLSelectElement | null;
   const hid = modalHost.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null;
   const fi = modalHost.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
@@ -966,7 +1077,7 @@ export function applyRhModalLiveFeedback(
   const formEl = modalHost.querySelector("#rh-nr-form") as HTMLFormElement | null;
   if (!fi || !ff) return;
 
-  const empVal = selfMode ? (hid?.value ?? "") : (sel?.value ?? "");
+  const empVal = (hid?.value ?? "").trim() || (sel?.value ?? "").trim();
   const modoRevision = formEl?.hasAttribute("data-rh-nr-revision") === true;
   const empleadoEsAdministrativo =
     formEl?.hasAttribute("data-rh-nr-empleado-admin") === true ||

@@ -118,10 +118,14 @@ export type VacacionesDisponibleSolicitud = {
 
 export async function getEmpleadoVacacionesDisponiblesSolicitud(
   id: number,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; excluirSolicitudId?: number },
 ): Promise<VacacionesDisponibleSolicitud> {
+  const qs =
+    options?.excluirSolicitudId != null
+      ? `?excluir_solicitud_id=${encodeURIComponent(String(options.excluirSolicitudId))}`
+      : "";
   const res = await fetchWithAuth(
-    `/api/v1/empleados/${id}/vacaciones-disponibles-solicitud`,
+    `/api/v1/empleados/${id}/vacaciones-disponibles-solicitud${qs}`,
     { signal: options?.signal },
   );
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
