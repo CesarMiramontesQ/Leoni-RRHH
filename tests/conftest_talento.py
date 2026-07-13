@@ -27,10 +27,10 @@ from app.models.talento import (
     GrupoCompetencia,
     MetodoCalificacion,
     MetodoCalificacionCompetencia,
-    NivelPuesto,
     OpcionCalificacion,
     PerfilFunciones,
     PuestoPerfil,
+    PuestoPerfilGrado,
     TipoCualificacionCatalogo,
     TipoCompetencia,
 )
@@ -70,22 +70,6 @@ async def make_area(
     return area
 
 
-async def make_nivel_puesto(
-    db: AsyncSession,
-    *,
-    nombre: str | None = None,
-    activo: bool = True,
-) -> NivelPuesto:
-    """Factory para crear un NivelPuesto en el catalogo."""
-    uid = uuid.uuid4().hex[:6]
-    _nombre = nombre or f"Nivel Test {uid}"
-    nivel = NivelPuesto(nombre=_nombre, activo=activo)
-    db.add(nivel)
-    await db.flush()
-    await db.refresh(nivel)
-    return nivel
-
-
 async def make_grado_puesto(
     db: AsyncSession,
     *,
@@ -117,6 +101,34 @@ async def get_default_grado(db: AsyncSession) -> GradoPuesto:
     if grado:
         return grado
     return await make_grado_puesto(db, nombre="Grado 1", orden=1)
+
+
+async def make_grados_consecutivos(
+    db: AsyncSession,
+    *,
+    ordenes: list[int],
+) -> list[GradoPuesto]:
+    """
+    Factory para crear (o reusar) un conjunto de GradoPuesto activos con los
+    valores de `orden` exactos indicados.
+
+    Si ya existe un grado activo con un `orden` dado se reusa; si no, se crea
+    uno nuevo con nombre unico (nombre es unique en el catalogo). Devuelve la
+    lista ordenada por `orden`.
+    """
+    from sqlalchemy import select
+
+    grados: list[GradoPuesto] = []
+    for orden in ordenes:
+        result = await db.execute(
+            select(GradoPuesto).where(GradoPuesto.orden == orden, GradoPuesto.activo.is_(True))
+        )
+        grado = result.scalar_one_or_none()
+        if grado is None:
+            uid = uuid.uuid4().hex[:6]
+            grado = await make_grado_puesto(db, nombre=f"Grado O{orden} {uid}", orden=orden)
+        grados.append(grado)
+    return sorted(grados, key=lambda g: g.orden)
 
 
 METODOS_CALIFICACION_COMPETENCIA_SEED = [
@@ -169,7 +181,7 @@ async def make_puesto_perfil(
     codigo: str | None = None,
     nombre: str = "Ingeniero de Procesos",
     area_id: int | None = None,
-    nivel_id: int | None = None,
+    grado_ids: list[int] | None = None,
     descripcion: str | None = "Optimizar procesos de manufactura",
     version: int = 1,
     activo: bool = True,
@@ -181,6 +193,11 @@ async def make_puesto_perfil(
 
     Genera codigo unico automaticamente si no se proporciona (formato PRF-TEST-XXXXXX,
     dentro del limite de 20 chars del modelo).
+
+    Parametros:
+      - grado_ids: grados de progresion configurados para el perfil (filas
+        PuestoPerfilGrado). Si no se especifica, se usa el grado por defecto
+        (get_default_grado) para mantener compatibilidad con tests existentes.
     """
     uid = uuid.uuid4().hex[:6].upper()
     _codigo = codigo or f"PRF-T-{uid}"  # 10 chars, bien dentro de los 20 permitidos
@@ -188,17 +205,12 @@ async def make_puesto_perfil(
     # updated_by: default al mismo que created_by si no se especifica
     _updated_by = created_by if updated_by is _UNSET else updated_by
 
-    if nivel_id is None:
-        nivel = await make_nivel_puesto(db)
-        nivel_id = nivel.id
-
     await ensure_metodos_calificacion_competencia(db)
 
     perfil = PuestoPerfil(
         codigo=_codigo,
         nombre=nombre,
         area_id=area_id,
-        nivel_id=nivel_id,
         tipo="administrativo",
         descripcion=descripcion,
         version=version,
@@ -209,6 +221,15 @@ async def make_puesto_perfil(
     db.add(perfil)
     await db.flush()
     await db.refresh(perfil)
+
+    if grado_ids is None:
+        default_grado = await get_default_grado(db)
+        grado_ids = [default_grado.id]
+
+    for grado_id in grado_ids:
+        db.add(PuestoPerfilGrado(puesto_perfil_id=perfil.id, grado_id=grado_id))
+    await db.flush()
+
     return perfil
 
 
@@ -300,18 +321,24 @@ async def make_competencia_requisito(
     puesto_perfil_id: int,
     grado_id: int | None = None,
     nivel_requerido: int = 3,
+    general: bool = False,
 ) -> CompetenciaRequisito:
     """
     Factory para crear un CompetenciaRequisito (vincula competencia a puesto con nivel).
 
     Respeta:
       - UniqueConstraint(competencia_id, puesto_perfil_id, grado_id)
+      - Indice unico parcial (competencia_id, puesto_perfil_id) WHERE grado_id IS NULL
       - CheckConstraint(0 <= nivel_requerido <= 4)
 
     Parametros:
       - nivel_requerido: 0=N/A, 1=Basico, 2=Intermedio, 3=Avanzado, 4=Experto
+      - general: si True, crea el requisito como general (grado_id=None),
+        aplicable a todos los grados del perfil (ignora grado_id).
     """
-    if grado_id is None:
+    if general:
+        grado_id = None
+    elif grado_id is None:
         grado = await get_default_grado(db)
         grado_id = grado.id
     requisito = CompetenciaRequisito(

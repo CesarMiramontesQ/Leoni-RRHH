@@ -292,7 +292,7 @@ export function mountSupervisorIncidenciasChart(
           borderColor: border,
           borderWidth: 1,
           stack: "incidencias",
-          borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 4, bottomRight: 4 },
+          borderRadius: 0,
           borderSkipped: false,
         };
       }),

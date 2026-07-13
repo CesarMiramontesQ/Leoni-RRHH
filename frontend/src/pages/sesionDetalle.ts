@@ -17,6 +17,8 @@ import {
 } from "../ui/uiTokens.ts";
 import { getCursoById, getCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, updateCursoSesion, actualizarAsistencia } from "../api/cursos.ts";
 import type { EmpleadoElegible } from "../api/cursos.ts";
+import { getProveedores } from "../api/cursosCatalogo.ts";
+import type { Proveedor } from "../api/cursosCatalogo.ts";
 import { ESTADO_SESION_LABELS } from "../dashboard/cursos/types.ts";
 import type { Curso, CursoSesion, EstadoSesion, SesionEmpleadoItem, CursoSesionUpdatePayload } from "../dashboard/cursos/types.ts";
 import {
@@ -58,6 +60,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     searchQuery: string;
     searchResults: EmpleadoElegible[];
     searchLoading: boolean;
+    proveedoresCatalog: Proveedor[];
     showAddModal: boolean;
     showEditModal: boolean;
     encuesta: EncuestaEstado | null;
@@ -75,6 +78,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     searchQuery: "",
     searchResults: [],
     searchLoading: false,
+    proveedoresCatalog: [],
     showAddModal: false,
     showEditModal: false,
     encuesta: null,
@@ -87,14 +91,16 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
 
   async function loadData(): Promise<void> {
     try {
-      const [curso, sesion, empleados] = await Promise.all([
+      const [curso, sesion, empleados, proveedores] = await Promise.all([
         getCursoById(cursoId),
         getCursoSesion(cursoId, sesionId),
         getSesionEmpleados(cursoId, sesionId),
+        getProveedores({ page: 1, page_size: 200, solo_activos: true }),
       ]);
       state.curso = curso;
       state.sesion = sesion;
       state.empleados = empleados;
+      state.proveedoresCatalog = proveedores.items;
       state.error = null;
     } catch (err: unknown) {
       const e = err as { detail?: string };
@@ -258,7 +264,6 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
           <a href="#/cursos/${c.id}" class="${RH_LISTADO_BTN_GHOST} shrink-0 text-xs">Ver curso completo</a>
         </div>
         <div class="flex flex-wrap gap-x-6 gap-y-2 px-5 py-4 text-xs text-text-secondary sm:px-6">
-          ${c.proveedor_nombre ? `<span>Proveedor: <strong class="text-text-primary">${escapeHtml(c.proveedor_nombre)}</strong></span>` : ""}
           ${c.duracion_horas ? `<span>Duración: <strong class="text-text-primary">${c.duracion_horas}h</strong></span>` : ""}
           ${c.categoria_nombre ? `<span>Categoría: <strong class="text-text-primary">${escapeHtml(c.categoria_nombre)}</strong></span>` : ""}
           ${c.centro_costos ? `<span>Centro costos: <strong class="text-text-primary">${c.centro_costos}</strong></span>` : ""}
@@ -291,6 +296,7 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
             ${s.tipo ? sessionField("Tipo", s.tipo.charAt(0).toUpperCase() + s.tipo.slice(1)) : ""}
             ${s.ubicacion ? sessionField("Ubicación", s.ubicacion) : ""}
             ${s.instructor_nombre ? sessionField("Instructor", s.instructor_nombre) : ""}
+            ${s.proveedor_nombre ? sessionField("Proveedor", s.proveedor_nombre) : ""}
             ${s.costo != null ? sessionField("Costo", `$${s.costo.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`) : ""}
             ${sessionField("Cupo", cupoDisplay)}
             ${sessionField("Inscritos", String(state.empleados.length))}
@@ -500,6 +506,21 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
             </div>
           </div>
           <div>
+            <label class="${RH_LISTADO_LABEL}">Proveedor</label>
+            <div class="relative grid grid-cols-1">
+              <select name="proveedor_id" class="${MODAL_FIELD_CLS} appearance-none">
+                <option value="">— Sin proveedor —</option>
+                ${state.proveedoresCatalog.map((p) =>
+                  `<option value="${p.id}" ${s.proveedor_id === p.id ? "selected" : ""}>${escapeHtml(p.nombre)}</option>`
+                ).join("")}
+                ${s.proveedor_id != null && !state.proveedoresCatalog.some((p) => p.id === s.proveedor_id)
+                  ? `<option value="${s.proveedor_id}" selected>${escapeHtml(s.proveedor_nombre ?? "Proveedor")} (inactivo)</option>`
+                  : ""}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div>
             <label class="${RH_LISTADO_LABEL}">Notas</label>
             <textarea name="notas" rows="2" class="${MODAL_FIELD_CLS}">${escapeHtml(s.notas ?? "")}</textarea>
           </div>
@@ -581,6 +602,8 @@ export function mountSesionDetalle(container: HTMLElement, cursoId: number, sesi
     payload.ubicacion = ubicacion || undefined;
     const costo = fd.get("costo") as string;
     if (costo) payload.costo = Number(costo);
+    const proveedorId = fd.get("proveedor_id") as string;
+    payload.proveedor_id = proveedorId ? Number(proveedorId) : null;
     const notas = fd.get("notas") as string;
     payload.notas = notas || undefined;
 

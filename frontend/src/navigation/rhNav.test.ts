@@ -143,27 +143,18 @@ describe("rhNav sections", () => {
     expect(levelUpSection?.items.some((item) => item.key === "puestos-ajustes")).toBe(false);
   });
 
-  it("expone Cumplimiento como sección independiente sin duplicar ítems en Level Up", async () => {
+  it("no expone sección Cumplimiento; Evaluaciones vive dentro de Level Up", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sections = getVisibleRhNavSections("supervisor");
 
     const cumplimientoSection = sections.find((section) => section.id === "cumplimiento");
     const levelUpSection = sections.find((section) => section.id === "level-up");
 
-    expect(cumplimientoSection?.title).toBe("Cumplimiento");
-    expect(cumplimientoSection?.items.map((item) => item.key)).toEqual([
-      "evaluaciones",
-      "pdi-gestion",
-      "opls",
-      "evidencias",
-      "sugerencias",
-    ]);
-    expect(levelUpSection?.items.some((item) => item.key === "evaluaciones")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "opls")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "evidencias")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "sugerencias")).toBe(false);
+    expect(cumplimientoSection).toBeUndefined();
+    expect(levelUpSection?.items.some((item) => item.key === "evaluaciones")).toBe(true);
     expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "level-up")).toBe(true);
+    // "Resumen operativo" (key level-up) ya no se muestra en el submenú.
+    expect(levelUpSection?.items.some((item) => item.key === "level-up")).toBe(false);
   });
 
   it("conserva rutas y etiquetas originales de los ítems de Cursos", async () => {
@@ -227,46 +218,26 @@ describe("rhNav sections", () => {
     ]);
   });
 
-  it("conserva rutas y etiquetas originales de los ítems de Cumplimiento", async () => {
+  it("conserva ruta y etiqueta de Evaluaciones dentro de Level Up", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const cumplimientoSection = getVisibleRhNavSections("supervisor").find(
-      (section) => section.id === "cumplimiento",
+    const levelUpSection = getVisibleRhNavSections("supervisor").find(
+      (section) => section.id === "level-up",
     );
 
-    expect(cumplimientoSection?.items).toEqual([
+    expect(levelUpSection?.items).toContainEqual(
       expect.objectContaining({
         key: "evaluaciones",
         href: "#/evaluaciones",
         label: "Evaluaciones",
       }),
-      expect.objectContaining({
-        key: "pdi-gestion",
-        href: "#/pdi-gestion",
-        label: "Gestión PDI",
-      }),
-      expect.objectContaining({
-        key: "opls",
-        href: "#/opls",
-        label: "Manejo de OPLs",
-      }),
-      expect.objectContaining({
-        key: "evidencias",
-        href: "#/evidencias",
-        label: "Motor de Evidencias",
-      }),
-      expect.objectContaining({
-        key: "sugerencias",
-        href: "#/sugerencias",
-        label: "Motor de Sugerencias",
-      }),
-    ]);
+    );
   });
 
   it("ordena módulos de forma lógica para RH", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sectionIds = getVisibleRhNavSections("supervisor").map((section) => section.id);
 
-    expect(sectionIds).toEqual(["cursos", "puestos", "cumplimiento", "level-up"]);
+    expect(sectionIds).toEqual(["cursos", "puestos", "level-up"]);
   });
 
   it("omite Cursos cuando no hay ítems visibles", async () => {
@@ -294,16 +265,4 @@ describe("rhNav sections", () => {
     expect(sections.some((section) => section.id === "puestos")).toBe(false);
   });
 
-  it("omite Cumplimiento cuando no hay ítems visibles", async () => {
-    allowedModules.delete("evaluaciones");
-    allowedModules.delete("pdi-gestion");
-    allowedModules.delete("opls");
-    allowedModules.delete("evidencias");
-    allowedModules.delete("sugerencias");
-
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-
-    expect(sections.some((section) => section.id === "cumplimiento")).toBe(false);
-  });
 });

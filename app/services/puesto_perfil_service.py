@@ -19,17 +19,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import (
     ConflictError,
+    DomainValidationError,
     ForbiddenError,
     NotFoundError,
     ServiceUnavailableError,
 )
 from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
-from app.models.talento import PuestoPerfil
+from app.models.talento import GradoPuesto, PuestoPerfil
+from app.repositories.grado_puesto_repository import GradoPuestoRepository
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.schemas.talento import (
     GenerarPerfilIARequest,
     GenerarPerfilIAResponse,
+    GradoPerfilItem,
     PerfilTarjetaItem,
     PuestoPerfilCreate,
     PuestoPerfilListResponse,
@@ -37,7 +40,6 @@ from app.schemas.talento import (
     PuestoPerfilUpdate,
     ResumenTarjetasResponse,
 )
-from app.services.nivel_puesto_service import NivelPuestoService
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ class PuestoPerfilService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = PuestoPerfilRepository(db)
-        self.nivel_service = NivelPuestoService(db)
+        self.grado_repo = GradoPuestoRepository(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -55,15 +57,21 @@ class PuestoPerfilService:
         area_nombre = None
         if perfil.area:
             area_nombre = perfil.area.descripcion
-        nivel_nombre = perfil.nivel.nombre if perfil.nivel else ""
+        grados = sorted(
+            (
+                GradoPerfilItem(id=g.grado.id, nombre=g.grado.nombre, orden=g.grado.orden)
+                for g in perfil.grados_config
+                if g.grado
+            ),
+            key=lambda x: x.orden,
+        )
         return PuestoPerfilResponse(
             id=perfil.id,
             codigo=perfil.codigo,
             nombre=perfil.nombre,
             area_id=perfil.area_id,
             area_nombre=area_nombre,
-            nivel_id=perfil.nivel_id,
-            nivel_nombre=nivel_nombre,
+            grados=grados,
             tipo=perfil.tipo,
             descripcion=perfil.descripcion,
             version=perfil.version,
@@ -77,6 +85,34 @@ class PuestoPerfilService:
     @staticmethod
     def _get_rol(user: Empleado) -> str:
         return user.rol.nombre if user.rol else "empleado"
+
+    # ── Validadores de grados ─────────────────────────────────────────────────
+
+    async def _validar_grados_consecutivos(
+        self, grado_ids: list[int]
+    ) -> list[GradoPuesto]:
+        if len(set(grado_ids)) != len(grado_ids):
+            raise DomainValidationError("La lista de grados contiene duplicados")
+        grados = await self.grado_repo.get_activos_by_ids(grado_ids)
+        if len(grados) != len(grado_ids):
+            faltante = next(iter(set(grado_ids) - {g.id for g in grados}))
+            raise NotFoundError(entidad="GradoPuesto", id=faltante)
+        ordenes = sorted(g.orden for g in grados)
+        if ordenes[-1] - ordenes[0] + 1 != len(ordenes):
+            raise DomainValidationError(
+                f"Los grados del perfil deben ser consecutivos por orden (recibidos: {ordenes})"
+            )
+        return sorted(grados, key=lambda g: g.orden)
+
+    async def _validar_grados_libres_en_area(
+        self, area_id: int, grado_ids: list[int], exclude_id: int | None = None
+    ) -> None:
+        ocupados = await self.repo.grados_ocupados_en_area(area_id, grado_ids, exclude_id)
+        if ocupados:
+            detalle = "; ".join(
+                f"'{g}' ya pertenece al perfil '{p}'" for g, p in ocupados
+            )
+            raise ConflictError(detail=f"Grados ya usados en esta área: {detalle}")
 
     # ── Resumen Tarjetas ────────────────────────────────────────────────────
 
@@ -106,7 +142,7 @@ class PuestoPerfilService:
         page: int,
         page_size: int,
         area_id: int | None = None,
-        nivel_id: int | None = None,
+        grado_id: int | None = None,
         busqueda: str | None = None,
     ) -> PuestoPerfilListResponse:
         offset = (page - 1) * page_size
@@ -114,7 +150,7 @@ class PuestoPerfilService:
             offset=offset,
             limit=page_size,
             area_id=area_id,
-            nivel_id=nivel_id,
+            grado_id=grado_id,
             busqueda=busqueda,
         )
         return PuestoPerfilListResponse(
@@ -145,19 +181,19 @@ class PuestoPerfilService:
                 detail=f"Ya existe un perfil de puesto con el codigo '{data.codigo}'"
             )
 
-        # Verificar duplicado (nombre + nivel)
-        if await self.repo.exists_by_nombre_y_nivel(data.nombre, data.nivel_id):
+        # Verificar duplicado (nombre + area)
+        if await self.repo.exists_by_nombre_y_area(data.nombre, data.area_id):
             raise ConflictError(
-                detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}' y ese nivel"
+                detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}' en esa área"
             )
 
-        await self.nivel_service.validar_nivel_activo(data.nivel_id)
+        await self._validar_grados_consecutivos(data.grado_ids)
+        await self._validar_grados_libres_en_area(data.area_id, data.grado_ids)
 
         perfil = await self.repo.create({
             "codigo": data.codigo,
             "nombre": data.nombre,
             "area_id": data.area_id,
-            "nivel_id": data.nivel_id,
             "tipo": data.tipo,
             "descripcion": data.descripcion,
             "version": 1,
@@ -165,6 +201,7 @@ class PuestoPerfilService:
             "created_by": current_user.id,
             "updated_by": current_user.id,
         })
+        await self.repo.set_grados(perfil.id, data.grado_ids)
 
         # Reload with relations
         perfil = await self.repo.get_with_relations(perfil.id)
@@ -182,14 +219,44 @@ class PuestoPerfilService:
         if not perfil:
             raise NotFoundError(entidad="PuestoPerfil", id=id)
 
+        # Resolver valores efectivos (enviados o actuales)
         new_nombre = data.nombre if data.nombre is not None else perfil.nombre
-        new_nivel_id = data.nivel_id if data.nivel_id is not None else perfil.nivel_id
-        if await self.repo.exists_by_nombre_y_nivel(
-            new_nombre, new_nivel_id, exclude_id=id
+        new_area_id = data.area_id if data.area_id is not None else perfil.area_id
+        current_grado_ids = await self.repo.get_grado_ids(id)
+        new_grado_ids = (
+            data.grado_ids if data.grado_ids is not None else sorted(current_grado_ids)
+        )
+
+        # Duplicado (nombre + area)
+        if new_area_id is not None and await self.repo.exists_by_nombre_y_area(
+            new_nombre, new_area_id, exclude_id=id
         ):
             raise ConflictError(
-                detail=f"Ya existe un perfil de puesto con el nombre '{new_nombre}' y ese nivel"
+                detail=f"Ya existe un perfil de puesto con el nombre '{new_nombre}' en esa área"
             )
+
+        area_cambio = data.area_id is not None and data.area_id != perfil.area_id
+        grados_cambio = data.grado_ids is not None
+
+        # Validar consecutividad si cambian los grados
+        if grados_cambio:
+            await self._validar_grados_consecutivos(new_grado_ids)
+
+        # Validar grados libres en el area efectiva si cambian grados o area
+        if (grados_cambio or area_cambio) and new_area_id is not None:
+            await self._validar_grados_libres_en_area(
+                new_area_id, new_grado_ids, exclude_id=id
+            )
+
+        # No permitir quitar grados en uso (requisitos/tareas/asignaciones activas)
+        removidos = list(set(current_grado_ids) - set(new_grado_ids))
+        if removidos:
+            en_uso = await self.repo.grados_en_uso_por_perfil(id, removidos)
+            if en_uso:
+                detalle = ", ".join(f"{k}: {v}" for k, v in en_uso.items())
+                raise ConflictError(
+                    detail=f"No se pueden quitar grados en uso ({detalle})"
+                )
 
         # Construir dict de actualizacion (solo campos enviados)
         update_data: dict = {"updated_by": current_user.id}
@@ -204,9 +271,6 @@ class PuestoPerfilService:
             update_data["nombre"] = data.nombre
         if data.area_id is not None:
             update_data["area_id"] = data.area_id
-        if data.nivel_id is not None:
-            await self.nivel_service.validar_nivel_activo(data.nivel_id)
-            update_data["nivel_id"] = data.nivel_id
         if data.tipo is not None:
             update_data["tipo"] = data.tipo
         if data.descripcion is not None:
@@ -216,6 +280,9 @@ class PuestoPerfilService:
         update_data["version"] = perfil.version + 1
 
         await self.repo.update(id, update_data)
+
+        if grados_cambio:
+            await self.repo.set_grados(id, new_grado_ids)
 
         # Reload
         perfil = await self.repo.get_with_relations(id)

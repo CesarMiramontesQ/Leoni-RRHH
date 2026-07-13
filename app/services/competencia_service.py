@@ -61,6 +61,7 @@ from app.schemas.talento import (
     MatrizRow,
     MultihabilidadesCompetenciaItem,
     MultihabilidadesEmpleadoItem,
+    GradoPerfilItem,
     MetodoCalificacionCompetenciaResumen,
     MultihabilidadesPuestoOption,
     MultihabilidadesResponse,
@@ -327,14 +328,22 @@ class CompetenciaService:
         # Convertir puestos a response
         puestos_response = []
         for p in puestos:
+            grados = sorted(
+                (
+                    GradoPerfilItem(id=g.grado.id, nombre=g.grado.nombre, orden=g.grado.orden)
+                    for g in p.grados_config
+                    if g.grado
+                ),
+                key=lambda x: x.orden,
+            )
             puestos_response.append(PuestoPerfilResponse(
                 id=p.id,
                 codigo=p.codigo,
                 nombre=p.nombre,
                 area_id=p.area_id,
                 area_nombre=area.descripcion,
-                nivel_id=p.nivel_id,
-                nivel_nombre=p.nivel.nombre if p.nivel else "",
+                grados=grados,
+                tipo=p.tipo,
                 descripcion=p.descripcion,
                 version=p.version,
                 activo=p.activo,

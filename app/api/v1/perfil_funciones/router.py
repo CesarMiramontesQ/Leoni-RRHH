@@ -102,12 +102,15 @@ async def buscar_empleados_disponibles(
 @router.get("/{perfil_id}/tareas", response_model=list[PerfilTareaResponse])
 async def listar_tareas(
     perfil_id: int,
+    grado_id: int | None = Query(
+        None, gt=0, description="Si se indica, generales + específicas de ese grado"
+    ),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista todas las tareas de un perfil de puesto."""
+    """Lista tareas de un perfil. Con grado_id: generales + específicas del grado."""
     service = PerfilFuncionesService(db)
-    return await service.listar_tareas(perfil_id=perfil_id)
+    return await service.listar_tareas(perfil_id=perfil_id, grado_id=grado_id)
 
 
 @router.post(
@@ -250,11 +253,15 @@ async def eliminar_cualificacion(
 @router.get("/{perfil_id}/competencias", response_model=list[PerfilCompetenciaResponse])
 async def listar_competencias(
     perfil_id: int,
-    grado_id: int = Query(..., gt=0, description="Grado de progresion del puesto"),
+    grado_id: int | None = Query(
+        None,
+        gt=0,
+        description="Si se indica, específicas del grado + generales; si se omite, todas",
+    ),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista competencias requeridas del perfil para el grado indicado."""
+    """Lista competencias requeridas del perfil (generales + específicas del grado)."""
     service = PerfilFuncionesService(db)
     return await service.listar_competencias(perfil_id=perfil_id, grado_id=grado_id)
 

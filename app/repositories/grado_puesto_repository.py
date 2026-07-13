@@ -71,6 +71,18 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
         count = await self.db.scalar(query)
         return count or 0
 
+    async def get_activos_by_ids(self, ids: list[int]) -> list[GradoPuesto]:
+        """Devuelve los grados activos cuyos ids esten en la lista."""
+        if not ids:
+            return []
+        result = await self.db.execute(
+            select(GradoPuesto).where(
+                GradoPuesto.id.in_(ids),
+                GradoPuesto.activo.is_(True),
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_activo(self, id: int) -> GradoPuesto | None:
         result = await self.db.execute(
             select(GradoPuesto).where(

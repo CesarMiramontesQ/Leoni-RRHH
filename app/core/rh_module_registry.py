@@ -296,7 +296,6 @@ RH_MODULES: dict[str, RhModuleDef] = {
         nav_item_ids=("puestos-ajustes",),
         hash_prefixes=("#/puestos/ajustes",),
         api_prefixes=(
-            "/api/v1/niveles-puesto",
             "/api/v1/grados-puesto",
             "/api/v1/metodos-calificacion-competencia",
             "/api/v1/grupos-competencia",

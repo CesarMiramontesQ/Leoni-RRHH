@@ -54,6 +54,8 @@ class CursoSesionService:
             instructor_empleado_id=sesion.instructor_empleado_id,
             instructor_externo_id=sesion.instructor_externo_id,
             instructor_nombre=self._resolve_instructor_nombre(sesion),
+            proveedor_id=sesion.proveedor_id,
+            proveedor_nombre=sesion.proveedor_rel.nombre if sesion.proveedor_rel else None,
             cupo_max=sesion.cupo_max,
             notas=sesion.notas,
             estado=sesion.estado.value if hasattr(sesion.estado, "value") else sesion.estado,
@@ -98,6 +100,7 @@ class CursoSesionService:
             "instructor_tipo": data.instructor_tipo,
             "instructor_empleado_id": data.instructor_empleado_id,
             "instructor_externo_id": data.instructor_externo_id,
+            "proveedor_id": data.proveedor_id,
             "costo": data.costo,
             "notas": data.notas,
         })

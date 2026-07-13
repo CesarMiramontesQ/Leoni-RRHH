@@ -391,3 +391,80 @@ async def test_actualizar_grupo_competencia_propaga_categoria_a_perfil(
     item = resp.json()[0]
     assert item["grupo_nombre"] == "Técnica Grupo Renombrado"
     assert item["categoria"] == "tecnica"
+
+
+@pytest.mark.asyncio
+async def test_competencia_general_aparece_al_listar_por_grado(
+    client: AsyncClient, db: AsyncSession
+):
+    """Requisito con grado_id null (general) se combina con específicas del grado."""
+    from tests.conftest_talento import make_grados_consecutivos
+
+    rh = await make_empleado(db, rol="rh", email="pc_gen1@leoni.test")
+    headers = await auth_headers(client, rh)
+    g1, g2 = await make_grados_consecutivos(db, ordenes=[1, 2])
+    perfil = await make_puesto_perfil(
+        db, nombre="Puesto General Comp", grado_ids=[g1.id, g2.id]
+    )
+    general = await make_competencia(db, nombre="Seguridad General", categoria="tecnica")
+    especifica = await make_competencia(db, nombre="Soldadura G2", categoria="tecnica")
+
+    resp_gen = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/competencias",
+        json={"competencia_id": general.id, "grado_id": None, "nivel_requerido": 2},
+        headers=headers,
+    )
+    assert resp_gen.status_code == 201
+    assert resp_gen.json()["es_general"] is True
+    assert resp_gen.json()["grado_id"] is None
+
+    resp_esp = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/competencias",
+        json={"competencia_id": especifica.id, "grado_id": g2.id, "nivel_requerido": 3},
+        headers=headers,
+    )
+    assert resp_esp.status_code == 201
+    assert resp_esp.json()["es_general"] is False
+
+    # Listar grado 2: general + específica g2
+    resp = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/competencias?grado_id={g2.id}",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    ids = {c["competencia_id"] for c in resp.json()}
+    assert general.id in ids
+    assert especifica.id in ids
+
+    # Listar grado 1: solo general (específica es de g2)
+    resp1 = await client.get(
+        f"/api/v1/perfiles/{perfil.id}/competencias?grado_id={g1.id}",
+        headers=headers,
+    )
+    assert resp1.status_code == 200
+    ids1 = {c["competencia_id"] for c in resp1.json()}
+    assert general.id in ids1
+    assert especifica.id not in ids1
+
+
+@pytest.mark.asyncio
+async def test_competencia_grado_fuera_del_perfil_retorna_422(
+    client: AsyncClient, db: AsyncSession
+):
+    """No se puede asignar competencia a un grado que no pertenece al perfil."""
+    from tests.conftest_talento import make_grados_consecutivos
+
+    rh = await make_empleado(db, rol="rh", email="pc_gen2@leoni.test")
+    headers = await auth_headers(client, rh)
+    g1, g2, g3 = await make_grados_consecutivos(db, ordenes=[1, 2, 3])
+    perfil = await make_puesto_perfil(
+        db, nombre="Puesto Solo G1-G2", grado_ids=[g1.id, g2.id]
+    )
+    comp = await make_competencia(db, nombre="Fuera Rango", categoria="tecnica")
+
+    resp = await client.post(
+        f"/api/v1/perfiles/{perfil.id}/competencias",
+        json={"competencia_id": comp.id, "grado_id": g3.id, "nivel_requerido": 2},
+        headers=headers,
+    )
+    assert resp.status_code == 422

@@ -10,7 +10,7 @@ export const RH_FR_TIPO_BAR_CHART_ID = "rh-fr-tipo-bar";
 export const RH_FR_EMPLEADOS_BAR_CHART_ID = "rh-fr-empleados-bar";
 
 const CHART_H = "h-[280px]";
-const BAR_RADIUS = 8;
+const BAR_RADIUS = 0;
 const BAR_FILL_ALPHA = 0.5;
 const TENDENCIA_TIPO_LINE_TENSION = 0.35;
 const TENDENCIA_TIPO_FILL_ALPHA = 0.12;
@@ -326,7 +326,7 @@ export function mountFaltasRetardosEmpleadosStackedBarChart(
           borderColor: border,
           borderWidth: 1,
           stack: "eventos",
-          borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 4, bottomRight: 4 },
+          borderRadius: 0,
           borderSkipped: false,
         };
       }),

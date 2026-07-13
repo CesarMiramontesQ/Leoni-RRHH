@@ -24,7 +24,6 @@ from app.models.talento import (
     CompetenciaRequisito,
     EvaluacionCompetencia,
     GradoPuesto,
-    NivelPuesto,
     PerfilFunciones,
     PerfilFuncionesCompetencia,
     PuestoPerfil,
@@ -545,7 +544,6 @@ class EvaluacionService:
         for a in asignaciones:
             emp = a.empleado
             pp = a.puesto_perfil
-            nivel_nombre = pp.nivel.nombre if pp and pp.nivel else None
             area_nombre = area_map.get(emp.area_id) if emp and emp.area_id else None
 
             comp_reqs = reqs_por_pp_grado.get((a.puesto_perfil_id, a.grado_id), {})
@@ -573,7 +571,6 @@ class EvaluacionService:
                 puesto_perfil_id=a.puesto_perfil_id,
                 puesto_nombre=pp.nombre if pp else None,
                 puesto_codigo=pp.codigo if pp else None,
-                nivel_puesto=nivel_nombre,
                 grado_id=a.grado_id,
                 grado_nombre=a.grado.nombre if a.grado else None,
                 departamento=a.departamento,
@@ -606,7 +603,8 @@ class EvaluacionService:
         pf_result = await self.db.execute(
             select(PerfilFunciones)
             .options(
-                selectinload(PerfilFunciones.puesto_perfil).selectinload(PuestoPerfil.nivel),
+                selectinload(PerfilFunciones.puesto_perfil),
+                selectinload(PerfilFunciones.grado),
             )
             .where(
                 PerfilFunciones.empleado_id == emp.id,
@@ -616,13 +614,15 @@ class EvaluacionService:
         perfil_funciones = pf_result.scalar_one_or_none()
 
         puesto_nombre = None
-        nivel_puesto = None
+        grado_nombre = None
         departamento = None
 
         if perfil_funciones:
             pp = perfil_funciones.puesto_perfil
             puesto_nombre = pp.nombre if pp else None
-            nivel_puesto = pp.nivel.nombre if pp and pp.nivel else None
+            grado_nombre = (
+                perfil_funciones.grado.nombre if perfil_funciones.grado else None
+            )
             departamento = perfil_funciones.departamento
 
             requisitos_result = await self.db.execute(
@@ -771,7 +771,7 @@ class EvaluacionService:
             empleado_nombre=emp.nombre,
             area_nombre=area_nombre,
             puesto_nombre=puesto_nombre,
-            nivel_puesto=nivel_puesto,
+            grado_nombre=grado_nombre,
             departamento=departamento,
             evaluador_nombre=evaluador_nombre,
             competencias_alineadas=competencias_alineadas,

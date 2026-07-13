@@ -131,7 +131,7 @@ export function mountSupervisorHomeOfficeWeekdayChart(
           backgroundColor: HO_BAR_FILL,
           borderColor: HO_BAR_BORDER,
           borderWidth: 1,
-          borderRadius: 6,
+          borderRadius: 0,
           borderSkipped: false,
         },
       ],

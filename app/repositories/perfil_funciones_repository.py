@@ -21,7 +21,6 @@ from app.models.talento import (
     PerfilFuncionesCompetencia,
     PerfilFuncionesTarea,
     PerfilTarea,
-    PuestoPerfil,
 )
 from app.repositories.base import BaseRepository
 
@@ -30,14 +29,36 @@ class PerfilTareaRepository(BaseRepository[PerfilTarea]):
     def __init__(self, db: AsyncSession):
         super().__init__(PerfilTarea, db)
 
-    async def list_by_perfil(self, puesto_perfil_id: int) -> list[PerfilTarea]:
-        """Lista tareas de un puesto perfil ordenadas por 'orden'."""
-        result = await self.db.execute(
+    async def list_by_perfil(
+        self, puesto_perfil_id: int, grado_id: int | None = None
+    ) -> list[PerfilTarea]:
+        """Lista tareas de un puesto perfil.
+
+        Si grado_id se indica, incluye específicas de ese grado + generales.
+        Si es None (sin filtro), lista todas.
+        """
+        from sqlalchemy import or_
+
+        query = (
             select(PerfilTarea)
-            .options(selectinload(PerfilTarea.tarea_catalogo))
+            .options(
+                selectinload(PerfilTarea.tarea_catalogo),
+                selectinload(PerfilTarea.grado),
+            )
             .where(PerfilTarea.puesto_perfil_id == puesto_perfil_id)
-            .order_by(PerfilTarea.orden)
         )
+        if grado_id is not None:
+            query = query.where(
+                or_(
+                    PerfilTarea.grado_id == grado_id,
+                    PerfilTarea.grado_id.is_(None),
+                )
+            )
+        query = query.order_by(
+            PerfilTarea.grado_id.nulls_first(),
+            PerfilTarea.orden,
+        )
+        result = await self.db.execute(query)
         return list(result.scalars().all())
 
 
@@ -121,7 +142,7 @@ class PerfilFuncionesRepository(BaseRepository[PerfilFunciones]):
             select(PerfilFunciones)
             .options(
                 selectinload(PerfilFunciones.empleado),
-                selectinload(PerfilFunciones.puesto_perfil).selectinload(PuestoPerfil.nivel),
+                selectinload(PerfilFunciones.puesto_perfil),
                 selectinload(PerfilFunciones.grado),
             )
             .where(PerfilFunciones.activo.is_(True))

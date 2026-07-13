@@ -150,7 +150,6 @@ class CursoCreate(BaseModel):
     categoria_id: Optional[int] = None
     tipo_id: Optional[int] = None
     clasificacion_id: Optional[int] = None
-    proveedor_id: Optional[int] = None
     instructor_tipo: Optional[InstructorTipoLiteral] = None
     instructor_empleado_id: Optional[int] = None
     instructor_externo_id: Optional[int] = None
@@ -170,7 +169,6 @@ class CursoUpdate(BaseModel):
     categoria_id: Optional[int] = None
     tipo_id: Optional[int] = None
     clasificacion_id: Optional[int] = None
-    proveedor_id: Optional[int] = None
     instructor_tipo: Optional[InstructorTipoLiteral] = None
     instructor_empleado_id: Optional[int] = None
     instructor_externo_id: Optional[int] = None
@@ -195,8 +193,6 @@ class CursoResponse(BaseModel):
     tipo_nombre: Optional[str] = None
     clasificacion_id: Optional[int] = None
     clasificacion_nombre: Optional[str] = None
-    proveedor_id: Optional[int] = None
-    proveedor_nombre: Optional[str] = None
     instructor_tipo: Optional[str] = None
     instructor_empleado_id: Optional[int] = None
     instructor_externo_id: Optional[int] = None
@@ -237,6 +233,7 @@ class CursoSesionCreate(BaseModel):
     instructor_tipo: Optional[InstructorTipoLiteral] = None
     instructor_empleado_id: Optional[int] = None
     instructor_externo_id: Optional[int] = None
+    proveedor_id: Optional[int] = None
     costo: Optional[float] = Field(None, ge=0)
     notas: Optional[str] = None
 
@@ -252,6 +249,7 @@ class CursoSesionUpdate(BaseModel):
     instructor_tipo: Optional[InstructorTipoLiteral] = None
     instructor_empleado_id: Optional[int] = None
     instructor_externo_id: Optional[int] = None
+    proveedor_id: Optional[int] = None
     costo: Optional[float] = Field(None, ge=0)
     notas: Optional[str] = None
     estado: Optional[EstadoSesionLiteral] = None
@@ -271,6 +269,8 @@ class CursoSesionResponse(BaseModel):
     instructor_empleado_id: Optional[int] = None
     instructor_externo_id: Optional[int] = None
     instructor_nombre: Optional[str] = None
+    proveedor_id: Optional[int] = None
+    proveedor_nombre: Optional[str] = None
     costo: Optional[float] = None
     notas: Optional[str] = None
     estado: str

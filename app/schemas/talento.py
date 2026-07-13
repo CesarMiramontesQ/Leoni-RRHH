@@ -15,13 +15,21 @@ from pydantic import BaseModel, Field
 TipoPuestoPerfil = Literal["administrativo", "operativo"]
 
 
+class GradoPerfilItem(BaseModel):
+    id: int
+    nombre: str
+    orden: int
+
+
 class PuestoPerfilCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     codigo: str = Field(..., min_length=1, max_length=20)
     nombre: str = Field(..., min_length=3, max_length=255)
-    area_id: Optional[int] = None
-    nivel_id: int = Field(..., description="ID del nivel de puesto")
+    area_id: int = Field(..., gt=0, description="Area del perfil (obligatoria)")
+    grado_ids: list[int] = Field(
+        ..., min_length=1, description="Grados consecutivos del perfil (obligatorio)"
+    )
     tipo: TipoPuestoPerfil = Field(
         default="administrativo",
         description="Clasificacion del puesto: administrativo u operativo",
@@ -34,8 +42,8 @@ class PuestoPerfilUpdate(BaseModel):
 
     codigo: Optional[str] = Field(None, min_length=1, max_length=20)
     nombre: Optional[str] = Field(None, min_length=3, max_length=255)
-    area_id: Optional[int] = None
-    nivel_id: Optional[int] = None
+    area_id: Optional[int] = Field(None, gt=0)
+    grado_ids: Optional[list[int]] = Field(None, min_length=1)
     tipo: Optional[TipoPuestoPerfil] = None
     descripcion: Optional[str] = None
 
@@ -48,8 +56,7 @@ class PuestoPerfilResponse(BaseModel):
     nombre: str
     area_id: Optional[int] = None
     area_nombre: Optional[str] = None
-    nivel_id: int
-    nivel_nombre: str
+    grados: list[GradoPerfilItem] = []
     tipo: TipoPuestoPerfil
     descripcion: Optional[str] = None
     version: int
@@ -196,8 +203,7 @@ class PerfilTarjetaItem(BaseModel):
     codigo: str
     nombre: str
     area_nombre: Optional[str] = None
-    nivel_id: int
-    nivel_nombre: str
+    grados: list[GradoPerfilItem] = []
     personas: int = 0
     cumplimiento_pct: int = 0
     brechas: int = 0

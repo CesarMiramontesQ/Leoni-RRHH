@@ -44,14 +44,14 @@ export const CHART_H_RANK = "h-[260px]";
 export const CHART_H_DAY = "h-[300px]";
 
 const BAR_FILL_ALPHA = 0.85;
-const BAR_RADIUS = 4;
+const BAR_RADIUS = 0;
 const TIPO_BAR_FILL_ALPHA = 0.5;
 const DONUT_CUTOUT = "58%";
 const TENDENCIA_LINE_FILL_ALPHA = 0.5;
 const TENDENCIA_LINE_TENSION = 0.35;
-/** Radio moderado para barras verticales (Distribución por tipo, HO por día laboral). */
-const VERTICAL_BAR_BORDER_RADIUS = 8;
-const DEPT_STACK_BAR_RADIUS = 7;
+/** Barras sin redondeo (look plano). */
+const VERTICAL_BAR_BORDER_RADIUS = 0;
+const DEPT_STACK_BAR_RADIUS = 0;
 const DEPT_STACK_BAR_MAX_THICKNESS = 16;
 const DEPT_SEGMENT_LABEL_MIN_PX = 28;
 const DEPT_CHART_TOP_N = 8;

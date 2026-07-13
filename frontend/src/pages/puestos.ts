@@ -11,13 +11,14 @@ import {
   type AreaOption,
   type PerfilTarjetaItem,
 } from "../api/puestos.ts";
-import { getNivelesPuesto } from "../api/nivelesPuesto.ts";
-import type { NivelPuesto } from "../dashboard/nivelesPuesto/types.ts";
-import type {
-  PerfilPuestoListItem,
-  PerfilPuestoCreatePayload,
-  PuestosFilterState,
-  TipoPuestoPerfil,
+import { getGradosPuesto } from "../api/gradosPuesto.ts";
+import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
+import {
+  gradoIdsEntre,
+  type GradoPerfilItem,
+  type PerfilPuestoListItem,
+  type PerfilPuestoCreatePayload,
+  type PuestosFilterState,
 } from "../dashboard/puestos/types.ts";
 import { clearAuth } from "../auth/session.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
@@ -59,6 +60,70 @@ const BRECHAS_REF_MAX = 15;
 
 // ── Helpers de negocio ────────────────────────────────────────────────────
 
+type GradoLike = { id: number; nombre: string; orden: number };
+
+function formatGradosLabel(grados: GradoLike[]): string {
+  if (!grados.length) return "—";
+  const sorted = [...grados].sort((a, b) => a.orden - b.orden);
+  if (sorted.length === 1) return sorted[0].nombre;
+  return `${sorted[0].nombre} – ${sorted[sorted.length - 1].nombre}`;
+}
+
+function gradosMinMaxIds(grados: GradoPerfilItem[]): { desde: string; hasta: string } {
+  if (!grados.length) return { desde: "", hasta: "" };
+  const sorted = [...grados].sort((a, b) => a.orden - b.orden);
+  return { desde: String(sorted[0].id), hasta: String(sorted[sorted.length - 1].id) };
+}
+
+function resolveGradoRango(
+  catalog: GradoPuesto[],
+  desdeId: string,
+  hastaId: string,
+): GradoPuesto[] {
+  const ids = gradoIdsEntre(catalog, Number(desdeId), Number(hastaId));
+  if (!ids.length) return [];
+  return catalog.filter((g) => ids.includes(g.id)).sort((a, b) => a.orden - b.orden);
+}
+
+function renderGradoRangoPreview(grados: GradoPuesto[]): string {
+  if (!grados.length) {
+    return `<div id="puestos-modal-grado-preview" class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-3 text-sm text-text-muted" role="status">
+      Selecciona el grado inicial y final. Deben ser consecutivos (ej. Grado 7 → 8 → 9).
+    </div>`;
+  }
+  const chips = grados
+    .map(
+      (g, i) => `
+      ${i > 0 ? `<span class="text-slate-300" aria-hidden="true">→</span>` : ""}
+      <span class="inline-flex items-center rounded-lg border border-accent/20 bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent">${escapeHtml(g.nombre)}</span>`,
+    )
+    .join("");
+  const countLabel = grados.length === 1 ? "1 grado" : `${grados.length} grados`;
+  return `<div id="puestos-modal-grado-preview" class="rounded-xl border border-accent/15 bg-accent-light/40 px-3 py-3" role="status">
+    <div class="flex flex-wrap items-center gap-1.5">${chips}</div>
+    <p class="mt-2 text-xs text-text-secondary"><span class="font-semibold text-text-primary">${countLabel}</span> · rango consecutivo listo para el perfil</p>
+  </div>`;
+}
+
+function renderModalSection(
+  step: number,
+  title: string,
+  bodyHtml: string,
+  hint?: string,
+): string {
+  return `
+    <section class="rounded-xl border border-slate-200/90 bg-slate-50/40 p-4">
+      <div class="mb-3 flex items-start gap-3">
+        <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-leoni-blue text-[11px] font-bold text-white" aria-hidden="true">${step}</span>
+        <div class="min-w-0 pt-0.5">
+          <h3 class="text-sm font-semibold text-text-primary">${escapeHtml(title)}</h3>
+          ${hint ? `<p class="mt-0.5 text-xs leading-relaxed text-text-muted">${escapeHtml(hint)}</p>` : ""}
+        </div>
+      </div>
+      ${bodyHtml}
+    </section>`;
+}
+
 function filterItems(items: PerfilPuestoListItem[], filters: PuestosFilterState): PerfilPuestoListItem[] {
   let result = items;
   if (filters.q.trim()) {
@@ -71,8 +136,8 @@ function filterItems(items: PerfilPuestoListItem[], filters: PuestosFilterState)
     );
   }
   if (filters.area) result = result.filter((p) => p.area === filters.area);
-  if (filters.nivel_id) {
-    result = result.filter((p) => String(p.nivel_id) === filters.nivel_id);
+  if (filters.grado_id) {
+    result = result.filter((p) => p.grados.some((g) => String(g.id) === filters.grado_id));
   }
   return result;
 }
@@ -89,14 +154,14 @@ function filterTarjetas(items: PerfilTarjetaItem[], filters: PuestosFilterState)
     );
   }
   if (filters.area) result = result.filter((p) => p.area_nombre === filters.area);
-  if (filters.nivel_id) {
-    result = result.filter((p) => String(p.nivel_id) === filters.nivel_id);
+  if (filters.grado_id) {
+    result = result.filter((p) => p.grados.some((g) => String(g.id) === filters.grado_id));
   }
   return result;
 }
 
 function hasActiveFilters(filters: PuestosFilterState): boolean {
-  return Boolean(filters.q.trim() || filters.area || filters.nivel_id);
+  return Boolean(filters.q.trim() || filters.area || filters.grado_id);
 }
 
 // ── Métricas derivadas (mismos datos, sin nuevas consultas) ─────────────
@@ -277,13 +342,13 @@ function renderViewToggle(active: "tabla" | "tarjetas"): string {
   </div>`;
 }
 
-function renderFilterActiveChips(filters: PuestosFilterState, nivelesCatalog: NivelPuesto[]): string {
+function renderFilterActiveChips(filters: PuestosFilterState, gradosCatalog: GradoPuesto[]): string {
   const chips: string[] = [];
   if (filters.q.trim()) chips.push(`Búsqueda: “${escapeHtml(filters.q.trim())}”`);
   if (filters.area) chips.push(`Área: ${escapeHtml(filters.area)}`);
-  if (filters.nivel_id) {
-    const label = nivelesCatalog.find((n) => String(n.id) === filters.nivel_id)?.nombre ?? filters.nivel_id;
-    chips.push(`Nivel: ${escapeHtml(label)}`);
+  if (filters.grado_id) {
+    const label = gradosCatalog.find((g) => String(g.id) === filters.grado_id)?.nombre ?? filters.grado_id;
+    chips.push(`Grado: ${escapeHtml(label)}`);
   }
   if (chips.length === 0) return "";
   return `<div class="puestos-filter-chips flex flex-wrap items-center gap-2 border-t border-slate-100/90 pt-3">
@@ -301,7 +366,7 @@ function renderFilterActiveChips(filters: PuestosFilterState, nivelesCatalog: Ni
 function renderFilterBar(
   filters: PuestosFilterState,
   areas: AreaOption[],
-  nivelesCatalog: NivelPuesto[],
+  gradosCatalog: GradoPuesto[],
   visibleCount: number,
   totalCount: number,
 ): string {
@@ -311,10 +376,10 @@ function renderFilterBar(
         `<option value="${escapeHtml(a.label)}" ${filters.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`,
     )
     .join("");
-  const nivelOpts = nivelesCatalog
+  const gradoOpts = gradosCatalog
     .map(
-      (n) =>
-        `<option value="${n.id}" ${filters.nivel_id === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`,
+      (g) =>
+        `<option value="${g.id}" ${filters.grado_id === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
     )
     .join("");
   const hasActive = hasActiveFilters(filters);
@@ -327,7 +392,7 @@ function renderFilterBar(
     <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-sm font-semibold text-text-primary">Buscar y filtrar</h2>
-        <p class="mt-0.5 text-xs text-text-muted">Localiza perfiles por código, nombre, área o nivel organizacional.</p>
+        <p class="mt-0.5 text-xs text-text-muted">Localiza perfiles por código, nombre, área o grado.</p>
       </div>
       <p class="text-xs text-text-muted" aria-live="polite">${resultsLine}</p>
     </div>
@@ -358,18 +423,18 @@ function renderFilterBar(
         </div>
       </div>
       <div class="min-w-0">
-        <label for="puestos-filter-nivel" class="${RH_LISTADO_LABEL}">Nivel</label>
+        <label for="puestos-filter-grado" class="${RH_LISTADO_LABEL}">Grado</label>
         <div class="grid grid-cols-1">
-          <select id="puestos-filter-nivel" data-action="filter-nivel" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-            <option value="" ${filters.nivel_id === "" ? "selected" : ""}>Todos los niveles</option>
-            ${nivelOpts}
+          <select id="puestos-filter-grado" data-action="filter-grado" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+            <option value="" ${filters.grado_id === "" ? "selected" : ""}>Todos los grados</option>
+            ${gradoOpts}
           </select>
           ${SELECT_CHEVRON}
         </div>
       </div>
     </div>
     ${hasActive ? `<span class="mt-3 inline-flex size-2 rounded-full bg-leoni-blue" aria-hidden="true" title="Hay filtros activos"></span>` : ""}
-    ${renderFilterActiveChips(filters, nivelesCatalog)}
+    ${renderFilterActiveChips(filters, gradosCatalog)}
   </section>`;
 }
 
@@ -415,7 +480,11 @@ function renderCardGrid(tarjetas: PerfilTarjetaItem[], totalSource: number): str
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-1.5">
             <span class="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-600">${escapeHtml(p.codigo)}</span>
-            ${p.nivel_nombre ? `<span class="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700"><span class="text-[9px] font-semibold uppercase tracking-wide text-blue-500">Nivel</span>${escapeHtml(p.nivel_nombre)}</span>` : ""}
+            ${
+              p.grados.length
+                ? `<span class="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700"><span class="text-[9px] font-semibold uppercase tracking-wide text-blue-500">Grado</span>${escapeHtml(formatGradosLabel(p.grados))}</span>`
+                : ""
+            }
           </div>
           <h3 class="mt-2 text-base font-semibold leading-snug text-text-primary">${escapeHtml(p.nombre)}</h3>
           <p class="mt-1 flex items-center gap-1.5 text-xs text-text-muted">
@@ -472,7 +541,7 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
       <td class="whitespace-nowrap px-4 py-3.5 text-sm font-semibold tabular-nums text-text-primary">${escapeHtml(p.codigo)}</td>
       <td class="px-4 py-3.5 text-sm font-medium text-text-primary">${escapeHtml(p.nombre_puesto)}</td>
       <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.area)}</td>
-      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.nivel_nombre)}</td>
+      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(formatGradosLabel(p.grados))}</td>
       <td class="whitespace-nowrap px-4 py-3.5 text-sm tabular-nums text-text-muted">${escapeHtml(p.version)}</td>
       <td class="px-3 py-3 align-middle">
         <div class="flex items-center justify-end gap-1">
@@ -493,7 +562,7 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
             <th scope="col" class="px-4 py-3.5 text-left">Código</th>
             <th scope="col" class="px-4 py-3.5 text-left">Nombre</th>
             <th scope="col" class="px-4 py-3.5 text-left">Área</th>
-            <th scope="col" class="px-4 py-3.5 text-left">Nivel</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Grados</th>
             <th scope="col" class="px-4 py-3.5 text-left">Versión</th>
             <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
           </tr>
@@ -506,70 +575,121 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
 
 function renderModal(
   mode: "create" | "edit",
-  values: { codigo: string; nombre_puesto: string; area: string; nivel_id: string; tipo: TipoPuestoPerfil | "" },
+  values: {
+    codigo: string;
+    nombre_puesto: string;
+    area: string;
+    grado_desde_id: string;
+    grado_hasta_id: string;
+  },
   saving: boolean,
   areas: AreaOption[] = [],
-  nivelesCatalog: NivelPuesto[] = [],
+  gradosCatalog: GradoPuesto[] = [],
 ): string {
   const title = mode === "create" ? "Nuevo perfil de puesto" : "Editar perfil de puesto";
   const subtitle =
     mode === "create"
-      ? "Define la posición organizacional base para competencias y evaluaciones."
-      : "Los cambios se reflejan en el catálogo y en las vistas de detalle.";
+      ? "Crea la ficha base: identidad, área y rango de grados."
+      : "Actualiza los datos base del perfil. Los grados en uso no se pueden quitar.";
   const submitLabel = saving ? "Guardando…" : mode === "create" ? "Crear perfil" : "Guardar cambios";
+  const rangoPreview = resolveGradoRango(gradosCatalog, values.grado_desde_id, values.grado_hasta_id);
+  const gradoOptsPlain = (selectedId: string) =>
+    gradosCatalog
+      .map(
+        (g) =>
+          `<option value="${g.id}" ${selectedId === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+      )
+      .join("");
+  const sinGrados = gradosCatalog.length === 0;
 
   return `
   <div data-action="modal-backdrop" class="puestos-modal-backdrop ${MODAL_OVERLAY}">
-    <div class="puestos-modal-panel ${MODAL_PANEL} max-w-lg" role="dialog" aria-modal="true" aria-labelledby="puestos-modal-title">
-      <div class="border-b border-slate-100 px-6 py-5">
-        <h2 id="puestos-modal-title" class="text-lg font-semibold text-text-primary">${title}</h2>
-        <p class="mt-1 text-sm text-text-muted">${subtitle}</p>
+    <div class="puestos-modal-panel ${MODAL_PANEL} max-w-2xl max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="puestos-modal-title">
+      <div class="sticky top-0 z-10 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur-sm">
+        <div class="flex items-start gap-3">
+          <span class="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent-light text-accent" aria-hidden="true">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-5"><path fill-rule="evenodd" d="M4.25 2A2.25 2.25 0 0 0 2 4.25v11.5A2.25 2.25 0 0 0 4.25 18h11.5A2.25 2.25 0 0 0 18 15.75V4.25A2.25 2.25 0 0 0 15.75 2H4.25ZM6 6.75A.75.75 0 0 1 6.75 6h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 6 6.75ZM6.75 9a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5ZM6 12.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd"/></svg>
+          </span>
+          <div class="min-w-0">
+            <h2 id="puestos-modal-title" class="text-lg font-semibold tracking-tight text-text-primary">${title}</h2>
+            <p class="mt-1 text-sm leading-relaxed text-text-muted">${subtitle}</p>
+          </div>
+        </div>
       </div>
       <form data-action="modal-form" class="flex flex-col gap-4 px-6 py-5">
-        <div>
-          <label for="puestos-modal-codigo" class="${RH_LISTADO_LABEL}">Código <span class="text-red-600" aria-hidden="true">*</span></label>
-          <input id="puestos-modal-codigo" name="codigo" type="text" required placeholder="Ej. OP-PROD-01" maxlength="20" value="${escapeHtml(values.codigo)}"
-            class="${FIELD_INPUT}" />
-        </div>
-        <div>
-          <label for="puestos-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto <span class="text-red-600" aria-hidden="true">*</span></label>
-          <input id="puestos-modal-nombre" name="nombre_puesto" type="text" required placeholder="Operador de Producción N1" value="${escapeHtml(values.nombre_puesto)}"
-            class="${FIELD_INPUT}" />
-        </div>
-        <div>
-          <label for="puestos-modal-area" class="${RH_LISTADO_LABEL}">Área <span class="text-red-600" aria-hidden="true">*</span></label>
-          <div class="grid grid-cols-1">
-            <select id="puestos-modal-area" name="area" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-              <option value="">Seleccionar área…</option>
-              ${areas.map((a) => `<option value="${a.id}" ${values.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`).join("")}
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </div>
-        <div>
-          <label for="puestos-modal-nivel" class="${RH_LISTADO_LABEL}">Nivel <span class="text-red-600" aria-hidden="true">*</span></label>
-          <div class="grid grid-cols-1">
-            <select id="puestos-modal-nivel" name="nivel_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-              <option value="" disabled ${!values.nivel_id ? "selected" : ""}>Selecciona un nivel…</option>
-              ${nivelesCatalog.map((n) => `<option value="${n.id}" ${values.nivel_id === String(n.id) ? "selected" : ""}>${escapeHtml(n.nombre)}</option>`).join("")}
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </div>
-        <div>
-          <label for="puestos-modal-tipo" class="${RH_LISTADO_LABEL}">Tipo <span class="text-red-600" aria-hidden="true">*</span></label>
-          <div class="grid grid-cols-1">
-            <select id="puestos-modal-tipo" name="tipo" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-              <option value="" disabled ${!values.tipo ? "selected" : ""}>Selecciona un tipo…</option>
-              <option value="administrativo" ${values.tipo === "administrativo" ? "selected" : ""}>Administrativo</option>
-              <option value="operativo" ${values.tipo === "operativo" ? "selected" : ""}>Operativo</option>
-            </select>
-            ${SELECT_CHEVRON}
-          </div>
-        </div>
-        <div class="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+        ${renderModalSection(
+          1,
+          "Identidad del puesto",
+          `<div class="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,10rem)_1fr]">
+            <div>
+              <label for="puestos-modal-codigo" class="${RH_LISTADO_LABEL}">Código <span class="text-red-600" aria-hidden="true">*</span></label>
+              <input id="puestos-modal-codigo" name="codigo" type="text" required placeholder="OP-PROD-01" maxlength="20" value="${escapeHtml(values.codigo)}"
+                data-action="modal-codigo-input" autocomplete="off" spellcheck="false" class="${FIELD_INPUT} font-mono text-sm uppercase tracking-wide" />
+              <p class="mt-1 text-[11px] text-text-muted">Se guarda en mayúsculas.</p>
+            </div>
+            <div>
+              <label for="puestos-modal-nombre" class="${RH_LISTADO_LABEL}">Nombre del puesto <span class="text-red-600" aria-hidden="true">*</span></label>
+              <input id="puestos-modal-nombre" name="nombre_puesto" type="text" required placeholder="Ej. Ingeniero de Mantenimiento" value="${escapeHtml(values.nombre_puesto)}"
+                class="${FIELD_INPUT}" />
+              <p class="mt-1 text-[11px] text-text-muted">Debe ser único dentro del área.</p>
+            </div>
+          </div>`,
+          "Cómo se identifica este perfil en el catálogo.",
+        )}
+
+        ${renderModalSection(
+          2,
+          "Organización",
+          `<div>
+            <label for="puestos-modal-area" class="${RH_LISTADO_LABEL}">Área <span class="text-red-600" aria-hidden="true">*</span></label>
+            <div class="grid grid-cols-1">
+              <select id="puestos-modal-area" name="area" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="">Seleccionar área…</option>
+                ${areas.map((a) => `<option value="${a.id}" ${values.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`).join("")}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>`,
+          "Área organizacional a la que pertenece el perfil.",
+        )}
+
+        ${renderModalSection(
+          3,
+          "Rango de grados",
+          sinGrados
+            ? `<div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900" role="alert">
+                No hay grados configurados. Créalos primero en <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes de puesto</a>.
+              </div>`
+            : `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label for="puestos-modal-grado-desde" class="${RH_LISTADO_LABEL}">Desde <span class="text-red-600" aria-hidden="true">*</span></label>
+                  <div class="grid grid-cols-1">
+                    <select id="puestos-modal-grado-desde" name="grado_desde_id" data-action="modal-grado-change" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                      <option value="" disabled ${!values.grado_desde_id ? "selected" : ""}>Grado inicial…</option>
+                      ${gradoOptsPlain(values.grado_desde_id)}
+                    </select>
+                    ${SELECT_CHEVRON}
+                  </div>
+                </div>
+                <div>
+                  <label for="puestos-modal-grado-hasta" class="${RH_LISTADO_LABEL}">Hasta <span class="text-red-600" aria-hidden="true">*</span></label>
+                  <div class="grid grid-cols-1">
+                    <select id="puestos-modal-grado-hasta" name="grado_hasta_id" data-action="modal-grado-change" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                      <option value="" disabled ${!values.grado_hasta_id ? "selected" : ""}>Grado final…</option>
+                      ${gradoOptsPlain(values.grado_hasta_id)}
+                    </select>
+                    ${SELECT_CHEVRON}
+                  </div>
+                </div>
+              </div>
+              <div class="mt-3">${renderGradoRangoPreview(rangoPreview)}</div>
+              <p class="mt-2 text-xs leading-relaxed text-text-muted">El rango debe ser consecutivo. Un grado no puede repetirse en otro perfil de la misma área.</p>`,
+          "Progresión consecutiva que cubre este perfil.",
+        )}
+
+        <div class="sticky bottom-0 -mx-6 mt-1 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white/95 px-6 py-4 backdrop-blur-sm sm:flex-row sm:justify-end">
           <button type="button" data-action="modal-cancel" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto">Cancelar</button>
-          <button type="submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto" ${saving ? "disabled" : ""}>${submitLabel}</button>
+          <button type="submit" class="${RH_LISTADO_BTN_PRIMARY} w-full sm:w-auto" ${saving || sinGrados ? "disabled" : ""}>${submitLabel}</button>
         </div>
       </form>
     </div>
@@ -640,16 +760,23 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   let allItems: PerfilPuestoListItem[] = [];
   let tarjetasData: PerfilTarjetaItem[] = [];
   let areasOptions: AreaOption[] = [];
-  let nivelesCatalog: NivelPuesto[] = [];
+  let gradosCatalog: GradoPuesto[] = [];
   let status: "loading" | "ready" | "error" = "loading";
   let errorMessage = "";
-  const filters: PuestosFilterState = { q: "", area: "", nivel_id: "" };
+  const filters: PuestosFilterState = { q: "", area: "", grado_id: "" };
   let viewMode: "tabla" | "tarjetas" = "tarjetas";
 
   let modalMode: "create" | "edit" | "delete" | null = null;
   let modalSaving = false;
+  let modalFocusOnPaint = false;
   let editingId: number | null = null;
-  let editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "" as TipoPuestoPerfil | "" };
+  let editingValues = {
+    codigo: "",
+    nombre_puesto: "",
+    area: "",
+    grado_desde_id: "",
+    grado_hasta_id: "",
+  };
   let deletingItem: PerfilPuestoListItem | null = null;
 
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -672,7 +799,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   function clearFilters(): void {
     filters.q = "";
     filters.area = "";
-    filters.nivel_id = "";
+    filters.grado_id = "";
     paint();
   }
 
@@ -712,7 +839,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       <div id="puestos-root" class="${RH_LISTADO_PAGE_OUTER}">
         ${renderLevelUpBackBar()}
         ${renderPageHeader()}
-        ${renderFilterBar(filters, areasOptions, nivelesCatalog, filtered.length, sourceTotal)}
+        ${renderFilterBar(filters, areasOptions, gradosCatalog, filtered.length, sourceTotal)}
         <div class="flex flex-col gap-4 sm:gap-5">${mainContent}</div>
       </div>`;
   }
@@ -721,11 +848,38 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const host = modalHost();
     if (!host) return;
     if (modalMode === "create" || modalMode === "edit") {
-      host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions, nivelesCatalog);
+      host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions, gradosCatalog);
+      if (modalFocusOnPaint) {
+        modalFocusOnPaint = false;
+        queueMicrotask(() => {
+          const focusId =
+            modalMode === "create" && !editingValues.nombre_puesto
+              ? "#puestos-modal-nombre"
+              : "#puestos-modal-codigo";
+          host.querySelector<HTMLInputElement>(focusId)?.focus();
+        });
+      }
     } else if (modalMode === "delete" && deletingItem) {
       host.innerHTML = renderDeleteConfirm(deletingItem.nombre_puesto, modalSaving);
     } else {
       host.innerHTML = "";
+    }
+  }
+
+  function defaultGradoIds(): { desde: string; hasta: string } {
+    if (!gradosCatalog.length) return { desde: "", hasta: "" };
+    const first = String(gradosCatalog[0].id);
+    return { desde: first, hasta: first };
+  }
+
+  function syncGradoPreviewFromForm(form: HTMLFormElement): void {
+    const desde = String(new FormData(form).get("grado_desde_id") ?? "");
+    const hasta = String(new FormData(form).get("grado_hasta_id") ?? "");
+    editingValues.grado_desde_id = desde;
+    editingValues.grado_hasta_id = hasta;
+    const preview = form.querySelector("#puestos-modal-grado-preview");
+    if (preview) {
+      preview.outerHTML = renderGradoRangoPreview(resolveGradoRango(gradosCatalog, desde, hasta));
     }
   }
 
@@ -734,7 +888,13 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     modalSaving = false;
     editingId = null;
     deletingItem = null;
-    editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "" };
+    editingValues = {
+      codigo: "",
+      nombre_puesto: "",
+      area: "",
+      grado_desde_id: "",
+      grado_hasta_id: "",
+    };
     paintModal();
   }
 
@@ -742,16 +902,16 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     status = "loading";
     paint();
     try {
-      const [items, areas, tarjetas, niveles] = await Promise.all([
+      const [items, areas, tarjetas, grados] = await Promise.all([
         getPerfilesList(),
         getAreasOptions(),
         getResumenTarjetas(),
-        getNivelesPuesto({ page_size: 200 }),
+        getGradosPuesto({ page_size: 200 }),
       ]);
       allItems = items;
       areasOptions = areas;
       tarjetasData = tarjetas;
-      nivelesCatalog = niveles;
+      gradosCatalog = grados;
       status = "ready";
       paint();
     } catch (e: unknown) {
@@ -780,12 +940,21 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
         const action = actionEl.getAttribute("data-action");
 
         switch (action) {
-          case "create":
+          case "create": {
             modalMode = "create";
             editingId = null;
-            editingValues = { codigo: "", nombre_puesto: "", area: "", nivel_id: "", tipo: "administrativo" };
+            const defaults = defaultGradoIds();
+            editingValues = {
+              codigo: "",
+              nombre_puesto: "",
+              area: "",
+              grado_desde_id: defaults.desde,
+              grado_hasta_id: defaults.hasta,
+            };
+            modalFocusOnPaint = true;
             paintModal();
             break;
+          }
           case "puestos-clear-filters":
             clearFilters();
             break;
@@ -796,13 +965,17 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
             if (!item) return;
             modalMode = "edit";
             editingId = id;
-            editingValues = {
-              codigo: item.codigo,
-              nombre_puesto: item.nombre_puesto,
-              area: item.area,
-              nivel_id: String(item.nivel_id),
-              tipo: item.tipo,
-            };
+            {
+              const rango = gradosMinMaxIds(item.grados);
+              editingValues = {
+                codigo: item.codigo,
+                nombre_puesto: item.nombre_puesto,
+                area: item.area,
+                grado_desde_id: rango.desde,
+                grado_hasta_id: rango.hasta,
+              };
+            }
+            modalFocusOnPaint = true;
             paintModal();
             break;
           }
@@ -855,20 +1028,6 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     );
 
     pageRoot.addEventListener(
-      "input",
-      (e) => {
-        const t = e.target as HTMLElement;
-        if (t.getAttribute("data-action") !== "search") return;
-        clearTimeout(searchTimer);
-        searchTimer = window.setTimeout(() => {
-          filters.q = (t as HTMLInputElement).value;
-          paint();
-        }, 250);
-      },
-      { signal },
-    );
-
-    pageRoot.addEventListener(
       "change",
       (e) => {
         const t = e.target as HTMLElement;
@@ -876,10 +1035,50 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
         if (action === "filter-area") {
           filters.area = (t as HTMLSelectElement).value;
           paint();
-        } else if (action === "filter-nivel") {
-          filters.nivel_id = (t as HTMLSelectElement).value;
+        } else if (action === "filter-grado") {
+          filters.grado_id = (t as HTMLSelectElement).value;
           paint();
+        } else if (action === "modal-grado-change") {
+          const form = t.closest<HTMLFormElement>("[data-action='modal-form']");
+          if (!form) return;
+          const desdeEl = form.querySelector<HTMLSelectElement>("#puestos-modal-grado-desde");
+          const hastaEl = form.querySelector<HTMLSelectElement>("#puestos-modal-grado-hasta");
+          if (!desdeEl || !hastaEl) return;
+          // Si eligen solo "desde", alinear "hasta" automáticamente.
+          if (t.id === "puestos-modal-grado-desde" && (!hastaEl.value || hastaEl.value === "")) {
+            hastaEl.value = desdeEl.value;
+          }
+          // Si "hasta" queda antes que "desde" por orden, igualar.
+          const desdeG = gradosCatalog.find((g) => String(g.id) === desdeEl.value);
+          const hastaG = gradosCatalog.find((g) => String(g.id) === hastaEl.value);
+          if (desdeG && hastaG && hastaG.orden < desdeG.orden) {
+            if (t.id === "puestos-modal-grado-desde") hastaEl.value = desdeEl.value;
+            else desdeEl.value = hastaEl.value;
+          }
+          syncGradoPreviewFromForm(form);
         }
+      },
+      { signal },
+    );
+
+    pageRoot.addEventListener(
+      "input",
+      (e) => {
+        const t = e.target as HTMLElement;
+        if (t.getAttribute("data-action") === "modal-codigo-input" && t instanceof HTMLInputElement) {
+          const start = t.selectionStart;
+          const end = t.selectionEnd;
+          t.value = t.value.toUpperCase();
+          if (start != null && end != null) t.setSelectionRange(start, end);
+          editingValues.codigo = t.value;
+          return;
+        }
+        if (t.getAttribute("data-action") !== "search") return;
+        clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => {
+          filters.q = (t as HTMLInputElement).value;
+          paint();
+        }, 250);
       },
       { signal },
     );
@@ -893,25 +1092,59 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     );
   }
 
+  function showModalError(message: string): void {
+    const panel = container.querySelector(".puestos-modal-panel");
+    if (!panel) return;
+    panel.querySelector("[data-modal-error]")?.remove();
+    const header = panel.querySelector(".sticky, .border-b");
+    const anchor = header ?? panel.firstElementChild;
+    if (!anchor) return;
+    anchor.insertAdjacentHTML(
+      "afterend",
+      `<p data-modal-error class="mx-6 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">${escapeHtml(message)}</p>`,
+    );
+  }
+
   async function handleSave(form: HTMLFormElement): Promise<void> {
     const data = new FormData(form);
     const areaValue = (data.get("area") as string).trim();
-    const areaId = areaValue ? Number(areaValue) : null;
+    const areaId = areaValue ? Number(areaValue) : NaN;
     const areaLabel = areasOptions.find((a) => a.id === areaId)?.label ?? "";
-    const nivelRaw = (data.get("nivel_id") as string).trim();
-    const nivelId = Number(nivelRaw);
-    const tipoRaw = (data.get("tipo") as string).trim();
-    const tipo: TipoPuestoPerfil | null =
-      tipoRaw === "administrativo" || tipoRaw === "operativo" ? tipoRaw : null;
+    const desdeRaw = (data.get("grado_desde_id") as string).trim();
+    const hastaRaw = (data.get("grado_hasta_id") as string).trim();
+    const desdeId = Number(desdeRaw);
+    const hastaId = Number(hastaRaw);
+    const grado_ids = gradoIdsEntre(gradosCatalog, desdeId, hastaId);
+
+    // Persistir valores actuales por si re-pintamos el modal.
+    editingValues = {
+      codigo: String(data.get("codigo") ?? "").trim(),
+      nombre_puesto: String(data.get("nombre_puesto") ?? "").trim(),
+      area: areaLabel,
+      grado_desde_id: desdeRaw,
+      grado_hasta_id: hastaRaw,
+    };
+
+    if (!editingValues.codigo || !editingValues.nombre_puesto) {
+      showModalError("Completa el código y el nombre del puesto.");
+      return;
+    }
+    if (Number.isNaN(areaId) || !areaLabel) {
+      showModalError("Selecciona un área.");
+      return;
+    }
+    if (!desdeRaw || !hastaRaw || Number.isNaN(desdeId) || Number.isNaN(hastaId) || grado_ids.length === 0) {
+      showModalError("Selecciona un rango de grados válido (desde / hasta).");
+      return;
+    }
+
     const payload: PerfilPuestoCreatePayload = {
-      codigo: (data.get("codigo") as string).trim(),
-      nombre_puesto: (data.get("nombre_puesto") as string).trim(),
+      codigo: editingValues.codigo.toUpperCase(),
+      nombre_puesto: editingValues.nombre_puesto,
       area: areaLabel,
       area_id: areaId,
-      nivel_id: nivelId,
-      tipo: tipo ?? "administrativo",
+      grado_ids,
     };
-    if (!payload.codigo || !payload.nombre_puesto || !nivelRaw || Number.isNaN(nivelId) || !tipo) return;
 
     modalSaving = true;
     paintModal();
@@ -928,14 +1161,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       const err = e as PuestosFetchError;
       modalSaving = false;
       paintModal();
-      const titleEl = container.querySelector("#puestos-modal-title");
-      if (titleEl) {
-        titleEl.closest(".puestos-modal-panel")?.querySelector("[data-modal-error]")?.remove();
-        titleEl.parentElement?.insertAdjacentHTML(
-          "afterend",
-          `<p data-modal-error class="mx-6 -mt-2 mb-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert">${escapeHtml(err.detail || "Error al guardar")}</p>`,
-        );
-      }
+      showModalError(err.detail || "Error al guardar");
     }
   }
 

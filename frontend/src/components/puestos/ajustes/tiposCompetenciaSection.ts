@@ -26,6 +26,7 @@ import {
   AJUSTES_ICON_EDIT,
   AJUSTES_ICON_PLUS,
   AJUSTES_ICON_TRASH,
+  AJUSTES_ICON_TYPE,
   AJUSTES_INPUT,
   AJUSTES_MODAL_OVERLAY,
   AJUSTES_MODAL_PANEL,
@@ -34,6 +35,7 @@ import {
   AJUSTES_TABLE_TD,
   AJUSTES_TABLE_TD_ACTIONS,
   AJUSTES_TABLE_TH,
+  ajustesCountBadge,
   ajustesEmptyState,
   ajustesErrorAlert,
   ajustesLoadingState,
@@ -162,7 +164,9 @@ export function mountTiposCompetenciaSection(sectionEl: HTMLElement, signal: Abo
     sectionEl.innerHTML = ajustesSectionCard({
       titleId: "tipos-section-title",
       title: "Tipos de competencia",
-      description: "Catálogo de tipos para clasificar competencias al crearlas.",
+      description: "Clasifican las competencias al crearlas dentro de un grupo.",
+      iconHtml: AJUSTES_ICON_TYPE,
+      badgeHtml: loading ? ajustesCountBadge(0, true) : ajustesCountBadge(items.length),
       actionButtonHtml: `<button type="button" data-tipo-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0" ${sinGrupos ? "title=\"Crea un grupo primero o actualiza la lista\"" : ""}>${AJUSTES_ICON_PLUS}<span>Nuevo tipo</span></button>`,
       bodyHtml: renderTable(),
     });

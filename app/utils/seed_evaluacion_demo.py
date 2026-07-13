@@ -26,9 +26,9 @@ from app.models.talento import (
     EvaluacionCompetencia,
     GradoPuesto,
     GrupoCompetencia,
-    NivelPuesto,
     PerfilFunciones,
     PuestoPerfil,
+    PuestoPerfilGrado,
     TipoCompetencia,
 )
 
@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 DEMO_PUESTO_CODIGO = "DEMO-CAL-001"
 DEMO_EMPLEADO_ID = 553  # RASCON LOPEZ, ANNA DELIA — area 10, estado activo
 
-NIVELES = ["Nivel 1 Operativo", "Nivel 2 Senior", "Nivel 3 Especialista", "Nivel 4 Líder"]
 GRADOS = ["Grado 1", "Grado 2", "Grado 3", "Grado 4"]
 
 GRUPOS_TIPOS = {
@@ -104,19 +103,7 @@ async def seed():
             logger.info("Demo data already exists (puesto %s). Skipping.", DEMO_PUESTO_CODIGO)
             return
 
-        # 1. Create niveles
-        nivel_map = {}
-        for i, nombre in enumerate(NIVELES, 1):
-            r = await s.execute(select(NivelPuesto).where(NivelPuesto.nombre == nombre))
-            nivel = r.scalar_one_or_none()
-            if not nivel:
-                nivel = NivelPuesto(nombre=nombre)
-                s.add(nivel)
-                await s.flush()
-            nivel_map[nombre] = nivel
-        logger.info("Niveles: %d", len(nivel_map))
-
-        # 2. Create grados
+        # 1. Create grados
         grado_map = {}
         for i, nombre in enumerate(GRADOS, 1):
             r = await s.execute(select(GradoPuesto).where(GradoPuesto.nombre == nombre))
@@ -148,11 +135,9 @@ async def seed():
         logger.info("Tipos competencia: %d", len(tipo_map))
 
         # 4. Create puesto perfil
-        nivel_puesto = nivel_map["Nivel 2 Senior"]
         puesto = PuestoPerfil(
             codigo=DEMO_PUESTO_CODIGO,
             nombre="Auditor de Calidad Nivel 2",
-            nivel_id=nivel_puesto.id,
             area_id=10,  # Cables Especiales
             activo=True,
         )
@@ -162,6 +147,10 @@ async def seed():
 
         # 5. Create competencias and requisitos
         grado = grado_map["Grado 2"]
+
+        # Configurar el grado del perfil (tabla puente)
+        s.add(PuestoPerfilGrado(puesto_perfil_id=puesto.id, grado_id=grado.id))
+        await s.flush()
         comp_objs = []
         for nombre, tipo_nombre, categoria, nivel_req, _ in COMPETENCIAS:
             r = await s.execute(select(Competencia).where(Competencia.nombre == nombre))

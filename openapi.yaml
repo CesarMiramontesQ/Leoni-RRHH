@@ -3534,9 +3534,20 @@ components:
             $ref: "#/components/schemas/BrechaItem"
 
     # ── Talento — Puestos Perfil ──────────────────────
+    GradoPerfilItem:
+      type: object
+      required: [id, nombre, orden]
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        orden:
+          type: integer
+
     PuestoPerfilCreate:
       type: object
-      required: [codigo, nombre, nivel_id]
+      required: [codigo, nombre, area_id, grado_ids]
       properties:
         codigo:
           type: string
@@ -3548,9 +3559,15 @@ components:
           minLength: 3
           maxLength: 255
         area_id:
-          type: [integer, "null"]
-        nivel_id:
           type: integer
+          minimum: 1
+          description: Area del perfil (obligatoria)
+        grado_ids:
+          type: array
+          minItems: 1
+          items:
+            type: integer
+          description: Grados consecutivos del perfil (obligatorio)
         tipo:
           type: string
           enum: [administrativo, operativo]
@@ -3558,12 +3575,6 @@ components:
           description: Clasificacion del puesto
         descripcion:
           type: [string, "null"]
-        competencias_tecnicas:
-          type: [object, "null"]
-        habilidades_blandas:
-          type: [object, "null"]
-        maquinas_herramientas:
-          type: [object, "null"]
 
     PuestoPerfilUpdate:
       type: object
@@ -3579,8 +3590,12 @@ components:
           maxLength: 255
         area_id:
           type: [integer, "null"]
-        nivel_id:
-          type: integer
+          minimum: 1
+        grado_ids:
+          type: [array, "null"]
+          minItems: 1
+          items:
+            type: integer
         tipo:
           type: string
           enum: [administrativo, operativo]
@@ -3588,12 +3603,6 @@ components:
           description: Clasificacion del puesto
         descripcion:
           type: [string, "null"]
-        competencias_tecnicas:
-          type: [object, "null"]
-        habilidades_blandas:
-          type: [object, "null"]
-        maquinas_herramientas:
-          type: [object, "null"]
 
     PerfilTarjetaItem:
       type: object
@@ -3607,10 +3616,10 @@ components:
           type: string
         area_nombre:
           type: [string, "null"]
-        nivel_id:
-          type: integer
-        nivel_nombre:
-          type: string
+        grados:
+          type: array
+          items:
+            $ref: "#/components/schemas/GradoPerfilItem"
         personas:
           type: integer
         cumplimiento_pct:
@@ -3630,56 +3639,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PerfilTarjetaItem"
-
-    NivelPuestoCreate:
-      type: object
-      required: [nombre]
-      properties:
-        nombre:
-          type: string
-          minLength: 2
-          maxLength: 100
-
-    NivelPuestoUpdate:
-      type: object
-      required: [nombre]
-      properties:
-        nombre:
-          type: string
-          minLength: 2
-          maxLength: 100
-
-    NivelPuestoResponse:
-      type: object
-      required: [id, nombre, activo, created_at, updated_at]
-      properties:
-        id:
-          type: integer
-        nombre:
-          type: string
-        activo:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-
-    NivelPuestoListResponse:
-      type: object
-      required: [items, total, page, page_size]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/NivelPuestoResponse"
-        total:
-          type: integer
-        page:
-          type: integer
-        page_size:
-          type: integer
 
     GradoPuestoCreate:
       type: object
@@ -4057,6 +4016,11 @@ components:
         es_complemento:
           type: boolean
           default: false
+        grado_id:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: Null = tarea general (todos los grados del perfil)
 
     PerfilTareaUpdate:
       type: object
@@ -4069,10 +4033,14 @@ components:
           minLength: 1
         es_complemento:
           type: boolean
+        grado_id:
+          type: integer
+          nullable: true
+          description: Null = general; omitir para no cambiar
 
     PerfilTareaResponse:
       type: object
-      required: [id, puesto_perfil_id, orden, descripcion, es_complemento, created_at, updated_at]
+      required: [id, puesto_perfil_id, orden, descripcion, es_complemento, es_general, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -4082,7 +4050,6 @@ components:
           type: integer
         descripcion:
           type: string
-          description: Texto mostrado; con catálogo vinculado usa descripcion del catálogo o nombre como fallback.
         es_complemento:
           type: boolean
         tarea_catalogo_id:
@@ -4091,6 +4058,15 @@ components:
         tarea_catalogo_nombre:
           type: string
           nullable: true
+        grado_id:
+          type: integer
+          nullable: true
+        grado_nombre:
+          type: string
+          nullable: true
+        es_general:
+          type: boolean
+          description: True cuando grado_id es null (aplica a todos los grados)
         created_at:
           type: string
           format: date-time
@@ -4100,7 +4076,7 @@ components:
 
     PuestoPerfilResponse:
       type: object
-      required: [id, codigo, nombre, nivel_id, nivel_nombre, tipo, version, activo, created_at, updated_at]
+      required: [id, codigo, nombre, tipo, version, activo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -4112,21 +4088,15 @@ components:
           type: [integer, "null"]
         area_nombre:
           type: [string, "null"]
-        nivel_id:
-          type: integer
-        nivel_nombre:
-          type: string
+        grados:
+          type: array
+          items:
+            $ref: "#/components/schemas/GradoPerfilItem"
         tipo:
           type: string
           enum: [administrativo, operativo]
         descripcion:
           type: [string, "null"]
-        competencias_tecnicas:
-          type: [object, "null"]
-        habilidades_blandas:
-          type: [object, "null"]
-        maquinas_herramientas:
-          type: [object, "null"]
         version:
           type: integer
         activo:
@@ -4693,7 +4663,7 @@ components:
 
     PerfilCompetenciaResponse:
       type: object
-      required: [id, competencia_id, competencia_nombre, grado_id, grado_nombre, nivel_requerido]
+      required: [id, competencia_id, competencia_nombre, es_general, nivel_requerido]
       properties:
         id:
           type: integer
@@ -4717,8 +4687,14 @@ components:
           description: Nombre del grupo de competencia del tipo asociado
         grado_id:
           type: integer
+          nullable: true
+          description: Null = competencia general
         grado_nombre:
           type: string
+          nullable: true
+        es_general:
+          type: boolean
+          description: True cuando grado_id es null (aplica a todos los grados)
         nivel_requerido:
           type: integer
         orden:
@@ -4727,13 +4703,15 @@ components:
 
     PerfilCompetenciaCreate:
       type: object
-      required: [competencia_id, grado_id, nivel_requerido]
+      required: [competencia_id, nivel_requerido]
       properties:
         competencia_id:
           type: integer
         grado_id:
           type: integer
+          nullable: true
           minimum: 1
+          description: Null = competencia general (todos los grados del perfil)
         nivel_requerido:
           type: integer
           minimum: 1
@@ -4762,11 +4740,13 @@ components:
 
     PerfilCompetenciaSyncBody:
       type: object
-      required: [grado_id, tipo_competencia_id]
+      required: [tipo_competencia_id]
       properties:
         grado_id:
           type: integer
+          nullable: true
           minimum: 1
+          description: Null = sync de competencias generales
         tipo_competencia_id:
           type: integer
           minimum: 1
@@ -9949,120 +9929,6 @@ paths:
         "204":
           description: Competencia eliminada
 
-  # ── Talento — Niveles Puesto ─────────────────────────
-  /api/v1/niveles-puesto:
-    get:
-      tags: [Talento - Niveles Puesto]
-      summary: Listar niveles de puesto (paginado)
-      operationId: niveles_puesto_list
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-        - name: page_size
-          in: query
-          schema:
-            type: integer
-            default: 50
-            minimum: 1
-            maximum: 200
-        - name: busqueda
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Pagina de niveles
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NivelPuestoListResponse"
-    post:
-      tags: [Talento - Niveles Puesto]
-      summary: Crear nivel de puesto
-      operationId: niveles_puesto_create
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NivelPuestoCreate"
-      responses:
-        "201":
-          description: Nivel creado
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NivelPuestoResponse"
-
-  /api/v1/niveles-puesto/{id}:
-    get:
-      tags: [Talento - Niveles Puesto]
-      summary: Obtener nivel de puesto
-      operationId: niveles_puesto_get
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Detalle del nivel
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NivelPuestoResponse"
-    patch:
-      tags: [Talento - Niveles Puesto]
-      summary: Actualizar nivel de puesto
-      operationId: niveles_puesto_update
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NivelPuestoUpdate"
-      responses:
-        "200":
-          description: Nivel actualizado
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NivelPuestoResponse"
-    delete:
-      tags: [Talento - Niveles Puesto]
-      summary: Eliminar nivel de puesto (soft delete)
-      operationId: niveles_puesto_delete
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Nivel eliminado
-
   # ── Talento — Grados Puesto ──────────────────────────
   /api/v1/grados-puesto:
     get:
@@ -11106,8 +10972,9 @@ paths:
           in: query
           schema:
             type: integer
-        - name: nivel_id
+        - name: grado_id
           in: query
+          description: Filtra perfiles que incluyen ese grado
           schema:
             type: integer
         - name: busqueda
@@ -12169,13 +12036,14 @@ paths:
             type: integer
         - name: grado_id
           in: query
-          required: true
+          required: false
           schema:
             type: integer
             minimum: 1
+          description: Si se indica, específicas del grado + generales; si se omite, todas
       responses:
         "200":
-          description: Lista de competencias del grado
+          description: Lista de competencias (generales + específicas del grado)
           content:
             application/json:
               schema:

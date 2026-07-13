@@ -32,6 +32,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -58,9 +59,6 @@ class PuestoPerfil(Base):
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     area_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("areas.area_id"), nullable=True
-    )
-    nivel_id: Mapped[int] = mapped_column(
-        ForeignKey("levelup_niveles_puesto.id"), nullable=False
     )
     tipo: Mapped[str] = mapped_column(
         String(50), nullable=False, default="administrativo", server_default="administrativo"
@@ -103,7 +101,6 @@ class PuestoPerfil(Base):
 
     # Relationships
     area: Mapped[Optional["Area"]] = relationship("Area", foreign_keys=[area_id])
-    nivel: Mapped["NivelPuesto"] = relationship("NivelPuesto", back_populates="puestos_perfil")
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="puesto_perfil", cascade="all, delete-orphan"
     )
@@ -115,6 +112,9 @@ class PuestoPerfil(Base):
     )
     asignaciones_funciones: Mapped[List["PerfilFunciones"]] = relationship(
         "PerfilFunciones", back_populates="puesto_perfil", cascade="all, delete-orphan"
+    )
+    grados_config: Mapped[List["PuestoPerfilGrado"]] = relationship(
+        "PuestoPerfilGrado", back_populates="puesto_perfil", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
@@ -220,6 +220,13 @@ class CompetenciaRequisito(Base):
             "nivel_requerido >= 0",
             name="ck_levelup_nivel_requerido_nonneg",
         ),
+        Index(
+            "uq_levelup_competencia_puesto_general",
+            "competencia_id", "puesto_perfil_id",
+            unique=True,
+            postgresql_where=text("grado_id IS NULL"),
+            sqlite_where=text("grado_id IS NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -229,8 +236,8 @@ class CompetenciaRequisito(Base):
     puesto_perfil_id: Mapped[int] = mapped_column(
         ForeignKey("levelup_puestos_perfil.id", ondelete="CASCADE"), nullable=False
     )
-    grado_id: Mapped[int] = mapped_column(
-        ForeignKey("levelup_grados_puesto.id"), nullable=False
+    grado_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_grados_puesto.id"), nullable=True
     )
     nivel_requerido: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
@@ -251,7 +258,7 @@ class CompetenciaRequisito(Base):
     puesto_perfil: Mapped["PuestoPerfil"] = relationship(
         "PuestoPerfil", back_populates="requisitos"
     )
-    grado: Mapped["GradoPuesto"] = relationship("GradoPuesto", back_populates="requisitos")
+    grado: Mapped[Optional["GradoPuesto"]] = relationship("GradoPuesto", back_populates="requisitos")
 
     def __repr__(self) -> str:
         return (
@@ -565,6 +572,34 @@ class GradoPuesto(Base):
         return f"<GradoPuesto id={self.id} nombre={self.nombre} orden={self.orden}>"
 
 
+class PuestoPerfilGrado(Base):
+    """Grados de progresion configurados para un perfil (rango consecutivo por orden)."""
+    __tablename__ = "levelup_puesto_perfil_grados"
+    __table_args__ = (
+        UniqueConstraint("puesto_perfil_id", "grado_id", name="uq_levelup_puesto_perfil_grado"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    puesto_perfil_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_puestos_perfil.id", ondelete="CASCADE"), nullable=False
+    )
+    grado_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_grados_puesto.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    puesto_perfil: Mapped["PuestoPerfil"] = relationship("PuestoPerfil", back_populates="grados_config")
+    grado: Mapped["GradoPuesto"] = relationship("GradoPuesto")
+
+    def __repr__(self) -> str:
+        return (
+            f"<PuestoPerfilGrado puesto_perfil_id={self.puesto_perfil_id} "
+            f"grado_id={self.grado_id}>"
+        )
+
+
 class MetodoCalificacionCompetencia(Base):
     """Catalogo configurable de metodos de calificacion para competencias."""
 
@@ -593,29 +628,6 @@ class MetodoCalificacionCompetencia(Base):
             f"<MetodoCalificacionCompetencia id={self.id} valor={self.valor} "
             f"nombre={self.nombre} orden={self.orden}>"
         )
-
-
-class NivelPuesto(Base):
-    """Catalogo de niveles organizacionales para perfiles de puesto."""
-
-    __tablename__ = "levelup_niveles_puesto"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-    puestos_perfil: Mapped[List["PuestoPerfil"]] = relationship(
-        "PuestoPerfil", back_populates="nivel"
-    )
-
-    def __repr__(self) -> str:
-        return f"<NivelPuesto id={self.id} nombre={self.nombre}>"
 
 
 class TareaCatalogo(Base):
@@ -657,6 +669,9 @@ class PerfilTarea(Base):
     tarea_catalogo_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_tareas_catalogo.id", ondelete="SET NULL"), nullable=True
     )
+    grado_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_grados_puesto.id"), nullable=True
+    )
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
     es_complemento: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -674,6 +689,7 @@ class PerfilTarea(Base):
     tarea_catalogo: Mapped[Optional["TareaCatalogo"]] = relationship(
         "TareaCatalogo", back_populates="perfil_tareas"
     )
+    grado: Mapped[Optional["GradoPuesto"]] = relationship("GradoPuesto")
 
     def __repr__(self) -> str:
         return f"<PerfilTarea id={self.id} orden={self.orden} puesto_perfil_id={self.puesto_perfil_id}>"

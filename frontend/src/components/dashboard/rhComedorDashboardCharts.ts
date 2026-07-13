@@ -133,7 +133,7 @@ export function mountDashComedorRegistrosFuturosChart(
           backgroundColor: colorConAlpha(accent, BAR_FILL_ALPHA),
           borderColor: accent,
           borderWidth: 1,
-          borderRadius: 4,
+          borderRadius: 0,
         },
       ],
     },

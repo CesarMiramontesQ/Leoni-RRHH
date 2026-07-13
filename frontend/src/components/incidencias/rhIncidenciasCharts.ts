@@ -27,8 +27,8 @@ export const RH_INC_RANKING_BAR_CHART_HEIGHT_CLASS = "h-[260px]";
 
 const RANKING_BAR_TOP = 5;
 const RANKING_BAR_FILL_ALPHA = 0.5;
-/** Radio moderado para barras verticales (alineado con analítica de solicitudes). */
-const VERTICAL_BAR_BORDER_RADIUS = 8;
+/** Barras sin redondeo (look plano). */
+const VERTICAL_BAR_BORDER_RADIUS = 0;
 
 const TENDENCIA_RED_ALPHA = 0.2;
 const TENDENCIA_LINE_TENSION_SMOOTH = 0.4;
@@ -379,7 +379,7 @@ export function mountIncidenciasAreasBarChart(
             borderColor,
             backgroundColor,
             borderWidth: 1,
-            borderRadius: 4,
+            borderRadius: 0,
           },
         ],
       },
@@ -456,7 +456,7 @@ export function mountIncidenciasSubareasBarChart(
             borderColor,
             backgroundColor,
             borderWidth: 1,
-            borderRadius: 4,
+            borderRadius: 0,
           },
         ],
       },
@@ -620,7 +620,7 @@ export function mountIncidenciasEmpleadosSegCalBarChart(
           borderColor: border,
           borderWidth: 1,
           stack: "quejas",
-          borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 4, bottomRight: 4 },
+          borderRadius: 0,
           borderSkipped: false,
         };
       }),

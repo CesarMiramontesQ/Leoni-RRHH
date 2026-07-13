@@ -22,6 +22,7 @@ import {
 import {
   AJUSTES_ICON_EDIT,
   AJUSTES_ICON_PLUS,
+  AJUSTES_ICON_QUAL,
   AJUSTES_ICON_TRASH,
   AJUSTES_INPUT,
   AJUSTES_MODAL_OVERLAY,
@@ -33,6 +34,7 @@ import {
   AJUSTES_TABLE_TD_MUTED,
   AJUSTES_TABLE_TH,
   AJUSTES_TEXTAREA,
+  ajustesCountBadge,
   ajustesEmptyState,
   ajustesErrorAlert,
   ajustesLoadingState,
@@ -163,7 +165,9 @@ export function mountTiposCualificacionSection(sectionEl: HTMLElement, signal: A
       ajustesSectionCard({
         titleId: "tipos-cual-section-title",
         title: "Tipos de cualificación",
-        description: "Cualificaciones reutilizables en perfiles de puesto.",
+        description: "Requisitos reutilizables en perfiles (escolaridad, experiencia, etc.).",
+        iconHtml: AJUSTES_ICON_QUAL,
+        badgeHtml: loading ? ajustesCountBadge(0, true) : ajustesCountBadge(items.length),
         actionButtonHtml: `<button type="button" data-tipo-cual-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nueva cualificación</span></button>`,
         bodyHtml: renderTable(),
       }) + renderModal();

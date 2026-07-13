@@ -9,6 +9,7 @@ import { escapeHtml } from "../../../ui/uiUtils.ts";
 import { BTN_DANGER, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_SECONDARY, RH_LISTADO_LABEL } from "../../../ui/uiTokens.ts";
 import {
   AJUSTES_ICON_EDIT,
+  AJUSTES_ICON_GROUP,
   AJUSTES_ICON_PLUS,
   AJUSTES_ICON_TRASH,
   AJUSTES_INPUT,
@@ -19,6 +20,7 @@ import {
   AJUSTES_TABLE_TD,
   AJUSTES_TABLE_TD_ACTIONS,
   AJUSTES_TABLE_TH,
+  ajustesCountBadge,
   ajustesEmptyState,
   ajustesErrorAlert,
   ajustesLoadingState,
@@ -114,7 +116,9 @@ export function mountGruposCompetenciaSection(sectionEl: HTMLElement, signal: Ab
     sectionEl.innerHTML = ajustesSectionCard({
       titleId: "grupos-section-title",
       title: "Grupos de competencia",
-      description: "Catálogo de grupos para organizar tipos de competencia.",
+      description: "Organizan los tipos de competencia (p. ej. Técnica, Habilidad blanda).",
+      iconHtml: AJUSTES_ICON_GROUP,
+      badgeHtml: loading ? ajustesCountBadge(0, true) : ajustesCountBadge(items.length),
       actionButtonHtml: `<button type="button" data-grupo-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo grupo</span></button>`,
       bodyHtml: renderTable(),
     });
