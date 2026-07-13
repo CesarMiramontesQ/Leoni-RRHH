@@ -19,6 +19,7 @@ Nota sobre SQLite en tests:
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.models.talento import Competencia, CompetenciaRequisito, PuestoPerfil
 from tests.conftest import auth_headers, make_empleado
@@ -411,3 +412,72 @@ async def test_hard_delete_puesto_orm_cascade_elimina_requisitos(db):
         select(Competencia).where(Competencia.id == comp.id)
     )
     assert result3.scalar_one_or_none() is not None
+
+
+# ===========================================================================
+# Test 6: Indice parcial unico para requisitos generales (grado_id IS NULL)
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_competencia_requisito_general_duplicado_levanta_integrity_error(db):
+    """
+    Dos requisitos generales (grado_id NULL) para la misma competencia+perfil
+    violan el indice unico parcial uq_levelup_competencia_puesto_general.
+    """
+    area = await make_area(db, descripcion="Area General Unique")
+    puesto = await make_puesto_perfil(
+        db, nombre="Puesto General Unique", area_id=area.area_id
+    )
+    comp = await make_competencia(
+        db, nombre="Comp General Unique", categoria="tecnica", area_id=area.area_id
+    )
+
+    await make_competencia_requisito(
+        db, competencia_id=comp.id, puesto_perfil_id=puesto.id,
+        nivel_requerido=3, general=True,
+    )
+
+    # Segundo requisito general duplicado (misma competencia + perfil) → debe fallar
+    duplicado = CompetenciaRequisito(
+        competencia_id=comp.id,
+        puesto_perfil_id=puesto.id,
+        grado_id=None,
+        nivel_requerido=2,
+    )
+    db.add(duplicado)
+    with pytest.raises(IntegrityError):
+        await db.flush()
+
+    # Rollback para limpiar la sesion del error
+    await db.rollback()
+
+
+@pytest.mark.asyncio
+async def test_competencia_requisito_general_y_especifico_coexisten(db):
+    """
+    Un requisito general (grado_id NULL) y uno especifico (grado_id concreto)
+    para la misma competencia+perfil no colisionan (indices distintos).
+    """
+    from tests.conftest_talento import get_default_grado
+
+    area = await make_area(db, descripcion="Area General Especifico")
+    puesto = await make_puesto_perfil(
+        db, nombre="Puesto General Especifico", area_id=area.area_id
+    )
+    comp = await make_competencia(
+        db, nombre="Comp General Especifico", categoria="tecnica", area_id=area.area_id
+    )
+    grado = await get_default_grado(db)
+
+    general = await make_competencia_requisito(
+        db, competencia_id=comp.id, puesto_perfil_id=puesto.id,
+        nivel_requerido=3, general=True,
+    )
+    especifico = await make_competencia_requisito(
+        db, competencia_id=comp.id, puesto_perfil_id=puesto.id,
+        grado_id=grado.id, nivel_requerido=2,
+    )
+
+    assert general.grado_id is None
+    assert especifico.grado_id == grado.id
