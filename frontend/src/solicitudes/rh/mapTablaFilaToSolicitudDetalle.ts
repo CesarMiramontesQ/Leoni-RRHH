@@ -27,16 +27,14 @@ export type MapTablaFilaToSolicitudDetalleOpciones = {
  */
 export function mapTablaFilaToSolicitudDetallePendiente(
   row: RhSolicitudTablaFila,
-  opciones?: MapTablaFilaToSolicitudDetalleOpciones,
+  _opciones?: MapTablaFilaToSolicitudDetalleOpciones,
 ): SolicitudDetallePendienteVm | null {
   if (row.estado !== "pending") return null;
-  const soloLectura = opciones?.soloLectura ?? false;
   const extra = getSolicitudDetalleMockExtra(row.id);
   const nombre = formatNombreEmpleadoUi(row.empleado_nombre_raw).trim() || row.empleado_nombre_raw.trim() || "Sin nombre";
   const supervisor =
     formatNombreEmpleadoUi(row.supervisor_nombre).trim() || row.supervisor_nombre.trim() || "—";
   const totalDias = calcularDiasSolicitadosInclusive(row.fecha_inicio, row.fecha_fin);
-  const saldoRestante = Math.max(0, extra.saldo_actual - totalDias);
   const tipoBadge =
     row.tipo === "vacaciones" ? SD_COPY.badgeVacacionesPendiente
     : row.tipo === "home_office" ? SD_COPY.badgeHomeOfficePendiente
@@ -69,8 +67,8 @@ export function mapTablaFilaToSolicitudDetallePendiente(
       fecha_fin: fmtFechaDisplay(row.fecha_fin),
       total_dias: totalDias,
       comentario_empleado: comentarioEmp || SD_COPY.sinComentarioEmpleado,
-      saldo_actual: extra.saldo_actual,
-      saldo_restante: saldoRestante,
+      saldo_actual: null,
+      saldo_restante: null,
     },
   };
 }

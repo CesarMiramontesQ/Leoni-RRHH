@@ -186,12 +186,18 @@ async def get_saldo_vacaciones_real(
 )
 async def get_vacaciones_disponibles_solicitud(
     empleado_id: int,
+    excluir_solicitud_id: int | None = Query(
+        None,
+        description="Excluir solicitud al sumar comprometidos (detalle de una pendiente).",
+    ),
     current_user: Empleado = Depends(get_current_user),
     svc: SolicitudService = Depends(_sol_svc),
 ):
     """Días disponibles para solicitar vacaciones = saldo TRESS − comprometidos en curso."""
     return await svc.obtener_disponible_vacaciones(
-        empleado_id=empleado_id, current_user=current_user
+        empleado_id=empleado_id,
+        current_user=current_user,
+        exclude_solicitud_id=excluir_solicitud_id,
     )
 
 

@@ -160,17 +160,19 @@ export function solicitudDetalleContentHtml(
 
   const badge = `<span class="inline-flex max-w-full items-center rounded-full border border-leoni-blue/20 bg-leoni-blue/[0.08] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-leoni-blue">${escapeHtml(s.tipo_badge)}</span>`;
 
-  const saldoCards = soloLectura
-    ? ""
-    : `
+  const fmtSaldo = (n: number | null) => (n == null ? "—" : String(n));
+  const saldoCards =
+    soloLectura || s.tipo_codigo !== "vacaciones"
+      ? ""
+      : `
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <div class="rounded-xl border border-slate-200/90 bg-white px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
         <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(SD_COPY.lblSaldoActual)}</p>
-        <p class="mt-1 text-xl font-bold tabular-nums text-leoni-blue">${escapeHtml(String(s.saldo_actual))}</p>
+        <p class="mt-1 text-xl font-bold tabular-nums text-leoni-blue">${escapeHtml(fmtSaldo(s.saldo_actual))}</p>
       </div>
       <div class="rounded-xl border border-emerald-200/80 bg-emerald-50/30 px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
         <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">${escapeHtml(SD_COPY.lblRestante)}</p>
-        <p class="mt-1 text-xl font-bold tabular-nums text-emerald-700">${escapeHtml(String(s.saldo_restante))}</p>
+        <p class="mt-1 text-xl font-bold tabular-nums text-emerald-700">${escapeHtml(fmtSaldo(s.saldo_restante))}</p>
       </div>
     </div>`;
 

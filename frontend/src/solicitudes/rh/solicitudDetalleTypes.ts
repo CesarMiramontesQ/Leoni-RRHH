@@ -22,8 +22,9 @@ export type SolicitudDetalleSolicitudVm = {
   fecha_fin: string;
   total_dias: number;
   comentario_empleado: string;
-  saldo_actual: number;
-  saldo_restante: number;
+  /** null mientras carga o si TRESS falla; solo aplica a vacaciones. */
+  saldo_actual: number | null;
+  saldo_restante: number | null;
 };
 
 /**
@@ -60,8 +61,8 @@ export type RequestDetail = {
     endDate: string;
     totalDays: number;
     employeeComment: string;
-    currentBalance: number;
-    remainingBalance: number;
+    currentBalance: number | null;
+    remainingBalance: number | null;
   };
   internalComment?: string;
 };

@@ -10,6 +10,7 @@ import type { SolicitudDetalleAccion } from "../../solicitudes/rh/solicitudDetal
 import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import type { SolicitudApiItem } from "../../api/solicitudes.ts";
+import { getEmpleadoVacacionesDisponiblesSolicitud } from "../../api/vista360.ts";
 import {
   solicitudDetalleContentHtml,
   solicitudDetalleJerarquiaHtml,
@@ -262,14 +263,43 @@ export function mountSolicitudDetalleModal(
         const ocultarDecisionJerarquica =
           !soloLectura && debeOcultarAccionesAprobacionPorAutopaprobacionDesdeSesion(fila);
 
+        const cargas: Promise<void>[] = [];
+
         if (options.cargarDetalleServidor && !soloLectura) {
-          try {
-            const det = await options.cargarDetalleServidor(solicitudId);
-            jerarquiaHtml = solicitudDetalleJerarquiaHtml(det);
-          } catch {
-            /* sin panel de jerarquía si falla el GET */
+          cargas.push(
+            (async () => {
+              try {
+                const det = await options.cargarDetalleServidor!(solicitudId);
+                jerarquiaHtml = solicitudDetalleJerarquiaHtml(det);
+              } catch {
+                /* sin panel de jerarquía si falla el GET */
+              }
+            })(),
+          );
+        }
+
+        if (!soloLectura && fila.tipo === "vacaciones") {
+          const empleadoIdNum = Number(fila.empleado_id);
+          if (Number.isFinite(empleadoIdNum) && empleadoIdNum > 0) {
+            cargas.push(
+              (async () => {
+                try {
+                  const disp = await getEmpleadoVacacionesDisponiblesSolicitud(empleadoIdNum, {
+                    signal: options.signal,
+                    excluirSolicitudId: fila.id,
+                  });
+                  const saldoActual = Math.trunc(disp.dias_disponibles);
+                  vm.solicitud.saldo_actual = saldoActual;
+                  vm.solicitud.saldo_restante = Math.max(0, saldoActual - vm.solicitud.total_dias);
+                } catch {
+                  /* TRESS/caída: tarjetas quedan en «—» (null) */
+                }
+              })(),
+            );
           }
         }
+
+        if (cargas.length) await Promise.all(cargas);
 
         modalBody.innerHTML = solicitudDetalleContentHtml(vm, {
           soloLectura,
