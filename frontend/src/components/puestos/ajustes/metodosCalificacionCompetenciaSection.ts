@@ -17,6 +17,7 @@ import { BTN_DANGER, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_SECONDARY, RH_LISTAD
 import {
   AJUSTES_ICON_EDIT,
   AJUSTES_ICON_PLUS,
+  AJUSTES_ICON_SCALE,
   AJUSTES_ICON_TRASH,
   AJUSTES_INPUT,
   AJUSTES_MODAL_OVERLAY,
@@ -27,6 +28,7 @@ import {
   AJUSTES_TABLE_TD_ACTIONS,
   AJUSTES_TABLE_TD_MUTED,
   AJUSTES_TABLE_TH,
+  ajustesCountBadge,
   ajustesEmptyState,
   ajustesErrorAlert,
   ajustesLoadingState,
@@ -134,9 +136,11 @@ export function mountMetodosCalificacionCompetenciaSection(
     sectionEl.innerHTML =
       ajustesSectionCard({
         titleId: "mcc-section-title",
-        title: "Niveles de competencia",
+        title: "Escala de dominio",
         description:
-          "Niveles de dominio configurables para competencias en perfiles de puesto, matriz de multihabilidad y evaluaciones.",
+          "Niveles de dominio para competencias (matriz, perfiles y evaluaciones).",
+        iconHtml: AJUSTES_ICON_SCALE,
+        badgeHtml: loading ? ajustesCountBadge(0, true) : ajustesCountBadge(items.length),
         actionButtonHtml: `<button type="button" data-mcc-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo nivel</span></button>`,
         bodyHtml: renderTable(),
       }) + renderModal();

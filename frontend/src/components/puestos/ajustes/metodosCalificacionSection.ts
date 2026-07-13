@@ -36,6 +36,7 @@ import {
 import {
   AJUSTES_ICON_EDIT,
   AJUSTES_ICON_PLUS,
+  AJUSTES_ICON_SCALE,
   AJUSTES_ICON_TRASH,
   AJUSTES_INPUT,
   AJUSTES_MODAL_OVERLAY,
@@ -48,6 +49,7 @@ import {
   AJUSTES_TABLE_TD_MUTED,
   AJUSTES_TABLE_TH,
   AJUSTES_TEXTAREA,
+  ajustesCountBadge,
   ajustesEmptyState,
   ajustesErrorAlert,
   ajustesLoadingState,
@@ -326,7 +328,9 @@ export function mountMetodosCalificacionSection(sectionEl: HTMLElement, signal: 
       ajustesSectionCard({
         titleId: "metodos-section-title",
         title: "Métodos de evaluación",
-        description: "Reglas de evaluación y comparación para cualificaciones del perfil.",
+        description: "Reglas de comparación para evaluar cualificaciones del perfil.",
+        iconHtml: AJUSTES_ICON_SCALE,
+        badgeHtml: loading ? ajustesCountBadge(0, true) : ajustesCountBadge(items.length),
         actionButtonHtml: `<button type="button" data-metodo-create class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo método</span></button>`,
         bodyHtml: renderMetodoTable(),
       }) +

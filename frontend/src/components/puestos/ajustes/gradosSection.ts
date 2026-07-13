@@ -11,6 +11,7 @@ import {
   AJUSTES_ICON_EDIT,
   AJUSTES_ICON_PLUS,
   AJUSTES_ICON_TRASH,
+  AJUSTES_ICON_GRADES,
   AJUSTES_INPUT,
   AJUSTES_MODAL_OVERLAY,
   AJUSTES_MODAL_PANEL,
@@ -19,6 +20,7 @@ import {
   AJUSTES_TABLE_TD,
   AJUSTES_TABLE_TD_ACTIONS,
   AJUSTES_TABLE_TH,
+  ajustesCountBadge,
   ajustesEmptyState,
   ajustesErrorAlert,
   ajustesLoadingState,
@@ -122,8 +124,10 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     sectionEl.innerHTML =
       ajustesSectionCard({
         titleId: "grados-section-title",
-        title: "Grados",
-        description: "Progresión dentro del puesto (Grado 1, 2, 3…). Distinto del nivel organizacional.",
+        title: "Grados de progresión",
+        description: "Catálogo global. Cada perfil se asocia a un rango consecutivo de estos grados.",
+        iconHtml: AJUSTES_ICON_GRADES,
+        badgeHtml: loading ? ajustesCountBadge(0, true) : ajustesCountBadge(items.length),
         actionButtonHtml: `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo grado</span></button>`,
         bodyHtml: renderTable(),
       }) + renderModal();
