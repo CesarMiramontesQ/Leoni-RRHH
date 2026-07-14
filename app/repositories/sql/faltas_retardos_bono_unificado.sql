@@ -4,7 +4,7 @@
 -- Rama B: falta justificada (FJ) vía JOIN ponderaciones ON ih.inc_id = p.id.
 -- Rama C: falta justificada en evaluacion_historica vía id_ponderacion → ponderaciones.
 --
--- fecha_evento: inicio de semana (semana_historico.fecha_ini) cuando existe.
+-- fecha_evento: fecha_incidencia real cuando existe; si no, inicio de semana (fecha_ini).
 
 SELECT
     CAST('importadas_historico' AS text) AS origen,
@@ -15,6 +15,9 @@ SELECT
     p.codigo AS tipo_codigo,
     p.descripcion AS tipo_descripcion,
     CASE
+        WHEN ih.fecha_incidencia IS NOT NULL
+            AND EXTRACT(YEAR FROM ih.fecha_incidencia) BETWEEN 1900 AND 2100
+        THEN CAST(ih.fecha_incidencia AS date)
         WHEN sem.fecha_ini IS NOT NULL
             AND EXTRACT(YEAR FROM sem.fecha_ini) BETWEEN 1900 AND 2100
         THEN CAST(sem.fecha_ini AS date)
@@ -43,6 +46,9 @@ SELECT
     p.codigo AS tipo_codigo,
     p.descripcion AS tipo_descripcion,
     CASE
+        WHEN ih.fecha_incidencia IS NOT NULL
+            AND EXTRACT(YEAR FROM ih.fecha_incidencia) BETWEEN 1900 AND 2100
+        THEN CAST(ih.fecha_incidencia AS date)
         WHEN sem.fecha_ini IS NOT NULL
             AND EXTRACT(YEAR FROM sem.fecha_ini) BETWEEN 1900 AND 2100
         THEN CAST(sem.fecha_ini AS date)

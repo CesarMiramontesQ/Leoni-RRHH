@@ -20,6 +20,8 @@ FuenteBonoHistorico: TypeAlias = Literal[
     "seguridad_historico",
     "importadas_historico",
     "evaluacion_historica_gral",
+    "ausencias_fi",
+    "ausencias_re",
 ]
 
 OrigenEjecucion: TypeAlias = Literal["scheduler", "manual"]

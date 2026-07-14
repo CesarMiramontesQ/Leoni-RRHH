@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from zoneinfo import ZoneInfo
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -18,7 +19,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone=ZoneInfo(settings.APP_TIMEZONE))
 
 
 async def _tress_scheduler_job():
@@ -47,6 +48,16 @@ async def _eval360_recordatorios_job():
         )
     except Exception as exc:
         logger.error("Error en Eval360 recordatorios job: %s", str(exc), exc_info=True)
+
+
+async def _sync_ausencias_fi_job():
+    """Sync diario FI+RE (dbo.AUSENCIA → importadas_historico) a las 22:00."""
+    try:
+        from app.integrations.sync_ausencias_fi_job import sync_ausencias_fi_job
+
+        await sync_ausencias_fi_job()
+    except Exception as exc:
+        logger.error("Error en sync ausencias FI/RE job: %s", str(exc), exc_info=True)
 
 
 @asynccontextmanager
@@ -83,6 +94,14 @@ async def lifespan(app: FastAPI):
         hour=8,
         minute=0,
         id="eval360_recordatorios",
+    )
+    # Sync FI+RE AUSENCIA → importadas_historico: diario 22:00 (APP_TIMEZONE).
+    scheduler.add_job(
+        _sync_ausencias_fi_job,
+        "cron",
+        hour=22,
+        minute=0,
+        id="sync_ausencias_fi",
     )
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))

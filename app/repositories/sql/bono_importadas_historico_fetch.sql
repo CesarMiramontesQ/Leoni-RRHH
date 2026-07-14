@@ -1,4 +1,5 @@
 -- Fila única de importadas_historico para respuesta API (compatible con map_bono_row).
+-- fecha_evento: fecha_incidencia real cuando existe; si no, inicio de semana.
 SELECT
     CAST('importadas_historico' AS text) AS origen,
     ih.id AS origen_id,
@@ -8,6 +9,9 @@ SELECT
     p.codigo AS tipo_codigo,
     p.descripcion AS tipo_descripcion,
     CASE
+        WHEN ih.fecha_incidencia IS NOT NULL
+            AND EXTRACT(YEAR FROM ih.fecha_incidencia) BETWEEN 1900 AND 2100
+        THEN CAST(ih.fecha_incidencia AS date)
         WHEN sem.fecha_ini IS NOT NULL
             AND EXTRACT(YEAR FROM sem.fecha_ini) BETWEEN 1900 AND 2100
         THEN CAST(sem.fecha_ini AS date)
