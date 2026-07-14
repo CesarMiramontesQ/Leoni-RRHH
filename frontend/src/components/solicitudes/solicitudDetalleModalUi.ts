@@ -78,7 +78,7 @@ export function solicitudDetalleShellHtml(): string {
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
           <p id="rh-sd-tress-loading-title" class="text-base font-semibold text-[var(--color-primary)]">${escapeHtml(SD_COPY.agregandoVacaciones)}</p>
-          <p class="max-w-xs text-sm text-slate-500">${escapeHtml(SD_COPY.agregandoVacacionesHint)}</p>
+          <p id="rh-sd-tress-loading-hint" class="max-w-xs text-sm text-slate-500">${escapeHtml(SD_COPY.agregandoVacacionesHint)}</p>
         </div>
       </div>
     </div>`;

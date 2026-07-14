@@ -79,21 +79,33 @@ export function mountSolicitudDetalleModal(
     el.classList.add("hidden");
   }
 
-  function setTressLoadingOverlay(on: boolean): void {
+  function setTressLoadingOverlay(
+    on: boolean,
+    opts?: { title?: string; hint?: string },
+  ): void {
     const el = host.querySelector("#rh-sd-tress-loading") as HTMLElement | null;
     if (!el) return;
+    if (on) {
+      const titleEl = host.querySelector("#rh-sd-tress-loading-title") as HTMLElement | null;
+      const hintEl = host.querySelector("#rh-sd-tress-loading-hint") as HTMLElement | null;
+      if (titleEl && opts?.title) titleEl.textContent = opts.title;
+      if (hintEl && opts?.hint) hintEl.textContent = opts.hint;
+    }
     el.classList.toggle("hidden", !on);
     el.classList.toggle("flex", on);
     el.setAttribute("aria-busy", on ? "true" : "false");
   }
 
-  function setActionBusy(on: boolean, opts?: { agregandoVacaciones?: boolean }): void {
+  function setActionBusy(
+    on: boolean,
+    opts?: { insertandoTress?: { title: string; hint: string } },
+  ): void {
     busy = on;
-    const agregandoVacaciones = opts?.agregandoVacaciones === true;
-    setTressLoadingOverlay(on && agregandoVacaciones);
+    const insertandoTress = opts?.insertandoTress;
+    setTressLoadingOverlay(on && insertandoTress != null, insertandoTress);
     const banner = host.querySelector("#rh-sd-busy-banner") as HTMLElement | null;
     if (banner) {
-      const showBanner = on && !agregandoVacaciones;
+      const showBanner = on && insertandoTress == null;
       banner.textContent = showBanner ? SD_COPY.procesando : "";
       banner.classList.toggle("hidden", !showBanner);
     }
@@ -144,8 +156,13 @@ export function mountSolicitudDetalleModal(
       return;
     }
 
-    const agregandoVacaciones = accion === "aprobar" && fila.tipo === "vacaciones";
-    setActionBusy(true, { agregandoVacaciones });
+    const insertandoTress =
+      accion === "aprobar" && fila.tipo === "vacaciones"
+        ? { title: SD_COPY.agregandoVacaciones, hint: SD_COPY.agregandoVacacionesHint }
+        : accion === "aprobar" && fila.tipo === "home_office"
+          ? { title: SD_COPY.agregandoHomeOffice, hint: SD_COPY.agregandoHomeOfficeHint }
+          : undefined;
+    setActionBusy(true, { insertandoTress });
     try {
       const res = await ejecutarDecisionSolicitudSubmit(
         { solicitudId, accion, comentario_interno },
