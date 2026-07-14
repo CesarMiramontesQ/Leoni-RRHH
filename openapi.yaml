@@ -2243,6 +2243,10 @@ components:
     FaltaRetardoCreateRequest:
       type: object
       required: [empleado_id, tipo, fecha_evento]
+      description: >
+        Para tipo=suspension, fecha_fin es obligatoria y observaciones es el motivo TRESS
+        (obligatoria, max 30 caracteres). La suspensión se inserta primero en DATOS_ANALISIS
+        (dbo.PERMISO) y luego en Bono.
       properties:
         empleado_id:
           type: integer
@@ -2255,9 +2259,12 @@ components:
         fecha_fin:
           type: [string, "null"]
           format: date
+          description: Obligatoria para incapacidad y suspensión.
         observaciones:
           type: [string, "null"]
           maxLength: 4000
+          description: >
+            Para suspensión, motivo TRESS (PM_COMENTA); obligatoria y maxLength efectivo 30.
 
     FaltaRetardoResponse:
       type: object
@@ -8052,8 +8059,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FaltaRetardoResponse"
+        "409":
+          description: Conflicto TRESS (traslape permiso/vacación/incapacidad, dry-run, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
         "422":
           description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
+        "503":
+          description: TRESS / datos-analisis no disponible
           content:
             application/json:
               schema:

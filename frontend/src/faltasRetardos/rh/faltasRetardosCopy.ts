@@ -83,4 +83,11 @@ export const FR_COPY = {
   modalGuardar: "Registrar evento",
   modalGuardando: "Guardando…",
   modalExito: "El evento laboral se registró correctamente.",
+  modalInsertandoTitulo: "Insertando registro…",
+  modalInsertandoHint: "Espere un momento.",
+  modalInsertandoHintSuspension:
+    "Esto puede tardar unos segundos (registro en TRESS).",
+  modalObsHintSuspension: "Motivo TRESS — máx. 30 caracteres",
+  modalObsRequeridaSuspension: "Indique el motivo (máx. 30 caracteres)",
+  modalObsMaxSuspension: "El motivo no puede exceder 30 caracteres",
 } as const;

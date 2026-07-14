@@ -86,6 +86,11 @@ function validateForm(data: NuevaFaltaRetardoFormData): NuevaFaltaRetardoFormErr
       errors.fechaFin = "La fecha fin no puede ser anterior a la fecha inicio";
     }
   }
+  if (data.tipo === "suspension") {
+    const motivo = data.observaciones.trim();
+    if (!motivo) errors.observaciones = FR_COPY.modalObsRequeridaSuspension;
+    else if (motivo.length > 30) errors.observaciones = FR_COPY.modalObsMaxSuspension;
+  }
   return errors;
 }
 
@@ -97,6 +102,7 @@ function buildFormHtml(
   isSubmitting: boolean,
 ): string {
   const rango = requiresRango(data.tipo);
+  const esSuspension = data.tipo === "suspension";
   const empleadoOptions = empleados
     .filter((e) => {
       const q = empleadoSearch.trim().toLowerCase();
@@ -159,8 +165,17 @@ function buildFormHtml(
         </div>
       </div>
       <div>
-        <label class="${RH_LISTADO_LABEL}" for="fr-form-obs">${escapeHtml(FR_COPY.colObservaciones)}</label>
-        <textarea id="fr-form-obs" rows="3" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS} resize-y" placeholder="Comentarios u observaciones…">${escapeHtml(data.observaciones)}</textarea>
+        <label class="${RH_LISTADO_LABEL}" for="fr-form-obs">${escapeHtml(FR_COPY.colObservaciones)}${esSuspension ? " *" : ""}</label>
+        <textarea
+          id="fr-form-obs"
+          rows="3"
+          class="${FR_FILTER_CONTROL} ${FIELD_FOCUS} resize-y"
+          placeholder="${esSuspension ? escapeHtml(FR_COPY.modalObsHintSuspension) : "Comentarios u observaciones…"}"
+          ${esSuspension ? 'maxlength="30"' : ""}
+          ${isSubmitting ? "disabled" : ""}
+        >${escapeHtml(data.observaciones)}</textarea>
+        ${esSuspension ? `<p class="mt-1 text-xs text-slate-500">${escapeHtml(FR_COPY.modalObsHintSuspension)}${data.observaciones.trim() ? ` · ${data.observaciones.trim().length}/30` : ""}</p>` : ""}
+        ${errors.observaciones ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.observaciones)}</p>` : ""}
       </div>
       <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
         <button type="button" id="fr-form-cancel" class="rh-sol-btn-secondary min-h-11 rounded px-4 text-sm font-medium" ${isSubmitting ? "disabled" : ""}>Cancelar</button>
@@ -179,7 +194,7 @@ export function mountNuevaFaltaRetardoModal(
   host.innerHTML = `
     <div id="fr-nueva-modal-overlay" class="fixed inset-0 z-[61] hidden items-center justify-center bg-slate-900/45 p-3 sm:p-6 backdrop-blur-[2px]" role="presentation">
       <div id="fr-nueva-modal-panel" role="dialog" aria-modal="true" aria-labelledby="fr-nueva-modal-title"
-        class="flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_64px_-20px_rgba(15,23,42,0.25)] [color-scheme:light]">
+        class="relative flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_64px_-20px_rgba(15,23,42,0.25)] [color-scheme:light]">
         <header class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
           <h2 id="fr-nueva-modal-title" class="text-base font-bold text-slate-900 sm:text-lg">${escapeHtml(FR_COPY.modalTitulo)}</h2>
           <button type="button" id="fr-nueva-modal-close" class="-m-1 flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" aria-label="${escapeHtml(FR_COPY.modalCerrar)}">
@@ -187,6 +202,20 @@ export function mountNuevaFaltaRetardoModal(
           </button>
         </header>
         <div id="fr-nueva-modal-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"></div>
+        <div
+          id="fr-nueva-insertando"
+          class="absolute inset-0 z-10 hidden flex-col items-center justify-center gap-3 bg-white/90 px-6 text-center backdrop-blur-[2px]"
+          role="status"
+          aria-live="polite"
+          aria-busy="false"
+        >
+          <svg class="size-8 animate-spin text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <p id="fr-nueva-insertando-title" class="text-base font-semibold text-[var(--color-primary)]">${escapeHtml(FR_COPY.modalInsertandoTitulo)}</p>
+          <p id="fr-nueva-insertando-hint" class="max-w-xs text-sm text-slate-500">${escapeHtml(FR_COPY.modalInsertandoHint)}</p>
+        </div>
       </div>
     </div>
   `;
@@ -194,18 +223,37 @@ export function mountNuevaFaltaRetardoModal(
   const overlay = host.querySelector("#fr-nueva-modal-overlay") as HTMLElement;
   const body = host.querySelector("#fr-nueva-modal-body") as HTMLElement;
   const closeBtn = host.querySelector("#fr-nueva-modal-close") as HTMLButtonElement;
+  const insertandoEl = host.querySelector("#fr-nueva-insertando") as HTMLElement;
+  const insertandoTitle = host.querySelector("#fr-nueva-insertando-title") as HTMLElement;
+  const insertandoHint = host.querySelector("#fr-nueva-insertando-hint") as HTMLElement;
 
   let formData = initialFormData();
   let errors: NuevaFaltaRetardoFormErrors = {};
   let empleadoSearch = "";
   let isSubmitting = false;
 
+  function setInsertandoOverlay(on: boolean): void {
+    insertandoEl.classList.toggle("hidden", !on);
+    insertandoEl.classList.toggle("flex", on);
+    insertandoEl.setAttribute("aria-busy", on ? "true" : "false");
+    closeBtn.disabled = on;
+    if (on) {
+      insertandoTitle.textContent = FR_COPY.modalInsertandoTitulo;
+      insertandoHint.textContent =
+        formData.tipo === "suspension"
+          ? FR_COPY.modalInsertandoHintSuspension
+          : FR_COPY.modalInsertandoHint;
+    }
+  }
+
   function render(): void {
     body.innerHTML = buildFormHtml(formData, errors, options.empleados, empleadoSearch, isSubmitting);
     bindForm();
+    setInsertandoOverlay(isSubmitting);
   }
 
   function close(): void {
+    if (isSubmitting) return;
     overlay.classList.add("hidden");
     overlay.classList.remove("flex");
     document.body.style.overflow = "";
@@ -213,6 +261,7 @@ export function mountNuevaFaltaRetardoModal(
     errors = {};
     empleadoSearch = "";
     isSubmitting = false;
+    setInsertandoOverlay(false);
     body.innerHTML = "";
   }
 
@@ -228,6 +277,7 @@ export function mountNuevaFaltaRetardoModal(
   }
 
   async function handleSubmit(): Promise<void> {
+    if (isSubmitting) return;
     errors = validateForm(formData);
     if (Object.keys(errors).length > 0) {
       render();
@@ -247,6 +297,8 @@ export function mountNuevaFaltaRetardoModal(
       }
       await options.onSubmit(payload);
       showEmpleadosToast(options.toastContainer, FR_COPY.modalExito, "success");
+      isSubmitting = false;
+      setInsertandoOverlay(false);
       close();
     } catch (err: unknown) {
       const detail =
@@ -307,23 +359,37 @@ export function mountNuevaFaltaRetardoModal(
     });
     obsInp?.addEventListener("input", () => {
       formData = { ...formData, observaciones: obsInp.value };
+      if (formData.tipo === "suspension") {
+        const hint = obsInp.parentElement?.querySelector("p.text-slate-500");
+        if (hint) {
+          const len = formData.observaciones.trim().length;
+          hint.textContent = len
+            ? `${FR_COPY.modalObsHintSuspension} · ${len}/30`
+            : FR_COPY.modalObsHintSuspension;
+        }
+      }
     });
-    cancelBtn?.addEventListener("click", close);
+    cancelBtn?.addEventListener("click", () => {
+      if (!isSubmitting) close();
+    });
     form?.addEventListener("submit", (e) => {
       e.preventDefault();
       void handleSubmit();
     });
   }
 
-  closeBtn.addEventListener("click", close);
+  closeBtn.addEventListener("click", () => {
+    if (!isSubmitting) close();
+  });
   overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) close();
+    if (e.target === overlay && !isSubmitting) close();
   });
 
   return {
     open,
     close,
     destroy: () => {
+      isSubmitting = false;
       close();
       host.innerHTML = "";
     },
