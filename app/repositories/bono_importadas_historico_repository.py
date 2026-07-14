@@ -48,6 +48,41 @@ class BonoImportadasHistoricoRepository:
             )
             return [int(row[0]) for row in result.fetchall()]
 
+    async def exists_evento(
+        self,
+        *,
+        no_empleado: int,
+        fecha_incidencia: date,
+        tipo_inc: str,
+    ) -> bool:
+        """True si ya hay un evento del tipo para el mismo empleado y fecha (dedupe sync)."""
+        sql = """
+            SELECT 1
+            FROM importadas_historico
+            WHERE no_empleado = :no_empleado
+              AND tipo_inc = :tipo_inc
+              AND fecha_incidencia = :fecha_incidencia
+            LIMIT 1
+        """
+        async with self._engine.connect() as conn:
+            result = await conn.execute(
+                text(sql),
+                {
+                    "no_empleado": no_empleado,
+                    "tipo_inc": str(tipo_inc).strip().upper(),
+                    "fecha_incidencia": fecha_incidencia,
+                },
+            )
+            return result.scalar() is not None
+
+    async def exists_fi(self, *, no_empleado: int, fecha_incidencia: date) -> bool:
+        """Compat: dedupe FI."""
+        return await self.exists_evento(
+            no_empleado=no_empleado,
+            fecha_incidencia=fecha_incidencia,
+            tipo_inc="FI",
+        )
+
     async def insert_evento(
         self,
         *,
@@ -60,6 +95,7 @@ class BonoImportadasHistoricoRepository:
         fecha_incidencia: date | None,
         fecha_registro: datetime | None = None,
     ) -> int:
+        # Nota: en Bono actual, importadas_historico NO tiene columna ``estado``.
         sql = """
             INSERT INTO importadas_historico (
                 no_empleado,

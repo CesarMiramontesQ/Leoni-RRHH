@@ -66,6 +66,91 @@ async def test_ejecutar_import_con_historial_skipped(db):
     assert row.error_msg == "bono no configurado"
 
 
+@pytest.mark.asyncio
+async def test_registrar_corrida_ausencias_fi(db):
+    from app.integrations.sync_ausencias_fi_job import ausencias_stats_to_log_like
+    from app.services.sync_ausencias_fi_service import SyncAusenciasStats
+
+    started = datetime.now(timezone.utc)
+    stats = ausencias_stats_to_log_like(
+        SyncAusenciasStats(
+            leidos=10,
+            insertados=4,
+            omitidos_duplicado=3,
+            omitidos_sin_empleado=2,
+            omitidos_sin_semana=1,
+            omitidos_incompletos=0,
+            errores=0,
+            mensajes_error=[],
+            tipo_inc="FI",
+        )
+    )
+    await registrar_corrida_importacion(
+        "ausencias_fi",
+        status="ok",
+        started_at=started,
+        finished_at=started,
+        stats=stats,
+        origen_ejecucion="scheduler",
+        corrida_id="corrida-ausencias-fi",
+        db=db,
+    )
+
+    row = (
+        await db.execute(
+            select(BonoHistoricoImportLog).where(
+                BonoHistoricoImportLog.fuente == "ausencias_fi"
+            )
+        )
+    ).scalar_one()
+    assert row.status == "ok"
+    assert row.fuente == "ausencias_fi"
+    assert row.leidos == 10
+    assert row.insertados == 4
+    assert row.omitidos == 6  # 3+2+1
+    assert row.mensajes_error is not None
+    assert any("dup=3" in m for m in row.mensajes_error)
+
+
+@pytest.mark.asyncio
+async def test_registrar_corrida_ausencias_re(db):
+    from app.integrations.sync_ausencias_fi_job import ausencias_stats_to_log_like
+    from app.services.sync_ausencias_fi_service import SyncAusenciasStats
+
+    started = datetime.now(timezone.utc)
+    stats = ausencias_stats_to_log_like(
+        SyncAusenciasStats(
+            leidos=5,
+            insertados=5,
+            omitidos_duplicado=0,
+            omitidos_sin_empleado=0,
+            omitidos_sin_semana=0,
+            omitidos_incompletos=0,
+            errores=0,
+            tipo_inc="RE",
+        )
+    )
+    await registrar_corrida_importacion(
+        "ausencias_re",
+        status="ok",
+        started_at=started,
+        finished_at=started,
+        stats=stats,
+        origen_ejecucion="manual",
+        db=db,
+    )
+    row = (
+        await db.execute(
+            select(BonoHistoricoImportLog).where(
+                BonoHistoricoImportLog.fuente == "ausencias_re"
+            )
+        )
+    ).scalar_one()
+    assert row.fuente == "ausencias_re"
+    assert row.origen_ejecucion == "manual"
+    assert row.insertados == 5
+
+
 def test_empleados_stats_to_log_like_mapea_creados_y_actualizados():
     stats = EmpleadosImportStats(
         leidos=100,

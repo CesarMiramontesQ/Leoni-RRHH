@@ -21,6 +21,8 @@ class BonoHistoricoImportLog(Base):
             "seguridad_historico",
             "importadas_historico",
             "evaluacion_historica_gral",
+            "ausencias_fi",
+            "ausencias_re",
             name="bono_historico_fuente_enum",
         ),
         nullable=False,
