@@ -135,7 +135,9 @@ Layered architecture: **router → service → repository → models/schemas**
 - Minimal, targeted changes; avoid unrequested refactors
 - If functional ambiguity exists, ask before proceeding
 
-### Database — `levelup_` prefix (mandatory)
+### Database — external DB + `levelup_` prefix (mandatory)
+- **External DB (Bono):** never create, alter, or drop tables/columns/indexes belonging to the external schema (any table without the `levelup_` prefix). Read and FKs only.
+- **External DB (DATOS_ANALISIS / SQL Server):** never create, alter, or drop tables, views, columns, or indexes. Entire schema is external; business DML (SELECT/INSERT) does not authorize DDL.
 - Every **new** table owned by this project must be named `levelup_<name>` (`__tablename__` in SQLAlchemy models).
 - **Do not** create, alter, or drop tables without the `levelup_` prefix in models, repositories, or Alembic migrations.
 - Legacy Bono tables (`empleados`, `areas`, `puestos`, etc.) are **read-only** from this project: query and FK-reference only; no schema migrations or DDL on them.

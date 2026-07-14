@@ -1,0 +1,39 @@
+---
+description: Prohibición total de DDL sobre BDs externas (Bono y DATOS_ANALISIS)
+alwaysApply: true
+---
+
+# Bases de datos externas — sin DDL
+
+Este proyecto se conecta a BDs compartidas que **no controlamos**. Está prohibido alterar su esquema.
+
+## BDs cubiertas
+
+| BD | Variables | Motor |
+|----|-----------|--------|
+| **Bono** | `BONO_DB_*` / `DATABASE_URL` | PostgreSQL |
+| **DATOS_ANALISIS** | `DATOS_ANALISIS_DB_*` | SQL Server (TRESS) |
+
+## Prohibición absoluta (esquema)
+
+Sobre **ambas** BDs externas:
+
+- **Prohibido** crear tablas (`CREATE TABLE`)
+- **Prohibido** modificar (`ALTER TABLE`, columnas, índices, constraints, enums, vistas, etc.)
+- **Prohibido** eliminar (`DROP TABLE` / `DROP VIEW` / etc.)
+
+Aplica a: migraciones Alembic, SQL crudo en `app/repositories/sql/`, scripts, seeds, modelos y cualquier herramienta.
+
+### Matiz Bono
+
+- Tablas **sin** `levelup_`: DDL prohibido (legacy externo).
+- Tablas **`levelup_*`**: DDL permitido solo via Alembic (esquema propio del proyecto).
+
+### DATOS_ANALISIS
+
+- **Todo** el esquema es externo: **ningún** DDL. Cero excepciones.
+- DML existente (SELECT / INSERT de negocio, p. ej. vacaciones) no implica permiso de cambiar tablas.
+
+## Si hace falta tocar el esquema externo
+
+Detenerse. Pedir aclaración al equipo dueño de esa BD. No improvisar migraciones ni SQL de esquema.
