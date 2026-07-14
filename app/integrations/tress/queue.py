@@ -7,7 +7,7 @@ El scheduler APScheduler en main.py procesa la cola cada 5 minutos.
 
 Acciones validas:
   - "REGISTRAR_VACACIONES"   payload: {empleado_num, fecha_inicio, fecha_fin, referencia_id}
-  - "REGISTRAR_HOME_OFFICE"  payload: {empleado_num, fecha_inicio, fecha_fin, referencia_id}
+  - "REGISTRAR_HOME_OFFICE"  (legado; home office aprueba con INSERT sincrono a DATOS_ANALISIS)
   - "REGISTRAR_INCIDENCIA"   payload: {empleado_num, tipo, descripcion, fecha, referencia_id}
   - "CANCELAR_SOLICITUD"     payload: {empleado_num, tipo, referencia_id}
 """

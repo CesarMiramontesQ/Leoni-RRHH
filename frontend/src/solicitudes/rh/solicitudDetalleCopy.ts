@@ -80,6 +80,8 @@ export const SD_COPY = {
   procesando: "Procesando…",
   agregandoVacaciones: "Agregando vacaciones",
   agregandoVacacionesHint: "Registrando en nómina TRESS. Esto puede tardar unos segundos…",
+  agregandoHomeOffice: "Insertando home office",
+  agregandoHomeOfficeHint: "Registrando permiso HO en nómina TRESS. Esto puede tardar unos segundos…",
   cargandoDetalle: "Cargando detalle…",
 
   errorNoPendiente: "Solo las solicitudes pendientes pueden abrirse desde el listado.",

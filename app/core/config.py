@@ -142,6 +142,9 @@ class Settings(BaseSettings):
     TRESS_VACACIONES_US_CODIGO: str = "49"
     TRESS_VACACIONES_DRY_RUN: bool = False
 
+    # Home office → TRESS (INSERT dbo.PERMISO al aprobar; US_CODIGO = TRESS_VACACIONES_US_CODIGO)
+    TRESS_HOME_OFFICE_DRY_RUN: bool = False
+
     # IT Mirror DB
     IT_MIRROR_DB_URL: str = ""
 

@@ -14,10 +14,10 @@ Jerarquia supervisor/gerente: una sola aprobacion o rechazo valido basta (superv
 de linea o gerente con el solicitante en su subarbol jerarquico, en cualquier orden; no hay segunda
 etapa obligatoria).
 
-Al aprobar: estado `approved`, registro de aprobacion, push a TRESS (vacaciones = INSERT
-SQL sincrono; otros tipos = cola robot) y notificacion in-app al requisitor.
-Vacaciones: primero INSERT en TRESS; si falla, la solicitud sigue pending.
-Al rechazar/cancelar: NO se envia a TRESS.
+Al aprobar: estado `approved`, registro de aprobacion, push a TRESS (vacaciones y
+home_office = INSERT SQL sincrono; otros tipos = cola robot) y notificacion in-app
+al requisitor. Vacaciones / home office: primero INSERT en TRESS; si falla, la
+solicitud sigue pending. Al rechazar/cancelar: NO se envia a TRESS.
 """
 
 import logging
@@ -48,6 +48,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.integrations.tress.queue import encolar_tress
+from app.services.tress_home_office_service import registrar_home_office_en_tress
 from app.services.tress_vacaciones_service import registrar_vacaciones_en_tress
 from app.models.empleados import Empleado
 from app.models.solicitudes import Solicitud
@@ -962,8 +963,9 @@ class SolicitudService:
         datos_antes = {"estado": solicitud.estado, "nivel_actual": solicitud.nivel_actual}
         no_empleado_solicitante = solicitud.empleado.no_empleado
 
-        # Vacaciones: INSERT en TRESS antes de marcar approved (si falla, sigue pending).
+        # Vacaciones / home office: INSERT en TRESS antes de marcar approved (si falla, sigue pending).
         tress_vacacion_llave: int | None = None
+        tress_home_office_llave: int | None = None
         if solicitud.tipo == "vacaciones":
             dias = await self._dias_vacaciones_para_empleado(
                 solicitud.empleado_id,
@@ -1020,6 +1022,51 @@ class SolicitudService:
                     "mensaje": getattr(tress_result, "mensaje", None),
                 },
             )
+        elif solicitud.tipo == "home_office":
+            tress_ho_payload = {
+                "no_empleado": int(no_empleado_solicitante),
+                "fecha_inicio": str(solicitud.fecha_inicio),
+                "fecha_fin": str(solicitud.fecha_fin),
+            }
+            try:
+                tress_ho_result = await registrar_home_office_en_tress(
+                    no_empleado=int(no_empleado_solicitante),
+                    fecha_inicio=solicitud.fecha_inicio,
+                    fecha_fin=solicitud.fecha_fin,
+                )
+            except LeoniException as exc:
+                await audit_logger_mod._log_action_background(
+                    accion="TRESS_HOME_OFFICE_INSERT_FAILED",
+                    modulo="solicitudes",
+                    usuario_id=current_user.id,
+                    entidad_id=solicitud_id,
+                    datos_antes={
+                        "estado": solicitud.estado,
+                        **tress_ho_payload,
+                    },
+                    datos_despues={
+                        "ok": False,
+                        "error": exc.detail,
+                        "codigo": exc.code,
+                    },
+                )
+                raise
+
+            tress_home_office_llave = getattr(tress_ho_result, "nueva_llave", None)
+            audit_background(
+                background_tasks=background_tasks,
+                db=self.db,
+                accion="TRESS_HOME_OFFICE_INSERT_OK",
+                modulo="solicitudes",
+                usuario_id=current_user.id,
+                entidad_id=solicitud_id,
+                datos_antes=tress_ho_payload,
+                datos_despues={
+                    "ok": True,
+                    "nueva_llave": tress_home_office_llave,
+                    "mensaje": getattr(tress_ho_result, "mensaje", None),
+                },
+            )
 
         if not await self.repo.marcar_estado_aprobada_si_pending(solicitud_id):
             raise ConflictError(
@@ -1038,7 +1085,7 @@ class SolicitudService:
             "comentario": aprobacion.comentario,
         })
 
-        if solicitud.tipo != "vacaciones":
+        if solicitud.tipo not in ("vacaciones", "home_office"):
             accion_tress = _TRESS_ACCION_MAP.get(solicitud.tipo, "REGISTRAR_VACACIONES")
             await encolar_tress(
                 db=self.db,
