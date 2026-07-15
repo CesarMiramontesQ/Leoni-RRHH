@@ -14,8 +14,6 @@ export const FALTA_RETARDO_TIPOS: readonly FaltaRetardoTipo[] = [
 
 /** Tipos disponibles al crear un registro manual desde RH. */
 export const FALTA_RETARDO_TIPOS_NUEVO_REGISTRO: readonly FaltaRetardoTipo[] = [
-  "retardo",
-  "falta_injustificada",
   "suspension",
   "matrimonio",
   "incapacidad_interna",
