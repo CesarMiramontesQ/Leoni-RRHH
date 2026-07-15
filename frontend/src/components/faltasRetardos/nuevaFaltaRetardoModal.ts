@@ -1,4 +1,6 @@
+import { getEmpleadosPage } from "../../api/empleados.ts";
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
+import type { UsuarioListItem } from "../../api/usuarios.ts";
 import {
   FALTA_RETARDO_TIPOS_NUEVO_REGISTRO,
   FALTA_RETARDO_TIPOS_RANGO,
@@ -8,17 +10,13 @@ import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
+import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
 import {
   RH_LISTADO_LABEL,
   RH_LISTADO_SELECT,
   RH_SOLICITUDES_BTN_PRIMARY,
 } from "./rhFaltasRetardosPageStyles.ts";
-
-export type FaltaRetardoEmpleadoOption = {
-  empleado_id: number;
-  nombre: string;
-  no_empleado: string;
-};
 
 export type NuevaFaltaRetardoFormData = {
   empleadoId: string;
@@ -44,7 +42,6 @@ export type NuevaFaltaRetardoSubmitPayload = {
 };
 
 export type NuevaFaltaRetardoModalOptions = {
-  empleados: readonly FaltaRetardoEmpleadoOption[];
   toastContainer: HTMLElement;
   onSubmit: (payload: NuevaFaltaRetardoSubmitPayload) => Promise<void>;
 };
@@ -60,6 +57,10 @@ const FR_FILTER_CONTROL =
 
 const SELECT_FILTER_EXTRA =
   "rh-sol-filter-select min-h-11 rounded-[12px] border-[rgba(148,163,184,0.34)] py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]";
+
+const SEARCH_ICON = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
+  <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd"/>
+</svg>`;
 
 function initialFormData(): NuevaFaltaRetardoFormData {
   return {
@@ -94,57 +95,165 @@ function validateForm(data: NuevaFaltaRetardoFormData): NuevaFaltaRetardoFormErr
   return errors;
 }
 
+function buildEmpleadoListboxHtml(opts: {
+  items: readonly UsuarioListItem[];
+  selectedId: string;
+  highlightIndex: number;
+  loading: boolean;
+  query: string;
+  open: boolean;
+}): string {
+  if (!opts.open) {
+    return `<ul id="fr-empleado-listbox" role="listbox" hidden class="hidden" aria-label="Resultados de empleados"></ul>`;
+  }
+  const q = opts.query.trim();
+  let body: string;
+  if (q.length < 1) {
+    body = `<li class="px-3 py-2.5 text-xs text-slate-500" role="presentation">Escribe al menos un carácter para buscar.</li>`;
+  } else if (opts.loading) {
+    body = `<li class="px-3 py-2.5 text-xs text-slate-500" role="presentation">Buscando…</li>`;
+  } else if (opts.items.length === 0) {
+    body = `<li class="px-3 py-2.5 text-xs text-slate-500" role="presentation">No se encontraron coincidencias.</li>`;
+  } else {
+    body = opts.items
+      .map((u, i) => {
+        const v = String(u.id);
+        const active = i === opts.highlightIndex;
+        const selected = v === opts.selectedId;
+        const name = formatNombreEmpleadoUi(u.nombre).trim() || u.nombre.trim() || "Sin nombre";
+        const no = formatNoEmpleadoDisplay(u.no_empleado);
+        const area = u.area?.descripcion?.trim() || "—";
+        const rowCls =
+          active || selected
+            ? "bg-leoni-blue/[0.08] text-slate-900"
+            : "text-slate-800 hover:bg-slate-50";
+        return `
+        <li role="option" id="fr-empleado-opt-${i}" aria-selected="${active || selected ? "true" : "false"}">
+          <button
+            type="button"
+            data-fr-empleado-pick="${escapeHtml(v)}"
+            data-option-index="${i}"
+            class="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors ${rowCls}"
+          >
+            <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+              ${escapeHtml(name.slice(0, 2).toUpperCase())}
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-semibold">${escapeHtml(name)}</span>
+              <span class="mt-0.5 block truncate text-xs text-slate-500">${escapeHtml(no)} · ${escapeHtml(area)}</span>
+            </span>
+            ${
+              selected
+                ? `<span class="mt-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-leoni-blue text-white" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="currentColor" class="size-3"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-8 8a1 1 0 0 1-1.42-.007l-4-4a1 1 0 0 1 1.414-1.414l3.293 3.294 7.293-7.294a1 1 0 0 1 1.414.007Z" clip-rule="evenodd"/></svg>
+                  </span>`
+                : ""
+            }
+          </button>
+        </li>`;
+      })
+      .join("");
+  }
+  return `
+    <ul
+      id="fr-empleado-listbox"
+      role="listbox"
+      aria-label="Resultados de empleados"
+      class="absolute left-0 right-0 z-30 mt-1.5 max-h-52 overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white py-1 shadow-md shadow-slate-900/10"
+    >${body}</ul>`;
+}
+
+function buildEmpleadoSeleccionadoCardHtml(u: UsuarioListItem | null): string {
+  if (!u) return "";
+  const name = formatNombreEmpleadoUi(u.nombre).trim() || u.nombre.trim() || "Sin nombre";
+  const no = formatNoEmpleadoDisplay(u.no_empleado);
+  const area = u.area?.descripcion?.trim() || "—";
+  return `
+    <div class="flex items-start gap-3 rounded-xl border border-leoni-blue/25 bg-leoni-blue/[0.04] px-3.5 py-3" data-fr-empleado-selected>
+      <span class="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-leoni-blue/15 text-xs font-semibold text-leoni-blue">
+        ${escapeHtml(name.slice(0, 2).toUpperCase())}
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-semibold text-slate-900">${escapeHtml(name)}</p>
+        <p class="mt-0.5 truncate text-xs text-slate-500">${escapeHtml(no)} · ${escapeHtml(area)}</p>
+      </div>
+      <button
+        type="button"
+        data-fr-empleado-clear
+        class="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-leoni-blue focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40"
+      >Cambiar</button>
+    </div>`;
+}
+
 function buildFormHtml(
   data: NuevaFaltaRetardoFormData,
   errors: NuevaFaltaRetardoFormErrors,
-  empleados: readonly FaltaRetardoEmpleadoOption[],
-  empleadoSearch: string,
-  isSubmitting: boolean,
+  opts: {
+    empleadoSearchQ: string;
+    empleadosCache: readonly UsuarioListItem[];
+    selectedEmpleado: UsuarioListItem | null;
+    listboxOpen: boolean;
+    highlightIndex: number;
+    searchLoading: boolean;
+    isSubmitting: boolean;
+  },
 ): string {
   const rango = requiresRango(data.tipo);
   const esSuspension = data.tipo === "suspension";
-  const empleadoOptions = empleados
-    .filter((e) => {
-      const q = empleadoSearch.trim().toLowerCase();
-      if (!q) return true;
-      return (
-        e.nombre.toLowerCase().includes(q) ||
-        e.no_empleado.toLowerCase().includes(q)
-      );
-    })
-    .map(
-      (e) =>
-        `<option value="${e.empleado_id}" ${data.empleadoId === String(e.empleado_id) ? "selected" : ""}>${escapeHtml(e.no_empleado)} — ${escapeHtml(e.nombre)}</option>`,
-    )
-    .join("");
-
   const tipoOptions = FALTA_RETARDO_TIPOS_NUEVO_REGISTRO.map(
     (t) =>
       `<option value="${t}" ${data.tipo === t ? "selected" : ""}>${escapeHtml(labelFaltaRetardoTipo(t))}</option>`,
   ).join("");
 
+  const listboxHtml = buildEmpleadoListboxHtml({
+    items: opts.empleadosCache,
+    selectedId: data.empleadoId,
+    highlightIndex: opts.highlightIndex,
+    loading: opts.searchLoading,
+    query: opts.empleadoSearchQ,
+    open: opts.listboxOpen,
+  });
+  const selectedCardHtml = buildEmpleadoSeleccionadoCardHtml(opts.selectedEmpleado);
+  const activeDescendant =
+    opts.listboxOpen && opts.highlightIndex >= 0
+      ? ` aria-activedescendant="fr-empleado-opt-${opts.highlightIndex}"`
+      : "";
+
   return `
     <form id="fr-nueva-form" class="space-y-4" novalidate>
       ${errors.form ? `<p class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">${escapeHtml(errors.form)}</p>` : ""}
-      <div>
-        <label class="${RH_LISTADO_LABEL}" for="fr-form-empleado-search">${escapeHtml(FR_COPY.filtroBusqueda)}</label>
-        <input id="fr-form-empleado-search" type="text" inputmode="search" autocomplete="off" dir="ltr" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" placeholder="${escapeHtml(FR_COPY.placeholderBusqueda)}" value="${escapeHtml(empleadoSearch)}" />
-      </div>
-      <div>
-        <label class="${RH_LISTADO_LABEL}" for="fr-form-empleado">Empleado *</label>
-        <div class="grid grid-cols-1">
-          <select id="fr-form-empleado" class="${RH_LISTADO_SELECT} ${SELECT_FILTER_EXTRA} ${FIELD_FOCUS}" required>
-            <option value="">Seleccionar…</option>
-            ${empleadoOptions}
-          </select>
-          ${SELECT_CHEVRON}
+      <div class="space-y-3">
+        <p class="text-xs text-slate-500">${escapeHtml(FR_COPY.modalEmpleadoAyuda)}</p>
+        <div>
+          <label class="${RH_LISTADO_LABEL}" for="fr-form-empleado-q">${escapeHtml(FR_COPY.filtroBusqueda)}</label>
+          <div class="relative" data-fr-empleado-combobox>
+            ${SEARCH_ICON}
+            <input
+              id="fr-form-empleado-q"
+              type="search"
+              autocomplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="${opts.listboxOpen ? "true" : "false"}"
+              aria-controls="fr-empleado-listbox"
+              ${activeDescendant}
+              data-fr-empleado-search
+              placeholder="${escapeHtml(FR_COPY.placeholderBusqueda)}"
+              value="${escapeHtml(opts.empleadoSearchQ)}"
+              class="${FR_FILTER_CONTROL} ${FIELD_FOCUS} pl-10"
+              ${opts.isSubmitting ? "disabled" : ""}
+            />
+            ${listboxHtml}
+          </div>
         </div>
+        ${selectedCardHtml}
+        <input type="hidden" name="empleado_id" id="fr-form-empleado-id" value="${escapeHtml(data.empleadoId)}" required />
         ${errors.empleadoId ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.empleadoId)}</p>` : ""}
       </div>
       <div>
         <label class="${RH_LISTADO_LABEL}" for="fr-form-tipo">${escapeHtml(FR_COPY.filtroTipo)} *</label>
         <div class="grid grid-cols-1">
-          <select id="fr-form-tipo" class="${RH_LISTADO_SELECT} ${SELECT_FILTER_EXTRA} ${FIELD_FOCUS}" required>
+          <select id="fr-form-tipo" class="${RH_LISTADO_SELECT} ${SELECT_FILTER_EXTRA} ${FIELD_FOCUS}" required ${opts.isSubmitting ? "disabled" : ""}>
             <option value="">Seleccionar…</option>
             ${tipoOptions}
           </select>
@@ -155,12 +264,12 @@ function buildFormHtml(
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
           <label class="${RH_LISTADO_LABEL}" for="fr-form-fecha">${rango ? "Fecha inicio *" : "Fecha del evento *"}</label>
-          <input id="fr-form-fecha" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaEvento)}" required />
+          <input id="fr-form-fecha" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaEvento)}" required ${opts.isSubmitting ? "disabled" : ""} />
           ${errors.fechaEvento ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.fechaEvento)}</p>` : ""}
         </div>
         <div id="fr-form-fecha-fin-wrap" class="${rango ? "" : "hidden"}">
           <label class="${RH_LISTADO_LABEL}" for="fr-form-fecha-fin">Fecha fin *</label>
-          <input id="fr-form-fecha-fin" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaFin)}" ${rango ? "required" : ""} />
+          <input id="fr-form-fecha-fin" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaFin)}" ${rango ? "required" : ""} ${opts.isSubmitting ? "disabled" : ""} />
           ${errors.fechaFin ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.fechaFin)}</p>` : ""}
         </div>
       </div>
@@ -172,15 +281,15 @@ function buildFormHtml(
           class="${FR_FILTER_CONTROL} ${FIELD_FOCUS} resize-y"
           placeholder="${esSuspension ? escapeHtml(FR_COPY.modalObsHintSuspension) : "Comentarios u observaciones…"}"
           ${esSuspension ? 'maxlength="30"' : ""}
-          ${isSubmitting ? "disabled" : ""}
+          ${opts.isSubmitting ? "disabled" : ""}
         >${escapeHtml(data.observaciones)}</textarea>
         ${esSuspension ? `<p class="mt-1 text-xs text-slate-500">${escapeHtml(FR_COPY.modalObsHintSuspension)}${data.observaciones.trim() ? ` · ${data.observaciones.trim().length}/30` : ""}</p>` : ""}
         ${errors.observaciones ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.observaciones)}</p>` : ""}
       </div>
       <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
-        <button type="button" id="fr-form-cancel" class="rh-sol-btn-secondary min-h-11 rounded px-4 text-sm font-medium" ${isSubmitting ? "disabled" : ""}>Cancelar</button>
-        <button type="submit" id="fr-form-submit" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-11 px-4 text-sm font-semibold" ${isSubmitting ? "disabled" : ""}>
-          ${isSubmitting ? escapeHtml(FR_COPY.modalGuardando) : escapeHtml(FR_COPY.modalGuardar)}
+        <button type="button" id="fr-form-cancel" class="rh-sol-btn-secondary min-h-11 rounded px-4 text-sm font-medium" ${opts.isSubmitting ? "disabled" : ""}>Cancelar</button>
+        <button type="submit" id="fr-form-submit" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-11 px-4 text-sm font-semibold" ${opts.isSubmitting ? "disabled" : ""}>
+          ${opts.isSubmitting ? escapeHtml(FR_COPY.modalGuardando) : escapeHtml(FR_COPY.modalGuardar)}
         </button>
       </div>
     </form>
@@ -229,8 +338,35 @@ export function mountNuevaFaltaRetardoModal(
 
   let formData = initialFormData();
   let errors: NuevaFaltaRetardoFormErrors = {};
-  let empleadoSearch = "";
   let isSubmitting = false;
+
+  let empleadosCache: UsuarioListItem[] = [];
+  let selectedEmpleado: UsuarioListItem | null = null;
+  let empleadoSearchQ = "";
+  let empleadoListboxOpen = false;
+  let empleadoHighlightIndex = -1;
+  let empleadoSearchLoading = false;
+  let empleadoSearchSeq = 0;
+  let searchTimer: ReturnType<typeof setTimeout> | null = null;
+  const docListeners = new AbortController();
+
+  function clearSearchTimer(): void {
+    if (searchTimer) {
+      clearTimeout(searchTimer);
+      searchTimer = null;
+    }
+  }
+
+  function resetEmpleadoCombobox(): void {
+    clearSearchTimer();
+    empleadosCache = [];
+    selectedEmpleado = null;
+    empleadoSearchQ = "";
+    empleadoListboxOpen = false;
+    empleadoHighlightIndex = -1;
+    empleadoSearchLoading = false;
+    empleadoSearchSeq += 1;
+  }
 
   function setInsertandoOverlay(on: boolean): void {
     insertandoEl.classList.toggle("hidden", !on);
@@ -246,10 +382,98 @@ export function mountNuevaFaltaRetardoModal(
     }
   }
 
+  function syncEmpleadoListboxDom(): void {
+    const wrap = body.querySelector("[data-fr-empleado-combobox]");
+    const input = body.querySelector("#fr-form-empleado-q") as HTMLInputElement | null;
+    if (!wrap) return;
+    const html = buildEmpleadoListboxHtml({
+      items: empleadosCache,
+      selectedId: formData.empleadoId,
+      highlightIndex: empleadoHighlightIndex,
+      loading: empleadoSearchLoading,
+      query: empleadoSearchQ,
+      open: empleadoListboxOpen,
+    });
+    const existing = wrap.querySelector("#fr-empleado-listbox");
+    if (existing) existing.outerHTML = html;
+    else wrap.insertAdjacentHTML("beforeend", html);
+
+    if (input) {
+      input.setAttribute("aria-expanded", empleadoListboxOpen ? "true" : "false");
+      if (empleadoListboxOpen && empleadoHighlightIndex >= 0) {
+        input.setAttribute("aria-activedescendant", `fr-empleado-opt-${empleadoHighlightIndex}`);
+      } else {
+        input.removeAttribute("aria-activedescendant");
+      }
+    }
+  }
+
+  function restoreEmpleadoSearchFocus(): void {
+    const input = body.querySelector("#fr-form-empleado-q") as HTMLInputElement | null;
+    input?.focus();
+  }
+
+  async function loadEmpleados(q: string): Promise<void> {
+    const pg = await getEmpleadosPage({
+      page: 1,
+      page_size: 100,
+      q: q.trim(),
+      activo: true,
+    });
+    empleadosCache = pg.items;
+  }
+
   function render(): void {
-    body.innerHTML = buildFormHtml(formData, errors, options.empleados, empleadoSearch, isSubmitting);
+    body.innerHTML = buildFormHtml(formData, errors, {
+      empleadoSearchQ,
+      empleadosCache,
+      selectedEmpleado,
+      listboxOpen: empleadoListboxOpen,
+      highlightIndex: empleadoHighlightIndex,
+      searchLoading: empleadoSearchLoading,
+      isSubmitting,
+    });
     bindForm();
     setInsertandoOverlay(isSubmitting);
+  }
+
+  function onClearEmpleado(): void {
+    formData = { ...formData, empleadoId: "" };
+    selectedEmpleado = null;
+    empleadoSearchQ = "";
+    empleadoListboxOpen = false;
+    empleadoHighlightIndex = -1;
+    empleadoSearchSeq += 1;
+    clearSearchTimer();
+    if (errors.empleadoId) {
+      const { empleadoId: _drop, ...rest } = errors;
+      errors = rest;
+    }
+    render();
+    restoreEmpleadoSearchFocus();
+  }
+
+  function aplicarSeleccionEmpleado(empleadoIdRaw: string): void {
+    if (!empleadoIdRaw.trim()) {
+      formData = { ...formData, empleadoId: "" };
+      selectedEmpleado = null;
+      render();
+      return;
+    }
+    const id = Number.parseInt(empleadoIdRaw, 10);
+    const picked =
+      empleadosCache.find((u) => u.id === id) ??
+      (selectedEmpleado?.id === id ? selectedEmpleado : null);
+    formData = { ...formData, empleadoId: empleadoIdRaw };
+    selectedEmpleado = picked;
+    empleadoSearchQ = "";
+    empleadoListboxOpen = false;
+    empleadoHighlightIndex = -1;
+    if (errors.empleadoId) {
+      const { empleadoId: _drop, ...rest } = errors;
+      errors = rest;
+    }
+    render();
   }
 
   function close(): void {
@@ -259,8 +483,8 @@ export function mountNuevaFaltaRetardoModal(
     document.body.style.overflow = "";
     formData = initialFormData();
     errors = {};
-    empleadoSearch = "";
     isSubmitting = false;
+    resetEmpleadoCombobox();
     setInsertandoOverlay(false);
     body.innerHTML = "";
   }
@@ -268,8 +492,8 @@ export function mountNuevaFaltaRetardoModal(
   function open(): void {
     formData = initialFormData();
     errors = {};
-    empleadoSearch = "";
     isSubmitting = false;
+    resetEmpleadoCombobox();
     overlay.classList.remove("hidden");
     overlay.classList.add("flex");
     document.body.style.overflow = "hidden";
@@ -314,38 +538,105 @@ export function mountNuevaFaltaRetardoModal(
 
   function bindForm(): void {
     const form = body.querySelector("#fr-nueva-form") as HTMLFormElement | null;
-    const empleadoSel = body.querySelector("#fr-form-empleado") as HTMLSelectElement | null;
     const tipoSel = body.querySelector("#fr-form-tipo") as HTMLSelectElement | null;
     const fechaInp = body.querySelector("#fr-form-fecha") as HTMLInputElement | null;
     const fechaFinInp = body.querySelector("#fr-form-fecha-fin") as HTMLInputElement | null;
     const obsInp = body.querySelector("#fr-form-obs") as HTMLTextAreaElement | null;
-    const searchInp = body.querySelector("#fr-form-empleado-search") as HTMLInputElement | null;
+    const qInput = body.querySelector("#fr-form-empleado-q") as HTMLInputElement | null;
     const cancelBtn = body.querySelector("#fr-form-cancel") as HTMLButtonElement | null;
 
-    searchInp?.addEventListener("input", () => {
-      empleadoSearch = searchInp.value;
-      const start = searchInp.selectionStart ?? empleadoSearch.length;
-      const end = searchInp.selectionEnd ?? empleadoSearch.length;
-      const dir =
-        searchInp.selectionDirection === "backward"
-          ? "backward"
-          : searchInp.selectionDirection === "none"
-            ? "none"
-            : "forward";
-      render();
-      const nextSearch = body.querySelector("#fr-form-empleado-search") as HTMLInputElement | null;
-      if (!nextSearch) return;
-      nextSearch.focus();
-      try {
-        nextSearch.setSelectionRange(start, end, dir);
-      } catch {
-        /* noop: algunos navegadores restringen setSelectionRange en type=search */
-      }
-    });
+    if (qInput) {
+      qInput.addEventListener("input", () => {
+        empleadoSearchQ = qInput.value;
+        const q = qInput.value;
+        empleadoListboxOpen = q.trim().length >= 1;
+        empleadoHighlightIndex = -1;
+        clearSearchTimer();
+        if (!empleadoListboxOpen) {
+          empleadoSearchLoading = false;
+          empleadoSearchSeq += 1;
+          syncEmpleadoListboxDom();
+          return;
+        }
+        empleadoSearchLoading = true;
+        syncEmpleadoListboxDom();
+        const seq = ++empleadoSearchSeq;
+        searchTimer = setTimeout(async () => {
+          try {
+            await loadEmpleados(q);
+            if (seq !== empleadoSearchSeq) return;
+            const live =
+              (body.querySelector("#fr-form-empleado-q") as HTMLInputElement | null)?.value ?? "";
+            if (live !== q) return;
+            empleadoSearchLoading = false;
+            empleadoListboxOpen = live.trim().length >= 1;
+            empleadoHighlightIndex = empleadosCache.length > 0 ? 0 : -1;
+            syncEmpleadoListboxDom();
+          } catch {
+            if (seq !== empleadoSearchSeq) return;
+            empleadoSearchLoading = false;
+            syncEmpleadoListboxDom();
+            showEmpleadosToast(
+              options.toastContainer,
+              "No se pudo cargar el listado de empleados.",
+              "error",
+            );
+          }
+        }, 300);
+      });
 
-    empleadoSel?.addEventListener("change", () => {
-      formData = { ...formData, empleadoId: empleadoSel.value };
-    });
+      qInput.addEventListener("keydown", (e: KeyboardEvent) => {
+        const pool = empleadosCache;
+        if (e.key === "Escape") {
+          if (!empleadoListboxOpen) return;
+          e.preventDefault();
+          e.stopPropagation();
+          empleadoListboxOpen = false;
+          empleadoHighlightIndex = -1;
+          syncEmpleadoListboxDom();
+          return;
+        }
+        if (!empleadoListboxOpen || pool.length === 0) return;
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          empleadoHighlightIndex =
+            empleadoHighlightIndex < 0
+              ? 0
+              : Math.min(pool.length - 1, empleadoHighlightIndex + 1);
+          syncEmpleadoListboxDom();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          empleadoHighlightIndex =
+            empleadoHighlightIndex <= 0 ? 0 : empleadoHighlightIndex - 1;
+          syncEmpleadoListboxDom();
+          return;
+        }
+        if (e.key === "Enter") {
+          if (empleadoHighlightIndex < 0 || empleadoHighlightIndex >= pool.length) return;
+          e.preventDefault();
+          const picked = pool[empleadoHighlightIndex];
+          if (!picked) return;
+          aplicarSeleccionEmpleado(String(picked.id));
+        }
+      });
+
+      const comboboxWrap = body.querySelector("[data-fr-empleado-combobox]");
+      comboboxWrap?.addEventListener("mousedown", (e) => {
+        const btn = (e.target as HTMLElement | null)?.closest?.(
+          "[data-fr-empleado-pick]",
+        ) as HTMLElement | null;
+        if (!btn) return;
+        e.preventDefault();
+        const id = btn.getAttribute("data-fr-empleado-pick") ?? "";
+        if (!id) return;
+        aplicarSeleccionEmpleado(id);
+      });
+    }
+
+    body.querySelector("[data-fr-empleado-clear]")?.addEventListener("click", onClearEmpleado);
+
     tipoSel?.addEventListener("change", () => {
       formData = { ...formData, tipo: tipoSel.value as FaltaRetardoTipo | "" };
       if (!requiresRango(formData.tipo)) formData = { ...formData, fechaFin: "" };
@@ -384,12 +675,26 @@ export function mountNuevaFaltaRetardoModal(
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay && !isSubmitting) close();
   });
+  document.addEventListener(
+    "mousedown",
+    (e: MouseEvent) => {
+      if (!empleadoListboxOpen) return;
+      const wrap = body.querySelector("[data-fr-empleado-combobox]");
+      if (!wrap || wrap.contains(e.target as Node)) return;
+      empleadoListboxOpen = false;
+      empleadoHighlightIndex = -1;
+      syncEmpleadoListboxDom();
+    },
+    { signal: docListeners.signal },
+  );
 
   return {
     open,
     close,
     destroy: () => {
       isSubmitting = false;
+      clearSearchTimer();
+      docListeners.abort();
       close();
       host.innerHTML = "";
     },

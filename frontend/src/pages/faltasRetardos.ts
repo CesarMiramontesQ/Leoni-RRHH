@@ -1,4 +1,3 @@
-import { fetchAllEmpleadosForExport } from "../api/empleados.ts";
 import {
   createFaltaRetardo,
   getFaltasRetardosEstadisticas,
@@ -7,11 +6,9 @@ import {
 } from "../api/faltasRetardos.ts";
 import { canAccessFaltasRetardosPage } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
-import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { renderRhFaltasRetardosAdminView } from "../components/faltasRetardos/rhFaltasRetardosAdminView.ts";
 import {
   mountNuevaFaltaRetardoModal,
-  type FaltaRetardoEmpleadoOption,
   type NuevaFaltaRetardoModalHandle,
 } from "../components/faltasRetardos/nuevaFaltaRetardoModal.ts";
 import { FR_COPY } from "../faltasRetardos/rh/faltasRetardosCopy.ts";
@@ -30,8 +27,6 @@ import type {
 } from "../faltasRetardos/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
-import { formatNombreEmpleadoUi } from "../utils/nombreEmpleadoDisplay.ts";
-import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 const PAGE_SIZE = 10;
@@ -150,7 +145,6 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   let appliedFilters = cloneFaltasRetardosListFilters(initialFilters);
   let page = 1;
   let loadSeq = 0;
-  let empleadoOptions: FaltaRetardoEmpleadoOption[] = [];
   let lastEstadisticas: FaltasRetardosEstadisticasData | null = null;
   let lastEstadisticasStatus: FaltasRetardosAdminViewModel["estadisticasStatus"] = "loading";
   let lastEstadisticasError: string | undefined;
@@ -184,7 +178,6 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   let modal: NuevaFaltaRetardoModalHandle | null =
     modalHost instanceof HTMLElement
       ? mountNuevaFaltaRetardoModal(modalHost, {
-          empleados: empleadoOptions,
           toastContainer: container,
           onSubmit: async (payload) => {
             await createFaltaRetardo(payload);
@@ -193,31 +186,6 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
           },
         })
       : null;
-
-  async function refreshEmpleadoOptions(): Promise<void> {
-    try {
-      const items = await fetchAllEmpleadosForExport({ activo: true });
-      empleadoOptions = items.map((e) => ({
-        empleado_id: e.empleado_id,
-        nombre: formatNombreEmpleadoUi(e.nombre),
-        no_empleado: formatNoEmpleadoDisplay(e.no_empleado),
-      }));
-      if (modalHost instanceof HTMLElement) {
-        modal?.destroy();
-        modal = mountNuevaFaltaRetardoModal(modalHost, {
-          empleados: empleadoOptions,
-          toastContainer: container,
-          onSubmit: async (payload) => {
-            await createFaltaRetardo(payload);
-            page = 1;
-            await load(true);
-          },
-        });
-      }
-    } catch {
-      showEmpleadosToast(container, "No se pudo cargar la lista de empleados.", "error");
-    }
-  }
 
   async function load(refreshEstadisticas = true): Promise<void> {
     const seq = ++loadSeq;
@@ -371,8 +339,5 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
     modal?.destroy();
   });
 
-  void (async () => {
-    await refreshEmpleadoOptions();
-    await load(true);
-  })();
+  void load(true);
 }

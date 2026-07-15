@@ -11,7 +11,9 @@ export const FR_COPY = {
   nuevo: "Nuevo registro",
 
   filtroBusqueda: "Buscar empleado",
-  placeholderBusqueda: "Nombre o número de empleado",
+  placeholderBusqueda: "Nombre o número de empleado…",
+  modalEmpleadoAyuda:
+    "Escribe el nombre o número y elige de la lista. No hace falta abrir un desplegable aparte.",
   filtroTipo: "Tipo de evento",
   filtroFechaDesde: "Fecha desde",
   filtroFechaHasta: "Fecha hasta",
