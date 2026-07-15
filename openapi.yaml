@@ -2239,6 +2239,10 @@ components:
         - retardo
         - incapacidad
         - suspension
+        - matrimonio
+        - incapacidad_interna
+        - defuncion
+        - paternidad
 
     FaltaRetardoCreateRequest:
       type: object
@@ -2246,7 +2250,9 @@ components:
       description: >
         Para tipo=suspension, fecha_fin es obligatoria y observaciones es el motivo TRESS
         (obligatoria, max 30 caracteres). La suspensión se inserta primero en DATOS_ANALISIS
-        (dbo.PERMISO) y luego en Bono.
+        (dbo.PERMISO) y luego en Bono. Los tipos con goce (matrimonio, incapacidad_interna,
+        defuncion, paternidad) se guardan en levelup_faltas_retardos y se encolan a TRESS
+        sin aprobación.
       properties:
         empleado_id:
           type: integer
@@ -2259,7 +2265,7 @@ components:
         fecha_fin:
           type: [string, "null"]
           format: date
-          description: Obligatoria para incapacidad y suspensión.
+          description: Obligatoria para incapacidad, suspensión y permisos con goce.
         observaciones:
           type: [string, "null"]
           maxLength: 4000

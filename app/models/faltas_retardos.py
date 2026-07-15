@@ -15,9 +15,27 @@ FALTA_RETARDO_TIPOS = (
     "retardo",
     "incapacidad",
     "suspension",
+    "matrimonio",
+    "incapacidad_interna",
+    "defuncion",
+    "paternidad",
 )
 
-FALTA_RETARDO_TIPOS_RANGO = frozenset({"incapacidad", "suspension"})
+# Tipos con goce de sueldo: registro directo RH en levelup (sin Bono).
+FALTA_RETARDO_TIPOS_GOCE = frozenset(
+    {"matrimonio", "incapacidad_interna", "defuncion", "paternidad"}
+)
+
+FALTA_RETARDO_TIPOS_RANGO = frozenset(
+    {
+        "incapacidad",
+        "suspension",
+        "matrimonio",
+        "incapacidad_interna",
+        "defuncion",
+        "paternidad",
+    }
+)
 
 
 class FaltaRetardoEvento(Base):

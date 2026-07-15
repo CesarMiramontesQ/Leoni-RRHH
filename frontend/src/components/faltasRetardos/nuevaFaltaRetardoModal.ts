@@ -2,14 +2,21 @@ import { getEmpleadosPage } from "../../api/empleados.ts";
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
 import type { UsuarioListItem } from "../../api/usuarios.ts";
 import {
+  FALTA_RETARDO_TIPOS_GOCE,
   FALTA_RETARDO_TIPOS_NUEVO_REGISTRO,
   FALTA_RETARDO_TIPOS_RANGO,
   labelFaltaRetardoTipo,
 } from "../../faltasRetardos/rh/constants.ts";
 import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
+import {
+  calcularRangoDefuncion,
+  calcularRangoPaternidad,
+  sumarDiasIso,
+} from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
 import {
@@ -74,6 +81,47 @@ function initialFormData(): NuevaFaltaRetardoFormData {
 
 function requiresRango(tipo: FaltaRetardoTipo | ""): boolean {
   return tipo !== "" && FALTA_RETARDO_TIPOS_RANGO.has(tipo);
+}
+
+function fechaFinFijaAuto(tipo: FaltaRetardoTipo | ""): boolean {
+  return tipo === "matrimonio" || tipo === "defuncion" || tipo === "paternidad";
+}
+
+function applyRangoGoce(
+  data: NuevaFaltaRetardoFormData,
+  administrativo: boolean,
+): NuevaFaltaRetardoFormData {
+  if (!data.fechaEvento.trim()) return { ...data, fechaFin: "" };
+  if (data.tipo === "matrimonio") {
+    return { ...data, fechaFin: sumarDiasIso(data.fechaEvento, 1) };
+  }
+  if (data.tipo === "defuncion") {
+    const rango = calcularRangoDefuncion(data.fechaEvento, administrativo);
+    if (!rango) return data;
+    return { ...data, fechaEvento: rango.fechaInicio, fechaFin: rango.fechaFin };
+  }
+  if (data.tipo === "paternidad") {
+    const rango = calcularRangoPaternidad(data.fechaEvento);
+    if (!rango) return data;
+    return { ...data, fechaEvento: rango.fechaInicio, fechaFin: rango.fechaFin };
+  }
+  return data;
+}
+
+function hintRangoGoce(tipo: FaltaRetardoTipo | "", administrativo: boolean): string {
+  if (tipo === "matrimonio") return "Matrimonio: duración fija de 2 días con goce de sueldo.";
+  if (tipo === "defuncion") {
+    return administrativo
+      ? "Defunción: 3 días hábiles con goce. Si cruza fin de semana, se ajustan días hábiles."
+      : "Defunción: duración fija de 3 días con goce de sueldo.";
+  }
+  if (tipo === "paternidad") {
+    return "Paternidad: 7 días hábiles con goce. Si el inicio cae en fin de semana, se ajusta.";
+  }
+  if (tipo === "incapacidad_interna") {
+    return "Incapacidad interna: indique el rango completo (fecha fin editable).";
+  }
+  return "";
 }
 
 function validateForm(data: NuevaFaltaRetardoFormData): NuevaFaltaRetardoFormErrors {
@@ -196,10 +244,14 @@ function buildFormHtml(
     highlightIndex: number;
     searchLoading: boolean;
     isSubmitting: boolean;
+    empleadoAdministrativo?: boolean;
   },
 ): string {
   const rango = requiresRango(data.tipo);
   const esSuspension = data.tipo === "suspension";
+  const esGoce = data.tipo !== "" && FALTA_RETARDO_TIPOS_GOCE.has(data.tipo);
+  const finReadonly = fechaFinFijaAuto(data.tipo);
+  const goceHint = hintRangoGoce(data.tipo, opts.empleadoAdministrativo === true);
   const tipoOptions = FALTA_RETARDO_TIPOS_NUEVO_REGISTRO.map(
     (t) =>
       `<option value="${t}" ${data.tipo === t ? "selected" : ""}>${escapeHtml(labelFaltaRetardoTipo(t))}</option>`,
@@ -260,6 +312,7 @@ function buildFormHtml(
           ${SELECT_CHEVRON}
         </div>
         ${errors.tipo ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.tipo)}</p>` : ""}
+        ${esGoce && goceHint ? `<p class="mt-1 text-xs text-slate-500">${escapeHtml(goceHint)}</p>` : ""}
       </div>
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
@@ -269,7 +322,7 @@ function buildFormHtml(
         </div>
         <div id="fr-form-fecha-fin-wrap" class="${rango ? "" : "hidden"}">
           <label class="${RH_LISTADO_LABEL}" for="fr-form-fecha-fin">Fecha fin *</label>
-          <input id="fr-form-fecha-fin" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaFin)}" ${rango ? "required" : ""} ${opts.isSubmitting ? "disabled" : ""} />
+          <input id="fr-form-fecha-fin" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaFin)}" ${rango ? "required" : ""} ${opts.isSubmitting || finReadonly ? "disabled" : ""} />
           ${errors.fechaFin ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.fechaFin)}</p>` : ""}
         </div>
       </div>
@@ -423,6 +476,10 @@ export function mountNuevaFaltaRetardoModal(
     empleadosCache = pg.items;
   }
 
+  function empleadoAdmin(): boolean {
+    return esEmpleadoAdministrativo(selectedEmpleado?.clasificacion);
+  }
+
   function render(): void {
     body.innerHTML = buildFormHtml(formData, errors, {
       empleadoSearchQ,
@@ -432,6 +489,7 @@ export function mountNuevaFaltaRetardoModal(
       highlightIndex: empleadoHighlightIndex,
       searchLoading: empleadoSearchLoading,
       isSubmitting,
+      empleadoAdministrativo: empleadoAdmin(),
     });
     bindForm();
     setInsertandoOverlay(isSubmitting);
@@ -466,6 +524,9 @@ export function mountNuevaFaltaRetardoModal(
       (selectedEmpleado?.id === id ? selectedEmpleado : null);
     formData = { ...formData, empleadoId: empleadoIdRaw };
     selectedEmpleado = picked;
+    if (fechaFinFijaAuto(formData.tipo)) {
+      formData = applyRangoGoce(formData, esEmpleadoAdministrativo(picked?.clasificacion));
+    }
     empleadoSearchQ = "";
     empleadoListboxOpen = false;
     empleadoHighlightIndex = -1;
@@ -640,12 +701,20 @@ export function mountNuevaFaltaRetardoModal(
     tipoSel?.addEventListener("change", () => {
       formData = { ...formData, tipo: tipoSel.value as FaltaRetardoTipo | "" };
       if (!requiresRango(formData.tipo)) formData = { ...formData, fechaFin: "" };
+      else if (fechaFinFijaAuto(formData.tipo)) {
+        formData = applyRangoGoce(formData, empleadoAdmin());
+      }
       render();
     });
     fechaInp?.addEventListener("change", () => {
       formData = { ...formData, fechaEvento: fechaInp.value };
+      if (fechaFinFijaAuto(formData.tipo)) {
+        formData = applyRangoGoce(formData, empleadoAdmin());
+        render();
+      }
     });
     fechaFinInp?.addEventListener("change", () => {
+      if (fechaFinFijaAuto(formData.tipo)) return;
       formData = { ...formData, fechaFin: fechaFinInp.value };
     });
     obsInp?.addEventListener("input", () => {

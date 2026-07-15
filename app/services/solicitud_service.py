@@ -836,23 +836,12 @@ class SolicitudService:
                 detail="Solo supervisor, gerente, RH o director pueden crear permisos sin goce de sueldo"
             )
         if data.tipo in _TIPOS_GOCE_SUELDO_RH:
-            if scope_rol != "rh":
-                raise ForbiddenError(
-                    detail="Solo RH puede crear solicitudes con goce de sueldo"
+            raise DomainValidationError(
+                detail=(
+                    "Los permisos con goce de sueldo (matrimonio, incapacidad interna, "
+                    "defunción, paternidad) se registran en Faltas y retardos, no como solicitud."
                 )
-            if data.tipo == "matrimonio":
-                _validar_matrimonio_fechas(fecha_inicio, fecha_fin)
-            elif data.tipo == "defuncion":
-                emp_clf = await self.empleado_repo.get_with_clasificacion(target.id)
-                admin = emp_clf is not None and empleado_es_administrativo(emp_clf)
-                _validar_defuncion_fechas(
-                    fecha_inicio,
-                    fecha_fin,
-                    administrativo=admin,
-                )
-            elif data.tipo == "paternidad":
-                _validar_paternidad_fechas(fecha_inicio, fecha_fin)
-            # incapacidad_interna mantiene la fecha_fin indicada por RH.
+            )
 
         duplicado = await self.repo.count(
             filters=[

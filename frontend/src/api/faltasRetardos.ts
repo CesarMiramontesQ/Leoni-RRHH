@@ -5,7 +5,11 @@ export type FaltaRetardoTipo =
   | "falta_injustificada"
   | "retardo"
   | "incapacidad"
-  | "suspension";
+  | "suspension"
+  | "matrimonio"
+  | "incapacidad_interna"
+  | "defuncion"
+  | "paternidad";
 
 export type FaltaRetardoListItem = {
   id: number;

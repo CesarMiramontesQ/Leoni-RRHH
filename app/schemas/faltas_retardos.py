@@ -3,7 +3,11 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.models.faltas_retardos import FALTA_RETARDO_TIPOS, FALTA_RETARDO_TIPOS_RANGO
+from app.models.faltas_retardos import (
+    FALTA_RETARDO_TIPOS,
+    FALTA_RETARDO_TIPOS_GOCE,
+    FALTA_RETARDO_TIPOS_RANGO,
+)
 
 FaltaRetardoTipo = Literal[
     "falta_justificada",
@@ -11,6 +15,10 @@ FaltaRetardoTipo = Literal[
     "retardo",
     "incapacidad",
     "suspension",
+    "matrimonio",
+    "incapacidad_interna",
+    "defuncion",
+    "paternidad",
 ]
 
 
@@ -34,11 +42,15 @@ class FaltaRetardoCreateRequest(BaseModel):
     def validate_fechas_y_motivo(self) -> "FaltaRetardoCreateRequest":
         if self.tipo in FALTA_RETARDO_TIPOS_RANGO:
             if self.fecha_fin is None:
-                raise ValueError("fecha_fin es obligatoria para incapacidad y suspensión")
+                raise ValueError(
+                    "fecha_fin es obligatoria para incapacidad, suspensión y permisos con goce"
+                )
             if self.fecha_fin < self.fecha_evento:
                 raise ValueError("fecha_fin no puede ser anterior a fecha_evento")
         elif self.fecha_fin is not None and self.fecha_fin != self.fecha_evento:
-            raise ValueError("fecha_fin solo aplica para incapacidad y suspensión")
+            raise ValueError(
+                "fecha_fin solo aplica para incapacidad, suspensión y permisos con goce"
+            )
         if self.tipo == "suspension":
             motivo = (self.observaciones or "").strip()
             if not motivo:
@@ -46,6 +58,8 @@ class FaltaRetardoCreateRequest(BaseModel):
             if len(motivo) > 30:
                 raise ValueError("observaciones no puede exceder 30 caracteres para suspensión")
             self.observaciones = motivo
+        elif self.tipo in FALTA_RETARDO_TIPOS_GOCE and self.observaciones:
+            self.observaciones = self.observaciones.strip() or None
         return self
 
 
