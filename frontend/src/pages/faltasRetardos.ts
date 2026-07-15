@@ -2,10 +2,15 @@ import {
   createFaltaRetardo,
   getFaltasRetardosEstadisticas,
   getFaltasRetardosPage,
+  type FaltaRetardoListItem,
   type FaltasRetardosPageResponse,
 } from "../api/faltasRetardos.ts";
 import { canAccessFaltasRetardosPage } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
+import {
+  mountFaltaRetardoDetalleModal,
+  type FaltaRetardoDetalleModalHandle,
+} from "../components/faltasRetardos/faltaRetardoDetalleModal.ts";
 import { renderRhFaltasRetardosAdminView } from "../components/faltasRetardos/rhFaltasRetardosAdminView.ts";
 import {
   mountNuevaFaltaRetardoModal,
@@ -145,6 +150,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   let appliedFilters = cloneFaltasRetardosListFilters(initialFilters);
   let page = 1;
   let loadSeq = 0;
+  let currentRows: FaltaRetardoListItem[] = [];
   let lastEstadisticas: FaltasRetardosEstadisticasData | null = null;
   let lastEstadisticasStatus: FaltasRetardosAdminViewModel["estadisticasStatus"] = "loading";
   let lastEstadisticasError: string | undefined;
@@ -171,6 +177,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
       ${renderLaboralesBackBar()}
       <div id="rh-faltas-retardos-inner" class="flex min-h-0 flex-1 flex-col">${renderRhFaltasRetardosAdminView(loadingViewModel(filterDraft, appliedFilters))}</div>
       <div id="rh-fr-modal-host" class="shrink-0"></div>
+      <div id="rh-fr-detalle-modal-host" class="shrink-0"></div>
     </div>`,
   });
 
@@ -186,6 +193,23 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
           },
         })
       : null;
+
+  const detalleHost = container.querySelector("#rh-fr-detalle-modal-host");
+  const detalleModal: FaltaRetardoDetalleModalHandle | null =
+    detalleHost instanceof HTMLElement
+      ? mountFaltaRetardoDetalleModal(detalleHost, { signal })
+      : null;
+
+  function openDetalleFromTarget(t: HTMLElement): boolean {
+    const rowEl = t.closest<HTMLElement>("[data-rh-fr-detalle-id]");
+    if (!rowEl) return false;
+    const raw = rowEl.getAttribute("data-rh-fr-detalle-id");
+    const id = raw ? Number.parseInt(raw, 10) : NaN;
+    const fila = Number.isFinite(id) ? currentRows.find((r) => r.id === id) : undefined;
+    if (!fila) return false;
+    detalleModal?.open(fila);
+    return true;
+  }
 
   async function load(refreshEstadisticas = true): Promise<void> {
     const seq = ++loadSeq;
@@ -227,6 +251,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
       }
 
       if (isStale()) return;
+      currentRows = pageData.items;
       paintVm(
         viewModelFromPage(
           pageData,
@@ -239,6 +264,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
       );
     } catch (error: unknown) {
       if (isStale()) return;
+      currentRows = [];
       const fetchError = error as { status?: number; detail?: string };
       if (fetchError?.status === 401) {
         clearAuth();
@@ -291,7 +317,22 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
           page = n;
           void load(false);
         }
+        return;
       }
+      if (openDetalleFromTarget(t)) return;
+    },
+    { signal },
+  );
+
+  pageRoot?.addEventListener(
+    "keydown",
+    (e) => {
+      const ke = e as KeyboardEvent;
+      if (ke.key !== "Enter" && ke.key !== " ") return;
+      const t = ke.target as HTMLElement;
+      if (!t.closest("[data-rh-fr-detalle-id]")) return;
+      ke.preventDefault();
+      openDetalleFromTarget(t);
     },
     { signal },
   );
@@ -337,6 +378,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
 
   signal.addEventListener("abort", () => {
     modal?.destroy();
+    detalleModal?.destroy();
   });
 
   void load(true);

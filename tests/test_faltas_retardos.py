@@ -163,8 +163,9 @@ async def test_create_falta_retardo_retardo(client: AsyncClient, db):
     assert data["tipo"] == "retardo"
     assert data["fecha_evento"] == "2026-06-20"
     assert data["registrado_por_id"] == rh.empleado_id
-    assert data["origen"] == "importadas_historico"
+    assert data["origen"] == "manual"
     assert data["origen_id"] == 9001
+    assert data["observaciones"] == "Llegó 15 min tarde"
 
 
 @pytest.mark.asyncio
@@ -213,7 +214,8 @@ async def test_create_incapacidad_con_rango(client: AsyncClient, db):
     assert res.status_code == 201, res.text
     data = res.json()
     assert data["fecha_fin"] == "2026-06-05"
-    assert data["origen"] == "importadas_historico"
+    assert data["origen"] == "manual"
+    assert data["observaciones"] == "Incapacidad IMSS"
 
 
 @pytest.mark.asyncio
@@ -253,3 +255,67 @@ async def test_list_con_filtro_busqueda(client: AsyncClient, db):
         )
     assert res.status_code == 200
     assert res.json()["total"] >= 1
+
+
+def test_map_bono_row_no_usa_tipo_descripcion_como_observaciones():
+    from app.services.faltas_retardos.mapper import map_bono_row
+
+    mapped = map_bono_row(
+        {
+            "origen": "importadas_historico",
+            "origen_id": 55,
+            "empleado_id": 1,
+            "no_empleado": "100",
+            "nombre": "TEST",
+            "tipo_codigo": "SUS",
+            "tipo_descripcion": "Suspension catalogo",
+            "fecha_evento": date(2026, 7, 20),
+            "fecha_fin": None,
+            "observaciones": None,
+        }
+    )
+    assert mapped is not None
+    assert mapped.tipo == "suspension"
+    assert mapped.observaciones is None
+    assert mapped.origen == "importadas_historico"
+
+
+@pytest.mark.asyncio
+async def test_enrich_registrado_por_restaura_motivo_y_origen_manual(db):
+    from app.models.faltas_retardos import FaltaRetardoRegistroAuditoria
+    from app.services.faltas_retardos_service import FaltasRetardosService
+
+    rh = await make_empleado(db, rol="rh", nombre="RH Enrich")
+    audit = FaltaRetardoRegistroAuditoria(
+        bono_origen="importadas_historico",
+        bono_origen_id=4242,
+        registrado_por_id=rh.empleado_id,
+        observaciones="MOTIVO SUSPENSION",
+        fecha_fin=date(2026, 7, 22),
+    )
+    db.add(audit)
+    await db.commit()
+
+    item = FaltaRetardoResponse(
+        id=1_000_004_242,
+        empleado_id=1,
+        empleado_nombre="EMP",
+        numero_empleado="1",
+        tipo="suspension",
+        fecha_evento=date(2026, 7, 20),
+        fecha_fin=None,
+        observaciones=None,
+        registrado_por_id=None,
+        registrado_por_nombre=None,
+        created_at=datetime.now(timezone.utc),
+        origen="importadas_historico",
+        origen_id=4242,
+    )
+    svc = FaltasRetardosService(db)
+    enriched = await svc._enrich_registrado_por([item])
+    assert len(enriched) == 1
+    assert enriched[0].origen == "manual"
+    assert enriched[0].observaciones == "MOTIVO SUSPENSION"
+    assert enriched[0].fecha_fin == date(2026, 7, 22)
+    assert enriched[0].registrado_por_id == rh.empleado_id
+    assert enriched[0].id == 1_000_004_242

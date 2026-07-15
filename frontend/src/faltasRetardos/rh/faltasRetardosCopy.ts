@@ -92,4 +92,10 @@ export const FR_COPY = {
   modalObsHintSuspension: "Motivo TRESS — máx. 30 caracteres",
   modalObsRequeridaSuspension: "Indique el motivo (máx. 30 caracteres)",
   modalObsMaxSuspension: "El motivo no puede exceder 30 caracteres",
+
+  detalleModalTitulo: "Detalle del evento",
+  detalleModalCerrar: "Cerrar",
+  detalleColOrigen: "Origen",
+  detalleOrigenManual: "Creado en el sistema",
+  detalleAriaAbrir: "Ver detalle del evento",
 } as const;

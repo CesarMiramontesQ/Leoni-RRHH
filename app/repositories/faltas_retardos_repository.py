@@ -116,6 +116,8 @@ class FaltasRetardosRepository(BaseRepository[FaltaRetardoEvento]):
         bono_origen: str,
         bono_origen_ids: list[int],
         registrado_por_id: int,
+        observaciones: str | None = None,
+        fecha_fin: date | None = None,
     ) -> None:
         if not bono_origen_ids:
             return
@@ -129,6 +131,8 @@ class FaltasRetardosRepository(BaseRepository[FaltaRetardoEvento]):
                     bono_origen=bono_origen,
                     bono_origen_id=bono_origen_id,
                     registrado_por_id=registrado_por_id,
+                    observaciones=observaciones,
+                    fecha_fin=fecha_fin,
                 )
             )
         await self.db.flush()

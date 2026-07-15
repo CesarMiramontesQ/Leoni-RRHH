@@ -79,6 +79,8 @@ class FaltaRetardoRegistroAuditoria(Base):
     registrado_por_id: Mapped[int] = mapped_column(
         ForeignKey("empleados.empleado_id"), nullable=False
     )
+    observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

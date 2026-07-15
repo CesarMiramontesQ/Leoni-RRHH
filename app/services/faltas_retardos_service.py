@@ -22,6 +22,7 @@ from app.schemas.faltas_retardos import (
 from app.services.faltas_retardos.constants import (
     CODIGO_PONDERACION_A_TIPO,
     ORIGEN_IMPORTADAS_HISTORICO,
+    ORIGEN_MANUAL,
     TIPO_A_PONDERACION,
 )
 from app.services.faltas_retardos.mapper import map_bono_row
@@ -90,6 +91,7 @@ class FaltasRetardosService:
             update={
                 "fecha_fin": fecha_fin,
                 "observaciones": observaciones,
+                "origen": ORIGEN_MANUAL,
                 "registrado_por_id": current_user.empleado_id,
                 "registrado_por_nombre": _empleado_display_nombre(current_user),
             }
@@ -125,17 +127,17 @@ class FaltasRetardosService:
             if audit is None:
                 enriched.append(item)
                 continue
-            enriched.append(
-                item.model_copy(
-                    update={
-                        "registrado_por_id": audit.registrado_por_id,
-                        "registrado_por_nombre": _empleado_display_nombre(
-                            audit.registrado_por
-                        ),
-                        "created_at": audit.created_at,
-                    }
-                )
-            )
+            update: dict = {
+                "origen": ORIGEN_MANUAL,
+                "registrado_por_id": audit.registrado_por_id,
+                "registrado_por_nombre": _empleado_display_nombre(audit.registrado_por),
+                "created_at": audit.created_at,
+            }
+            if audit.observaciones is not None:
+                update["observaciones"] = audit.observaciones
+            if audit.fecha_fin is not None:
+                update["fecha_fin"] = audit.fecha_fin
+            enriched.append(item.model_copy(update=update))
         return enriched
 
     async def _insertar_en_importadas_historico(
@@ -428,10 +430,15 @@ class FaltasRetardosService:
         origen_ids = await self._insertar_en_importadas_historico(empleado, data)
         origen_id = origen_ids[0]
 
+        fecha_fin = data.fecha_fin if data.tipo in FALTA_RETARDO_TIPOS_RANGO else None
+        observaciones = data.observaciones.strip() if data.observaciones else None
+
         await self.audit_repo.save_registros_auditoria(
             bono_origen=ORIGEN_IMPORTADAS_HISTORICO,
             bono_origen_ids=origen_ids,
             registrado_por_id=current_user.empleado_id,
+            observaciones=observaciones,
+            fecha_fin=fecha_fin,
         )
         await self.db.commit()
 
@@ -458,8 +465,6 @@ class FaltasRetardosService:
         if mapped.origen != ORIGEN_IMPORTADAS_HISTORICO:
             raise DomainValidationError("Origen inesperado al recuperar el registro creado")
 
-        fecha_fin = data.fecha_fin if data.tipo in FALTA_RETARDO_TIPOS_RANGO else None
-        observaciones = data.observaciones.strip() if data.observaciones else None
         return self._to_response_importadas(
             mapped,
             current_user=current_user,

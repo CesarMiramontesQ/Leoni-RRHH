@@ -5,8 +5,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.core.exceptions import ConflictError
+from app.models.faltas_retardos import FaltaRetardoRegistroAuditoria
 from app.repositories.datos_analisis_suspension_write_repository import (
     InsertarSuspensionResult,
     _render_insertar_suspension_sql,
@@ -114,12 +116,26 @@ async def test_create_suspension_ok_llama_tress_y_bono(client: AsyncClient, db, 
     data = res.json()
     assert data["tipo"] == "suspension"
     assert data["fecha_fin"] == "2026-07-22"
+    assert data["observaciones"] == "AUSENTISMO 3 DIAS"
+    assert data["origen"] == "manual"
+    assert data["origen_id"] == 9101
     registrar.assert_awaited_once()
     kwargs = registrar.await_args.kwargs
     assert kwargs["no_empleado"] == 1259
     assert kwargs["fecha_inicio"] == date(2026, 7, 20)
     assert kwargs["fecha_fin"] == date(2026, 7, 22)
     assert kwargs["comentario"] == "AUSENTISMO 3 DIAS"
+
+    audits = (
+        await db.execute(
+            select(FaltaRetardoRegistroAuditoria).where(
+                FaltaRetardoRegistroAuditoria.bono_origen_id.in_([9101, 9102])
+            )
+        )
+    ).scalars().all()
+    assert len(audits) == 2
+    assert all(a.observaciones == "AUSENTISMO 3 DIAS" for a in audits)
+    assert all(a.fecha_fin == date(2026, 7, 22) for a in audits)
 
 
 @pytest.mark.asyncio
