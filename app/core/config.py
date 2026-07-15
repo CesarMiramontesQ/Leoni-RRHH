@@ -145,6 +145,9 @@ class Settings(BaseSettings):
     # Home office → TRESS (INSERT dbo.PERMISO al aprobar; US_CODIGO = TRESS_VACACIONES_US_CODIGO)
     TRESS_HOME_OFFICE_DRY_RUN: bool = False
 
+    # Suspensión → TRESS (INSERT dbo.PERMISO desde faltas/retardos; US_CODIGO = TRESS_VACACIONES_US_CODIGO)
+    TRESS_SUSPENSION_DRY_RUN: bool = False
+
     # IT Mirror DB
     IT_MIRROR_DB_URL: str = ""
 

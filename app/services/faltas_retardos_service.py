@@ -25,6 +25,7 @@ from app.services.faltas_retardos.constants import (
     TIPO_A_PONDERACION,
 )
 from app.services.faltas_retardos.mapper import map_bono_row
+from app.services.tress_suspension_service import registrar_suspension_en_tress
 
 
 def _empleado_display_nombre(empleado: Empleado | None) -> str | None:
@@ -413,6 +414,16 @@ class FaltasRetardosService:
     ) -> FaltaRetardoResponse:
         scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
         empleado = await self._assert_empleado_en_alcance(data.empleado_id, scope_ids)
+
+        if data.tipo == "suspension":
+            if data.fecha_fin is None:
+                raise DomainValidationError("fecha_fin es obligatoria para suspensión")
+            await registrar_suspension_en_tress(
+                no_empleado=int(empleado.no_empleado),
+                fecha_inicio=data.fecha_evento,
+                fecha_fin=data.fecha_fin,
+                comentario=(data.observaciones or "").strip(),
+            )
 
         origen_ids = await self._insertar_en_importadas_historico(empleado, data)
         origen_id = origen_ids[0]

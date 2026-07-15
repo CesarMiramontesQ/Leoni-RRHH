@@ -31,7 +31,7 @@ class FaltaRetardoCreateRequest(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def validate_fechas(self) -> "FaltaRetardoCreateRequest":
+    def validate_fechas_y_motivo(self) -> "FaltaRetardoCreateRequest":
         if self.tipo in FALTA_RETARDO_TIPOS_RANGO:
             if self.fecha_fin is None:
                 raise ValueError("fecha_fin es obligatoria para incapacidad y suspensión")
@@ -39,6 +39,13 @@ class FaltaRetardoCreateRequest(BaseModel):
                 raise ValueError("fecha_fin no puede ser anterior a fecha_evento")
         elif self.fecha_fin is not None and self.fecha_fin != self.fecha_evento:
             raise ValueError("fecha_fin solo aplica para incapacidad y suspensión")
+        if self.tipo == "suspension":
+            motivo = (self.observaciones or "").strip()
+            if not motivo:
+                raise ValueError("observaciones es obligatoria para suspensión (motivo TRESS)")
+            if len(motivo) > 30:
+                raise ValueError("observaciones no puede exceder 30 caracteres para suspensión")
+            self.observaciones = motivo
         return self
 
 
