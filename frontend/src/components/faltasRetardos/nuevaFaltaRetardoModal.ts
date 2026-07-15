@@ -4,26 +4,28 @@ import type { UsuarioListItem } from "../../api/usuarios.ts";
 import {
   FALTA_RETARDO_TIPOS_GOCE,
   FALTA_RETARDO_TIPOS_NUEVO_REGISTRO,
-  FALTA_RETARDO_TIPOS_RANGO,
   labelFaltaRetardoTipo,
 } from "../../faltasRetardos/rh/constants.ts";
 import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
 import {
   calcularRangoDefuncion,
   calcularRangoPaternidad,
+  rangoIncluyeFinDeSemana,
   sumarDiasIso,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
-import { FIELD_FOCUS, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
+import {
+  RH_SOLICITUDES_BTN_PRIMARY,
+  RH_SOLICITUDES_BTN_SECONDARY,
+} from "../../ui/uiTokens.ts";
+import {
+  bindWorkdayDatePicker,
+  buildWorkdayDatePickerHtml,
+} from "../../ui/workdayDatePicker.ts";
 import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
-import {
-  RH_LISTADO_LABEL,
-  RH_LISTADO_SELECT,
-  RH_SOLICITUDES_BTN_PRIMARY,
-} from "./rhFaltasRetardosPageStyles.ts";
 
 export type NuevaFaltaRetardoFormData = {
   empleadoId: string;
@@ -59,15 +61,38 @@ export type NuevaFaltaRetardoModalHandle = {
   destroy: () => void;
 };
 
-const FR_FILTER_CONTROL =
-  "rh-sol-filter-input min-h-11 w-full rounded-[12px] border border-[rgba(148,163,184,0.34)] bg-white px-3 py-2.5 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(37,99,235,0.38)] hover:bg-[#fafbfc]";
+/** Título de bloque (mismo lenguaje que Nueva solicitud). */
+const SEC_TITLE = "text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500";
 
-const SELECT_FILTER_EXTRA =
-  "rh-sol-filter-select min-h-11 rounded-[12px] border-[rgba(148,163,184,0.34)] py-2.5 shadow-[0_2px_8px_rgba(15,23,42,0.04)]";
+const SEC_BOX =
+  "rounded-2xl border border-slate-200/70 bg-slate-50/50 p-5 shadow-sm shadow-slate-900/[0.02]";
+
+const LABEL =
+  "mb-2 block text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500";
+
+const CONTROL =
+  "h-11 w-full rounded-xl border border-slate-200/90 bg-white px-3.5 text-sm text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400/70 hover:border-slate-300 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25";
+
+const CONTROL_TEXTAREA =
+  "min-h-[5.5rem] w-full rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm shadow-slate-900/[0.03] transition-[border-color,box-shadow] duration-200 placeholder:text-slate-400/70 hover:border-slate-300 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25 resize-y";
+
+const CONTROL_INVALID = "border-red-400/90 focus:border-red-500 focus:ring-red-500/20";
+
+const NR_SELECT_CHEVRON = `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="pointer-events-none col-start-1 row-start-1 mr-2.5 size-4 self-center justify-self-end text-slate-400">
+  <path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+</svg>`;
 
 const SEARCH_ICON = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400">
   <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd"/>
 </svg>`;
+
+function ctrlClass(invalid: boolean, extra = ""): string {
+  return `${CONTROL} ${invalid ? CONTROL_INVALID : ""} ${extra}`.trim();
+}
+
+function textareaClass(invalid: boolean): string {
+  return `${CONTROL_TEXTAREA} ${invalid ? CONTROL_INVALID : ""}`.trim();
+}
 
 function initialFormData(): NuevaFaltaRetardoFormData {
   return {
@@ -77,10 +102,6 @@ function initialFormData(): NuevaFaltaRetardoFormData {
     fechaFin: "",
     observaciones: "",
   };
-}
-
-function requiresRango(tipo: FaltaRetardoTipo | ""): boolean {
-  return tipo !== "" && FALTA_RETARDO_TIPOS_RANGO.has(tipo);
 }
 
 function fechaFinFijaAuto(tipo: FaltaRetardoTipo | ""): boolean {
@@ -124,16 +145,34 @@ function hintRangoGoce(tipo: FaltaRetardoTipo | "", administrativo: boolean): st
   return "";
 }
 
-function validateForm(data: NuevaFaltaRetardoFormData): NuevaFaltaRetardoFormErrors {
+function fechaIsoEsFinDeSemana(iso: string): boolean {
+  const t = iso.trim();
+  if (!t) return false;
+  return rangoIncluyeFinDeSemana(t, t);
+}
+
+function validateForm(
+  data: NuevaFaltaRetardoFormData,
+  administrativo: boolean,
+): NuevaFaltaRetardoFormErrors {
   const errors: NuevaFaltaRetardoFormErrors = {};
   if (!data.empleadoId.trim()) errors.empleadoId = "Seleccione un empleado";
   if (!data.tipo) errors.tipo = "Seleccione el tipo de evento";
-  if (!data.fechaEvento.trim()) errors.fechaEvento = "Indique la fecha del evento";
-  if (requiresRango(data.tipo)) {
-    if (!data.fechaFin.trim()) errors.fechaFin = "Indique la fecha fin del rango";
-    else if (data.fechaFin < data.fechaEvento) {
-      errors.fechaFin = "La fecha fin no puede ser anterior a la fecha inicio";
-    }
+  if (!data.fechaEvento.trim()) errors.fechaEvento = "Indique la fecha de inicio";
+  if (!data.fechaFin.trim()) errors.fechaFin = "Indique la fecha fin del rango";
+  else if (data.fechaEvento.trim() && data.fechaFin < data.fechaEvento) {
+    errors.fechaFin = "La fecha fin no puede ser anterior a la fecha inicio";
+  }
+  if (
+    administrativo &&
+    data.fechaEvento.trim() &&
+    data.fechaFin.trim() &&
+    !errors.fechaEvento &&
+    !errors.fechaFin &&
+    rangoIncluyeFinDeSemana(data.fechaEvento, data.fechaFin)
+  ) {
+    errors.fechaEvento = FR_COPY.modalFechasErrorFinDeSemana;
+    errors.fechaFin = FR_COPY.modalFechasErrorFinDeSemana;
   }
   if (data.tipo === "suspension") {
     const motivo = data.observaciones.trim();
@@ -141,6 +180,26 @@ function validateForm(data: NuevaFaltaRetardoFormData): NuevaFaltaRetardoFormErr
     else if (motivo.length > 30) errors.observaciones = FR_COPY.modalObsMaxSuspension;
   }
   return errors;
+}
+
+function buildTipoSelectOptions(selected: FaltaRetardoTipo | ""): string {
+  const disciplina = FALTA_RETARDO_TIPOS_NUEVO_REGISTRO.filter((t) => t === "suspension");
+  const goce = FALTA_RETARDO_TIPOS_NUEVO_REGISTRO.filter((t) => FALTA_RETARDO_TIPOS_GOCE.has(t));
+  const opt = (t: FaltaRetardoTipo) =>
+    `<option value="${t}" ${selected === t ? "selected" : ""}>${escapeHtml(labelFaltaRetardoTipo(t))}</option>`;
+  return `
+    <option value="">${escapeHtml(FR_COPY.modalTipoPlaceholder)}</option>
+    ${
+      disciplina.length > 0
+        ? `<optgroup label="${escapeHtml(FR_COPY.modalOptgroupDisciplina)}">${disciplina.map(opt).join("")}</optgroup>`
+        : ""
+    }
+    ${
+      goce.length > 0
+        ? `<optgroup label="${escapeHtml(FR_COPY.modalOptgroupGoce)}">${goce.map(opt).join("")}</optgroup>`
+        : ""
+    }
+  `;
 }
 
 function buildEmpleadoListboxHtml(opts: {
@@ -233,7 +292,7 @@ function buildEmpleadoSeleccionadoCardHtml(u: UsuarioListItem | null): string {
     </div>`;
 }
 
-function buildFormHtml(
+function buildFormFieldsHtml(
   data: NuevaFaltaRetardoFormData,
   errors: NuevaFaltaRetardoFormErrors,
   opts: {
@@ -247,15 +306,10 @@ function buildFormHtml(
     empleadoAdministrativo?: boolean;
   },
 ): string {
-  const rango = requiresRango(data.tipo);
   const esSuspension = data.tipo === "suspension";
   const esGoce = data.tipo !== "" && FALTA_RETARDO_TIPOS_GOCE.has(data.tipo);
   const finReadonly = fechaFinFijaAuto(data.tipo);
   const goceHint = hintRangoGoce(data.tipo, opts.empleadoAdministrativo === true);
-  const tipoOptions = FALTA_RETARDO_TIPOS_NUEVO_REGISTRO.map(
-    (t) =>
-      `<option value="${t}" ${data.tipo === t ? "selected" : ""}>${escapeHtml(labelFaltaRetardoTipo(t))}</option>`,
-  ).join("");
 
   const listboxHtml = buildEmpleadoListboxHtml({
     items: opts.empleadosCache,
@@ -270,82 +324,144 @@ function buildFormHtml(
     opts.listboxOpen && opts.highlightIndex >= 0
       ? ` aria-activedescendant="fr-empleado-opt-${opts.highlightIndex}"`
       : "";
+  const searchHidden = opts.selectedEmpleado != null;
 
   return `
-    <form id="fr-nueva-form" class="space-y-4" novalidate>
-      ${errors.form ? `<p class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">${escapeHtml(errors.form)}</p>` : ""}
-      <div class="space-y-3">
-        <p class="text-xs text-slate-500">${escapeHtml(FR_COPY.modalEmpleadoAyuda)}</p>
-        <div>
-          <label class="${RH_LISTADO_LABEL}" for="fr-form-empleado-q">${escapeHtml(FR_COPY.filtroBusqueda)}</label>
-          <div class="relative" data-fr-empleado-combobox>
-            ${SEARCH_ICON}
-            <input
-              id="fr-form-empleado-q"
-              type="search"
-              autocomplete="off"
-              role="combobox"
-              aria-autocomplete="list"
-              aria-expanded="${opts.listboxOpen ? "true" : "false"}"
-              aria-controls="fr-empleado-listbox"
-              ${activeDescendant}
-              data-fr-empleado-search
-              placeholder="${escapeHtml(FR_COPY.placeholderBusqueda)}"
-              value="${escapeHtml(opts.empleadoSearchQ)}"
-              class="${FR_FILTER_CONTROL} ${FIELD_FOCUS} pl-10"
-              ${opts.isSubmitting ? "disabled" : ""}
-            />
-            ${listboxHtml}
-          </div>
+    ${
+      errors.form
+        ? `<p class="rounded-xl border border-red-200/90 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert" aria-live="assertive">${escapeHtml(errors.form)}</p>`
+        : ""
+    }
+
+    <section class="${SEC_BOX} space-y-4" aria-labelledby="fr-nr-sec-empleado" data-fr-empleado-section>
+      <h3 id="fr-nr-sec-empleado" class="${SEC_TITLE}">${escapeHtml(FR_COPY.modalSecEmpleado)}</h3>
+      <p class="text-xs leading-relaxed text-slate-500">${escapeHtml(FR_COPY.modalEmpleadoAyuda)}</p>
+      <div class="${searchHidden ? "hidden" : ""}">
+        <label class="${LABEL}" for="fr-form-empleado-q">${escapeHtml(FR_COPY.filtroBusqueda)}</label>
+        <div class="relative" data-fr-empleado-combobox>
+          ${SEARCH_ICON}
+          <input
+            id="fr-form-empleado-q"
+            type="search"
+            autocomplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="${opts.listboxOpen ? "true" : "false"}"
+            aria-controls="fr-empleado-listbox"
+            aria-invalid="${errors.empleadoId ? "true" : "false"}"
+            ${activeDescendant}
+            data-fr-empleado-search
+            placeholder="${escapeHtml(FR_COPY.placeholderBusqueda)}"
+            value="${escapeHtml(opts.empleadoSearchQ)}"
+            class="${ctrlClass(Boolean(errors.empleadoId), "pl-10")}"
+            ${opts.isSubmitting ? "disabled" : ""}
+          />
+          ${listboxHtml}
         </div>
-        ${selectedCardHtml}
-        <input type="hidden" name="empleado_id" id="fr-form-empleado-id" value="${escapeHtml(data.empleadoId)}" required />
-        ${errors.empleadoId ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.empleadoId)}</p>` : ""}
       </div>
+      ${selectedCardHtml}
+      <input type="hidden" name="empleado_id" id="fr-form-empleado-id" value="${escapeHtml(data.empleadoId)}" required />
+      ${errors.empleadoId ? `<p class="text-xs text-red-600">${escapeHtml(errors.empleadoId)}</p>` : ""}
+    </section>
+
+    <section class="space-y-3" aria-labelledby="fr-nr-sec-tipo">
+      <h3 id="fr-nr-sec-tipo" class="${SEC_TITLE}">${escapeHtml(FR_COPY.modalSecTipo)}</h3>
       <div>
-        <label class="${RH_LISTADO_LABEL}" for="fr-form-tipo">${escapeHtml(FR_COPY.filtroTipo)} *</label>
+        <label class="${LABEL}" for="fr-form-tipo">${escapeHtml(FR_COPY.filtroTipo)}</label>
         <div class="grid grid-cols-1">
-          <select id="fr-form-tipo" class="${RH_LISTADO_SELECT} ${SELECT_FILTER_EXTRA} ${FIELD_FOCUS}" required ${opts.isSubmitting ? "disabled" : ""}>
-            <option value="">Seleccionar…</option>
-            ${tipoOptions}
+          <select
+            id="fr-form-tipo"
+            class="col-start-1 row-start-1 ${ctrlClass(Boolean(errors.tipo))} cursor-pointer appearance-none pr-10 font-medium"
+            required
+            aria-invalid="${errors.tipo ? "true" : "false"}"
+            ${opts.isSubmitting ? "disabled" : ""}
+          >
+            ${buildTipoSelectOptions(data.tipo)}
           </select>
-          ${SELECT_CHEVRON}
+          ${NR_SELECT_CHEVRON}
         </div>
-        ${errors.tipo ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.tipo)}</p>` : ""}
-        ${esGoce && goceHint ? `<p class="mt-1 text-xs text-slate-500">${escapeHtml(goceHint)}</p>` : ""}
+        ${errors.tipo ? `<p class="mt-1.5 text-xs text-red-600">${escapeHtml(errors.tipo)}</p>` : ""}
+        ${
+          esGoce && goceHint
+            ? `<p class="mt-1.5 text-xs leading-relaxed text-slate-500">${escapeHtml(goceHint)}</p>`
+            : ""
+        }
       </div>
-      <div class="grid gap-4 sm:grid-cols-2">
+    </section>
+
+    <section class="${SEC_BOX} space-y-4" aria-labelledby="fr-nr-sec-fechas">
+      <div>
+        <h3 id="fr-nr-sec-fechas" class="${SEC_TITLE}">${escapeHtml(FR_COPY.modalSecFechasRango)}</h3>
+        <p class="mt-1.5 text-xs leading-relaxed text-slate-500">${escapeHtml(FR_COPY.modalFechasHintRango)}</p>
+        ${
+          opts.empleadoAdministrativo === true
+            ? `<p class="mt-1.5 text-xs font-medium leading-relaxed text-slate-600">${escapeHtml(FR_COPY.modalFechasHintAdmin)}</p>`
+            : ""
+        }
+      </div>
+      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
         <div>
-          <label class="${RH_LISTADO_LABEL}" for="fr-form-fecha">${rango ? "Fecha inicio *" : "Fecha del evento *"}</label>
-          <input id="fr-form-fecha" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaEvento)}" required ${opts.isSubmitting ? "disabled" : ""} />
-          ${errors.fechaEvento ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.fechaEvento)}</p>` : ""}
+          <label class="${LABEL}" for="fr-form-fecha">Fecha inicio</label>
+          ${buildWorkdayDatePickerHtml({
+            inputId: "fr-form-fecha",
+            value: data.fechaEvento,
+            disabled: opts.isSubmitting,
+            blockWeekends: opts.empleadoAdministrativo === true,
+            invalid: Boolean(errors.fechaEvento),
+            align: "start",
+          })}
+          ${errors.fechaEvento ? `<p class="mt-1.5 text-xs text-red-600">${escapeHtml(errors.fechaEvento)}</p>` : ""}
         </div>
-        <div id="fr-form-fecha-fin-wrap" class="${rango ? "" : "hidden"}">
-          <label class="${RH_LISTADO_LABEL}" for="fr-form-fecha-fin">Fecha fin *</label>
-          <input id="fr-form-fecha-fin" type="date" class="${FR_FILTER_CONTROL} ${FIELD_FOCUS}" value="${escapeHtml(data.fechaFin)}" ${rango ? "required" : ""} ${opts.isSubmitting || finReadonly ? "disabled" : ""} />
-          ${errors.fechaFin ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.fechaFin)}</p>` : ""}
+        <div id="fr-form-fecha-fin-wrap">
+          <label class="${LABEL}" for="fr-form-fecha-fin">Fecha fin</label>
+          ${buildWorkdayDatePickerHtml({
+            inputId: "fr-form-fecha-fin",
+            value: data.fechaFin,
+            disabled: opts.isSubmitting || finReadonly,
+            blockWeekends: opts.empleadoAdministrativo === true && !finReadonly,
+            invalid: Boolean(errors.fechaFin),
+            align: "end",
+          })}
+          ${errors.fechaFin ? `<p class="mt-1.5 text-xs text-red-600">${escapeHtml(errors.fechaFin)}</p>` : ""}
         </div>
+      </div>
+    </section>
+
+    <section class="space-y-3" aria-labelledby="fr-nr-sec-obs">
+      <div class="flex items-baseline justify-between gap-3">
+        <h3 id="fr-nr-sec-obs" class="${SEC_TITLE} !mb-0">${escapeHtml(FR_COPY.modalSecObservaciones)}</h3>
+        ${esSuspension ? `<span class="text-[11px] font-medium text-slate-400">Requerido</span>` : ""}
       </div>
       <div>
-        <label class="${RH_LISTADO_LABEL}" for="fr-form-obs">${escapeHtml(FR_COPY.colObservaciones)}${esSuspension ? " *" : ""}</label>
+        <label class="sr-only" for="fr-form-obs">${escapeHtml(FR_COPY.colObservaciones)}</label>
         <textarea
           id="fr-form-obs"
           rows="3"
-          class="${FR_FILTER_CONTROL} ${FIELD_FOCUS} resize-y"
-          placeholder="${esSuspension ? escapeHtml(FR_COPY.modalObsHintSuspension) : "Comentarios u observaciones…"}"
+          class="${textareaClass(Boolean(errors.observaciones))}"
+          placeholder="${esSuspension ? escapeHtml(FR_COPY.modalObsHintSuspension) : escapeHtml(FR_COPY.modalObsPlaceholder)}"
+          aria-invalid="${errors.observaciones ? "true" : "false"}"
           ${esSuspension ? 'maxlength="30"' : ""}
           ${opts.isSubmitting ? "disabled" : ""}
         >${escapeHtml(data.observaciones)}</textarea>
-        ${esSuspension ? `<p class="mt-1 text-xs text-slate-500">${escapeHtml(FR_COPY.modalObsHintSuspension)}${data.observaciones.trim() ? ` · ${data.observaciones.trim().length}/30` : ""}</p>` : ""}
-        ${errors.observaciones ? `<p class="mt-1 text-xs text-red-600">${escapeHtml(errors.observaciones)}</p>` : ""}
+        ${
+          esSuspension
+            ? `<p data-fr-obs-hint class="mt-1.5 text-xs text-slate-500">${escapeHtml(FR_COPY.modalObsHintSuspension)}${
+                data.observaciones.trim() ? ` · ${data.observaciones.trim().length}/30` : ""
+              }</p>`
+            : ""
+        }
+        ${errors.observaciones ? `<p class="mt-1.5 text-xs text-red-600">${escapeHtml(errors.observaciones)}</p>` : ""}
       </div>
-      <div class="flex justify-end gap-2 border-t border-slate-100 pt-4">
-        <button type="button" id="fr-form-cancel" class="rh-sol-btn-secondary min-h-11 rounded px-4 text-sm font-medium" ${opts.isSubmitting ? "disabled" : ""}>Cancelar</button>
-        <button type="submit" id="fr-form-submit" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-11 px-4 text-sm font-semibold" ${opts.isSubmitting ? "disabled" : ""}>
-          ${opts.isSubmitting ? escapeHtml(FR_COPY.modalGuardando) : escapeHtml(FR_COPY.modalGuardar)}
-        </button>
-      </div>
-    </form>
+    </section>
+  `;
+}
+
+function buildFooterHtml(isSubmitting: boolean): string {
+  return `
+    <button type="button" id="fr-form-cancel" class="${RH_SOLICITUDES_BTN_SECONDARY} min-h-11 px-4" ${isSubmitting ? "disabled" : ""}>${escapeHtml(FR_COPY.modalCancelar)}</button>
+    <button type="submit" id="fr-form-submit" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-11 px-5" ${isSubmitting ? "disabled" : ""}>
+      ${isSubmitting ? escapeHtml(FR_COPY.modalGuardando) : escapeHtml(FR_COPY.modalGuardar)}
+    </button>
   `;
 }
 
@@ -354,16 +470,24 @@ export function mountNuevaFaltaRetardoModal(
   options: NuevaFaltaRetardoModalOptions,
 ): NuevaFaltaRetardoModalHandle {
   host.innerHTML = `
-    <div id="fr-nueva-modal-overlay" class="fixed inset-0 z-[61] hidden items-center justify-center bg-slate-900/45 p-3 sm:p-6 backdrop-blur-[2px]" role="presentation">
-      <div id="fr-nueva-modal-panel" role="dialog" aria-modal="true" aria-labelledby="fr-nueva-modal-title"
-        class="relative flex max-h-[min(92vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_24px_64px_-20px_rgba(15,23,42,0.25)] [color-scheme:light]">
-        <header class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-          <h2 id="fr-nueva-modal-title" class="text-base font-bold text-slate-900 sm:text-lg">${escapeHtml(FR_COPY.modalTitulo)}</h2>
-          <button type="button" id="fr-nueva-modal-close" class="-m-1 flex size-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" aria-label="${escapeHtml(FR_COPY.modalCerrar)}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" /></svg>
-          </button>
+    <div id="fr-nueva-modal-overlay" class="fixed inset-0 z-[61] hidden items-center justify-center bg-slate-900/40 p-4 sm:p-5 backdrop-blur-[3px]" role="presentation">
+      <div id="fr-nueva-modal-panel" role="dialog" aria-modal="true" aria-labelledby="fr-nueva-modal-title" aria-describedby="fr-nueva-modal-subtitle"
+        class="relative flex max-h-[min(92vh,880px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_20px_50px_-16px_rgba(15,23,42,0.18)] [color-scheme:light]">
+        <header class="shrink-0 border-b border-slate-100 px-5 pb-4 pt-5 sm:px-6 sm:pb-5 sm:pt-6">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0 pr-2">
+              <h2 id="fr-nueva-modal-title" class="text-xl font-bold tracking-tight text-slate-900">${escapeHtml(FR_COPY.modalTitulo)}</h2>
+              <p id="fr-nueva-modal-subtitle" class="mt-2 max-w-md text-sm leading-relaxed text-slate-500">${escapeHtml(FR_COPY.modalSubtitulo)}</p>
+            </div>
+            <button type="button" id="fr-nueva-modal-close" class="-m-1 flex size-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2" aria-label="${escapeHtml(FR_COPY.modalCerrar)}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+          </div>
         </header>
-        <div id="fr-nueva-modal-body" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"></div>
+        <form id="fr-nueva-form" class="flex min-h-0 flex-1 flex-col overflow-hidden" novalidate>
+          <div id="fr-nueva-modal-body" class="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6 sm:py-7"></div>
+          <div id="fr-nueva-modal-footer" class="flex shrink-0 justify-end gap-2 border-t border-slate-100 bg-white px-5 py-4 sm:px-6"></div>
+        </form>
         <div
           id="fr-nueva-insertando"
           class="absolute inset-0 z-10 hidden flex-col items-center justify-center gap-3 bg-white/90 px-6 text-center backdrop-blur-[2px]"
@@ -384,6 +508,8 @@ export function mountNuevaFaltaRetardoModal(
 
   const overlay = host.querySelector("#fr-nueva-modal-overlay") as HTMLElement;
   const body = host.querySelector("#fr-nueva-modal-body") as HTMLElement;
+  const footer = host.querySelector("#fr-nueva-modal-footer") as HTMLElement;
+  const formEl = host.querySelector("#fr-nueva-form") as HTMLFormElement;
   const closeBtn = host.querySelector("#fr-nueva-modal-close") as HTMLButtonElement;
   const insertandoEl = host.querySelector("#fr-nueva-insertando") as HTMLElement;
   const insertandoTitle = host.querySelector("#fr-nueva-insertando-title") as HTMLElement;
@@ -402,6 +528,7 @@ export function mountNuevaFaltaRetardoModal(
   let empleadoSearchSeq = 0;
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   const docListeners = new AbortController();
+  let datePickerListeners = new AbortController();
 
   function clearSearchTimer(): void {
     if (searchTimer) {
@@ -481,7 +608,7 @@ export function mountNuevaFaltaRetardoModal(
   }
 
   function render(): void {
-    body.innerHTML = buildFormHtml(formData, errors, {
+    body.innerHTML = buildFormFieldsHtml(formData, errors, {
       empleadoSearchQ,
       empleadosCache,
       selectedEmpleado,
@@ -491,6 +618,7 @@ export function mountNuevaFaltaRetardoModal(
       isSubmitting,
       empleadoAdministrativo: empleadoAdmin(),
     });
+    footer.innerHTML = buildFooterHtml(isSubmitting);
     bindForm();
     setInsertandoOverlay(isSubmitting);
   }
@@ -524,8 +652,25 @@ export function mountNuevaFaltaRetardoModal(
       (selectedEmpleado?.id === id ? selectedEmpleado : null);
     formData = { ...formData, empleadoId: empleadoIdRaw };
     selectedEmpleado = picked;
+    const admin = esEmpleadoAdministrativo(picked?.clasificacion);
     if (fechaFinFijaAuto(formData.tipo)) {
-      formData = applyRangoGoce(formData, esEmpleadoAdministrativo(picked?.clasificacion));
+      formData = applyRangoGoce(formData, admin);
+    }
+    if (admin) {
+      const nextErrors: NuevaFaltaRetardoFormErrors = { ...errors };
+      if (fechaIsoEsFinDeSemana(formData.fechaEvento)) {
+        formData = { ...formData, fechaEvento: "", fechaFin: "" };
+        nextErrors.fechaEvento = FR_COPY.modalFechasErrorFinDeSemana;
+      } else if (
+        formData.fechaEvento.trim() &&
+        formData.fechaFin.trim() &&
+        rangoIncluyeFinDeSemana(formData.fechaEvento, formData.fechaFin)
+      ) {
+        formData = { ...formData, fechaEvento: "", fechaFin: "" };
+        nextErrors.fechaEvento = FR_COPY.modalFechasErrorFinDeSemana;
+        nextErrors.fechaFin = FR_COPY.modalFechasErrorFinDeSemana;
+      }
+      errors = nextErrors;
     }
     empleadoSearchQ = "";
     empleadoListboxOpen = false;
@@ -548,6 +693,7 @@ export function mountNuevaFaltaRetardoModal(
     resetEmpleadoCombobox();
     setInsertandoOverlay(false);
     body.innerHTML = "";
+    footer.innerHTML = "";
   }
 
   function open(): void {
@@ -563,7 +709,7 @@ export function mountNuevaFaltaRetardoModal(
 
   async function handleSubmit(): Promise<void> {
     if (isSubmitting) return;
-    errors = validateForm(formData);
+    errors = validateForm(formData, empleadoAdmin());
     if (Object.keys(errors).length > 0) {
       render();
       return;
@@ -577,9 +723,7 @@ export function mountNuevaFaltaRetardoModal(
         fecha_evento: formData.fechaEvento,
         observaciones: formData.observaciones.trim() || null,
       };
-      if (requiresRango(formData.tipo)) {
-        payload.fecha_fin = formData.fechaFin;
-      }
+      payload.fecha_fin = formData.fechaFin;
       await options.onSubmit(payload);
       showEmpleadosToast(options.toastContainer, FR_COPY.modalExito, "success");
       isSubmitting = false;
@@ -598,13 +742,103 @@ export function mountNuevaFaltaRetardoModal(
   }
 
   function bindForm(): void {
-    const form = body.querySelector("#fr-nueva-form") as HTMLFormElement | null;
+    datePickerListeners.abort();
+    datePickerListeners = new AbortController();
+    const dateSignal = datePickerListeners.signal;
+
     const tipoSel = body.querySelector("#fr-form-tipo") as HTMLSelectElement | null;
-    const fechaInp = body.querySelector("#fr-form-fecha") as HTMLInputElement | null;
-    const fechaFinInp = body.querySelector("#fr-form-fecha-fin") as HTMLInputElement | null;
     const obsInp = body.querySelector("#fr-form-obs") as HTMLTextAreaElement | null;
     const qInput = body.querySelector("#fr-form-empleado-q") as HTMLInputElement | null;
-    const cancelBtn = body.querySelector("#fr-form-cancel") as HTMLButtonElement | null;
+    const cancelBtn = footer.querySelector("#fr-form-cancel") as HTMLButtonElement | null;
+
+    function onFechaInicioChange(next: string): void {
+      if (empleadoAdmin() && fechaIsoEsFinDeSemana(next)) {
+        formData = {
+          ...formData,
+          fechaEvento: "",
+          fechaFin: fechaFinFijaAuto(formData.tipo) ? "" : formData.fechaFin,
+        };
+        errors = { ...errors, fechaEvento: FR_COPY.modalFechasErrorFinDeSemana };
+        render();
+        return;
+      }
+      formData = { ...formData, fechaEvento: next };
+      if (fechaFinFijaAuto(formData.tipo)) {
+        formData = applyRangoGoce(formData, empleadoAdmin());
+      }
+      if (
+        empleadoAdmin() &&
+        formData.fechaEvento.trim() &&
+        formData.fechaFin.trim() &&
+        rangoIncluyeFinDeSemana(formData.fechaEvento, formData.fechaFin)
+      ) {
+        if (fechaFinFijaAuto(formData.tipo)) {
+          formData = { ...formData, fechaEvento: "", fechaFin: "" };
+        }
+        errors = {
+          ...errors,
+          fechaEvento: FR_COPY.modalFechasErrorFinDeSemana,
+          fechaFin: FR_COPY.modalFechasErrorFinDeSemana,
+        };
+        render();
+        return;
+      }
+      if (
+        errors.fechaEvento === FR_COPY.modalFechasErrorFinDeSemana ||
+        errors.fechaFin === FR_COPY.modalFechasErrorFinDeSemana
+      ) {
+        const nextErr = { ...errors };
+        delete nextErr.fechaEvento;
+        delete nextErr.fechaFin;
+        errors = nextErr;
+      }
+      render();
+    }
+
+    function onFechaFinChange(next: string): void {
+      if (fechaFinFijaAuto(formData.tipo)) return;
+      if (empleadoAdmin() && fechaIsoEsFinDeSemana(next)) {
+        formData = { ...formData, fechaFin: "" };
+        errors = { ...errors, fechaFin: FR_COPY.modalFechasErrorFinDeSemana };
+        render();
+        return;
+      }
+      formData = { ...formData, fechaFin: next };
+      if (
+        empleadoAdmin() &&
+        formData.fechaEvento.trim() &&
+        formData.fechaFin.trim() &&
+        rangoIncluyeFinDeSemana(formData.fechaEvento, formData.fechaFin)
+      ) {
+        errors = {
+          ...errors,
+          fechaEvento: FR_COPY.modalFechasErrorFinDeSemana,
+          fechaFin: FR_COPY.modalFechasErrorFinDeSemana,
+        };
+        render();
+        return;
+      }
+      if (
+        errors.fechaFin === FR_COPY.modalFechasErrorFinDeSemana ||
+        errors.fechaEvento === FR_COPY.modalFechasErrorFinDeSemana
+      ) {
+        const nextErr = { ...errors };
+        delete nextErr.fechaFin;
+        delete nextErr.fechaEvento;
+        errors = nextErr;
+      }
+      render();
+    }
+
+    const pickers = body.querySelectorAll<HTMLElement>("[data-workday-date-picker]");
+    const inicioPicker = pickers[0];
+    const finPicker = pickers[1];
+    if (inicioPicker) {
+      bindWorkdayDatePicker(inicioPicker, { onChange: onFechaInicioChange, signal: dateSignal });
+    }
+    if (finPicker) {
+      bindWorkdayDatePicker(finPicker, { onChange: onFechaFinChange, signal: dateSignal });
+    }
 
     if (qInput) {
       qInput.addEventListener("input", () => {
@@ -700,27 +934,15 @@ export function mountNuevaFaltaRetardoModal(
 
     tipoSel?.addEventListener("change", () => {
       formData = { ...formData, tipo: tipoSel.value as FaltaRetardoTipo | "" };
-      if (!requiresRango(formData.tipo)) formData = { ...formData, fechaFin: "" };
-      else if (fechaFinFijaAuto(formData.tipo)) {
+      if (fechaFinFijaAuto(formData.tipo)) {
         formData = applyRangoGoce(formData, empleadoAdmin());
       }
       render();
     });
-    fechaInp?.addEventListener("change", () => {
-      formData = { ...formData, fechaEvento: fechaInp.value };
-      if (fechaFinFijaAuto(formData.tipo)) {
-        formData = applyRangoGoce(formData, empleadoAdmin());
-        render();
-      }
-    });
-    fechaFinInp?.addEventListener("change", () => {
-      if (fechaFinFijaAuto(formData.tipo)) return;
-      formData = { ...formData, fechaFin: fechaFinInp.value };
-    });
     obsInp?.addEventListener("input", () => {
       formData = { ...formData, observaciones: obsInp.value };
       if (formData.tipo === "suspension") {
-        const hint = obsInp.parentElement?.querySelector("p.text-slate-500");
+        const hint = body.querySelector("[data-fr-obs-hint]");
         if (hint) {
           const len = formData.observaciones.trim().length;
           hint.textContent = len
@@ -732,11 +954,12 @@ export function mountNuevaFaltaRetardoModal(
     cancelBtn?.addEventListener("click", () => {
       if (!isSubmitting) close();
     });
-    form?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      void handleSubmit();
-    });
   }
+
+  formEl.addEventListener("submit", (e) => {
+    e.preventDefault();
+    void handleSubmit();
+  });
 
   closeBtn.addEventListener("click", () => {
     if (!isSubmitting) close();
@@ -763,6 +986,7 @@ export function mountNuevaFaltaRetardoModal(
     destroy: () => {
       isSubmitting = false;
       clearSearchTimer();
+      datePickerListeners.abort();
       docListeners.abort();
       close();
       host.innerHTML = "";

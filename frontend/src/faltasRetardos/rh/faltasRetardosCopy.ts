@@ -81,9 +81,26 @@ export const FR_COPY = {
   metricasRetardosVacio: "Sin retardos registrados con los filtros actuales.",
 
   modalTitulo: "Nuevo registro",
+  modalSubtitulo:
+    "Selecciona el empleado, el tipo de evento y completa los campos requeridos.",
   modalCerrar: "Cerrar",
+  modalSecEmpleado: "Empleado",
+  modalSecTipo: "Tipo de registro",
+  modalSecFechasRango: "Rango de fechas",
+  modalSecObservaciones: "Observaciones",
+  modalOptgroupDisciplina: "Disciplina",
+  modalOptgroupGoce: "Con goce de sueldo",
+  modalTipoPlaceholder: "Seleccionar…",
+  modalFechasHintRango:
+    "Define el periodo cubierto por el registro. Ambas fechas forman un solo rango.",
+  modalFechasHintAdmin:
+    "Colaborador administrativo: solo días hábiles (lunes a viernes). Sábados y domingos no están permitidos.",
+  modalFechasErrorFinDeSemana:
+    "Para personal administrativo solo se permiten días de lunes a viernes.",
+  modalObsPlaceholder: "Comentarios u observaciones…",
   modalGuardar: "Registrar evento",
   modalGuardando: "Guardando…",
+  modalCancelar: "Cancelar",
   modalExito: "El evento laboral se registró correctamente.",
   modalInsertandoTitulo: "Insertando registro…",
   modalInsertandoHint: "Espere un momento.",
