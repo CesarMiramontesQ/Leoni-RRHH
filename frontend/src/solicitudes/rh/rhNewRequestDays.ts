@@ -60,18 +60,27 @@ export function calcularDiasLaboralesInclusive(fechaInicio: string, fechaFin: st
   return total;
 }
 
-/** Días de vacaciones según clasificación del colaborador. */
+/** Días de vacaciones según clasificación del colaborador, excluyendo descansos TRESS. */
 export function calcularDiasVacacionesSolicitados(
   fechaInicio: string,
   fechaFin: string,
   administrativo: boolean,
+  descansos: ReadonlySet<string> = new Set(),
 ): number {
   if (!fechasOrdenValidas(fechaInicio, fechaFin)) return 0;
   if (administrativo) {
     if (rangoIncluyeFinDeSemana(fechaInicio, fechaFin)) return 0;
-    return calcularDiasLaboralesInclusive(fechaInicio, fechaFin);
   }
-  return calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
+  const { fechasEfectivas } = resumirRangoSinDescansos(fechaInicio, fechaFin, descansos);
+  if (administrativo) {
+    return fechasEfectivas.filter((iso) => {
+      const dt = parseLocalDate(iso);
+      if (!dt) return false;
+      const dow = dt.getDay();
+      return dow >= 1 && dow <= 5;
+    }).length;
+  }
+  return fechasEfectivas.length;
 }
 
 /** Suma días calendario a una fecha ISO `YYYY-MM-DD`. Cadena vacía si la entrada es inválida. */
@@ -95,6 +104,97 @@ function dateToIso(dt: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+export type TramoFechaIso = { fechaInicio: string; fechaFin: string };
+export type ResumenRangoSinDescansos = {
+  fechasEfectivas: string[];
+  fechasExcluidas: string[];
+  tramos: TramoFechaIso[];
+};
+
+export function avanzarHastaReunirDias(
+  fechaInicio: string,
+  cantidad: number,
+  descansos: ReadonlySet<string> = new Set(),
+  soloLunesViernes = false,
+): string[] {
+  const start = parseLocalDate(fechaInicio);
+  if (!start || cantidad < 1 || descansos.has(fechaInicio)) return [];
+  const fechas: string[] = [];
+  const cursor = new Date(start.getTime());
+  let guard = 0;
+  while (fechas.length < cantidad && guard <= 365) {
+    const iso = dateToIso(cursor);
+    const diaPermitido = !soloLunesViernes || (cursor.getDay() >= 1 && cursor.getDay() <= 5);
+    if (diaPermitido && !descansos.has(iso)) fechas.push(iso);
+    cursor.setDate(cursor.getDate() + 1);
+    guard += 1;
+  }
+  return fechas.length === cantidad ? fechas : [];
+}
+
+function partirTramoPorSemanas(tramo: TramoFechaIso): TramoFechaIso[] {
+  const start = parseLocalDate(tramo.fechaInicio);
+  const end = parseLocalDate(tramo.fechaFin);
+  if (!start || !end) return [];
+  const result: TramoFechaIso[] = [];
+  const cursor = new Date(start.getTime());
+  while (cursor <= end) {
+    const sunday = new Date(cursor.getTime());
+    const daysUntilSunday = (7 - sunday.getDay()) % 7;
+    sunday.setDate(sunday.getDate() + daysUntilSunday);
+    const chunkEnd = sunday < end ? sunday : end;
+    result.push({ fechaInicio: dateToIso(cursor), fechaFin: dateToIso(chunkEnd) });
+    cursor.setTime(chunkEnd.getTime());
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+}
+
+export function resumirRangoSinDescansos(
+  fechaInicio: string,
+  fechaFin: string,
+  descansos: ReadonlySet<string>,
+): ResumenRangoSinDescansos {
+  const start = parseLocalDate(fechaInicio);
+  const end = parseLocalDate(fechaFin);
+  if (!start || !end || end < start) {
+    return { fechasEfectivas: [], fechasExcluidas: [], tramos: [] };
+  }
+  const fechasEfectivas: string[] = [];
+  const fechasExcluidas: string[] = [];
+  const cursor = new Date(start.getTime());
+  while (cursor <= end) {
+    const iso = dateToIso(cursor);
+    (descansos.has(iso) ? fechasExcluidas : fechasEfectivas).push(iso);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const consecutivos: TramoFechaIso[] = [];
+  for (const iso of fechasEfectivas) {
+    const last = consecutivos[consecutivos.length - 1];
+    if (last && sumarDiasIso(last.fechaFin, 1) === iso) last.fechaFin = iso;
+    else consecutivos.push({ fechaInicio: iso, fechaFin: iso });
+  }
+  return {
+    fechasEfectivas,
+    fechasExcluidas,
+    tramos: consecutivos.flatMap(partirTramoPorSemanas),
+  };
+}
+
+export function calcularRangoMatrimonio(
+  fechaReferencia: string,
+  descansos: ReadonlySet<string> = new Set(),
+): { fechaInicio: string; fechaFin: string } | null {
+  const fechas = avanzarHastaReunirDias(
+    fechaReferencia,
+    MATRIMONIO_DIAS_FIJOS,
+    descansos,
+  );
+  return fechas.length === MATRIMONIO_DIAS_FIJOS
+    ? { fechaInicio: fechas[0]!, fechaFin: fechas[fechas.length - 1]! }
+    : null;
+}
+
 /** Suma N días hábiles (lun–vie) inclusive desde fechaIso. */
 export function sumarDiasHabilesInclusive(fechaIso: string, diasHabiles: number): string {
   const start = parseLocalDate(fechaIso);
@@ -112,45 +212,45 @@ export function sumarDiasHabilesInclusive(fechaIso: string, diasHabiles: number)
 export function calcularRangoDefuncion(
   fechaReferencia: string,
   administrativo: boolean,
+  descansos: ReadonlySet<string> = new Set(),
 ): { fechaInicio: string; fechaFin: string } | null {
   if (!fechaReferencia.trim()) return null;
-  if (!administrativo) {
-    const fin = sumarDiasIso(fechaReferencia, DEFUNCION_DIAS_FIJOS - 1);
-    return fin ? { fechaInicio: fechaReferencia, fechaFin: fin } : null;
-  }
-  const finCal = sumarDiasIso(fechaReferencia, DEFUNCION_DIAS_FIJOS - 1);
-  if (
-    finCal &&
-    !rangoIncluyeFinDeSemana(fechaReferencia, finCal) &&
-    calcularDiasLaboralesInclusive(fechaReferencia, finCal) === DEFUNCION_DIAS_FIJOS
-  ) {
-    return { fechaInicio: fechaReferencia, fechaFin: finCal };
-  }
   const anchor = parseLocalDate(fechaReferencia);
-  if (!anchor) return null;
+  if (!anchor || descansos.has(fechaReferencia)) return null;
   let cursor = new Date(anchor.getTime());
-  while (cursor.getDay() === 0 || cursor.getDay() === 6) {
+  while (administrativo && (cursor.getDay() === 0 || cursor.getDay() === 6)) {
     cursor.setDate(cursor.getDate() + 1);
   }
   const inicioIso = dateToIso(cursor);
-  const finIso = sumarDiasHabilesInclusive(inicioIso, DEFUNCION_DIAS_FIJOS);
-  if (!finIso) return null;
-  return { fechaInicio: inicioIso, fechaFin: finIso };
+  const fechas = avanzarHastaReunirDias(
+    inicioIso,
+    DEFUNCION_DIAS_FIJOS,
+    descansos,
+    administrativo,
+  );
+  return fechas.length === DEFUNCION_DIAS_FIJOS
+    ? { fechaInicio: fechas[0]!, fechaFin: fechas[fechas.length - 1]! }
+    : null;
 }
 
 export function esRangoDefuncionValido(
   fechaInicio: string,
   fechaFin: string,
   administrativo: boolean,
+  descansos: ReadonlySet<string> = new Set(),
 ): boolean {
-  const esperado = calcularRangoDefuncion(fechaInicio, administrativo);
+  const esperado = calcularRangoDefuncion(fechaInicio, administrativo, descansos);
   if (!esperado) return false;
   return esperado.fechaInicio === fechaInicio && esperado.fechaFin === fechaFin;
 }
 
-export function esRangoMatrimonioValido(fechaInicio: string, fechaFin: string): boolean {
-  if (!fechasOrdenValidas(fechaInicio, fechaFin)) return false;
-  return calcularDiasSolicitadosInclusive(fechaInicio, fechaFin) === MATRIMONIO_DIAS_FIJOS;
+export function esRangoMatrimonioValido(
+  fechaInicio: string,
+  fechaFin: string,
+  descansos: ReadonlySet<string> = new Set(),
+): boolean {
+  const esperado = calcularRangoMatrimonio(fechaInicio, descansos);
+  return esperado?.fechaInicio === fechaInicio && esperado.fechaFin === fechaFin;
 }
 
 export const MENSAJE_MATRIMONIO_DOS_DIAS =
@@ -163,22 +263,33 @@ export const PATERNIDAD_DIAS_HABILES = 7;
 
 export function calcularRangoPaternidad(
   fechaReferencia: string,
+  descansos: ReadonlySet<string> = new Set(),
 ): { fechaInicio: string; fechaFin: string } | null {
   if (!fechaReferencia.trim()) return null;
   const anchor = parseLocalDate(fechaReferencia);
-  if (!anchor) return null;
+  if (!anchor || descansos.has(fechaReferencia)) return null;
   let cursor = new Date(anchor.getTime());
   while (cursor.getDay() === 0 || cursor.getDay() === 6) {
     cursor.setDate(cursor.getDate() + 1);
   }
   const inicioIso = dateToIso(cursor);
-  const finIso = sumarDiasHabilesInclusive(inicioIso, PATERNIDAD_DIAS_HABILES);
-  if (!finIso) return null;
-  return { fechaInicio: inicioIso, fechaFin: finIso };
+  const fechas = avanzarHastaReunirDias(
+    inicioIso,
+    PATERNIDAD_DIAS_HABILES,
+    descansos,
+    true,
+  );
+  return fechas.length === PATERNIDAD_DIAS_HABILES
+    ? { fechaInicio: fechas[0]!, fechaFin: fechas[fechas.length - 1]! }
+    : null;
 }
 
-export function esRangoPaternidadValido(fechaInicio: string, fechaFin: string): boolean {
-  const esperado = calcularRangoPaternidad(fechaInicio);
+export function esRangoPaternidadValido(
+  fechaInicio: string,
+  fechaFin: string,
+  descansos: ReadonlySet<string> = new Set(),
+): boolean {
+  const esperado = calcularRangoPaternidad(fechaInicio, descansos);
   if (!esperado) return false;
   return esperado.fechaInicio === fechaInicio && esperado.fechaFin === fechaFin;
 }

@@ -1,12 +1,14 @@
 """Alta de suspensión en faltas/retardos con INSERT síncrono a TRESS (dbo.PERMISO)."""
 
 from datetime import date
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.core.exceptions import ConflictError
+from app.models.faltas_retardos import FaltaRetardoRegistroAuditoria
 from app.repositories.datos_analisis_suspension_write_repository import (
     InsertarSuspensionResult,
     _render_insertar_suspension_sql,
@@ -114,12 +116,26 @@ async def test_create_suspension_ok_llama_tress_y_bono(client: AsyncClient, db, 
     data = res.json()
     assert data["tipo"] == "suspension"
     assert data["fecha_fin"] == "2026-07-22"
+    assert data["observaciones"] == "AUSENTISMO 3 DIAS"
+    assert data["origen"] == "manual"
+    assert data["origen_id"] == 9101
     registrar.assert_awaited_once()
     kwargs = registrar.await_args.kwargs
     assert kwargs["no_empleado"] == 1259
     assert kwargs["fecha_inicio"] == date(2026, 7, 20)
     assert kwargs["fecha_fin"] == date(2026, 7, 22)
     assert kwargs["comentario"] == "AUSENTISMO 3 DIAS"
+
+    audits = (
+        await db.execute(
+            select(FaltaRetardoRegistroAuditoria).where(
+                FaltaRetardoRegistroAuditoria.bono_origen_id.in_([9101, 9102])
+            )
+        )
+    ).scalars().all()
+    assert len(audits) == 2
+    assert all(a.observaciones == "AUSENTISMO 3 DIAS" for a in audits)
+    assert all(a.fecha_fin == date(2026, 7, 22) for a in audits)
 
 
 @pytest.mark.asyncio
@@ -159,6 +175,74 @@ async def test_create_suspension_falla_tress_no_escribe_bono(
     assert res.status_code == 409
     assert "permiso" in res.json()["detail"].lower()
     insert_bono.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_suspension_excluye_descanso_y_persiste_tramos(
+    client: AsyncClient, db, monkeypatch
+):
+    registrar = AsyncMock(
+        return_value=InsertarSuspensionResult(
+            ok=True, codigo_error=None, mensaje="ok", nueva_llave=201
+        )
+    )
+    monkeypatch.setattr(
+        "app.services.faltas_retardos_service.registrar_suspension_en_tress",
+        registrar,
+    )
+    insertar_bono = AsyncMock(side_effect=[[9301], [9302]])
+    monkeypatch.setattr(
+        "app.services.faltas_retardos_service.FaltasRetardosService._insertar_en_importadas_historico",
+        insertar_bono,
+    )
+
+    rh = await make_empleado(db, rol="rh", nombre="RH Susp Desc", no_empleado=91021)
+    empleado = await make_empleado(
+        db, rol="empleado", nombre="Emp Susp Desc", no_empleado=1271
+    )
+    headers = await auth_headers(client, rh)
+
+    with (
+        patch(
+            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            new_callable=AsyncMock,
+            return_value=[date(2026, 7, 22)],
+        ),
+        _mock_bono_importadas_repo(
+            origen_id=9301,
+            tipo_codigo="SUS",
+            empleado_id=empleado.empleado_id,
+            no_empleado=str(empleado.no_empleado),
+            fecha_evento=date(2026, 7, 20),
+        ),
+    ):
+        res = await client.post(
+            "/api/v1/faltas-retardos",
+            headers=headers,
+            json={
+                "empleado_id": empleado.empleado_id,
+                "tipo": "suspension",
+                "fecha_evento": "2026-07-20",
+                "fecha_fin": "2026-07-23",
+                "observaciones": "AUSENTISMO",
+            },
+        )
+
+    assert res.status_code == 201, res.text
+    assert [
+        (call.kwargs["fecha_inicio"], call.kwargs["fecha_fin"])
+        for call in registrar.await_args_list
+    ] == [
+        (date(2026, 7, 20), date(2026, 7, 21)),
+        (date(2026, 7, 23), date(2026, 7, 23)),
+    ]
+    assert [
+        (call.args[1].fecha_evento, call.args[1].fecha_fin)
+        for call in insertar_bono.await_args_list
+    ] == [
+        (date(2026, 7, 20), date(2026, 7, 21)),
+        (date(2026, 7, 23), date(2026, 7, 23)),
+    ]
 
 
 @pytest.mark.asyncio

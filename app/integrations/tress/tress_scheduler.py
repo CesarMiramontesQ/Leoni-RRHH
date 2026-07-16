@@ -1,14 +1,11 @@
 # app/integrations/tress/tress_scheduler.py
 """
-Scheduler de la cola TRESS (tress_robot_queue).
+DEPRECATED — no usar.
 
-Se ejecuta cada 5 minutos via APScheduler (job 'tress_scheduler' en main.py).
-Procesa los registros en estado 'pending', los pasa al TressGuiRobot,
-y actualiza el estado a 'done' o 'failed' segun el resultado.
+Scheduler de la cola TRESS (levelup_tress_robot_queue / robot GUI).
 
-Politica de reintentos:
-  - Max 3 intentos por registro (campo intentos en TressRobotQueue)
-  - Despues de 3 fallos → estado 'failed' → alerta manual a RH
+La integración con nómina es escritura directa a DATOS_ANALISIS; el job
+APScheduler ``tress_scheduler`` ya no se registra en main.py.
 """
 
 import asyncio

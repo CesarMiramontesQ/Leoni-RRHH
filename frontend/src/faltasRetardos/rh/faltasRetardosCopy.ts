@@ -11,7 +11,9 @@ export const FR_COPY = {
   nuevo: "Nuevo registro",
 
   filtroBusqueda: "Buscar empleado",
-  placeholderBusqueda: "Nombre o número de empleado",
+  placeholderBusqueda: "Nombre o número de empleado…",
+  modalEmpleadoAyuda:
+    "Escribe el nombre o número y elige de la lista. No hace falta abrir un desplegable aparte.",
   filtroTipo: "Tipo de evento",
   filtroFechaDesde: "Fecha desde",
   filtroFechaHasta: "Fecha hasta",
@@ -79,9 +81,29 @@ export const FR_COPY = {
   metricasRetardosVacio: "Sin retardos registrados con los filtros actuales.",
 
   modalTitulo: "Nuevo registro",
+  modalSubtitulo:
+    "Selecciona el empleado, el tipo de evento y completa los campos requeridos.",
   modalCerrar: "Cerrar",
+  modalSecEmpleado: "Empleado",
+  modalSecTipo: "Tipo de registro",
+  modalSecFechasRango: "Rango de fechas",
+  modalSecObservaciones: "Observaciones",
+  modalOptgroupDisciplina: "Disciplina",
+  modalOptgroupGoce: "Con goce de sueldo",
+  modalTipoPlaceholder: "Seleccionar…",
+  modalFechasHintRango:
+    "Define el periodo cubierto por el registro. Ambas fechas forman un solo rango.",
+  modalFechasHintGoceFijo:
+    "Indica solo la fecha de inicio; la fecha fin se calcula automáticamente según el tipo de permiso.",
+  modalFechasHintAdmin:
+    "Colaborador administrativo: solo días hábiles (lunes a viernes). Sábados y domingos no están permitidos.",
+  modalFechasErrorFinDeSemana:
+    "Para personal administrativo solo se permiten días de lunes a viernes.",
+  modalFechaFinCalculada: "Fecha fin (calculada)",
+  modalObsPlaceholder: "Comentarios u observaciones…",
   modalGuardar: "Registrar evento",
   modalGuardando: "Guardando…",
+  modalCancelar: "Cancelar",
   modalExito: "El evento laboral se registró correctamente.",
   modalInsertandoTitulo: "Insertando registro…",
   modalInsertandoHint: "Espere un momento.",
@@ -90,4 +112,10 @@ export const FR_COPY = {
   modalObsHintSuspension: "Motivo TRESS — máx. 30 caracteres",
   modalObsRequeridaSuspension: "Indique el motivo (máx. 30 caracteres)",
   modalObsMaxSuspension: "El motivo no puede exceder 30 caracteres",
+
+  detalleModalTitulo: "Detalle del evento",
+  detalleModalCerrar: "Cerrar",
+  detalleColOrigen: "Origen",
+  detalleOrigenManual: "Creado en el sistema",
+  detalleAriaAbrir: "Ver detalle del evento",
 } as const;

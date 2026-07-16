@@ -36,6 +36,10 @@ def test_render_sql_sustituye_placeholders():
     assert "'49'" in sql
     assert "'2026-07-15'" in sql
     assert "'2026-07-17'" in sql
+    # Prima vacacional siempre 50%; no consultar PRESTACI.
+    assert "SET @TasaPrima = 50;" in sql
+    assert "FROM dbo.PRESTACI" not in sql
+    assert "PT_PRIMAVA" not in sql
 
 
 def test_render_sql_rechaza_usuario_invalido():

@@ -36,7 +36,8 @@ def map_bono_row(row: dict[str, Any]) -> FaltaRetardoResponse | None:
 
     nombre = row.get("nombre")
     no_empleado = row.get("no_empleado")
-    descripcion = row.get("tipo_descripcion")
+    raw_obs = row.get("observaciones")
+    observaciones = str(raw_obs).strip() if raw_obs else None
 
     created_at = datetime.now(timezone.utc)
     fecha_registro = row.get("fecha_registro")
@@ -58,7 +59,7 @@ def map_bono_row(row: dict[str, Any]) -> FaltaRetardoResponse | None:
         tipo=tipo,  # type: ignore[arg-type]
         fecha_evento=fecha_evento,
         fecha_fin=fecha_fin,
-        observaciones=str(descripcion).strip() if descripcion else None,
+        observaciones=observaciones,
         registrado_por_id=None,
         registrado_por_nombre=None,
         created_at=created_at,

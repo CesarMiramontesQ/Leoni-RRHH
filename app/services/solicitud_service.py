@@ -14,10 +14,9 @@ Jerarquia supervisor/gerente: una sola aprobacion o rechazo valido basta (superv
 de linea o gerente con el solicitante en su subarbol jerarquico, en cualquier orden; no hay segunda
 etapa obligatoria).
 
-Al aprobar: estado `approved`, registro de aprobacion, push a TRESS (vacaciones y
-home_office = INSERT SQL sincrono; otros tipos = cola robot) y notificacion in-app
-al requisitor. Vacaciones / home office: primero INSERT en TRESS; si falla, la
-solicitud sigue pending. Al rechazar/cancelar: NO se envia a TRESS.
+Al aprobar: estado `approved`, registro de aprobacion, push a TRESS y notificacion
+in-app al requisitor. Vacaciones, home office y goce FJ usan INSERT SQL sincrono;
+si falla, la solicitud sigue pending. Al rechazar/cancelar: NO se envia a TRESS.
 """
 
 import logging
@@ -36,7 +35,6 @@ from app.core.rh_ui_mode import (
 from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.utils.vacaciones_fechas import (
     defuncion_rango_para_empleado,
-    dias_laborales_inclusive,
     paternidad_rango,
     rango_incluye_fin_de_semana,
 )
@@ -48,6 +46,12 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.integrations.tress.queue import encolar_tress
+from app.services.descansos_empleado_service import obtener_descansos_tress
+from app.services.tress_goce_service import (
+    FALTA_RETARDO_TIPOS_GOCE_FJ,
+    GOCE_PM_COMENTA,
+    registrar_permisos_goce_tramos_en_tress,
+)
 from app.services.tress_home_office_service import registrar_home_office_en_tress
 from app.services.tress_vacaciones_service import registrar_vacaciones_en_tress
 from app.models.empleados import Empleado
@@ -74,6 +78,12 @@ from app.services.notificacion_service import NotificacionService
 from app.services.vacaciones_service import VacacionesService
 from app.utils.audit_logger import audit_background
 from app.utils import audit_logger as audit_logger_mod
+from app.utils.descansos_fechas import (
+    avanzar_hasta_reunir_dias,
+    fechas_efectivas_en_rango,
+    partir_tramos_por_semanas,
+    tramos_consecutivos,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +91,6 @@ logger = logging.getLogger(__name__)
 _TRESS_ACCION_MAP = {
     "vacaciones": "REGISTRAR_VACACIONES",
     "home_office": "REGISTRAR_HOME_OFFICE",
-    "matrimonio": "REGISTRAR_GOCE_SUELDO_MATRIMONIO",
-    "incapacidad_interna": "REGISTRAR_GOCE_SUELDO_INCAPACIDAD_INTERNA",
-    "defuncion": "REGISTRAR_GOCE_SUELDO_DEFUNCION",
-    "paternidad": "REGISTRAR_GOCE_SUELDO_PATERNIDAD",
     "permiso_sin_goce_sueldo": "REGISTRAR_PERMISO_SIN_GOCE_SUELDO",
 }
 _TIPOS_GOCE_SUELDO_RH = frozenset({
@@ -93,6 +99,11 @@ _TIPOS_GOCE_SUELDO_RH = frozenset({
     "defuncion",
     "paternidad",
 })
+_DIAS_GOCE_SUELDO = {
+    "matrimonio": 2,
+    "defuncion": 3,
+    "paternidad": 7,
+}
 _TIPOS_VISIBLE_EMPLEADO = frozenset({
     "vacaciones",
     "home_office",
@@ -401,6 +412,77 @@ class SolicitudService:
             )
         return canceladas
 
+    async def _tramos_goce_solicitud_sin_descansos(
+        self,
+        *,
+        tipo: str,
+        empleado_id: int,
+        no_empleado: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> list[tuple[date, date]]:
+        emp_clf = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        administrativo = emp_clf is not None and empleado_es_administrativo(emp_clf)
+        if tipo == "matrimonio":
+            _validar_matrimonio_fechas(fecha_inicio, fecha_fin)
+        elif tipo == "defuncion":
+            _validar_defuncion_fechas(
+                fecha_inicio,
+                fecha_fin,
+                administrativo=administrativo,
+            )
+        elif tipo == "paternidad":
+            _validar_paternidad_fechas(fecha_inicio, fecha_fin)
+
+        if tipo in FALTA_RETARDO_TIPOS_GOCE_FJ:
+            horizonte = fecha_inicio + timedelta(days=365)
+            descansos = set(
+                await obtener_descansos_tress(
+                    cb_codigo=no_empleado,
+                    fecha_inicio=fecha_inicio,
+                    fecha_fin=horizonte,
+                )
+            )
+            if fecha_inicio in descansos:
+                raise DomainValidationError(
+                    detail="La fecha inicial no puede ser un descanso aplicado en TRESS."
+                )
+            fechas = avanzar_hasta_reunir_dias(
+                fecha_inicio,
+                _DIAS_GOCE_SUELDO[tipo],
+                descansos,
+                solo_lunes_viernes=(
+                    tipo == "paternidad"
+                    or (tipo == "defuncion" and administrativo)
+                ),
+            )
+            if fechas[-1] > horizonte:
+                raise DomainValidationError(
+                    detail=(
+                        "No fue posible reunir los días otorgados dentro "
+                        "del rango consultable."
+                    )
+                )
+        else:
+            descansos = await obtener_descansos_tress(
+                cb_codigo=no_empleado,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+            )
+            fechas = fechas_efectivas_en_rango(
+                fecha_inicio,
+                fecha_fin,
+                descansos,
+            )
+            if not fechas:
+                raise DomainValidationError(
+                    detail=(
+                        "El rango efectivo queda vacío porque todos los días "
+                        "son descansos."
+                    )
+                )
+        return partir_tramos_por_semanas(tramos_consecutivos(fechas))
+
     async def _build_solicitud_response_con_flujo(self, solicitud: Solicitud) -> SolicitudResponse:
         base = _solicitud_to_response(solicitud)
         emp = solicitud.empleado
@@ -526,15 +608,30 @@ class SolicitudService:
 
     # ── Crear ────────────────────────────────────────────────────────────────
 
-    async def _dias_vacaciones_para_empleado(
+    async def _contar_dias_vacaciones_rango(
         self,
         empleado_id: int,
         fecha_inicio: date,
         fecha_fin: date,
+        *,
+        validar_inicio_no_descanso: bool = False,
     ) -> int:
-        """Días a debitar/acreditar: laborales (lun–vie) si es administrativo; naturales si no."""
+        """Cuenta días de vacaciones excluyendo descansos TRESS (y fines de semana si admin)."""
         empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
-        if empleado is not None and empleado_es_administrativo(empleado):
+        if empleado is None:
+            raise DomainValidationError(detail="Empleado no encontrado.")
+        descansos = await obtener_descansos_tress(
+            cb_codigo=int(empleado.no_empleado),
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+        )
+        descansos_set = set(descansos)
+        if validar_inicio_no_descanso and fecha_inicio in descansos_set:
+            raise DomainValidationError(
+                detail="La fecha inicial no puede ser un descanso aplicado en TRESS."
+            )
+        efectivo = fechas_efectivas_en_rango(fecha_inicio, fecha_fin, descansos)
+        if empleado_es_administrativo(empleado):
             if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
                 raise DomainValidationError(
                     detail=(
@@ -542,8 +639,22 @@ class SolicitudService:
                         "en días entre semana (lunes a viernes)."
                     )
                 )
-            return dias_laborales_inclusive(fecha_inicio, fecha_fin)
-        return _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+            return sum(1 for d in efectivo if d.weekday() < 5)
+        return len(efectivo)
+
+    async def _dias_vacaciones_para_empleado(
+        self,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> int:
+        """Días a debitar en alta/aprobación: valida inicio y excluye descansos TRESS."""
+        return await self._contar_dias_vacaciones_rango(
+            empleado_id,
+            fecha_inicio,
+            fecha_fin,
+            validar_inicio_no_descanso=True,
+        )
 
     async def _dias_vacaciones_comprometidos(
         self,
@@ -565,16 +676,16 @@ class SolicitudService:
             # Excluir todo lo que NO está comprometido (deja pending + changes_requested).
             estados_excluidos=["approved", "rejected", "cancelled", "overridden"],
         )
-        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
-        administrativo = empleado is not None and empleado_es_administrativo(empleado)
         total = 0
         for s in solicitudes:
             if exclude_solicitud_id is not None and s.id == exclude_solicitud_id:
                 continue
-            if administrativo:
-                total += dias_laborales_inclusive(s.fecha_inicio, s.fecha_fin)
-            else:
-                total += _dias_solicitud_inclusive(s.fecha_inicio, s.fecha_fin)
+            total += await self._contar_dias_vacaciones_rango(
+                empleado_id,
+                s.fecha_inicio,
+                s.fecha_fin,
+                validar_inicio_no_descanso=False,
+            )
         return total
 
     async def obtener_disponible_vacaciones(
@@ -633,7 +744,10 @@ class SolicitudService:
         )
         if necesarios <= 0:
             raise DomainValidationError(
-                detail="El rango debe incluir al menos un día de vacaciones."
+                detail=(
+                    "El rango debe incluir al menos un día de vacaciones "
+                    "(excluyendo descansos del turno)."
+                )
             )
         if disponible <= 0:
             raise DomainValidationError(
@@ -836,23 +950,12 @@ class SolicitudService:
                 detail="Solo supervisor, gerente, RH o director pueden crear permisos sin goce de sueldo"
             )
         if data.tipo in _TIPOS_GOCE_SUELDO_RH:
-            if scope_rol != "rh":
-                raise ForbiddenError(
-                    detail="Solo RH puede crear solicitudes con goce de sueldo"
+            raise DomainValidationError(
+                detail=(
+                    "Los permisos con goce de sueldo (matrimonio, incapacidad interna, "
+                    "defunción, paternidad) se registran en Faltas y retardos, no como solicitud."
                 )
-            if data.tipo == "matrimonio":
-                _validar_matrimonio_fechas(fecha_inicio, fecha_fin)
-            elif data.tipo == "defuncion":
-                emp_clf = await self.empleado_repo.get_with_clasificacion(target.id)
-                admin = emp_clf is not None and empleado_es_administrativo(emp_clf)
-                _validar_defuncion_fechas(
-                    fecha_inicio,
-                    fecha_fin,
-                    administrativo=admin,
-                )
-            elif data.tipo == "paternidad":
-                _validar_paternidad_fechas(fecha_inicio, fecha_fin)
-            # incapacidad_interna mantiene la fecha_fin indicada por RH.
+            )
 
         duplicado = await self.repo.count(
             filters=[
@@ -966,6 +1069,15 @@ class SolicitudService:
         # Vacaciones / home office: INSERT en TRESS antes de marcar approved (si falla, sigue pending).
         tress_vacacion_llave: int | None = None
         tress_home_office_llave: int | None = None
+        tramos_goce: list[tuple[date, date]] | None = None
+        if solicitud.tipo in _TIPOS_GOCE_SUELDO_RH:
+            tramos_goce = await self._tramos_goce_solicitud_sin_descansos(
+                tipo=solicitud.tipo,
+                empleado_id=solicitud.empleado_id,
+                no_empleado=int(no_empleado_solicitante),
+                fecha_inicio=solicitud.fecha_inicio,
+                fecha_fin=solicitud.fecha_fin,
+            )
         if solicitud.tipo == "vacaciones":
             dias = await self._dias_vacaciones_para_empleado(
                 solicitud.empleado_id,
@@ -1021,6 +1133,13 @@ class SolicitudService:
                     "nueva_llave": tress_vacacion_llave,
                     "mensaje": getattr(tress_result, "mensaje", None),
                 },
+            )
+        elif solicitud.tipo in FALTA_RETARDO_TIPOS_GOCE_FJ:
+            assert tramos_goce is not None
+            await registrar_permisos_goce_tramos_en_tress(
+                no_empleado=int(no_empleado_solicitante),
+                tramos=tramos_goce,
+                comentario=GOCE_PM_COMENTA[solicitud.tipo],
             )
         elif solicitud.tipo == "home_office":
             tress_ho_payload = {
@@ -1085,7 +1204,11 @@ class SolicitudService:
             "comentario": aprobacion.comentario,
         })
 
-        if solicitud.tipo not in ("vacaciones", "home_office"):
+        if solicitud.tipo not in (
+            "vacaciones",
+            "home_office",
+            *_TIPOS_GOCE_SUELDO_RH,
+        ):
             accion_tress = _TRESS_ACCION_MAP.get(solicitud.tipo, "REGISTRAR_VACACIONES")
             await encolar_tress(
                 db=self.db,
@@ -1469,6 +1592,15 @@ class SolicitudService:
 
         if solicitud.tipo == "paternidad":
             _validar_paternidad_fechas(data.fecha_inicio, data.fecha_fin)
+
+        if solicitud.tipo in _TIPOS_GOCE_SUELDO_RH:
+            await self._tramos_goce_solicitud_sin_descansos(
+                tipo=solicitud.tipo,
+                empleado_id=current_user.id,
+                no_empleado=int(current_user.no_empleado),
+                fecha_inicio=data.fecha_inicio,
+                fecha_fin=data.fecha_fin,
+            )
 
         if solicitud.tipo == "permiso_sin_goce_sueldo":
             await self._validar_permiso_sin_goce_sueldo_fechas(

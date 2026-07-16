@@ -1,18 +1,14 @@
 # app/integrations/tress/queue.py
 """
-Adaptador de encolamiento TRESS.
+DEPRECATED — no usar en features nuevas.
 
-Unica responsabilidad: insertar en tress_robot_queue y retornar inmediatamente.
-El scheduler APScheduler en main.py procesa la cola cada 5 minutos.
+La integración con nómina TRESS es **escritura directa** a DATOS_ANALISIS
+(``DATOS_ANALISIS_DB_*``), no vía cola RPA / robot GUI.
 
-Acciones validas:
-  - "REGISTRAR_VACACIONES"   payload: {empleado_num, fecha_inicio, fecha_fin, referencia_id}
-  - "REGISTRAR_HOME_OFFICE"  (legado; home office aprueba con INSERT sincrono a DATOS_ANALISIS)
-  - "REGISTRAR_INCIDENCIA"   payload: {empleado_num, tipo, descripcion, fecha, referencia_id}
-  - "CANCELAR_SOLICITUD"     payload: {empleado_num, tipo, referencia_id}
+Este módulo y ``levelup_tress_robot_queue`` se conservan temporalmente por
+llamadas legacy en solicitudes/actas; el scheduler APScheduler ya no procesa
+la cola. Cleanup total = follow-up.
 """
-
-from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,21 +21,15 @@ async def encolar_tress(
     payload: dict,
 ) -> TressRobotQueue:
     """
-    Inserta una tarea en tress_robot_queue dentro de la transaccion activa.
+    DEPRECATED: inserta en levelup_tress_robot_queue (sin consumidor activo).
 
-    IMPORTANTE: Esta funcion debe llamarse dentro de la misma transaccion que la
-    operacion de negocio principal. Si la transaccion hace rollback (ej. falla
-    una validacion posterior), el encolamiento tambien se revierte — garantia
-    de consistencia entre el estado RH y la cola TRESS.
-
-    Retorna el objeto TressRobotQueue creado (con id asignado tras flush).
+    Preferir INSERT síncrono a DATOS_ANALISIS (ver tress_suspension_service,
+    tress_goce_service, home office, vacaciones).
     """
     entrada = TressRobotQueue(
         accion=accion,
         payload=payload,
         estado="pending",
-        intentos=0,
-        created_at=datetime.now(timezone.utc),
     )
     db.add(entrada)
     await db.flush()

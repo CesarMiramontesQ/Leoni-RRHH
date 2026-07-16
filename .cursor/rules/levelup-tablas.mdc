@@ -10,7 +10,7 @@ Este proyecto vive en la BD **Bono** (externa) junto a tablas legacy. Solo las t
 
 ## Reglas
 
-0. **BDs externas**: **nunca** DDL sobre esquema Bono (sin `levelup_`) ni sobre **DATOS_ANALISIS** (SQL Server). Ver regla `bd-externa-sin-ddl`.
+0. **BDs externas**: **nunca** DDL sobre esquema Bono (sin `levelup_`) ni sobre **DATOS_ANALISIS** (SQL Server). En DATOS_ANALISIS además **nunca DELETE** de filas sin autorización previa. Ver regla `bd-externa-sin-ddl`.
 1. **Tablas nuevas**: `__tablename__ = "levelup_<nombre>"` en todo modelo SQLAlchemy nuevo.
 2. **Migraciones Alembic**: solo DDL sobre tablas `levelup_*` (`create_table`, `alter_column`, `add_column`, `drop_table`, índices, FKs entre tablas `levelup_*`).
 3. **Prohibido** en migraciones o código: crear, alterar o eliminar tablas sin prefijo `levelup_`.

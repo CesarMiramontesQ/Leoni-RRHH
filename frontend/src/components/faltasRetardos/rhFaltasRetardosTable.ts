@@ -116,7 +116,13 @@ export function renderRhFaltasRetardosTable(vm: FaltasRetardosAdminViewModel): s
         ? formatNombreEmpleadoUi(row.registrado_por_nombre)
         : "—";
       return `
-    <tr class="rh-sol-data-row transition-colors">
+    <tr
+      class="rh-sol-data-row cursor-pointer transition-colors hover:bg-slate-50/90 focus-visible:bg-slate-50/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-leoni-blue/40"
+      data-rh-fr-detalle-id="${row.id}"
+      tabindex="0"
+      role="button"
+      aria-label="${escapeHtml(FR_COPY.detalleAriaAbrir)}"
+    >
       <td class="whitespace-nowrap px-2 py-3 align-middle text-sm text-slate-700 sm:px-3"><span class="rh-inc-noempleado-pill">${escapeHtml(formatNoEmpleadoDisplay(row.numero_empleado))}</span></td>
       <td class="max-w-[12rem] px-2 py-3 align-middle text-sm font-semibold text-slate-900 sm:px-3">${celdaTextoTruncado(nombre, 36)}</td>
       <td class="max-w-[10rem] px-2 py-3 align-middle text-sm sm:px-3">${tipoBadge(row.tipo)}</td>
@@ -178,7 +184,13 @@ export function renderRhFaltasRetardosTable(vm: FaltasRetardosAdminViewModel): s
         row.fecha_fin ? fmtFechaCorta(row.fecha_fin) : null,
       );
       return `
-      <article class="rh-inc-mobile-card rounded-2xl border border-[rgba(148,163,184,0.22)] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.05)]">
+      <article
+        class="rh-inc-mobile-card cursor-pointer rounded-2xl border border-[rgba(148,163,184,0.22)] bg-white p-4 shadow-[0_2px_8px_rgba(15,23,42,0.05)] transition-colors hover:border-[rgba(37,99,235,0.35)] hover:bg-slate-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40"
+        data-rh-fr-detalle-id="${row.id}"
+        tabindex="0"
+        role="button"
+        aria-label="${escapeHtml(FR_COPY.detalleAriaAbrir)}"
+      >
         <div class="flex flex-wrap items-start justify-between gap-2">
           <p class="min-w-0 flex-1 truncate text-sm font-bold text-[#0f172a]">${escapeHtml(nombre)}</p>
           ${tipoBadge(row.tipo)}

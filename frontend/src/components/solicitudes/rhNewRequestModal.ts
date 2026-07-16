@@ -17,6 +17,7 @@ import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
 import {
   calcularDiasVacacionesSolicitados,
   calcularRangoDefuncion,
+  calcularRangoMatrimonio,
   calcularRangoPaternidad,
   fechasOrdenValidas,
   MENSAJE_DEFUNCION_TRES_DIAS,
@@ -32,8 +33,15 @@ import {
   esRangoMatrimonioValido,
   esRangoPaternidadValido,
   rangoIncluyeFinDeSemana,
+  resumirRangoSinDescansos,
   sumarDiasIso,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
+import {
+  createDescansosEmpleadoController,
+  createLatestRequestSequence,
+  tipoRequiereCalendarioDescansos,
+  type DescansosLoadState,
+} from "../../solicitudes/rh/descansosEmpleado.ts";
 import { fetchRhEmpleadoRequestContext } from "../../solicitudes/rh/rhNewRequestEmployeeContext.ts";
 import {
   enviarRhNuevaSolicitud,
@@ -42,12 +50,20 @@ import {
 } from "../../solicitudes/rh/rhNewRequestSubmit.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import {
+  bindAbortableEvent,
+  bindWorkdayDatePicker,
+  syncWorkdayDatePickerDisplay,
+  type WorkdayDatePickerHandle,
+} from "../../ui/workdayDatePicker.ts";
+import { createRenderCycleController } from "../../ui/renderCycle.ts";
+import {
   applyRhModalLiveFeedback,
   buildEmpleadoListboxHtml,
   buildFormHtml,
   buildInfoHomeOfficeHtml,
   buildInfoVacacionesHtml,
   computeRhModalFormUi,
+  escapeHtml,
   loadingBodyHtml,
   shellHtml,
   type SupervisorSolicitudSujeto,
@@ -154,6 +170,13 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let empleadoSearchSeq = 0;
   /** Personal vs equipo (solo supervisor cuando `supervisorSolicitudSubjectSelector`). */
   let solicitudSubjectSupervisor: SupervisorSolicitudSujeto = "personal";
+  const renderCycle = createRenderCycleController(options.signal);
+  const descansosController = createDescansosEmpleadoController();
+  const contextoRequestSequence = createLatestRequestSequence();
+
+  function descansosCargados(): Set<string> {
+    return descansosController.getLoadedDates();
+  }
 
   const showSupervisorSujeto =
     options.supervisorSolicitudSubjectSelector === true &&
@@ -203,22 +226,18 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
 
     const pg = await getEmpleadosPage({ page: 1, page_size: 20, q: String(empleadoId), activo: true });
     const hit = pg.items.find((u) => u.id === empleadoId);
-    if (hit) {
-      if (!empleadoEnCache(hit.id)) empleadosCache.push(hit);
-      return empleadoAdministrativoDesdeItem(hit);
-    }
+    if (hit) return empleadoAdministrativoDesdeItem(hit);
     return false;
   }
 
-  async function actualizarClasificacionEmpleado(empleadoId: number | null): Promise<void> {
-    if (empleadoId == null) {
-      empleadoEsAdministrativo = null;
-      return;
-    }
-    empleadoEsAdministrativo = await resolverEmpleadoEsAdministrativo(empleadoId);
+  async function resolverClasificacionEmpleado(empleadoId: number | null): Promise<boolean | null> {
+    return empleadoId == null ? null : resolverEmpleadoEsAdministrativo(empleadoId);
   }
 
   function close(): void {
+    contextoRequestSequence.invalidate();
+    descansosController.setEmpleado(null);
+    renderCycle.abort();
     rootOverlay.classList.add("hidden");
     rootOverlay.classList.remove("flex");
     document.body.style.overflow = "";
@@ -226,6 +245,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     revisionEmpleadoId = null;
     revisionEmpleadoDisplayLine = "";
     if (searchTimer) clearTimeout(searchTimer);
+  }
+
+  function focusFechaInicioPicker(): void {
+    const trigger = host
+      .querySelector("#rh-nr-inicio")
+      ?.closest("[data-workday-date-picker]")
+      ?.querySelector("[data-wd-trigger]") as HTMLButtonElement | null;
+    trigger?.focus();
   }
 
   function showError(msg: string): void {
@@ -273,33 +300,74 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     }
   }
 
+  function estadoDescansosActual(): DescansosLoadState {
+    if (!tipoRequiereCalendarioDescansos(tipo)) return "ready";
+    const controllerState = descansosController.getState();
+    if (controllerState === "loading" || controllerState === "error") return controllerState;
+    const snap = readFormSnapshot();
+    if (!snap.selectedEmpleadoId || !snap.fechaInicio) return "idle";
+    const fechaFin =
+      tipo === "matrimonio" || tipo === "defuncion" || tipo === "paternidad"
+        ? sumarDiasIso(snap.fechaInicio, 365)
+        : snap.fechaFin;
+    return fechaFin && descansosController.hasRangeLoaded(snap.fechaInicio, fechaFin)
+      ? "ready"
+      : "idle";
+  }
+
   function refreshLiveFormState(): void {
     updateInfoCard();
-    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
+    applyRhModalLiveFeedback(
+      host,
+      tipo,
+      contextoVac,
+      contextoHoPuedeSolicitarMes,
+      estadoDescansosActual(),
+      descansosCargados(),
+    );
   }
 
   async function refreshContextForEmpleado(
     empleadoId: number | null,
     fechaReferencia?: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
+    const requestToken = contextoRequestSequence.next();
+    descansosController.setEmpleado(empleadoId);
     const fechaRef =
       fechaReferencia?.trim() ||
       (host.querySelector("#rh-nr-inicio") as HTMLInputElement | null)?.value ||
       "";
-    const [ctx] = await Promise.all([
-      fetchRhEmpleadoRequestContext(empleadoId, {
-        fechaReferencia: tipo === "home_office" ? fechaRef : undefined,
-        excluirSolicitudId: revisionSolicitudId ?? undefined,
-      }),
-      actualizarClasificacionEmpleado(empleadoId),
-    ]);
+    let ctx: Awaited<ReturnType<typeof fetchRhEmpleadoRequestContext>>;
+    let administrativo: boolean | null;
+    try {
+      [ctx, administrativo] = await Promise.all([
+        fetchRhEmpleadoRequestContext(empleadoId, {
+          fechaReferencia: tipo === "home_office" ? fechaRef : undefined,
+          excluirSolicitudId: revisionSolicitudId ?? undefined,
+        }),
+        resolverClasificacionEmpleado(empleadoId),
+      ]);
+    } catch (error) {
+      if (!contextoRequestSequence.isCurrent(requestToken)) return false;
+      throw error;
+    }
+    if (!contextoRequestSequence.isCurrent(requestToken)) return false;
+    empleadoEsAdministrativo = administrativo;
     contextoVac = ctx.diasVacacionesDisponibles;
     contextoEmpleadoSel = empleadoId;
     contextoHoText = ctx.homeOfficeResumen;
     contextoHoPuedeSolicitarMes = ctx.homeOfficePuedeSolicitarMes;
     asegurarTipoSolicitudPermitido();
     updateInfoCard();
-    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
+    applyRhModalLiveFeedback(
+      host,
+      tipo,
+      contextoVac,
+      contextoHoPuedeSolicitarMes,
+      estadoDescansosActual(),
+      descansosCargados(),
+    );
+    return true;
   }
 
   function readFormSnapshot(): {
@@ -444,27 +512,37 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fixedEmpleado != null ? fixedEmpleado.directoryId : (preserve.selectedId ?? snap.selectedEmpleadoId);
     const fechaInicio = preserve.fechaInicio ?? snap.fechaInicio;
     const fechaFinBase = preserve.fechaFin ?? snap.fechaFin;
+    const descansos = descansosCargados();
     let fechaFin =
       singleDayHomeOffice ? fechaInicio
-      : matrimonioDosDias && fechaInicio.trim() ? sumarDiasIso(fechaInicio, 1)
+      : matrimonioDosDias && fechaInicio.trim()
+        ? (calcularRangoMatrimonio(fechaInicio, descansos)?.fechaFin ?? "")
       : fechaFinBase;
     if (defuncionTresDias && fechaInicio.trim()) {
-      const rango = calcularRangoDefuncion(fechaInicio, empleadoEsAdministrativo === true);
+      const rango = calcularRangoDefuncion(
+        fechaInicio,
+        empleadoEsAdministrativo === true,
+        descansos,
+      );
       if (rango) {
         fechaFin = rango.fechaFin;
       }
     } else if (paternidadSieteDias && fechaInicio.trim()) {
-      const rango = calcularRangoPaternidad(fechaInicio);
+      const rango = calcularRangoPaternidad(fechaInicio, descansos);
       if (rango) {
         fechaFin = rango.fechaFin;
       }
     }
     const fechaInicioEff =
       defuncionTresDias && fechaInicio.trim()
-        ? (calcularRangoDefuncion(fechaInicio, empleadoEsAdministrativo === true)?.fechaInicio ??
+        ? (calcularRangoDefuncion(
+            fechaInicio,
+            empleadoEsAdministrativo === true,
+            descansos,
+          )?.fechaInicio ??
           fechaInicio)
         : paternidadSieteDias && fechaInicio.trim()
-          ? (calcularRangoPaternidad(fechaInicio)?.fechaInicio ?? fechaInicio)
+          ? (calcularRangoPaternidad(fechaInicio, descansos)?.fechaInicio ?? fechaInicio)
           : fechaInicio;
     const motivoBase = preserve.motivo ?? snap.motivo;
     const motivo =
@@ -496,6 +574,28 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
               : "Incapacidad interna: RH define manualmente la duración.",
             );
     const empleadoSelectorOmitido = fixedEmpleado != null;
+    const requiereDescansos = tipoRequiereCalendarioDescansos(tipo);
+    const descansoFinRequerido =
+      fechaInicioEff && (matrimonioDosDias || defuncionTresDias || paternidadSieteDias)
+        ? sumarDiasIso(fechaInicioEff, 365)
+        : fechaFin;
+    const controllerState = descansosController.getState();
+    const descansosState: DescansosLoadState = !requiereDescansos
+      ? "ready"
+      : controllerState === "loading" || controllerState === "error"
+        ? controllerState
+        : selectedEmpleadoId &&
+            fechaInicioEff &&
+            descansoFinRequerido &&
+            descansosController.hasRangeLoaded(fechaInicioEff, descansoFinRequerido)
+          ? "ready"
+          : "idle";
+    const resumenDescansos =
+      (tipo === "incapacidad_interna" || tipo === "vacaciones") &&
+      fechaInicioEff &&
+      fechaFin
+        ? resumirRangoSinDescansos(fechaInicioEff, fechaFin, descansos)
+        : null;
     const ui = computeRhModalFormUi(
       tipo,
       contextoVac,
@@ -507,6 +607,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       modoRevision,
       empleadoEsAdministrativo,
       contextoHoPuedeSolicitarMes,
+      descansosState,
+      descansos,
     );
     const itemsParaSelector = listaEmpleadosParaSelector();
     const selectedItem = selectedEmpleadoItemFromId(selectedEmpleadoId);
@@ -555,12 +657,24 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       supervisorOcultarPermisoSinGoceEnTipo:
         showSupervisorSujeto && !modoRevision && solicitudSubjectSupervisor === "personal" ? true : undefined,
       showHomeOfficeType: puedeMostrarHomeOffice(),
+      descansosState,
+      descansosError: descansosController.getError(),
+      fechasDescansoExcluidas: resumenDescansos?.fechasExcluidas ?? [],
     });
     bindFormInteractions();
-    applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
+    applyRhModalLiveFeedback(
+      host,
+      tipo,
+      contextoVac,
+      contextoHoPuedeSolicitarMes,
+      estadoDescansosActual(),
+      descansosCargados(),
+    );
   }
 
   function bindFormInteractions(): void {
+    const renderSignal = renderCycle.next();
+
     const form = host.querySelector("#rh-nr-form") as HTMLFormElement | null;
     const qInput = host.querySelector("#rh-nr-empleado-q") as HTMLInputElement | null;
     const inicio = host.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
@@ -580,42 +694,53 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const isDefuncionTresDias = tipo === "defuncion";
     const isPaternidadSieteDias = tipo === "paternidad";
 
+    function syncPickerDisplays(): void {
+      for (const input of [inicio, fin]) {
+        if (!input) continue;
+        const root = input.closest("[data-workday-date-picker]") as HTMLElement | null;
+        if (root) syncWorkdayDatePickerDisplay(root);
+      }
+    }
+
     function syncFechasFijas(): void {
       if (!inicio || !fin) return;
       if (isSingleDayHomeOffice) {
         fin.value = inicio.value;
       } else if (isMatrimonioDosDias && inicio.value.trim()) {
-        fin.value = sumarDiasIso(inicio.value, 1);
+        fin.value = calcularRangoMatrimonio(inicio.value, descansosCargados())?.fechaFin ?? "";
       } else if (isDefuncionTresDias && inicio.value.trim()) {
         const formEl = host.querySelector("#rh-nr-form") as HTMLFormElement | null;
         const admin = formEl?.hasAttribute("data-rh-nr-empleado-admin") === true;
-        const rango = calcularRangoDefuncion(inicio.value, admin);
+        const rango = calcularRangoDefuncion(inicio.value, admin, descansosCargados());
         if (rango) {
           inicio.value = rango.fechaInicio;
           fin.value = rango.fechaFin;
         }
       } else if (isPaternidadSieteDias && inicio.value.trim()) {
-        const rango = calcularRangoPaternidad(inicio.value);
+        const rango = calcularRangoPaternidad(inicio.value, descansosCargados());
         if (rango) {
           inicio.value = rango.fechaInicio;
           fin.value = rango.fechaFin;
         }
       }
+      syncPickerDisplays();
     }
 
     async function aplicarSeleccionEmpleado(empleadoIdRaw: string): Promise<void> {
       const snapEmp = readFormSnapshot();
       try {
+        let applied: boolean;
         if (empleadoIdRaw === "") {
-          await refreshContextForEmpleado(null);
+          applied = await refreshContextForEmpleado(null);
         } else {
           const id = Number.parseInt(empleadoIdRaw, 10);
-          await refreshContextForEmpleado(Number.isFinite(id) ? id : null);
+          applied = await refreshContextForEmpleado(Number.isFinite(id) ? id : null);
         }
+        if (!applied) return;
         renderForm({
           selectedId: empleadoIdRaw,
-          fechaInicio: snapEmp.fechaInicio,
-          fechaFin: snapEmp.fechaFin,
+          fechaInicio: "",
+          fechaFin: "",
           motivo: snapEmp.motivo,
         });
         hideError();
@@ -639,7 +764,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             tipo = t;
             renderForm({});
           },
-          { signal: options.signal },
+          { signal: renderSignal },
         );
       });
       const tipoSelect = host.querySelector("[data-rh-nr-tipo-select]") as HTMLSelectElement | null;
@@ -661,7 +786,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             renderForm({});
           }
         },
-        { signal: options.signal },
+        { signal: renderSignal },
       );
     }
 
@@ -689,15 +814,15 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                 empleadosCache = [];
                 renderForm({
                   selectedId: "",
-                  fechaInicio: snapSubject.fechaInicio,
-                  fechaFin: snapSubject.fechaFin,
+                  fechaInicio: "",
+                  fechaFin: "",
                   motivo: snapSubject.motivo,
                 });
-                await refreshContextForEmpleado(null);
+                if (!(await refreshContextForEmpleado(null))) return;
                 renderForm({
                   selectedId: "",
-                  fechaInicio: snapSubject.fechaInicio,
-                  fechaFin: snapSubject.fechaFin,
+                  fechaInicio: "",
+                  fechaFin: "",
                   motivo: snapSubject.motivo,
                 });
               } else if (supervisorDirResolved != null) {
@@ -705,11 +830,11 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                   tipo = "vacaciones";
                 }
                 empleadosCache = [];
-                await refreshContextForEmpleado(supervisorDirResolved);
+                if (!(await refreshContextForEmpleado(supervisorDirResolved))) return;
                 renderForm({
                   selectedId: "",
-                  fechaInicio: snapSubject.fechaInicio,
-                  fechaFin: snapSubject.fechaFin,
+                  fechaInicio: "",
+                  fechaFin: "",
                   motivo: snapSubject.motivo,
                 });
               }
@@ -718,7 +843,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             }
           })();
         },
-        { signal: options.signal },
+        { signal: renderSignal },
       );
     });
 
@@ -760,7 +885,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             }
           }, 300);
         },
-        { signal: options.signal },
+        { signal: renderSignal },
       );
 
       qInput.addEventListener(
@@ -803,7 +928,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             void aplicarSeleccionEmpleado(String(picked.id));
           }
         },
-        { signal: options.signal },
+        { signal: renderSignal },
       );
 
       const comboboxWrap = host.querySelector("[data-rh-nr-empleado-combobox]");
@@ -823,7 +948,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           empleadoHighlightIndex = -1;
           void aplicarSeleccionEmpleado(id);
         },
-        { signal: options.signal },
+        { signal: renderSignal },
       );
 
       host.querySelector("[data-rh-nr-empleado-clear]")?.addEventListener(
@@ -839,7 +964,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             restoreEmpleadoSearchFocus();
           })();
         },
-        { signal: options.signal },
+        { signal: renderSignal },
       );
 
       const clickOutside = (e: MouseEvent) => {
@@ -850,38 +975,162 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         empleadoHighlightIndex = -1;
         syncEmpleadoListboxDom();
       };
-      document.addEventListener("mousedown", clickOutside, { signal: options.signal });
+      bindAbortableEvent(
+        document,
+        "mousedown",
+        ((event: MouseEvent) => clickOutside(event)) as EventListener,
+        renderSignal,
+      );
     }
 
-    inicio?.addEventListener(
-      "input",
-      () => {
-        syncFechasFijas();
-        if (tipo === "home_office") {
-          const empRaw =
-            (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ||
-            (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ||
-            "";
-          const empId = Number.parseInt(empRaw, 10);
-          void (async (): Promise<void> => {
-            try {
-              await refreshContextForEmpleado(
-                empRaw && Number.isFinite(empId) ? empId : null,
-                inicio?.value ?? "",
-              );
-              refreshLiveFormState();
-            } catch {
-              refreshLiveFormState();
-            }
-          })();
+    let inicioHandle: WorkdayDatePickerHandle | null = null;
+    let finHandle: WorkdayDatePickerHandle | null = null;
+
+    function syncDescansosDom(): void {
+      const requiereDescansos = tipoRequiereCalendarioDescansos(tipo);
+      const dates = requiereDescansos ? descansosCargados() : new Set<string>();
+      inicioHandle?.setBlockedDates(dates);
+      finHandle?.setBlockedDates(dates);
+      if (requiereDescansos) {
+        const loadedMonths = descansosController.getLoadedMonths();
+        inicioHandle?.setLoadedMonths(loadedMonths);
+        finHandle?.setLoadedMonths(loadedMonths);
+      }
+      const status = host.querySelector(
+        "[data-rh-nr-descansos-load-status]",
+      ) as HTMLElement | null;
+      const state = requiereDescansos ? descansosController.getState() : "ready";
+      if (status) {
+        if (state === "loading") {
+          status.innerHTML =
+            '<p class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800" role="status">Consultando descansos del empleado…</p>';
+        } else if (state === "error") {
+          status.innerHTML = `<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert">${escapeHtml(
+            descansosController.getError() || "No se pudieron consultar los descansos. Intenta de nuevo.",
+          )}</p>`;
         } else {
-          refreshLiveFormState();
+          status.innerHTML = "";
         }
-      },
-      { signal: options.signal },
-    );
-    fin?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
-    motivo?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
+      }
+      refreshLiveFormState();
+    }
+
+    async function cargarMes(
+      year: number,
+      monthIndex: number,
+      handle: WorkdayDatePickerHandle | null,
+    ): Promise<void> {
+      if (!tipoRequiereCalendarioDescansos(tipo)) return;
+      if (!readFormSnapshot().selectedEmpleadoId) return;
+      const request = descansosController.loadVisibleMonths(year, monthIndex);
+      syncDescansosDom();
+      try {
+        await request;
+        handle?.setBlockedDates(descansosCargados());
+      } catch {
+        // El error queda visible inline y mantiene el envío bloqueado.
+      }
+      syncDescansosDom();
+    }
+
+    async function cargarDescansosRangoActual(esInicio: boolean): Promise<boolean> {
+      if (!tipoRequiereCalendarioDescansos(tipo)) return true;
+      if (!inicio?.value) return false;
+      const fixed = isMatrimonioDosDias || isDefuncionTresDias || isPaternidadSieteDias;
+      const fechaFinCarga = fixed
+        ? sumarDiasIso(inicio.value, 365)
+        : esInicio
+          ? (fin?.value && fin.value >= inicio.value ? fin.value : inicio.value)
+          : (fin?.value || inicio.value);
+      const request = descansosController.loadRange(inicio.value, fechaFinCarga);
+      syncDescansosDom();
+      try {
+        await request;
+      } catch {
+        syncDescansosDom();
+        return false;
+      }
+      if (descansosCargados().has(inicio.value)) {
+        inicio.value = "";
+        if (fin) fin.value = "";
+        syncPickerDisplays();
+        showError("La fecha inicial no puede ser un descanso.");
+        syncDescansosDom();
+        return false;
+      }
+      syncDescansosDom();
+      return true;
+    }
+
+    async function onFechaInicioChange(): Promise<void> {
+      if (!(await cargarDescansosRangoActual(true))) return;
+      syncFechasFijas();
+      if (tipo === "home_office") {
+        const empRaw =
+          (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ||
+          (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ||
+          "";
+        const empId = Number.parseInt(empRaw, 10);
+        try {
+          const applied = await refreshContextForEmpleado(
+            empRaw && Number.isFinite(empId) ? empId : null,
+            inicio?.value ?? "",
+          );
+          if (!applied) return;
+        } catch {
+          // La validación de Home Office conserva su manejo actual.
+        }
+        refreshLiveFormState();
+      } else {
+        refreshLiveFormState();
+      }
+    }
+
+    async function onFechaFinChange(): Promise<void> {
+      if (!(await cargarDescansosRangoActual(false))) return;
+      const snap = readFormSnapshot();
+      renderForm({
+        selectedId: snap.selectedEmpleadoId,
+        fechaInicio: snap.fechaInicio,
+        fechaFin: snap.fechaFin,
+        motivo: snap.motivo,
+      });
+    }
+
+    const pickers = host.querySelectorAll<HTMLElement>("[data-workday-date-picker]");
+    const inicioPicker = pickers[0];
+    const finPicker = pickers[1];
+    const requiereDescansosPicker = tipoRequiereCalendarioDescansos(tipo);
+    const blockedForPicker = requiereDescansosPicker ? descansosCargados() : new Set<string>();
+    if (inicioPicker) {
+      inicioHandle = bindWorkdayDatePicker(inicioPicker, {
+        onChange: () => void onFechaInicioChange(),
+        blockedDates: blockedForPicker,
+        ...(requiereDescansosPicker
+          ? { loadedMonths: descansosController.getLoadedMonths() }
+          : {}),
+        onMonthChange: (year, monthIndex) => cargarMes(year, monthIndex, inicioHandle),
+        signal: renderSignal,
+      });
+    }
+    if (finPicker) {
+      finHandle = bindWorkdayDatePicker(finPicker, {
+        onChange: () => void onFechaFinChange(),
+        blockedDates: blockedForPicker,
+        ...(requiereDescansosPicker
+          ? { loadedMonths: descansosController.getLoadedMonths() }
+          : {}),
+        onMonthChange: (year, monthIndex) => cargarMes(year, monthIndex, finHandle),
+        signal: renderSignal,
+      });
+    }
+
+    if (requiereDescansosPicker && readFormSnapshot().selectedEmpleadoId.trim()) {
+      const now = new Date();
+      void cargarMes(now.getFullYear(), now.getMonth(), inicioHandle);
+    }
+
+    motivo?.addEventListener("input", refreshLiveFormState, { signal: renderSignal });
     syncFechasFijas();
 
     form?.addEventListener(
@@ -944,21 +1193,38 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         const fecha_inicio_raw = String(fd.get("fecha_inicio") ?? "").trim();
         let fecha_inicio = fecha_inicio_raw;
         const fecha_fin_raw = String(fd.get("fecha_fin") ?? "").trim();
+        if (tipoRequiereCalendarioDescansos(tipo) && estadoDescansosActual() !== "ready") {
+          showError(
+            descansosController.getState() === "error"
+              ? "No se pudieron consultar los descansos. Intenta de nuevo."
+              : "Espera a que termine la consulta de descansos.",
+          );
+          return;
+        }
+        const descansos = tipoRequiereCalendarioDescansos(tipo)
+          ? descansosCargados()
+          : new Set<string>();
+        if (tipoRequiereCalendarioDescansos(tipo) && descansos.has(fecha_inicio)) {
+          showError("La fecha inicial no puede ser un descanso.");
+          return;
+        }
         let fecha_fin =
           tipo === "home_office" ? fecha_inicio
-          : tipo === "matrimonio" && fecha_inicio.trim() ? sumarDiasIso(fecha_inicio, 1)
+          : tipo === "matrimonio" && fecha_inicio.trim()
+            ? (calcularRangoMatrimonio(fecha_inicio, descansos)?.fechaFin ?? "")
           : fecha_fin_raw;
         if (tipo === "defuncion" && fecha_inicio.trim()) {
           const rango = calcularRangoDefuncion(
             fecha_inicio,
             empleadoEsAdministrativo === true,
+            descansos,
           );
           if (rango) {
             fecha_inicio = rango.fechaInicio;
             fecha_fin = rango.fechaFin;
           }
         } else if (tipo === "paternidad" && fecha_inicio.trim()) {
-          const rango = calcularRangoPaternidad(fecha_inicio);
+          const rango = calcularRangoPaternidad(fecha_inicio, descansos);
           if (rango) {
             fecha_inicio = rango.fechaInicio;
             fecha_fin = rango.fechaFin;
@@ -972,18 +1238,29 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           showError(MENSAJE_HOME_OFFICE_UN_DIA);
           return;
         }
-        if (tipo === "matrimonio" && !esRangoMatrimonioValido(fecha_inicio, fecha_fin)) {
+        if (
+          tipo === "matrimonio" &&
+          !esRangoMatrimonioValido(fecha_inicio, fecha_fin, descansos)
+        ) {
           showError(MENSAJE_MATRIMONIO_DOS_DIAS);
           return;
         }
         if (
           tipo === "defuncion" &&
-          !esRangoDefuncionValido(fecha_inicio, fecha_fin, empleadoEsAdministrativo === true)
+          !esRangoDefuncionValido(
+            fecha_inicio,
+            fecha_fin,
+            empleadoEsAdministrativo === true,
+            descansos,
+          )
         ) {
           showError(MENSAJE_DEFUNCION_TRES_DIAS);
           return;
         }
-        if (tipo === "paternidad" && !esRangoPaternidadValido(fecha_inicio, fecha_fin)) {
+        if (
+          tipo === "paternidad" &&
+          !esRangoPaternidadValido(fecha_inicio, fecha_fin, descansos)
+        ) {
           showError(MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES);
           return;
         }
@@ -991,11 +1268,19 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           showError("La fecha de fin no puede ser anterior a la fecha de inicio.");
           return;
         }
+        if (
+          (tipo === "incapacidad_interna" || tipo === "vacaciones") &&
+          resumirRangoSinDescansos(fecha_inicio, fecha_fin, descansos).fechasEfectivas.length === 0
+        ) {
+          showError("El rango está compuesto únicamente por descansos.");
+          return;
+        }
         const dias = calcularDiasVacacionesSolicitados(
           fecha_inicio,
           fecha_fin,
           empleadoEsAdministrativo === true &&
             (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo"),
+          tipo === "vacaciones" ? descansos : new Set(),
         );
         if (dias <= 0) {
           showError("Revisa el rango de fechas.");
@@ -1026,7 +1311,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         }
         const motivoRaw = String(fd.get("motivo") ?? "").trim();
         if (tipo === "home_office") {
-          await refreshContextForEmpleado(empleado_id, fecha_inicio);
+          if (!(await refreshContextForEmpleado(empleado_id, fecha_inicio))) return;
           if (contextoHoPuedeSolicitarMes === false) {
             showError(MENSAJE_HOME_OFFICE_MES_LIMITE);
             renderForm({
@@ -1040,7 +1325,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         }
         if (tipo === "vacaciones") {
           // Refresca el disponible (saldo TRESS − comprometidos) justo antes de validar.
-          await refreshContextForEmpleado(empleado_id);
+          if (!(await refreshContextForEmpleado(empleado_id))) return;
           if (contextoVac == null) {
             showError(
               "No se pudo verificar el saldo de vacaciones (servicio no disponible). Intenta más tarde.",
@@ -1061,6 +1346,15 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           return;
         }
         const motivo = motivoRaw === "" ? null : motivoRaw;
+        const rangoNominal =
+          tipo === "matrimonio"
+            ? calcularRangoMatrimonio(fecha_inicio)
+            : tipo === "defuncion"
+              ? calcularRangoDefuncion(fecha_inicio, empleadoEsAdministrativo === true)
+              : tipo === "paternidad"
+                ? calcularRangoPaternidad(fecha_inicio)
+                : null;
+        const fechaFinPayload = rangoNominal?.fechaFin ?? fecha_fin;
 
         const submitBtn = host.querySelector("#rh-nr-submit") as HTMLButtonElement | null;
         if (submitBtn) {
@@ -1072,7 +1366,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           empleado_id,
           tipo,
           fecha_inicio,
-          fecha_fin,
+          fecha_fin: fechaFinPayload,
           motivo,
           comentarios: null,
         };
@@ -1081,7 +1375,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           if (revisionSolicitudId != null) {
             await patchSolicitudRevision(revisionSolicitudId, {
               fecha_inicio,
-              fecha_fin,
+              fecha_fin: fechaFinPayload,
               motivo,
             });
             showEmpleadosToast(
@@ -1114,11 +1408,18 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           if (submitBtn) {
             submitBtn.textContent =
               revisionSolicitudId != null ? "Guardar y reenviar" : "Enviar solicitud";
-            applyRhModalLiveFeedback(host, tipo, contextoVac, contextoHoPuedeSolicitarMes);
+            applyRhModalLiveFeedback(
+              host,
+              tipo,
+              contextoVac,
+              contextoHoPuedeSolicitarMes,
+              estadoDescansosActual(),
+              descansosCargados(),
+            );
           }
         }
       },
-      { signal: options.signal },
+      { signal: renderSignal },
     );
   }
 
@@ -1219,14 +1520,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           const rawNom = typeof sol.empleado_nombre === "string" ? sol.empleado_nombre.trim() : "";
           revisionEmpleadoDisplayLine =
             rawNom ? formatNombreEmpleadoUi(rawNom).trim() || rawNom : `Empleado #${empleadoRevision}`;
-          await refreshContextForEmpleado(empleadoRevision);
+          if (!(await refreshContextForEmpleado(empleadoRevision))) return;
           renderForm({
             fechaInicio: String(sol.fecha_inicio).slice(0, 10),
             fechaFin: String(sol.fecha_fin).slice(0, 10),
             motivo: typeof sol.motivo === "string" ? sol.motivo : "",
             submitLabel: "Guardar y reenviar",
           });
-          (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();
+          focusFechaInicioPicker();
           return;
         }
 
@@ -1265,14 +1566,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
               : selectedId
                 ? Number.parseInt(selectedId, 10)
                 : null;
-          await refreshContextForEmpleado(ctxEmpDir);
-          (
-            host.querySelector(
-              abreSupervisorPersonal ? "#rh-nr-inicio" : "#rh-nr-empleado-q",
-            ) as HTMLElement | null
-          )?.focus();
+          if (!(await refreshContextForEmpleado(ctxEmpDir))) return;
+          if (abreSupervisorPersonal) {
+            focusFechaInicioPicker();
+          } else {
+            (host.querySelector("#rh-nr-empleado-q") as HTMLElement | null)?.focus();
+          }
         } else {
-          await refreshContextForEmpleado(fixedSelfId);
+          if (!(await refreshContextForEmpleado(fixedSelfId))) return;
           const today = new Date();
           const iso = (d: Date) =>
             `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1281,7 +1582,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             fechaFin: iso(today),
             motivo: "",
           });
-          (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();
+          focusFechaInicioPicker();
         }
       } catch (e: unknown) {
         if (
@@ -1298,6 +1599,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     },
     close,
     destroy: () => {
+      renderCycle.abort();
       if (searchTimer) clearTimeout(searchTimer);
       host.innerHTML = "";
       document.body.style.overflow = "";

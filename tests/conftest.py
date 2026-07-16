@@ -181,6 +181,16 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             return_value=999.0,
         ),
         patch(
+            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.services.solicitud_service.obtener_descansos_tress",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
             "app.services.solicitud_service.registrar_vacaciones_en_tress",
             new_callable=AsyncMock,
             return_value=type(

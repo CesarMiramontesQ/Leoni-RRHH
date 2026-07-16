@@ -1,17 +1,19 @@
-import { fetchAllEmpleadosForExport } from "../api/empleados.ts";
 import {
   createFaltaRetardo,
   getFaltasRetardosEstadisticas,
   getFaltasRetardosPage,
+  type FaltaRetardoListItem,
   type FaltasRetardosPageResponse,
 } from "../api/faltasRetardos.ts";
 import { canAccessFaltasRetardosPage } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
-import { showEmpleadosToast } from "../components/empleados/toast.ts";
+import {
+  mountFaltaRetardoDetalleModal,
+  type FaltaRetardoDetalleModalHandle,
+} from "../components/faltasRetardos/faltaRetardoDetalleModal.ts";
 import { renderRhFaltasRetardosAdminView } from "../components/faltasRetardos/rhFaltasRetardosAdminView.ts";
 import {
   mountNuevaFaltaRetardoModal,
-  type FaltaRetardoEmpleadoOption,
   type NuevaFaltaRetardoModalHandle,
 } from "../components/faltasRetardos/nuevaFaltaRetardoModal.ts";
 import { FR_COPY } from "../faltasRetardos/rh/faltasRetardosCopy.ts";
@@ -30,8 +32,6 @@ import type {
 } from "../faltasRetardos/rh/types.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
-import { formatNombreEmpleadoUi } from "../utils/nombreEmpleadoDisplay.ts";
-import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
 import { htmlAccessDenied } from "../ui/uiTokens.ts";
 
 const PAGE_SIZE = 10;
@@ -150,7 +150,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   let appliedFilters = cloneFaltasRetardosListFilters(initialFilters);
   let page = 1;
   let loadSeq = 0;
-  let empleadoOptions: FaltaRetardoEmpleadoOption[] = [];
+  let currentRows: FaltaRetardoListItem[] = [];
   let lastEstadisticas: FaltasRetardosEstadisticasData | null = null;
   let lastEstadisticasStatus: FaltasRetardosAdminViewModel["estadisticasStatus"] = "loading";
   let lastEstadisticasError: string | undefined;
@@ -177,6 +177,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
       ${renderLaboralesBackBar()}
       <div id="rh-faltas-retardos-inner" class="flex min-h-0 flex-1 flex-col">${renderRhFaltasRetardosAdminView(loadingViewModel(filterDraft, appliedFilters))}</div>
       <div id="rh-fr-modal-host" class="shrink-0"></div>
+      <div id="rh-fr-detalle-modal-host" class="shrink-0"></div>
     </div>`,
   });
 
@@ -184,7 +185,6 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   let modal: NuevaFaltaRetardoModalHandle | null =
     modalHost instanceof HTMLElement
       ? mountNuevaFaltaRetardoModal(modalHost, {
-          empleados: empleadoOptions,
           toastContainer: container,
           onSubmit: async (payload) => {
             await createFaltaRetardo(payload);
@@ -194,29 +194,21 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
         })
       : null;
 
-  async function refreshEmpleadoOptions(): Promise<void> {
-    try {
-      const items = await fetchAllEmpleadosForExport({ activo: true });
-      empleadoOptions = items.map((e) => ({
-        empleado_id: e.empleado_id,
-        nombre: formatNombreEmpleadoUi(e.nombre),
-        no_empleado: formatNoEmpleadoDisplay(e.no_empleado),
-      }));
-      if (modalHost instanceof HTMLElement) {
-        modal?.destroy();
-        modal = mountNuevaFaltaRetardoModal(modalHost, {
-          empleados: empleadoOptions,
-          toastContainer: container,
-          onSubmit: async (payload) => {
-            await createFaltaRetardo(payload);
-            page = 1;
-            await load(true);
-          },
-        });
-      }
-    } catch {
-      showEmpleadosToast(container, "No se pudo cargar la lista de empleados.", "error");
-    }
+  const detalleHost = container.querySelector("#rh-fr-detalle-modal-host");
+  const detalleModal: FaltaRetardoDetalleModalHandle | null =
+    detalleHost instanceof HTMLElement
+      ? mountFaltaRetardoDetalleModal(detalleHost, { signal })
+      : null;
+
+  function openDetalleFromTarget(t: HTMLElement): boolean {
+    const rowEl = t.closest<HTMLElement>("[data-rh-fr-detalle-id]");
+    if (!rowEl) return false;
+    const raw = rowEl.getAttribute("data-rh-fr-detalle-id");
+    const id = raw ? Number.parseInt(raw, 10) : NaN;
+    const fila = Number.isFinite(id) ? currentRows.find((r) => r.id === id) : undefined;
+    if (!fila) return false;
+    detalleModal?.open(fila);
+    return true;
   }
 
   async function load(refreshEstadisticas = true): Promise<void> {
@@ -259,6 +251,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
       }
 
       if (isStale()) return;
+      currentRows = pageData.items;
       paintVm(
         viewModelFromPage(
           pageData,
@@ -271,6 +264,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
       );
     } catch (error: unknown) {
       if (isStale()) return;
+      currentRows = [];
       const fetchError = error as { status?: number; detail?: string };
       if (fetchError?.status === 401) {
         clearAuth();
@@ -323,7 +317,22 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
           page = n;
           void load(false);
         }
+        return;
       }
+      if (openDetalleFromTarget(t)) return;
+    },
+    { signal },
+  );
+
+  pageRoot?.addEventListener(
+    "keydown",
+    (e) => {
+      const ke = e as KeyboardEvent;
+      if (ke.key !== "Enter" && ke.key !== " ") return;
+      const t = ke.target as HTMLElement;
+      if (!t.closest("[data-rh-fr-detalle-id]")) return;
+      ke.preventDefault();
+      openDetalleFromTarget(t);
     },
     { signal },
   );
@@ -369,10 +378,8 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
 
   signal.addEventListener("abort", () => {
     modal?.destroy();
+    detalleModal?.destroy();
   });
 
-  void (async () => {
-    await refreshEmpleadoOptions();
-    await load(true);
-  })();
+  void load(true);
 }

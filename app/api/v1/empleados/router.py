@@ -19,6 +19,7 @@ from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
 from app.core.rh_ui_mode import has_rh_plantilla_data_scope, is_rh_gestor_team_ui_mode
 from app.models.empleados import Empleado
 from app.schemas.actas import ActasPageResponse
+from app.schemas.empleados import DescansosEmpleadoResponse
 from app.schemas.usuarios import (
     CatalogoFiltrosResponse,
     MetricasUsuarioResponse,
@@ -34,6 +35,7 @@ from app.schemas.vacaciones import (
     VacacionesUpdate,
 )
 from app.services.acta_service import ActaService
+from app.services.descansos_empleado_service import DescansosEmpleadoService
 from app.services.empleado_foto_service import EmpleadoFotoService
 from app.services.solicitud_service import SolicitudService
 from app.services.usuario_service import UsuarioService
@@ -58,6 +60,10 @@ def _sol_svc(db: AsyncSession = Depends(get_db)) -> SolicitudService:
 
 def _foto_svc(db: AsyncSession = Depends(get_db)) -> EmpleadoFotoService:
     return EmpleadoFotoService(db)
+
+
+def _descansos_svc(db: AsyncSession = Depends(get_db)) -> DescansosEmpleadoService:
+    return DescansosEmpleadoService(db)
 
 
 def _rol_nombre(u: Empleado) -> str:
@@ -165,6 +171,25 @@ async def get_vacaciones_empleado(
 ):
     """Saldo de días de vacaciones del empleado."""
     return await svc.obtener_saldo(empleado_id=empleado_id, current_user=current_user)
+
+
+@router.get(
+    "/{empleado_id}/descansos",
+    response_model=DescansosEmpleadoResponse,
+)
+async def get_descansos_empleado(
+    empleado_id: int,
+    fecha_inicio: date = Query(..., description="Inicio inclusivo del rango"),
+    fecha_fin: date = Query(..., description="Fin inclusivo del rango; máximo 366 días"),
+    current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
+    svc: DescansosEmpleadoService = Depends(_descansos_svc),
+):
+    """Descansos del empleado (proyección TURNO + override AUSENCIA). Mismos roles que faltas/directorio."""
+    return await svc.obtener_descansos(
+        empleado_id=empleado_id,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+    )
 
 
 @router.get(
