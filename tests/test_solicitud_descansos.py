@@ -105,3 +105,61 @@ async def test_revision_solicitud_goce_rechaza_inicio_en_descanso(
 
     assert response.status_code == 422, response.text
     assert "descanso" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_vacaciones_rechaza_inicio_en_descanso(client: AsyncClient, db):
+    emp = await make_empleado(db, rol="empleado", email="vac_desc_ini@test", no_empleado=94001)
+    headers = await auth_headers(client, emp)
+
+    with patch(
+        "app.services.solicitud_service.obtener_descansos_tress",
+        new_callable=AsyncMock,
+        return_value=[date(2026, 7, 19), date(2026, 7, 20)],
+    ):
+        res = await client.post(
+            "/api/v1/solicitudes",
+            json={
+                "tipo": "vacaciones",
+                "fecha_inicio": "2026-07-19",
+                "fecha_fin": "2026-07-21",
+                "comentarios": "test",
+            },
+            headers=headers,
+        )
+
+    assert res.status_code == 422
+    assert "descanso" in res.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_vacaciones_descuenta_solo_dias_efectivos(
+    client: AsyncClient, db, monkeypatch
+):
+    async def _saldo(_no_empleado):  # noqa: ANN001
+        return 2.0
+
+    monkeypatch.setattr(
+        "app.services.vacaciones_service.obtener_saldo_gozo_tress", _saldo
+    )
+    emp = await make_empleado(db, rol="empleado", email="vac_desc_cnt@test", no_empleado=94002)
+    headers = await auth_headers(client, emp)
+
+    # Rango 18-21 jul: 19-20 descanso → 2 días efectivos = saldo exacto
+    with patch(
+        "app.services.solicitud_service.obtener_descansos_tress",
+        new_callable=AsyncMock,
+        return_value=[date(2026, 7, 19), date(2026, 7, 20)],
+    ):
+        res = await client.post(
+            "/api/v1/solicitudes",
+            json={
+                "tipo": "vacaciones",
+                "fecha_inicio": "2026-07-18",
+                "fecha_fin": "2026-07-21",
+                "comentarios": "test",
+            },
+            headers=headers,
+        )
+
+    assert res.status_code == 201

@@ -35,7 +35,6 @@ from app.core.rh_ui_mode import (
 from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.utils.vacaciones_fechas import (
     defuncion_rango_para_empleado,
-    dias_laborales_inclusive,
     paternidad_rango,
     rango_incluye_fin_de_semana,
 )
@@ -609,15 +608,30 @@ class SolicitudService:
 
     # ── Crear ────────────────────────────────────────────────────────────────
 
-    async def _dias_vacaciones_para_empleado(
+    async def _contar_dias_vacaciones_rango(
         self,
         empleado_id: int,
         fecha_inicio: date,
         fecha_fin: date,
+        *,
+        validar_inicio_no_descanso: bool = False,
     ) -> int:
-        """Días a debitar/acreditar: laborales (lun–vie) si es administrativo; naturales si no."""
+        """Cuenta días de vacaciones excluyendo descansos TRESS (y fines de semana si admin)."""
         empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
-        if empleado is not None and empleado_es_administrativo(empleado):
+        if empleado is None:
+            raise DomainValidationError(detail="Empleado no encontrado.")
+        descansos = await obtener_descansos_tress(
+            cb_codigo=int(empleado.no_empleado),
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+        )
+        descansos_set = set(descansos)
+        if validar_inicio_no_descanso and fecha_inicio in descansos_set:
+            raise DomainValidationError(
+                detail="La fecha inicial no puede ser un descanso aplicado en TRESS."
+            )
+        efectivo = fechas_efectivas_en_rango(fecha_inicio, fecha_fin, descansos)
+        if empleado_es_administrativo(empleado):
             if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
                 raise DomainValidationError(
                     detail=(
@@ -625,8 +639,22 @@ class SolicitudService:
                         "en días entre semana (lunes a viernes)."
                     )
                 )
-            return dias_laborales_inclusive(fecha_inicio, fecha_fin)
-        return _dias_solicitud_inclusive(fecha_inicio, fecha_fin)
+            return sum(1 for d in efectivo if d.weekday() < 5)
+        return len(efectivo)
+
+    async def _dias_vacaciones_para_empleado(
+        self,
+        empleado_id: int,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> int:
+        """Días a debitar en alta/aprobación: valida inicio y excluye descansos TRESS."""
+        return await self._contar_dias_vacaciones_rango(
+            empleado_id,
+            fecha_inicio,
+            fecha_fin,
+            validar_inicio_no_descanso=True,
+        )
 
     async def _dias_vacaciones_comprometidos(
         self,
@@ -648,16 +676,16 @@ class SolicitudService:
             # Excluir todo lo que NO está comprometido (deja pending + changes_requested).
             estados_excluidos=["approved", "rejected", "cancelled", "overridden"],
         )
-        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
-        administrativo = empleado is not None and empleado_es_administrativo(empleado)
         total = 0
         for s in solicitudes:
             if exclude_solicitud_id is not None and s.id == exclude_solicitud_id:
                 continue
-            if administrativo:
-                total += dias_laborales_inclusive(s.fecha_inicio, s.fecha_fin)
-            else:
-                total += _dias_solicitud_inclusive(s.fecha_inicio, s.fecha_fin)
+            total += await self._contar_dias_vacaciones_rango(
+                empleado_id,
+                s.fecha_inicio,
+                s.fecha_fin,
+                validar_inicio_no_descanso=False,
+            )
         return total
 
     async def obtener_disponible_vacaciones(
@@ -716,7 +744,10 @@ class SolicitudService:
         )
         if necesarios <= 0:
             raise DomainValidationError(
-                detail="El rango debe incluir al menos un día de vacaciones."
+                detail=(
+                    "El rango debe incluir al menos un día de vacaciones "
+                    "(excluyendo descansos del turno)."
+                )
             )
         if disponible <= 0:
             raise DomainValidationError(

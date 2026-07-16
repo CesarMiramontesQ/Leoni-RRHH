@@ -60,18 +60,27 @@ export function calcularDiasLaboralesInclusive(fechaInicio: string, fechaFin: st
   return total;
 }
 
-/** Días de vacaciones según clasificación del colaborador. */
+/** Días de vacaciones según clasificación del colaborador, excluyendo descansos TRESS. */
 export function calcularDiasVacacionesSolicitados(
   fechaInicio: string,
   fechaFin: string,
   administrativo: boolean,
+  descansos: ReadonlySet<string> = new Set(),
 ): number {
   if (!fechasOrdenValidas(fechaInicio, fechaFin)) return 0;
   if (administrativo) {
     if (rangoIncluyeFinDeSemana(fechaInicio, fechaFin)) return 0;
-    return calcularDiasLaboralesInclusive(fechaInicio, fechaFin);
   }
-  return calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
+  const { fechasEfectivas } = resumirRangoSinDescansos(fechaInicio, fechaFin, descansos);
+  if (administrativo) {
+    return fechasEfectivas.filter((iso) => {
+      const dt = parseLocalDate(iso);
+      if (!dt) return false;
+      const dow = dt.getDay();
+      return dow >= 1 && dow <= 5;
+    }).length;
+  }
+  return fechasEfectivas.length;
 }
 
 /** Suma días calendario a una fecha ISO `YYYY-MM-DD`. Cadena vacía si la entrada es inválida. */

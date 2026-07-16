@@ -591,7 +591,9 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           ? "ready"
           : "idle";
     const resumenDescansos =
-      tipo === "incapacidad_interna" && fechaInicioEff && fechaFin
+      (tipo === "incapacidad_interna" || tipo === "vacaciones") &&
+      fechaInicioEff &&
+      fechaFin
         ? resumirRangoSinDescansos(fechaInicioEff, fechaFin, descansos)
         : null;
     const ui = computeRhModalFormUi(
@@ -1267,7 +1269,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           return;
         }
         if (
-          tipo === "incapacidad_interna" &&
+          (tipo === "incapacidad_interna" || tipo === "vacaciones") &&
           resumirRangoSinDescansos(fecha_inicio, fecha_fin, descansos).fechasEfectivas.length === 0
         ) {
           showError("El rango está compuesto únicamente por descansos.");
@@ -1278,6 +1280,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           fecha_fin,
           empleadoEsAdministrativo === true &&
             (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo"),
+          tipo === "vacaciones" ? descansos : new Set(),
         );
         if (dias <= 0) {
           showError("Revisa el rango de fechas.");

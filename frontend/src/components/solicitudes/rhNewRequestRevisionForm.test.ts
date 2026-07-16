@@ -90,12 +90,34 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
     },
   );
 
-  it.each(["vacaciones", "home_office", "permiso_sin_goce_sueldo"] as const)(
+  it.each(["loading", "error"] as const)(
+    "bloquea submit de vacaciones cuando descansos está en estado %s",
+    (estadoDescansos) => {
+      const ui = computeRhModalFormUi(
+        "vacaciones",
+        10,
+        "1",
+        "2026-06-02",
+        "2026-06-02",
+        "",
+        false,
+        false,
+        true,
+        null,
+        estadoDescansos,
+        new Set(),
+      );
+
+      expect(ui.canSubmit).toBe(false);
+    },
+  );
+
+  it.each(["home_office", "permiso_sin_goce_sueldo"] as const)(
     "permite submit de %s aunque descansos esté en error",
     (tipo) => {
       const ui = computeRhModalFormUi(
         tipo,
-        tipo === "vacaciones" ? 10 : null,
+        null,
         "1",
         "2026-06-02",
         "2026-06-02",
@@ -124,7 +146,7 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
     });
     const fueraAlcance = buildFormHtml({
       ...base,
-      tipo: "vacaciones",
+      tipo: "home_office",
       modoRevision: false,
       selectedEmpleadoId: "1",
       descansosState: "error",
@@ -136,6 +158,21 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
     expect(conAlcance).toContain("Se excluirán por descanso: 2026-06-03.");
     expect(fueraAlcance).not.toContain("No se pudieron consultar los descansos.");
     expect(fueraAlcance).not.toContain("Se excluirán por descanso");
+  });
+
+  it("muestra feedback de descansos también en vacaciones", () => {
+    const html = buildFormHtml({
+      ...base,
+      tipo: "vacaciones",
+      modoRevision: false,
+      selectedEmpleadoId: "1",
+      descansosState: "error",
+      descansosError: "No se pudieron consultar los descansos.",
+      fechasDescansoExcluidas: ["2026-06-03"],
+    });
+
+    expect(html).toContain("No se pudieron consultar los descansos.");
+    expect(html).toContain("Se excluirán por descanso: 2026-06-03.");
   });
 
   it("matrimonio fija fecha fin deshabilitada a 2 días", () => {

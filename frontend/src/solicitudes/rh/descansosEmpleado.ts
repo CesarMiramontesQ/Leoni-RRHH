@@ -15,9 +15,10 @@ const TIPOS_CALENDARIO_DESCANSOS = new Set<string>([
   "paternidad",
   "suspension",
   "incapacidad_interna",
+  "vacaciones",
 ]);
 
-/** Vacaciones, home office y permiso sin goce no dependen del calendario TRESS. */
+/** Home office y permiso sin goce no dependen del calendario TRESS. */
 export function tipoRequiereCalendarioDescansos(
   tipo: string | null | undefined,
 ): boolean {

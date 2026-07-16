@@ -26,6 +26,16 @@ describe("rhNewRequestDays — vacaciones administrativas", () => {
     expect(calcularDiasVacacionesSolicitados("2026-05-08", "2026-05-11", true)).toBe(0);
   });
 
+  it("excluye descansos TRESS del conteo de vacaciones", () => {
+    const descansos = new Set(["2026-07-19", "2026-07-20"]);
+    expect(
+      calcularDiasVacacionesSolicitados("2026-07-18", "2026-07-21", false, descansos),
+    ).toBe(2);
+    expect(
+      calcularDiasVacacionesSolicitados("2026-07-19", "2026-07-20", false, descansos),
+    ).toBe(0);
+  });
+
   it("rechaza Home Office en fin de semana", () => {
     expect(rangoIncluyeFinDeSemana("2026-06-06", "2026-06-06")).toBe(true);
     expect(rangoIncluyeFinDeSemana("2026-06-02", "2026-06-02")).toBe(false);

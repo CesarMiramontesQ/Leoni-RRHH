@@ -900,7 +900,13 @@ export function buildRhDescansosEffectiveSummaryHtml(
   fechaFin: string,
   descansos: ReadonlySet<string>,
 ): string {
-  if (tipo !== "incapacidad_interna" || !fechaInicio || !fechaFin) return "";
+  if (
+    (tipo !== "incapacidad_interna" && tipo !== "vacaciones") ||
+    !fechaInicio ||
+    !fechaFin
+  ) {
+    return "";
+  }
   const fechasExcluidas = resumirRangoSinDescansos(
     fechaInicio,
     fechaFin,
@@ -934,13 +940,22 @@ export function computeRhModalFormUi(
     empleadoEsAdministrativo === true &&
     (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo");
   const rangoDescansos =
-    tipo === "incapacidad_interna" && descansosState === "ready"
+    (tipo === "incapacidad_interna" || tipo === "vacaciones") && descansosState === "ready"
       ? resumirRangoSinDescansos(fechaInicio, fechaFin, descansos)
       : null;
-  const diasBase = usaDiasLaboralesAdmin
-    ? calcularDiasVacacionesSolicitados(fechaInicio, fechaFin, true)
-    : calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
-  const dias = rangoDescansos ? rangoDescansos.fechasEfectivas.length : diasBase;
+  const dias =
+    tipo === "vacaciones" && descansosState === "ready"
+      ? calcularDiasVacacionesSolicitados(
+          fechaInicio,
+          fechaFin,
+          usaDiasLaboralesAdmin,
+          descansos,
+        )
+      : rangoDescansos
+        ? rangoDescansos.fechasEfectivas.length
+        : usaDiasLaboralesAdmin
+          ? calcularDiasVacacionesSolicitados(fechaInicio, fechaFin, true)
+          : calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
   const bothDates = Boolean(fechaInicio.trim() && fechaFin.trim());
   const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
   const fechaInInvalid = bothDates && !fechasOk;

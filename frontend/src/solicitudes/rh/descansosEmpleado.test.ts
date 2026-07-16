@@ -13,12 +13,12 @@ describe("tipoRequiereCalendarioDescansos", () => {
     "paternidad",
     "suspension",
     "incapacidad_interna",
+    "vacaciones",
   ] as const)("incluye %s en el alcance TRESS", (tipo) => {
     expect(tipoRequiereCalendarioDescansos(tipo)).toBe(true);
   });
 
   it.each([
-    "vacaciones",
     "home_office",
     "permiso_sin_goce_sueldo",
     "",
