@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  avanzarHastaReunirDias,
   calcularDiasLaboralesInclusive,
   calcularDiasVacacionesSolicitados,
+  calcularRangoMatrimonio,
   calcularRangoDefuncion,
   calcularRangoPaternidad,
   esRangoDefuncionValido,
   esRangoMatrimonioValido,
   esRangoPaternidadValido,
   rangoIncluyeFinDeSemana,
+  resumirRangoSinDescansos,
   sumarDiasIso,
 } from "./rhNewRequestDays.ts";
 
@@ -71,5 +74,42 @@ describe("rhNewRequestDays — vacaciones administrativas", () => {
     });
     expect(esRangoPaternidadValido("2026-05-04", "2026-05-12")).toBe(true);
     expect(esRangoPaternidadValido("2026-05-04", "2026-05-11")).toBe(false);
+  });
+
+  it("lunes + descanso martes-miércoles produce fin jueves para 2 días efectivos", () => {
+    const descansos = new Set(["2026-07-14", "2026-07-15"]);
+    expect(avanzarHastaReunirDias("2026-07-13", 2, descansos)).toEqual([
+      "2026-07-13",
+      "2026-07-16",
+    ]);
+    expect(calcularRangoMatrimonio("2026-07-13", descansos)).toEqual({
+      fechaInicio: "2026-07-13",
+      fechaFin: "2026-07-16",
+    });
+  });
+
+  it("rango libre excluye descansos y detecta cuando queda vacío", () => {
+    expect(
+      resumirRangoSinDescansos(
+        "2026-07-13",
+        "2026-07-16",
+        new Set(["2026-07-14", "2026-07-15"]),
+      ),
+    ).toEqual({
+      fechasEfectivas: ["2026-07-13", "2026-07-16"],
+      fechasExcluidas: ["2026-07-14", "2026-07-15"],
+      tramos: [
+        { fechaInicio: "2026-07-13", fechaFin: "2026-07-13" },
+        { fechaInicio: "2026-07-16", fechaFin: "2026-07-16" },
+      ],
+    });
+
+    expect(
+      resumirRangoSinDescansos(
+        "2026-07-14",
+        "2026-07-15",
+        new Set(["2026-07-14", "2026-07-15"]),
+      ).fechasEfectivas,
+    ).toEqual([]);
   });
 });

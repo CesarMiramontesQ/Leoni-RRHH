@@ -93,10 +93,13 @@ export const FR_COPY = {
   modalTipoPlaceholder: "Seleccionar…",
   modalFechasHintRango:
     "Define el periodo cubierto por el registro. Ambas fechas forman un solo rango.",
+  modalFechasHintGoceFijo:
+    "Indica solo la fecha de inicio; la fecha fin se calcula automáticamente según el tipo de permiso.",
   modalFechasHintAdmin:
     "Colaborador administrativo: solo días hábiles (lunes a viernes). Sábados y domingos no están permitidos.",
   modalFechasErrorFinDeSemana:
     "Para personal administrativo solo se permiten días de lunes a viernes.",
+  modalFechaFinCalculada: "Fecha fin (calculada)",
   modalObsPlaceholder: "Comentarios u observaciones…",
   modalGuardar: "Registrar evento",
   modalGuardando: "Guardando…",

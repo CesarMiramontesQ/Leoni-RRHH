@@ -18,7 +18,13 @@ import {
   MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
   rangoIncluyeFinDeSemana,
+  resumirRangoSinDescansos,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
+import type { DescansosLoadState } from "../../solicitudes/rh/descansosEmpleado.ts";
+import {
+  buildDescansosFeedback,
+  tipoRequiereCalendarioDescansos,
+} from "../../solicitudes/rh/descansosEmpleado.ts";
 import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
@@ -441,6 +447,9 @@ export type RhNewRequestFormParams = {
   supervisorOcultarPermisoSinGoceEnTipo?: boolean;
   /** Oculta Home Office cuando el colaborador no es Administrativo (excepto RH gestor). */
   showHomeOfficeType?: boolean;
+  descansosState?: DescansosLoadState;
+  descansosError?: string;
+  fechasDescansoExcluidas?: readonly string[];
 };
 
 export const RESUMEN_BASE =
@@ -563,8 +572,18 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
   </svg>`;
 
+  const tipoFijo =
+    p.tipo === "matrimonio" || p.tipo === "defuncion" || p.tipo === "paternidad";
   const blockWeekends =
-    p.empleadoAdministrativo === true || p.vacacionesAdministrativo === true;
+    !tipoFijo && (p.empleadoAdministrativo === true || p.vacacionesAdministrativo === true);
+  const requiereDescansos = tipoRequiereCalendarioDescansos(p.tipo);
+  const descansosFeedback = requiereDescansos
+    ? buildDescansosFeedback(
+        p.descansosState ?? "idle",
+        p.descansosError ?? "",
+        p.fechasDescansoExcluidas ?? [],
+      )
+    : buildDescansosFeedback("ready", "", []);
   const pickerInicio = (invalid: boolean) =>
     buildWorkdayDatePickerHtml({
       inputId: "rh-nr-inicio",
@@ -572,6 +591,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
       value: p.fechaInicio,
       blockWeekends,
       invalid,
+      describedBy: "rh-nr-resumen-hint",
       align: "start",
     });
   const pickerFin = (opts: { invalid: boolean; disabled?: boolean }) =>
@@ -582,6 +602,7 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
       disabled: opts.disabled === true,
       blockWeekends: blockWeekends && opts.disabled !== true,
       invalid: opts.invalid,
+      describedBy: "rh-nr-resumen-hint",
       align: "end",
     });
 
@@ -779,11 +800,13 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
             : "Define el periodo cubierto por la solicitud. Ambas fechas forman un solo rango."
           }
         </p>
+        <div data-rh-nr-descansos-load-status>${descansosFeedback.loadHtml}</div>
+        <div data-rh-nr-descansos-effective-summary>${descansosFeedback.effectiveSummaryHtml}</div>
         ${
           singleDayMode ?
             `<div class="grid grid-cols-1 gap-5">
               <div>
-                <label for="rh-nr-inicio" class="${LABEL}">Fecha</label>
+                <label for="rh-nr-inicio-trigger" class="${LABEL}">Fecha</label>
                 ${pickerInicio(p.fechaInInvalid)}
                 <input id="rh-nr-fin" name="fecha_fin" type="hidden" value="${escapeHtml(p.fechaInicio)}" />
               </div>
@@ -791,21 +814,21 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
           : matrimonioTwoDayMode || defuncionThreeDayMode || paternidadSevenDayMode ?
             `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
               <div>
-                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <label for="rh-nr-inicio-trigger" class="${LABEL}">Fecha de inicio</label>
                 ${pickerInicio(p.fechaInInvalid)}
               </div>
               <div>
-                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <label for="rh-nr-fin-trigger" class="${LABEL}">Fecha de fin</label>
                 ${pickerFin({ invalid: p.fechaFinInvalid, disabled: true })}
               </div>
             </div>`
           : `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
               <div>
-                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
+                <label for="rh-nr-inicio-trigger" class="${LABEL}">Fecha de inicio</label>
                 ${pickerInicio(p.fechaInInvalid)}
               </div>
               <div>
-                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
+                <label for="rh-nr-fin-trigger" class="${LABEL}">Fecha de fin</label>
                 ${pickerFin({ invalid: p.fechaFinInvalid })}
               </div>
             </div>`
@@ -871,6 +894,21 @@ export type RhModalComputedUi = {
   canSubmit: boolean;
 };
 
+export function buildRhDescansosEffectiveSummaryHtml(
+  tipo: RhNewRequestFormParams["tipo"],
+  fechaInicio: string,
+  fechaFin: string,
+  descansos: ReadonlySet<string>,
+): string {
+  if (tipo !== "incapacidad_interna" || !fechaInicio || !fechaFin) return "";
+  const fechasExcluidas = resumirRangoSinDescansos(
+    fechaInicio,
+    fechaFin,
+    descansos,
+  ).fechasExcluidas;
+  return buildDescansosFeedback("ready", "", fechasExcluidas).effectiveSummaryHtml;
+}
+
 export function computeRhModalFormUi(
   tipo:
     | "vacaciones"
@@ -889,13 +927,20 @@ export function computeRhModalFormUi(
   modoRevision = false,
   empleadoEsAdministrativo: boolean | null = null,
   homeOfficePuedeSolicitarMes: boolean | null = null,
+  descansosState: DescansosLoadState = "ready",
+  descansos: ReadonlySet<string> = new Set(),
 ): RhModalComputedUi {
   const usaDiasLaboralesAdmin =
     empleadoEsAdministrativo === true &&
     (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo");
-  const dias = usaDiasLaboralesAdmin
+  const rangoDescansos =
+    tipo === "incapacidad_interna" && descansosState === "ready"
+      ? resumirRangoSinDescansos(fechaInicio, fechaFin, descansos)
+      : null;
+  const diasBase = usaDiasLaboralesAdmin
     ? calcularDiasVacacionesSolicitados(fechaInicio, fechaFin, true)
     : calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
+  const dias = rangoDescansos ? rangoDescansos.fechasEfectivas.length : diasBase;
   const bothDates = Boolean(fechaInicio.trim() && fechaFin.trim());
   const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
   const fechaInInvalid = bothDates && !fechasOk;
@@ -919,32 +964,52 @@ export function computeRhModalFormUi(
     fechasOk &&
     rangoIncluyeFinDeSemana(fechaInicio, fechaFin);
   const matrimonioRangoInvalido =
-    tipo === "matrimonio" && bothDates && fechasOk && !esRangoMatrimonioValido(fechaInicio, fechaFin);
+    tipo === "matrimonio" &&
+    bothDates &&
+    fechasOk &&
+    !esRangoMatrimonioValido(fechaInicio, fechaFin, descansos);
   const defuncionRangoInvalido =
     tipo === "defuncion" &&
     bothDates &&
     fechasOk &&
-    !esRangoDefuncionValido(fechaInicio, fechaFin, empleadoEsAdministrativo === true);
+    !esRangoDefuncionValido(
+      fechaInicio,
+      fechaFin,
+      empleadoEsAdministrativo === true,
+      descansos,
+    );
   const paternidadRangoInvalido =
     tipo === "paternidad" &&
     bothDates &&
     fechasOk &&
-    !esRangoPaternidadValido(fechaInicio, fechaFin);
+    !esRangoPaternidadValido(fechaInicio, fechaFin, descansos);
+  const diasMatrimonio =
+    tipo === "matrimonio" &&
+    bothDates &&
+    fechasOk &&
+    esRangoMatrimonioValido(fechaInicio, fechaFin, descansos)
+      ? 2
+      : null;
   const diasDefuncion =
     tipo === "defuncion" &&
     bothDates &&
     fechasOk &&
-    esRangoDefuncionValido(fechaInicio, fechaFin, empleadoEsAdministrativo === true)
+    esRangoDefuncionValido(
+      fechaInicio,
+      fechaFin,
+      empleadoEsAdministrativo === true,
+      descansos,
+    )
       ? 3
       : null;
   const diasPaternidad =
     tipo === "paternidad" &&
     bothDates &&
     fechasOk &&
-    esRangoPaternidadValido(fechaInicio, fechaFin)
+    esRangoPaternidadValido(fechaInicio, fechaFin, descansos)
       ? 7
       : null;
-  const diasEfectivos = diasDefuncion ?? diasPaternidad ?? dias;
+  const diasEfectivos = diasMatrimonio ?? diasDefuncion ?? diasPaternidad ?? dias;
 
   const diasLabel =
     vacacionesAdminFinDeSemana || permisoSinGoceAdminFinDeSemana || homeOfficeFinDeSemana ?
@@ -1024,6 +1089,8 @@ export function computeRhModalFormUi(
     tipo === "home_office" && empleadoEsAdministrativo !== true;
   const homeOfficeMesOcupado =
     tipo === "home_office" && !modoRevision && homeOfficePuedeSolicitarMes === false;
+  const descansosListos =
+    !tipoRequiereCalendarioDescansos(tipo) || descansosState === "ready";
   const canSubmit =
     empOk &&
     bothDates &&
@@ -1039,6 +1106,7 @@ export function computeRhModalFormUi(
     !paternidadRangoInvalido &&
     !homeOfficeSinAdministrativo &&
     !homeOfficeMesOcupado &&
+    descansosListos &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);
 
   return {
@@ -1064,6 +1132,8 @@ export function applyRhModalLiveFeedback(
     | "permiso_sin_goce_sueldo",
   contextoVac: number | null,
   contextoHoPuedeSolicitarMes: boolean | null = null,
+  descansosState: DescansosLoadState = "ready",
+  descansos: ReadonlySet<string> = new Set(),
 ): void {
   /** Empleado fijo: portal o corrección (hidden sin buscador). */
   const selfMode =
@@ -1096,6 +1166,8 @@ export function applyRhModalLiveFeedback(
     modoRevision,
     empleadoEsAdministrativo ? true : null,
     homeOfficeMesOcupado ? false : contextoHoPuedeSolicitarMes,
+    descansosState,
+    descansos,
   );
 
   const fiRoot = fi.closest("[data-workday-date-picker]") as HTMLElement | null;
@@ -1131,6 +1203,18 @@ export function applyRhModalLiveFeedback(
       hintEl.textContent = "";
       hintEl.className = "mt-2 hidden text-xs leading-relaxed text-slate-600";
     }
+  }
+
+  const effectiveSummary = modalHost.querySelector(
+    "[data-rh-nr-descansos-effective-summary]",
+  ) as HTMLElement | null;
+  if (effectiveSummary) {
+    effectiveSummary.innerHTML = buildRhDescansosEffectiveSummaryHtml(
+      tipo,
+      fi.value,
+      ff.value,
+      descansos,
+    );
   }
 
   const submit = modalHost.querySelector("#rh-nr-submit") as HTMLButtonElement | null;

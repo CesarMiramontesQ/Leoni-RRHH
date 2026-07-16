@@ -25,6 +25,12 @@
 - En SQL crudo, usar siempre el nombre desde el modelo (`Model.__tablename__`); nunca hardcodear nombres de tabla sin el prefijo.
 - Migraciones Alembic nuevas: solo `op.create_table` / `op.alter_column` / `op.drop_table` sobre tablas `levelup_*`. Si hace falta tocar una tabla sin prefijo o cualquier objeto de DATOS_ANALISIS, detenerse y pedir aclaracion.
 
+## TRESS / DATOS_ANALISIS — sin RPA (OBLIGATORIO)
+- La integración con nómina TRESS es **solo** lectura/escritura directa a DATOS_ANALISIS (`DATOS_ANALISIS_DB_*`).
+- **Prohibido** usar cola RPA (`encolar_tress`, `levelup_tress_robot_queue`, robot GUI) en features nuevas.
+- Código de cola/scheduler/robot en `app/integrations/tress/` está deprecado (sin consumidor activo).
+- Patrones vigentes: INSERT síncrono a `dbo.PERMISO` / `dbo.VACACION` (suspensión, home office, goce FJ, vacaciones).
+
 ## Frontend
 - Centralizar llamadas HTTP en `frontend/src/api/`.
 - Mantener tipos en `dashboard/*/types.ts` sincronizados con respuestas del backend.

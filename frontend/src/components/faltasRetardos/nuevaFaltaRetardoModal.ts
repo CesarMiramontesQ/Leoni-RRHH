@@ -9,10 +9,18 @@ import {
 import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
 import {
   calcularRangoDefuncion,
+  calcularRangoMatrimonio,
   calcularRangoPaternidad,
   rangoIncluyeFinDeSemana,
+  resumirRangoSinDescansos,
   sumarDiasIso,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
+import {
+  buildDescansosFeedback,
+  createDescansosEmpleadoController,
+  tipoRequiereCalendarioDescansos,
+  type DescansosLoadState,
+} from "../../solicitudes/rh/descansosEmpleado.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
@@ -22,6 +30,7 @@ import {
 import {
   bindWorkdayDatePicker,
   buildWorkdayDatePickerHtml,
+  type WorkdayDatePickerHandle,
 } from "../../ui/workdayDatePicker.ts";
 import { esEmpleadoAdministrativo } from "../../utils/empleadoClasificacion.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
@@ -111,18 +120,22 @@ function fechaFinFijaAuto(tipo: FaltaRetardoTipo | ""): boolean {
 function applyRangoGoce(
   data: NuevaFaltaRetardoFormData,
   administrativo: boolean,
+  descansos: ReadonlySet<string> = new Set(),
 ): NuevaFaltaRetardoFormData {
   if (!data.fechaEvento.trim()) return { ...data, fechaFin: "" };
   if (data.tipo === "matrimonio") {
-    return { ...data, fechaFin: sumarDiasIso(data.fechaEvento, 1) };
+    const rango = calcularRangoMatrimonio(data.fechaEvento, descansos);
+    return rango
+      ? { ...data, fechaEvento: rango.fechaInicio, fechaFin: rango.fechaFin }
+      : { ...data, fechaFin: "" };
   }
   if (data.tipo === "defuncion") {
-    const rango = calcularRangoDefuncion(data.fechaEvento, administrativo);
+    const rango = calcularRangoDefuncion(data.fechaEvento, administrativo, descansos);
     if (!rango) return data;
     return { ...data, fechaEvento: rango.fechaInicio, fechaFin: rango.fechaFin };
   }
   if (data.tipo === "paternidad") {
-    const rango = calcularRangoPaternidad(data.fechaEvento);
+    const rango = calcularRangoPaternidad(data.fechaEvento, descansos);
     if (!rango) return data;
     return { ...data, fechaEvento: rango.fechaInicio, fechaFin: rango.fechaFin };
   }
@@ -151,20 +164,63 @@ function fechaIsoEsFinDeSemana(iso: string): boolean {
   return rangoIncluyeFinDeSemana(t, t);
 }
 
+/** Suspensión / incapacidad interna: admin no puede cruzar fin de semana. Goce fijo no: el rango se calcula y puede abarcar sáb/dom. */
+function debeValidarFinDeSemanaAdmin(tipo: FaltaRetardoTipo | ""): boolean {
+  return tipo !== "" && !fechaFinFijaAuto(tipo);
+}
+
+export function debeBloquearFinSemanaEnPicker(
+  tipo: FaltaRetardoTipo | "",
+  administrativo: boolean,
+): boolean {
+  return administrativo && debeValidarFinDeSemanaAdmin(tipo);
+}
+
+function formatFechaDisplay(iso: string): string {
+  const t = iso.trim();
+  if (!t) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (!m) return t;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
+
 function validateForm(
   data: NuevaFaltaRetardoFormData,
   administrativo: boolean,
+  descansosState: DescansosLoadState = "ready",
+  descansos: ReadonlySet<string> = new Set(),
 ): NuevaFaltaRetardoFormErrors {
   const errors: NuevaFaltaRetardoFormErrors = {};
   if (!data.empleadoId.trim()) errors.empleadoId = "Seleccione un empleado";
   if (!data.tipo) errors.tipo = "Seleccione el tipo de evento";
   if (!data.fechaEvento.trim()) errors.fechaEvento = "Indique la fecha de inicio";
-  if (!data.fechaFin.trim()) errors.fechaFin = "Indique la fecha fin del rango";
-  else if (data.fechaEvento.trim() && data.fechaFin < data.fechaEvento) {
+  const requiereDescansos = tipoRequiereCalendarioDescansos(data.tipo);
+  if (requiereDescansos && data.fechaEvento.trim() && descansos.has(data.fechaEvento)) {
+    errors.fechaEvento = "La fecha inicial no puede ser un descanso.";
+  }
+  if (requiereDescansos && data.empleadoId.trim() && descansosState !== "ready") {
+    errors.form =
+      descansosState === "error"
+        ? "No se pudieron consultar los descansos. Intenta de nuevo."
+        : "Espera a que termine la consulta de descansos.";
+  }
+  if (fechaFinFijaAuto(data.tipo)) {
+    if (data.fechaEvento.trim() && !data.fechaFin.trim()) {
+      errors.fechaEvento = "No se pudo calcular la fecha fin; revise la fecha de inicio";
+    }
+  } else if (!data.fechaFin.trim()) {
+    errors.fechaFin = "Indique la fecha fin del rango";
+  } else if (data.fechaEvento.trim() && data.fechaFin < data.fechaEvento) {
     errors.fechaFin = "La fecha fin no puede ser anterior a la fecha inicio";
   }
   if (
     administrativo &&
+    debeValidarFinDeSemanaAdmin(data.tipo) &&
     data.fechaEvento.trim() &&
     data.fechaFin.trim() &&
     !errors.fechaEvento &&
@@ -178,6 +234,16 @@ function validateForm(
     const motivo = data.observaciones.trim();
     if (!motivo) errors.observaciones = FR_COPY.modalObsRequeridaSuspension;
     else if (motivo.length > 30) errors.observaciones = FR_COPY.modalObsMaxSuspension;
+  }
+  if (
+    (data.tipo === "suspension" || data.tipo === "incapacidad_interna") &&
+    data.fechaEvento &&
+    data.fechaFin &&
+    descansosState === "ready" &&
+    resumirRangoSinDescansos(data.fechaEvento, data.fechaFin, descansos).fechasEfectivas.length === 0
+  ) {
+    errors.fechaEvento = "El rango está compuesto únicamente por descansos.";
+    errors.fechaFin = "El rango está compuesto únicamente por descansos.";
   }
   return errors;
 }
@@ -304,12 +370,23 @@ function buildFormFieldsHtml(
     searchLoading: boolean;
     isSubmitting: boolean;
     empleadoAdministrativo?: boolean;
+    descansosState: DescansosLoadState;
+    descansosError: string;
+    fechasDescansoExcluidas: readonly string[];
   },
 ): string {
   const esSuspension = data.tipo === "suspension";
   const esGoce = data.tipo !== "" && FALTA_RETARDO_TIPOS_GOCE.has(data.tipo);
   const finReadonly = fechaFinFijaAuto(data.tipo);
   const goceHint = hintRangoGoce(data.tipo, opts.empleadoAdministrativo === true);
+  const requiereDescansos = tipoRequiereCalendarioDescansos(data.tipo);
+  const descansosFeedback = requiereDescansos
+    ? buildDescansosFeedback(
+        opts.descansosState,
+        opts.descansosError,
+        opts.fechasDescansoExcluidas,
+      )
+    : buildDescansosFeedback("ready", "", []);
 
   const listboxHtml = buildEmpleadoListboxHtml({
     items: opts.empleadosCache,
@@ -392,38 +469,60 @@ function buildFormFieldsHtml(
     <section class="${SEC_BOX} space-y-4" aria-labelledby="fr-nr-sec-fechas">
       <div>
         <h3 id="fr-nr-sec-fechas" class="${SEC_TITLE}">${escapeHtml(FR_COPY.modalSecFechasRango)}</h3>
-        <p class="mt-1.5 text-xs leading-relaxed text-slate-500">${escapeHtml(FR_COPY.modalFechasHintRango)}</p>
+        <p class="mt-1.5 text-xs leading-relaxed text-slate-500">${escapeHtml(
+          finReadonly ? FR_COPY.modalFechasHintGoceFijo : FR_COPY.modalFechasHintRango,
+        )}</p>
         ${
-          opts.empleadoAdministrativo === true
+          opts.empleadoAdministrativo === true && !finReadonly
             ? `<p class="mt-1.5 text-xs font-medium leading-relaxed text-slate-600">${escapeHtml(FR_COPY.modalFechasHintAdmin)}</p>`
             : ""
         }
       </div>
-      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+      <div data-fr-descansos-load-status>${descansosFeedback.loadHtml}</div>
+      <div data-fr-descansos-effective-summary>${descansosFeedback.effectiveSummaryHtml}</div>
+      <div class="grid grid-cols-1 gap-5 ${finReadonly ? "" : "sm:grid-cols-2 sm:gap-6"}">
         <div>
-          <label class="${LABEL}" for="fr-form-fecha">Fecha inicio</label>
+          <label class="${LABEL}" for="fr-form-fecha-trigger">Fecha inicio</label>
           ${buildWorkdayDatePickerHtml({
             inputId: "fr-form-fecha",
             value: data.fechaEvento,
             disabled: opts.isSubmitting,
-            blockWeekends: opts.empleadoAdministrativo === true,
+            blockWeekends: debeBloquearFinSemanaEnPicker(
+              data.tipo,
+              opts.empleadoAdministrativo === true,
+            ),
             invalid: Boolean(errors.fechaEvento),
+            describedBy: errors.fechaEvento ? "fr-form-fecha-error" : undefined,
             align: "start",
           })}
-          ${errors.fechaEvento ? `<p class="mt-1.5 text-xs text-red-600">${escapeHtml(errors.fechaEvento)}</p>` : ""}
+          ${errors.fechaEvento ? `<p id="fr-form-fecha-error" class="mt-1.5 text-xs text-red-600">${escapeHtml(errors.fechaEvento)}</p>` : ""}
         </div>
-        <div id="fr-form-fecha-fin-wrap">
-          <label class="${LABEL}" for="fr-form-fecha-fin">Fecha fin</label>
+        ${
+          finReadonly
+            ? `<div>
+          <p class="${LABEL}">${escapeHtml(FR_COPY.modalFechaFinCalculada)}</p>
+          <div class="flex h-11 items-center rounded-xl border border-slate-200/70 bg-slate-50/90 px-3.5 text-sm font-medium text-slate-700">
+            ${escapeHtml(formatFechaDisplay(data.fechaFin))}
+          </div>
+          <input type="hidden" id="fr-form-fecha-fin" value="${escapeHtml(data.fechaFin)}" />
+        </div>`
+            : `<div id="fr-form-fecha-fin-wrap">
+          <label class="${LABEL}" for="fr-form-fecha-fin-trigger">Fecha fin</label>
           ${buildWorkdayDatePickerHtml({
             inputId: "fr-form-fecha-fin",
             value: data.fechaFin,
-            disabled: opts.isSubmitting || finReadonly,
-            blockWeekends: opts.empleadoAdministrativo === true && !finReadonly,
+            disabled: opts.isSubmitting,
+            blockWeekends: debeBloquearFinSemanaEnPicker(
+              data.tipo,
+              opts.empleadoAdministrativo === true,
+            ),
             invalid: Boolean(errors.fechaFin),
+            describedBy: errors.fechaFin ? "fr-form-fecha-fin-error" : undefined,
             align: "end",
           })}
-          ${errors.fechaFin ? `<p class="mt-1.5 text-xs text-red-600">${escapeHtml(errors.fechaFin)}</p>` : ""}
-        </div>
+          ${errors.fechaFin ? `<p id="fr-form-fecha-fin-error" class="mt-1.5 text-xs text-red-600">${escapeHtml(errors.fechaFin)}</p>` : ""}
+        </div>`
+        }
       </div>
     </section>
 
@@ -456,10 +555,10 @@ function buildFormFieldsHtml(
   `;
 }
 
-function buildFooterHtml(isSubmitting: boolean): string {
+function buildFooterHtml(isSubmitting: boolean, descansosBloquean: boolean): string {
   return `
     <button type="button" id="fr-form-cancel" class="${RH_SOLICITUDES_BTN_SECONDARY} min-h-11 px-4" ${isSubmitting ? "disabled" : ""}>${escapeHtml(FR_COPY.modalCancelar)}</button>
-    <button type="submit" id="fr-form-submit" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-11 px-5" ${isSubmitting ? "disabled" : ""}>
+    <button type="submit" id="fr-form-submit" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-11 px-5" ${isSubmitting || descansosBloquean ? "disabled" : ""}>
       ${isSubmitting ? escapeHtml(FR_COPY.modalGuardando) : escapeHtml(FR_COPY.modalGuardar)}
     </button>
   `;
@@ -529,6 +628,26 @@ export function mountNuevaFaltaRetardoModal(
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   const docListeners = new AbortController();
   let datePickerListeners = new AbortController();
+  const descansosController = createDescansosEmpleadoController();
+
+  function descansosCargados(): Set<string> {
+    return descansosController.getLoadedDates();
+  }
+
+  function fechasDescansoExcluidas(): string[] {
+    if (
+      !formData.fechaEvento ||
+      !formData.fechaFin ||
+      (formData.tipo !== "suspension" && formData.tipo !== "incapacidad_interna")
+    ) {
+      return [];
+    }
+    return resumirRangoSinDescansos(
+      formData.fechaEvento,
+      formData.fechaFin,
+      descansosCargados(),
+    ).fechasExcluidas;
+  }
 
   function clearSearchTimer(): void {
     if (searchTimer) {
@@ -608,6 +727,7 @@ export function mountNuevaFaltaRetardoModal(
   }
 
   function render(): void {
+    const requiereDescansos = tipoRequiereCalendarioDescansos(formData.tipo);
     body.innerHTML = buildFormFieldsHtml(formData, errors, {
       empleadoSearchQ,
       empleadosCache,
@@ -617,14 +737,23 @@ export function mountNuevaFaltaRetardoModal(
       searchLoading: empleadoSearchLoading,
       isSubmitting,
       empleadoAdministrativo: empleadoAdmin(),
+      descansosState: requiereDescansos ? descansosController.getState() : "ready",
+      descansosError: descansosController.getError(),
+      fechasDescansoExcluidas: fechasDescansoExcluidas(),
     });
-    footer.innerHTML = buildFooterHtml(isSubmitting);
+    footer.innerHTML = buildFooterHtml(
+      isSubmitting,
+      requiereDescansos &&
+        formData.empleadoId.trim() !== "" &&
+        descansosController.getState() !== "ready",
+    );
     bindForm();
     setInsertandoOverlay(isSubmitting);
   }
 
   function onClearEmpleado(): void {
-    formData = { ...formData, empleadoId: "" };
+    formData = { ...formData, empleadoId: "", fechaEvento: "", fechaFin: "" };
+    descansosController.setEmpleado(null);
     selectedEmpleado = null;
     empleadoSearchQ = "";
     empleadoListboxOpen = false;
@@ -650,13 +779,11 @@ export function mountNuevaFaltaRetardoModal(
     const picked =
       empleadosCache.find((u) => u.id === id) ??
       (selectedEmpleado?.id === id ? selectedEmpleado : null);
-    formData = { ...formData, empleadoId: empleadoIdRaw };
+    formData = { ...formData, empleadoId: empleadoIdRaw, fechaEvento: "", fechaFin: "" };
+    descansosController.setEmpleado(Number.isFinite(id) ? id : null);
     selectedEmpleado = picked;
     const admin = esEmpleadoAdministrativo(picked?.clasificacion);
-    if (fechaFinFijaAuto(formData.tipo)) {
-      formData = applyRangoGoce(formData, admin);
-    }
-    if (admin) {
+    if (admin && debeValidarFinDeSemanaAdmin(formData.tipo)) {
       const nextErrors: NuevaFaltaRetardoFormErrors = { ...errors };
       if (fechaIsoEsFinDeSemana(formData.fechaEvento)) {
         formData = { ...formData, fechaEvento: "", fechaFin: "" };
@@ -688,6 +815,7 @@ export function mountNuevaFaltaRetardoModal(
     overlay.classList.remove("flex");
     document.body.style.overflow = "";
     formData = initialFormData();
+    descansosController.setEmpleado(null);
     errors = {};
     isSubmitting = false;
     resetEmpleadoCombobox();
@@ -698,6 +826,7 @@ export function mountNuevaFaltaRetardoModal(
 
   function open(): void {
     formData = initialFormData();
+    descansosController.setEmpleado(null);
     errors = {};
     isSubmitting = false;
     resetEmpleadoCombobox();
@@ -709,7 +838,15 @@ export function mountNuevaFaltaRetardoModal(
 
   async function handleSubmit(): Promise<void> {
     if (isSubmitting) return;
-    errors = validateForm(formData, empleadoAdmin());
+    if (fechaFinFijaAuto(formData.tipo)) {
+      formData = applyRangoGoce(formData, empleadoAdmin(), descansosCargados());
+    }
+    errors = validateForm(
+      formData,
+      empleadoAdmin(),
+      descansosController.getState(),
+      descansosCargados(),
+    );
     if (Object.keys(errors).length > 0) {
       render();
       return;
@@ -723,7 +860,9 @@ export function mountNuevaFaltaRetardoModal(
         fecha_evento: formData.fechaEvento,
         observaciones: formData.observaciones.trim() || null,
       };
-      payload.fecha_fin = formData.fechaFin;
+      payload.fecha_fin = fechaFinFijaAuto(formData.tipo)
+        ? applyRangoGoce(formData, empleadoAdmin(), new Set()).fechaFin
+        : formData.fechaFin;
       await options.onSubmit(payload);
       showEmpleadosToast(options.toastContainer, FR_COPY.modalExito, "success");
       isSubmitting = false;
@@ -751,30 +890,104 @@ export function mountNuevaFaltaRetardoModal(
     const qInput = body.querySelector("#fr-form-empleado-q") as HTMLInputElement | null;
     const cancelBtn = footer.querySelector("#fr-form-cancel") as HTMLButtonElement | null;
 
-    function onFechaInicioChange(next: string): void {
-      if (empleadoAdmin() && fechaIsoEsFinDeSemana(next)) {
+    let inicioHandle: WorkdayDatePickerHandle | null = null;
+    let finHandle: WorkdayDatePickerHandle | null = null;
+
+    function syncDescansosDom(): void {
+      const requiereDescansos = tipoRequiereCalendarioDescansos(formData.tipo);
+      const dates = requiereDescansos ? descansosCargados() : new Set<string>();
+      inicioHandle?.setBlockedDates(dates);
+      finHandle?.setBlockedDates(dates);
+      if (requiereDescansos) {
+        const loadedMonths = descansosController.getLoadedMonths();
+        inicioHandle?.setLoadedMonths(loadedMonths);
+        finHandle?.setLoadedMonths(loadedMonths);
+      }
+      const status = body.querySelector(
+        "[data-fr-descansos-load-status]",
+      ) as HTMLElement | null;
+      const state = requiereDescansos ? descansosController.getState() : "ready";
+      if (status) {
+        status.innerHTML = buildDescansosFeedback(
+          state,
+          descansosController.getError(),
+          [],
+        ).loadHtml;
+      }
+      const submit = footer.querySelector("#fr-form-submit") as HTMLButtonElement | null;
+      if (submit && !isSubmitting) {
+        submit.disabled =
+          requiereDescansos && formData.empleadoId.trim() !== "" && state !== "ready";
+      }
+    }
+
+    async function cargarMes(
+      year: number,
+      monthIndex: number,
+      handle: WorkdayDatePickerHandle | null,
+    ): Promise<void> {
+      if (!tipoRequiereCalendarioDescansos(formData.tipo)) return;
+      if (!formData.empleadoId) return;
+      const request = descansosController.loadVisibleMonths(year, monthIndex);
+      syncDescansosDom();
+      try {
+        await request;
+        handle?.setBlockedDates(descansosCargados());
+      } catch {
+        // El estado y mensaje inline quedan en el controlador.
+      }
+      syncDescansosDom();
+    }
+
+    async function onFechaInicioChange(next: string): Promise<void> {
+      if (
+        empleadoAdmin() &&
+        debeValidarFinDeSemanaAdmin(formData.tipo) &&
+        fechaIsoEsFinDeSemana(next)
+      ) {
         formData = {
           ...formData,
           fechaEvento: "",
-          fechaFin: fechaFinFijaAuto(formData.tipo) ? "" : formData.fechaFin,
+          fechaFin: formData.fechaFin,
         };
         errors = { ...errors, fechaEvento: FR_COPY.modalFechasErrorFinDeSemana };
         render();
         return;
       }
       formData = { ...formData, fechaEvento: next };
+      if (!tipoRequiereCalendarioDescansos(formData.tipo)) {
+        render();
+        return;
+      }
+      const empleadoAlIniciar = formData.empleadoId;
+      const fechaHorizonte = fechaFinFijaAuto(formData.tipo)
+        ? sumarDiasIso(next, 365)
+        : next;
+      const request = descansosController.loadRange(next, fechaHorizonte || next);
+      syncDescansosDom();
+      try {
+        await request;
+      } catch {
+        if (formData.empleadoId === empleadoAlIniciar) render();
+        return;
+      }
+      if (formData.empleadoId !== empleadoAlIniciar || formData.fechaEvento !== next) return;
+      if (descansosCargados().has(next)) {
+        formData = { ...formData, fechaEvento: "", fechaFin: "" };
+        errors = { ...errors, fechaEvento: "La fecha inicial no puede ser un descanso." };
+        render();
+        return;
+      }
       if (fechaFinFijaAuto(formData.tipo)) {
-        formData = applyRangoGoce(formData, empleadoAdmin());
+        formData = applyRangoGoce(formData, empleadoAdmin(), descansosCargados());
       }
       if (
         empleadoAdmin() &&
+        debeValidarFinDeSemanaAdmin(formData.tipo) &&
         formData.fechaEvento.trim() &&
         formData.fechaFin.trim() &&
         rangoIncluyeFinDeSemana(formData.fechaEvento, formData.fechaFin)
       ) {
-        if (fechaFinFijaAuto(formData.tipo)) {
-          formData = { ...formData, fechaEvento: "", fechaFin: "" };
-        }
         errors = {
           ...errors,
           fechaEvento: FR_COPY.modalFechasErrorFinDeSemana,
@@ -795,7 +1008,7 @@ export function mountNuevaFaltaRetardoModal(
       render();
     }
 
-    function onFechaFinChange(next: string): void {
+    async function onFechaFinChange(next: string): Promise<void> {
       if (fechaFinFijaAuto(formData.tipo)) return;
       if (empleadoAdmin() && fechaIsoEsFinDeSemana(next)) {
         formData = { ...formData, fechaFin: "" };
@@ -804,6 +1017,22 @@ export function mountNuevaFaltaRetardoModal(
         return;
       }
       formData = { ...formData, fechaFin: next };
+      if (
+        tipoRequiereCalendarioDescansos(formData.tipo) &&
+        formData.fechaEvento &&
+        next >= formData.fechaEvento
+      ) {
+        const empleadoAlIniciar = formData.empleadoId;
+        const request = descansosController.loadRange(formData.fechaEvento, next);
+        syncDescansosDom();
+        try {
+          await request;
+        } catch {
+          if (formData.empleadoId === empleadoAlIniciar) render();
+          return;
+        }
+        if (formData.empleadoId !== empleadoAlIniciar || formData.fechaFin !== next) return;
+      }
       if (
         empleadoAdmin() &&
         formData.fechaEvento.trim() &&
@@ -833,11 +1062,34 @@ export function mountNuevaFaltaRetardoModal(
     const pickers = body.querySelectorAll<HTMLElement>("[data-workday-date-picker]");
     const inicioPicker = pickers[0];
     const finPicker = pickers[1];
+    const requiereDescansosPicker = tipoRequiereCalendarioDescansos(formData.tipo);
+    const blockedForPicker = requiereDescansosPicker ? descansosCargados() : new Set<string>();
     if (inicioPicker) {
-      bindWorkdayDatePicker(inicioPicker, { onChange: onFechaInicioChange, signal: dateSignal });
+      inicioHandle = bindWorkdayDatePicker(inicioPicker, {
+        onChange: (iso) => void onFechaInicioChange(iso),
+        blockedDates: blockedForPicker,
+        ...(requiereDescansosPicker
+          ? { loadedMonths: descansosController.getLoadedMonths() }
+          : {}),
+        onMonthChange: (year, monthIndex) => cargarMes(year, monthIndex, inicioHandle),
+        signal: dateSignal,
+      });
     }
-    if (finPicker) {
-      bindWorkdayDatePicker(finPicker, { onChange: onFechaFinChange, signal: dateSignal });
+    if (finPicker && !fechaFinFijaAuto(formData.tipo)) {
+      finHandle = bindWorkdayDatePicker(finPicker, {
+        onChange: (iso) => void onFechaFinChange(iso),
+        blockedDates: blockedForPicker,
+        ...(requiereDescansosPicker
+          ? { loadedMonths: descansosController.getLoadedMonths() }
+          : {}),
+        onMonthChange: (year, monthIndex) => cargarMes(year, monthIndex, finHandle),
+        signal: dateSignal,
+      });
+    }
+
+    if (requiereDescansosPicker && formData.empleadoId.trim()) {
+      const now = new Date();
+      void cargarMes(now.getFullYear(), now.getMonth(), inicioHandle);
     }
 
     if (qInput) {
@@ -935,7 +1187,7 @@ export function mountNuevaFaltaRetardoModal(
     tipoSel?.addEventListener("change", () => {
       formData = { ...formData, tipo: tipoSel.value as FaltaRetardoTipo | "" };
       if (fechaFinFijaAuto(formData.tipo)) {
-        formData = applyRangoGoce(formData, empleadoAdmin());
+        formData = applyRangoGoce(formData, empleadoAdmin(), descansosCargados());
       }
       render();
     });

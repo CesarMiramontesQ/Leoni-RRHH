@@ -27,6 +27,15 @@ const PANEL_ALIGN_END = `${PANEL_BASE} right-0`;
 const NAV_BTN =
   "inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40";
 
+export function bindAbortableEvent(
+  target: EventTarget,
+  type: string,
+  listener: EventListener,
+  signal: AbortSignal,
+): void {
+  target.addEventListener(type, listener, { signal });
+}
+
 function formatDisplay(iso: string): string {
   const d = parseIsoLocalDate(iso);
   if (!d) return "";
@@ -58,6 +67,7 @@ export type WorkdayDatePickerHtmlOpts = {
   blockWeekends?: boolean;
   invalid?: boolean;
   placeholder?: string;
+  describedBy?: string;
   /** Ancla el popover al inicio (izq) o al final (der) del campo. */
   align?: "start" | "end";
 };
@@ -68,6 +78,8 @@ export function buildWorkdayDatePickerHtml(opts: WorkdayDatePickerHtmlOpts): str
   const triggerCls = `${TRIGGER} ${opts.invalid ? TRIGGER_INVALID : ""}`.trim();
   const panelCls = opts.align === "end" ? PANEL_ALIGN_END : PANEL_ALIGN_START;
   const nameAttr = opts.inputName ? ` name="${escapeHtml(opts.inputName)}"` : "";
+  const triggerId = `${opts.inputId}-trigger`;
+  const panelId = `${opts.inputId}-panel`;
   return `
     <div
       class="relative"
@@ -77,11 +89,14 @@ export function buildWorkdayDatePickerHtml(opts: WorkdayDatePickerHtmlOpts): str
       <input type="hidden" id="${escapeHtml(opts.inputId)}"${nameAttr} value="${escapeHtml(opts.value)}" />
       <button
         type="button"
+        id="${escapeHtml(triggerId)}"
         data-wd-trigger
         class="${triggerCls}"
         aria-haspopup="dialog"
         aria-expanded="false"
+        aria-controls="${escapeHtml(panelId)}"
         aria-invalid="${opts.invalid ? "true" : "false"}"
+        ${opts.describedBy ? `aria-describedby="${escapeHtml(opts.describedBy)}"` : ""}
         ${opts.disabled ? "disabled" : ""}
       >
         <span data-wd-label class="${display ? "font-medium text-slate-900" : "text-slate-400/80"}">${
@@ -91,7 +106,7 @@ export function buildWorkdayDatePickerHtml(opts: WorkdayDatePickerHtmlOpts): str
           <path fill-rule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18h-10.5A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z" clip-rule="evenodd"/>
         </svg>
       </button>
-      <div data-wd-panel class="${panelCls} hidden" role="dialog" aria-label="Calendario" hidden></div>
+      <div id="${escapeHtml(panelId)}" data-wd-panel class="${panelCls} hidden" role="dialog" aria-label="Calendario" hidden></div>
     </div>
   `;
 }
@@ -120,12 +135,21 @@ export function setWorkdayDatePickerInvalid(root: HTMLElement, invalid: boolean)
   trigger.className = invalid ? `${base} ${TRIGGER_INVALID}` : base;
 }
 
-function renderPanelHtml(
-  year: number,
-  monthIndex: number,
-  selected: string,
-  blockWeekends: boolean,
+export type WorkdayDatePickerMonthHtmlOpts = {
+  year: number;
+  monthIndex: number;
+  selected: string;
+  blockWeekends: boolean;
+  blockedDates?: ReadonlySet<string>;
+  loadedMonths?: ReadonlySet<string>;
+};
+
+export function buildWorkdayDatePickerMonthHtml(
+  opts: WorkdayDatePickerMonthHtmlOpts,
 ): string {
+  const { year, monthIndex, selected, blockWeekends } = opts;
+  const blockedDates = opts.blockedDates ?? new Set<string>();
+  const loadedMonths = opts.loadedMonths;
   const labels = getCalendarWeekdayLabels(1);
   const cells = buildRhCalendarMonthGrid(year, monthIndex, 1);
   const today = isoLocalDate(new Date());
@@ -144,14 +168,21 @@ function renderPanelHtml(
   const days = cells
     .map((cell) => {
       const weekend = isWeekendIso(cell.isoDate);
-      const blocked = blockWeekends && weekend;
+      const descanso = blockedDates.has(cell.isoDate);
+      const pending = loadedMonths != null && !loadedMonths.has(cell.isoDate.slice(0, 7));
+      const blocked = pending || descanso || (blockWeekends && weekend);
       const selectedDay = cell.isoDate === selected;
       const isToday = cell.isoDate === today;
       const muted = !cell.inCurrentMonth;
 
       let cls =
         "flex size-8 items-center justify-center rounded-lg text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40";
-      if (blocked) {
+      if (pending) {
+        cls += " cursor-not-allowed text-slate-300/70 opacity-45";
+      } else if (descanso) {
+        cls +=
+          " cursor-not-allowed bg-amber-100 font-medium text-amber-900 ring-1 ring-inset ring-amber-200/90 line-through decoration-amber-500/70";
+      } else if (blockWeekends && weekend) {
         cls += " cursor-not-allowed text-slate-300/70 opacity-45";
       } else if (selectedDay) {
         cls += " bg-leoni-blue font-semibold text-white shadow-sm";
@@ -168,11 +199,27 @@ function renderPanelHtml(
           type="button"
           data-wd-day="${escapeHtml(cell.isoDate)}"
           class="${cls}"
-          ${blocked ? 'aria-disabled="true" tabindex="-1"' : `aria-label="${escapeHtml(cell.isoDate)}"`}
+          ${
+            blocked
+              ? `disabled aria-disabled="true" tabindex="-1" aria-label="${escapeHtml(
+                  `${cell.isoDate} — ${
+                    pending ? "Consultando descansos" : descanso ? "Descanso" : "No disponible"
+                  }`,
+                )}"${
+                  pending
+                    ? ' title="Consultando descansos"'
+                    : descanso
+                      ? ' title="Descanso"'
+                      : ""
+                }`
+              : `aria-label="${escapeHtml(cell.isoDate)}"`
+          }
           ${selectedDay ? 'aria-current="date"' : ""}
         >${cell.dayNumber}</button>`;
     })
     .join("");
+
+  const showDescansoLegend = blockedDates.size > 0 || loadedMonths != null;
 
   return `
     <div class="flex items-center justify-between gap-2 pb-2">
@@ -187,6 +234,11 @@ function renderPanelHtml(
     <div class="grid grid-cols-7 gap-0.5 pb-1">${head}</div>
     <div class="grid grid-cols-7 gap-0.5">${days}</div>
     ${
+      showDescansoLegend
+        ? `<p class="mt-2 border-t border-slate-100 pt-2 text-[11px] leading-relaxed text-amber-900/80"><span class="mr-1.5 inline-block size-2.5 rounded-sm bg-amber-200 ring-1 ring-amber-300/80 align-middle" aria-hidden="true"></span>Días en ámbar = descanso del empleado (no seleccionables).</p>`
+        : ""
+    }
+    ${
       blockWeekends
         ? `<p class="mt-2 border-t border-slate-100 pt-2 text-[11px] leading-relaxed text-slate-400">Sábados y domingos no disponibles para personal administrativo.</p>`
         : ""
@@ -196,7 +248,18 @@ function renderPanelHtml(
 
 export type BindWorkdayDatePickerOpts = {
   onChange: (iso: string) => void;
+  blockedDates?: Iterable<string>;
+  loadedMonths?: Iterable<string>;
+  onMonthChange?: (year: number, monthIndex: number) => void | Promise<void>;
   signal?: AbortSignal;
+};
+
+export type WorkdayDatePickerHandle = {
+  close: () => void;
+  destroy: () => void;
+  setBlockedDates: (dates: Iterable<string>) => void;
+  setLoadedMonths: (months: Iterable<string>) => void;
+  repaint: () => void;
 };
 
 /**
@@ -206,15 +269,27 @@ export type BindWorkdayDatePickerOpts = {
 export function bindWorkdayDatePicker(
   root: HTMLElement,
   opts: BindWorkdayDatePickerOpts,
-): () => void {
+): WorkdayDatePickerHandle {
   const trigger = root.querySelector("[data-wd-trigger]") as HTMLButtonElement | null;
   const panel = root.querySelector("[data-wd-panel]") as HTMLElement | null;
   const hidden = root.querySelector("input[type='hidden']") as HTMLInputElement | null;
   const labelEl = root.querySelector("[data-wd-label]") as HTMLElement | null;
-  if (!trigger || !panel || !hidden) return () => {};
+  if (!trigger || !panel || !hidden) {
+    return {
+      close: () => {},
+      destroy: () => {},
+      setBlockedDates: () => {},
+      setLoadedMonths: () => {},
+      repaint: () => {},
+    };
+  }
 
   let open = false;
+  const ownAbort = opts.signal == null ? new AbortController() : null;
+  const bindingSignal = opts.signal ?? ownAbort!.signal;
   let [viewY, viewM] = monthFromValue(hidden.value);
+  let blockedDates = new Set(opts.blockedDates ?? []);
+  let loadedMonths = opts.loadedMonths == null ? undefined : new Set(opts.loadedMonths);
 
   const blockWeekends = () => root.getAttribute("data-block-weekends") === "true";
 
@@ -231,7 +306,18 @@ export function bindWorkdayDatePicker(
   }
 
   function paintPanel(): void {
-    panel!.innerHTML = renderPanelHtml(viewY, viewM, hidden!.value, blockWeekends());
+    panel!.innerHTML = buildWorkdayDatePickerMonthHtml({
+      year: viewY,
+      monthIndex: viewM,
+      selected: hidden!.value,
+      blockWeekends: blockWeekends(),
+      blockedDates,
+      loadedMonths,
+    });
+  }
+
+  function notifyMonthChange(): void {
+    void opts.onMonthChange?.(viewY, viewM);
   }
 
   function setOpen(next: boolean): void {
@@ -242,6 +328,7 @@ export function bindWorkdayDatePicker(
     if (next) {
       [viewY, viewM] = monthFromValue(hidden!.value);
       paintPanel();
+      notifyMonthChange();
     }
   }
 
@@ -256,7 +343,7 @@ export function bindWorkdayDatePicker(
       if (trigger.disabled) return;
       setOpen(!open);
     },
-    { signal: opts.signal },
+    { signal: bindingSignal },
   );
 
   panel.addEventListener(
@@ -268,12 +355,14 @@ export function bindWorkdayDatePicker(
         e.preventDefault();
         [viewY, viewM] = addCalendarMonths(viewY, viewM, -1);
         paintPanel();
+        notifyMonthChange();
         return;
       }
       if (t.closest("[data-wd-next]")) {
         e.preventDefault();
         [viewY, viewM] = addCalendarMonths(viewY, viewM, 1);
         paintPanel();
+        notifyMonthChange();
         return;
       }
       const dayBtn = t.closest("[data-wd-day]") as HTMLElement | null;
@@ -288,31 +377,50 @@ export function bindWorkdayDatePicker(
       setOpen(false);
       opts.onChange(iso);
     },
-    { signal: opts.signal },
+    { signal: bindingSignal },
   );
 
-  document.addEventListener(
+  bindAbortableEvent(
+    document,
     "mousedown",
-    (e) => {
+    ((e: MouseEvent) => {
       if (!open) return;
       if (root.contains(e.target as Node)) return;
       close();
-    },
-    { signal: opts.signal },
+    }) as EventListener,
+    bindingSignal,
   );
 
-  document.addEventListener(
+  bindAbortableEvent(
+    document,
     "keydown",
-    (e) => {
+    ((e: KeyboardEvent) => {
       if (!open) return;
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
         close();
       }
-    },
-    { signal: opts.signal },
+    }) as EventListener,
+    bindingSignal,
   );
 
-  return close;
+  return {
+    close,
+    destroy: () => {
+      close();
+      ownAbort?.abort();
+    },
+    setBlockedDates: (dates) => {
+      blockedDates = new Set(dates);
+      if (open) paintPanel();
+    },
+    setLoadedMonths: (months) => {
+      loadedMonths = new Set(months);
+      if (open) paintPanel();
+    },
+    repaint: () => {
+      if (open) paintPanel();
+    },
+  };
 }

@@ -157,3 +157,27 @@ export async function getEmpleadoHomeOfficeDisponibilidad(
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as EmpleadoHomeOfficeDisponibilidad;
 }
+
+export type EmpleadoDescansosResponse = {
+  empleado_id: number;
+  no_empleado: number;
+  fecha_inicio: string;
+  fecha_fin: string;
+  descansos: string[];
+};
+
+export async function getEmpleadoDescansos(
+  empleadoId: number,
+  fechaInicio: string,
+  fechaFin: string,
+): Promise<EmpleadoDescansosResponse> {
+  const sp = new URLSearchParams({
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin,
+  });
+  const res = await fetchWithAuth(
+    `/api/v1/empleados/${empleadoId}/descansos?${sp.toString()}`,
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as EmpleadoDescansosResponse;
+}

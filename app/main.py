@@ -23,13 +23,17 @@ scheduler = AsyncIOScheduler(timezone=ZoneInfo(settings.APP_TIMEZONE))
 
 
 async def _tress_scheduler_job():
-    """Procesa la cola de operaciones TRESS pendientes."""
-    try:
-        from app.integrations.tress.tress_scheduler import procesar_cola_tress
+    """
+    DEPRECATED: la cola RPA / tress_robot_queue ya no se usa.
 
-        await procesar_cola_tress()
-    except Exception as exc:
-        logger.error("Error en TRESS scheduler job: %s", str(exc), exc_info=True)
+    La integración con nómina es escritura directa a DATOS_ANALISIS.
+    Este job no se registra en el scheduler; se conserva solo por compatibilidad
+    si alguien lo invoca manualmente.
+    """
+    logger.warning(
+        "tress_scheduler invocado pero está deprecado (sin RPA); no-op. "
+        "Usar INSERT directo a DATOS_ANALISIS."
+    )
 
 
 async def _eval360_recordatorios_job():
@@ -80,13 +84,7 @@ async def lifespan(app: FastAPI):
             str(e),
         )
 
-    # 2. APScheduler — cola TRESS
-    scheduler.add_job(
-        _tress_scheduler_job,
-        "interval",
-        minutes=5,
-        id="tress_scheduler",
-    )
+    # 2. APScheduler — jobs periódicos (sin cola TRESS/RPA; nómina = DATOS_ANALISIS directo)
     # Recordatorios Evaluación 360: una vez al día (08:00).
     scheduler.add_job(
         _eval360_recordatorios_job,

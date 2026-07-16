@@ -1,7 +1,15 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel
+
+
+class DescansosEmpleadoResponse(BaseModel):
+    empleado_id: int
+    no_empleado: int
+    fecha_inicio: date
+    fecha_fin: date
+    descansos: list[date]
 
 
 class CatalogoSimpleResponse(BaseModel):

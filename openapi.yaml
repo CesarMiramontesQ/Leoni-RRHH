@@ -1402,6 +1402,33 @@ components:
           nullable: true
           description: Suma de VS_S_GOZO desde dbo.GET_SALDOS_VACACION(no_empleado); 0 si el empleado no tiene periodos
 
+    DescansosEmpleadoResponse:
+      type: object
+      required:
+        - empleado_id
+        - no_empleado
+        - fecha_inicio
+        - fecha_fin
+        - descansos
+      properties:
+        empleado_id:
+          type: integer
+        no_empleado:
+          type: integer
+          description: Código del colaborador en TRESS
+        fecha_inicio:
+          type: string
+          format: date
+        fecha_fin:
+          type: string
+          format: date
+        descansos:
+          type: array
+          description: Fechas con AU_STATUS igual a 2, ordenadas ascendentemente
+          items:
+            type: string
+            format: date
+
     VacacionesDisponibleSolicitudResponse:
       type: object
       required:
@@ -2250,9 +2277,11 @@ components:
       description: >
         Para tipo=suspension, fecha_fin es obligatoria y observaciones es el motivo TRESS
         (obligatoria, max 30 caracteres). La suspensión se inserta primero en DATOS_ANALISIS
-        (dbo.PERMISO) y luego en Bono. Los tipos con goce (matrimonio, incapacidad_interna,
-        defuncion, paternidad) se guardan en levelup_faltas_retardos y se encolan a TRESS
-        sin aprobación.
+        (dbo.PERMISO) y luego en Bono. Los tipos con goce fijos (matrimonio, defuncion,
+        paternidad) se parten por semana calendario (lun–dom): un INSERT dbo.PERMISO
+        (PM_TIPO='FJ ', PM_NUMERO='PERMISO', PM_CLASIFI=0) y una fila en
+        levelup_faltas_retardos por tramo. incapacidad_interna solo se guarda en levelup
+        (sin cola RPA). No se usa tress_robot_queue.
       properties:
         empleado_id:
           type: integer
@@ -7185,6 +7214,49 @@ paths:
         "503":
           description: Base datos-analisis no configurada o no disponible
 
+  /api/v1/empleados/{empleado_id}/descansos:
+    get:
+      tags: [Empleados]
+      summary: Descansos aplicados del empleado en TRESS
+      operationId: empleados_descansos_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: fecha_inicio
+          in: query
+          required: true
+          description: Inicio inclusivo del rango
+          schema:
+            type: string
+            format: date
+        - name: fecha_fin
+          in: query
+          required: true
+          description: Fin inclusivo del rango; el rango completo no puede exceder 366 días
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Fechas de descanso ordenadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DescansosEmpleadoResponse"
+        "403":
+          description: Requiere rol operativo/gerente/supervisor/director (o módulo RH equivalente)
+        "404":
+          description: Empleado no encontrado
+        "422":
+          description: Rango inválido o mayor a 366 días
+        "503":
+          description: Base datos-analisis no configurada o no disponible
+
   /api/v1/empleados/{empleado_id}/vacaciones-disponibles-solicitud:
     get:
       tags: [Empleados]
@@ -8060,7 +8132,9 @@ paths:
               $ref: "#/components/schemas/FaltaRetardoCreateRequest"
       responses:
         "201":
-          description: Evento creado
+          description: >
+            Evento creado. Para matrimonio/defunción/paternidad que cruzan semana
+            calendario se crean N filas; la respuesta es el primer tramo.
           content:
             application/json:
               schema:

@@ -62,7 +62,13 @@ Layered architecture: **router → service → repository → models/schemas**
 - `app/schemas/` — Pydantic models for request/response validation
 - `app/models/` — SQLAlchemy ORM models (PostgreSQL with JSONB, enums)
 - `app/core/` — Config (pydantic-settings from .env), database engine, security (JWT), exceptions
-- `app/integrations/` — External systems: TRESS payroll (Windows ODBC), IT Mirror sync, Ollama LLM, email SMTP
+- `app/integrations/` — External systems: TRESS payroll via **direct SQL to DATOS_ANALISIS** (no RPA / no `tress_robot_queue`), IT Mirror sync, Ollama LLM, email SMTP
+
+### TRESS / DATOS_ANALISIS (sin RPA)
+- Integración con nómina: **solo escritura/lectura directa** a la BD TRESS (`DATOS_ANALISIS_DB_*`).
+- **Prohibido** usar cola RPA (`encolar_tress`, `levelup_tress_robot_queue`, robot GUI) en features nuevas.
+- Código de cola/scheduler/robot en `app/integrations/tress/` está **deprecado** (sin consumidor; cleanup pendiente).
+- Patrones vigentes: INSERT síncrono a `dbo.PERMISO` / `dbo.VACACION` (suspensión, home office, goce FJ, vacaciones).
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 
 ### Frontend (frontend/src/)
@@ -76,7 +82,7 @@ Layered architecture: **router → service → repository → models/schemas**
 ### Key Patterns
 - Async everywhere: asyncpg driver, async sessions, async test fixtures
 - Tests use SQLite in-memory with JSONB→JSON patch (see `tests/conftest.py`); no Docker required
-- APScheduler runs periodic jobs (TRESS queue processing, IT Mirror sync, nightly bono imports: `calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`)
+- APScheduler runs periodic jobs (Eval360 reminders, nightly FI/RE sync, IT Mirror sync, nightly bono imports: `calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`). **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper
@@ -137,7 +143,7 @@ Layered architecture: **router → service → repository → models/schemas**
 
 ### Database — external DB + `levelup_` prefix (mandatory)
 - **External DB (Bono):** never create, alter, or drop tables/columns/indexes belonging to the external schema (any table without the `levelup_` prefix). Read and FKs only.
-- **External DB (DATOS_ANALISIS / SQL Server):** never create, alter, or drop tables, views, columns, or indexes. Entire schema is external; business DML (SELECT/INSERT) does not authorize DDL.
+- **External DB (DATOS_ANALISIS / SQL Server):** never create, alter, or drop tables, views, columns, or indexes. Entire schema is external; business DML (SELECT/INSERT) does not authorize DDL. Payroll integration is **direct SQL only** — do not use `encolar_tress` / RPA / robot GUI for new features.
 - Every **new** table owned by this project must be named `levelup_<name>` (`__tablename__` in SQLAlchemy models).
 - **Do not** create, alter, or drop tables without the `levelup_` prefix in models, repositories, or Alembic migrations.
 - Legacy Bono tables (`empleados`, `areas`, `puestos`, etc.) are **read-only** from this project: query and FK-reference only; no schema migrations or DDL on them.

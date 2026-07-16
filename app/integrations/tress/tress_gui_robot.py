@@ -1,11 +1,17 @@
 # app/integrations/tress/tress_gui_robot.py
 """
-Robot GUI de TRESS via pywinauto — ESCRITURA en TRESS.
+DEPRECATED — no usar. No habrá RPA / robot GUI de TRESS.
+
+La integración con nómina es escritura directa a DATOS_ANALISIS.
+Este módulo se conserva solo como legado; el scheduler ya no lo invoca.
+
+---
+Histórico: Robot GUI de TRESS via pywinauto — ESCRITURA en TRESS.
 
 Disponible SOLO en Windows con TRESS instalado localmente o via RDP.
 En otros entornos, los metodos logean un warning y retornan sin operar.
 
-Politica de uso:
+Politica de uso (legacy):
   - Solo escribir lo que no se puede hacer via SQL directo
   - Cada operacion debe ser idempotente o verificar estado previo
   - Timeout por operacion: 30 segundos

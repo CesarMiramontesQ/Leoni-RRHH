@@ -14,14 +14,6 @@ _ID_OFFSETS: dict[str, int] = {
     ORIGEN_MANUAL: 4_000_000_000,
 }
 
-# Acciones TRESS robot para permisos con goce registrados desde faltas/retardos.
-TRESS_ACCION_GOCE: dict[str, str] = {
-    "matrimonio": "REGISTRAR_GOCE_SUELDO_MATRIMONIO",
-    "incapacidad_interna": "REGISTRAR_GOCE_SUELDO_INCAPACIDAD_INTERNA",
-    "defuncion": "REGISTRAR_GOCE_SUELDO_DEFUNCION",
-    "paternidad": "REGISTRAR_GOCE_SUELDO_PATERNIDAD",
-}
-
 CODIGO_PONDERACION_A_TIPO: dict[str, str] = {
     "FJ": "falta_justificada",
     "FI": "falta_injustificada",

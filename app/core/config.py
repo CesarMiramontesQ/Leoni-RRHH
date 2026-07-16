@@ -148,6 +148,9 @@ class Settings(BaseSettings):
     # Suspensión → TRESS (INSERT dbo.PERMISO desde faltas/retardos; US_CODIGO = TRESS_VACACIONES_US_CODIGO)
     TRESS_SUSPENSION_DRY_RUN: bool = False
 
+    # Permiso con goce (matrimonio/defunción/paternidad) → TRESS INSERT dbo.PERMISO FJ
+    TRESS_GOCE_DRY_RUN: bool = False
+
     # IT Mirror DB
     IT_MIRROR_DB_URL: str = ""
 

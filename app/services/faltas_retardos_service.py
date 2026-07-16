@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +7,6 @@ from app.core.config import settings
 from app.core.data_scope import effective_data_scope_for_module
 from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError, ServiceUnavailableError
 from app.integrations.bono_productividad_db import BonoProductividadReadClient
-from app.integrations.tress.queue import encolar_tress
 from app.models.empleados import Empleado
 from app.models.faltas_retardos import (
     FALTA_RETARDO_TIPOS,
@@ -30,15 +29,31 @@ from app.services.faltas_retardos.constants import (
     ORIGEN_IMPORTADAS_HISTORICO,
     ORIGEN_MANUAL,
     TIPO_A_PONDERACION,
-    TRESS_ACCION_GOCE,
     synthetic_falta_retardo_id,
 )
 from app.services.faltas_retardos.mapper import map_bono_row
+from app.services.descansos_empleado_service import obtener_descansos_tress
+from app.services.tress_goce_service import (
+    FALTA_RETARDO_TIPOS_GOCE_FJ,
+    GOCE_PM_COMENTA,
+    registrar_permisos_goce_tramos_en_tress,
+)
 from app.services.tress_suspension_service import registrar_suspension_en_tress
 from app.utils.clasificacion_empleado import empleado_es_administrativo
+from app.utils.descansos_fechas import (
+    avanzar_hasta_reunir_dias,
+    fechas_efectivas_en_rango,
+    partir_tramos_por_semanas,
+    tramos_consecutivos,
+)
 from app.utils.vacaciones_fechas import defuncion_rango_para_empleado, paternidad_rango
 
 _FALTA_RETARDO_TIPOS_BONO_RANGO = frozenset({"incapacidad", "suspension"})
+_DIAS_GOCE = {
+    "matrimonio": 2,
+    "defuncion": 3,
+    "paternidad": 7,
+}
 
 
 def _empleado_display_nombre(empleado: Empleado | None) -> str | None:
@@ -530,6 +545,57 @@ class FaltasRetardosService:
                     "más cercanos."
                 )
 
+    async def _tramos_goce_sin_descansos(
+        self,
+        *,
+        data: FaltaRetardoCreateRequest,
+        no_empleado: int,
+        administrativo: bool,
+    ) -> list[tuple[date, date]]:
+        assert data.fecha_fin is not None
+        if data.tipo in FALTA_RETARDO_TIPOS_GOCE_FJ:
+            horizonte = data.fecha_evento + timedelta(days=365)
+            descansos = set(
+                await obtener_descansos_tress(
+                    cb_codigo=no_empleado,
+                    fecha_inicio=data.fecha_evento,
+                    fecha_fin=horizonte,
+                )
+            )
+            if data.fecha_evento in descansos:
+                raise DomainValidationError(
+                    "La fecha inicial no puede ser un descanso aplicado en TRESS."
+                )
+            solo_lunes_viernes = data.tipo == "paternidad" or (
+                data.tipo == "defuncion" and administrativo
+            )
+            fechas = avanzar_hasta_reunir_dias(
+                data.fecha_evento,
+                _DIAS_GOCE[data.tipo],
+                descansos,
+                solo_lunes_viernes=solo_lunes_viernes,
+            )
+            if fechas[-1] > horizonte:
+                raise DomainValidationError(
+                    "No fue posible reunir los días otorgados dentro del rango consultable."
+                )
+        else:
+            descansos = await obtener_descansos_tress(
+                cb_codigo=no_empleado,
+                fecha_inicio=data.fecha_evento,
+                fecha_fin=data.fecha_fin,
+            )
+            fechas = fechas_efectivas_en_rango(
+                data.fecha_evento,
+                data.fecha_fin,
+                descansos,
+            )
+            if not fechas:
+                raise DomainValidationError(
+                    "El rango efectivo queda vacío porque todos los días son descansos."
+                )
+        return partir_tramos_por_semanas(tramos_consecutivos(fechas))
+
     async def _crear_evento_goce(
         self,
         data: FaltaRetardoCreateRequest,
@@ -544,31 +610,54 @@ class FaltasRetardosService:
         self._validar_fechas_goce(data, administrativo=administrativo)
 
         observaciones = data.observaciones.strip() if data.observaciones else None
-        ev = await self.audit_repo.create_evento(
-            empleado_id=empleado.empleado_id,
-            tipo=data.tipo,
-            fecha_evento=data.fecha_evento,
-            fecha_fin=data.fecha_fin,
-            observaciones=observaciones,
-            registrado_por_id=current_user.empleado_id,
+        tramos = await self._tramos_goce_sin_descansos(
+            data=data,
+            no_empleado=int(empleado.no_empleado),
+            administrativo=administrativo,
         )
 
-        accion = TRESS_ACCION_GOCE.get(data.tipo)
-        if accion:
-            await encolar_tress(
-                db=self.db,
-                accion=accion,
-                payload={
-                    "empleado_num": int(empleado.no_empleado),
-                    "fecha_inicio": str(data.fecha_evento),
-                    "fecha_fin": str(data.fecha_fin),
-                    "referencia_id": ev.id,
-                },
+        # Matrimonio / defunción / paternidad: split lun–dom + INSERT directo dbo.PERMISO (FJ).
+        # incapacidad_interna: solo levelup (sin cola RPA; INSERT TRESS pendiente de contrato).
+        if data.tipo in FALTA_RETARDO_TIPOS_GOCE_FJ:
+            comentario_tress = GOCE_PM_COMENTA[data.tipo]
+            await registrar_permisos_goce_tramos_en_tress(
+                no_empleado=int(empleado.no_empleado),
+                tramos=tramos,
+                comentario=comentario_tress,
             )
+            first_ev: FaltaRetardoEvento | None = None
+            for inicio, fin in tramos:
+                ev = await self.audit_repo.create_evento(
+                    empleado_id=empleado.empleado_id,
+                    tipo=data.tipo,
+                    fecha_evento=inicio,
+                    fecha_fin=fin,
+                    observaciones=observaciones,
+                    registrado_por_id=current_user.empleado_id,
+                )
+                if first_ev is None:
+                    first_ev = ev
+            assert first_ev is not None
+            await self.db.commit()
+            loaded = await self.audit_repo.get_with_relations(first_ev.id)
+            return self._map_levelup_evento(loaded if loaded is not None else first_ev)
 
+        first_ev: FaltaRetardoEvento | None = None
+        for inicio, fin in tramos:
+            ev = await self.audit_repo.create_evento(
+                empleado_id=empleado.empleado_id,
+                tipo=data.tipo,
+                fecha_evento=inicio,
+                fecha_fin=fin,
+                observaciones=observaciones,
+                registrado_por_id=current_user.empleado_id,
+            )
+            if first_ev is None:
+                first_ev = ev
+        assert first_ev is not None
         await self.db.commit()
-        loaded = await self.audit_repo.get_with_relations(ev.id)
-        return self._map_levelup_evento(loaded if loaded is not None else ev)
+        loaded = await self.audit_repo.get_with_relations(first_ev.id)
+        return self._map_levelup_evento(loaded if loaded is not None else first_ev)
 
     async def crear_evento(
         self,
@@ -583,29 +672,69 @@ class FaltasRetardosService:
         if data.tipo in FALTA_RETARDO_TIPOS_GOCE:
             return await self._crear_evento_goce(data, current_user, empleado)
 
+        suspension_tramos: list[tuple[date, date]] | None = None
         if data.tipo == "suspension":
             if data.fecha_fin is None:
                 raise DomainValidationError("fecha_fin es obligatoria para suspensión")
-            await registrar_suspension_en_tress(
-                no_empleado=int(empleado.no_empleado),
+            descansos = await obtener_descansos_tress(
+                cb_codigo=int(empleado.no_empleado),
                 fecha_inicio=data.fecha_evento,
                 fecha_fin=data.fecha_fin,
-                comentario=(data.observaciones or "").strip(),
             )
+            fechas = fechas_efectivas_en_rango(
+                data.fecha_evento,
+                data.fecha_fin,
+                descansos,
+            )
+            if not fechas:
+                raise DomainValidationError(
+                    "El rango efectivo queda vacío porque todos los días son descansos."
+                )
+            suspension_tramos = partir_tramos_por_semanas(tramos_consecutivos(fechas))
+            for inicio, fin in suspension_tramos:
+                await registrar_suspension_en_tress(
+                    no_empleado=int(empleado.no_empleado),
+                    fecha_inicio=inicio,
+                    fecha_fin=fin,
+                    comentario=(data.observaciones or "").strip(),
+                )
 
-        origen_ids = await self._insertar_en_importadas_historico(empleado, data)
+        datos_por_tramo = (
+            [
+                data.model_copy(
+                    update={"fecha_evento": inicio, "fecha_fin": fin}
+                )
+                for inicio, fin in suspension_tramos
+            ]
+            if suspension_tramos is not None
+            else [data]
+        )
+        origen_ids_por_tramo: list[tuple[list[int], FaltaRetardoCreateRequest]] = []
+        for datos_tramo in datos_por_tramo:
+            ids = await self._insertar_en_importadas_historico(empleado, datos_tramo)
+            origen_ids_por_tramo.append((ids, datos_tramo))
+        origen_ids = [
+            origen_id
+            for ids, _datos_tramo in origen_ids_por_tramo
+            for origen_id in ids
+        ]
         origen_id = origen_ids[0]
 
         fecha_fin = data.fecha_fin if data.tipo in FALTA_RETARDO_TIPOS_RANGO else None
         observaciones = data.observaciones.strip() if data.observaciones else None
 
-        await self.audit_repo.save_registros_auditoria(
-            bono_origen=ORIGEN_IMPORTADAS_HISTORICO,
-            bono_origen_ids=origen_ids,
-            registrado_por_id=current_user.empleado_id,
-            observaciones=observaciones,
-            fecha_fin=fecha_fin,
-        )
+        for ids, datos_tramo in origen_ids_por_tramo:
+            await self.audit_repo.save_registros_auditoria(
+                bono_origen=ORIGEN_IMPORTADAS_HISTORICO,
+                bono_origen_ids=ids,
+                registrado_por_id=current_user.empleado_id,
+                observaciones=observaciones,
+                fecha_fin=(
+                    datos_tramo.fecha_fin
+                    if data.tipo in FALTA_RETARDO_TIPOS_RANGO
+                    else None
+                ),
+            )
         await self.db.commit()
 
         engine, repo = await self._with_bono_importadas_repo()
@@ -634,7 +763,7 @@ class FaltasRetardosService:
         return self._to_response_importadas(
             mapped,
             current_user=current_user,
-            fecha_fin=fecha_fin,
+            fecha_fin=datos_por_tramo[0].fecha_fin if fecha_fin is not None else None,
             observaciones=observaciones,
         )
 
