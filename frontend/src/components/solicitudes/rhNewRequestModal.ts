@@ -42,6 +42,10 @@ import {
 } from "../../solicitudes/rh/rhNewRequestSubmit.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 import {
+  bindWorkdayDatePicker,
+  syncWorkdayDatePickerDisplay,
+} from "../../ui/workdayDatePicker.ts";
+import {
   applyRhModalLiveFeedback,
   buildEmpleadoListboxHtml,
   buildFormHtml,
@@ -154,6 +158,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let empleadoSearchSeq = 0;
   /** Personal vs equipo (solo supervisor cuando `supervisorSolicitudSubjectSelector`). */
   let solicitudSubjectSupervisor: SupervisorSolicitudSujeto = "personal";
+  /** Aborta listeners de date pickers al re-renderizar el form. */
+  let datePickersAbort: AbortController | null = null;
 
   const showSupervisorSujeto =
     options.supervisorSolicitudSubjectSelector === true &&
@@ -219,6 +225,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   }
 
   function close(): void {
+    datePickersAbort?.abort();
+    datePickersAbort = null;
     rootOverlay.classList.add("hidden");
     rootOverlay.classList.remove("flex");
     document.body.style.overflow = "";
@@ -226,6 +234,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     revisionEmpleadoId = null;
     revisionEmpleadoDisplayLine = "";
     if (searchTimer) clearTimeout(searchTimer);
+  }
+
+  function focusFechaInicioPicker(): void {
+    const trigger = host
+      .querySelector("#rh-nr-inicio")
+      ?.closest("[data-workday-date-picker]")
+      ?.querySelector("[data-wd-trigger]") as HTMLButtonElement | null;
+    trigger?.focus();
   }
 
   function showError(msg: string): void {
@@ -561,6 +577,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   }
 
   function bindFormInteractions(): void {
+    datePickersAbort?.abort();
+    datePickersAbort = new AbortController();
+    const dateSignal = datePickersAbort.signal;
+
     const form = host.querySelector("#rh-nr-form") as HTMLFormElement | null;
     const qInput = host.querySelector("#rh-nr-empleado-q") as HTMLInputElement | null;
     const inicio = host.querySelector("#rh-nr-inicio") as HTMLInputElement | null;
@@ -579,6 +599,14 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     const isMatrimonioDosDias = tipo === "matrimonio";
     const isDefuncionTresDias = tipo === "defuncion";
     const isPaternidadSieteDias = tipo === "paternidad";
+
+    function syncPickerDisplays(): void {
+      for (const input of [inicio, fin]) {
+        if (!input) continue;
+        const root = input.closest("[data-workday-date-picker]") as HTMLElement | null;
+        if (root) syncWorkdayDatePickerDisplay(root);
+      }
+    }
 
     function syncFechasFijas(): void {
       if (!inicio || !fin) return;
@@ -601,6 +629,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           fin.value = rango.fechaFin;
         }
       }
+      syncPickerDisplays();
     }
 
     async function aplicarSeleccionEmpleado(empleadoIdRaw: string): Promise<void> {
@@ -853,34 +882,39 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       document.addEventListener("mousedown", clickOutside, { signal: options.signal });
     }
 
-    inicio?.addEventListener(
-      "input",
-      () => {
-        syncFechasFijas();
-        if (tipo === "home_office") {
-          const empRaw =
-            (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ||
-            (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ||
-            "";
-          const empId = Number.parseInt(empRaw, 10);
-          void (async (): Promise<void> => {
-            try {
-              await refreshContextForEmpleado(
-                empRaw && Number.isFinite(empId) ? empId : null,
-                inicio?.value ?? "",
-              );
-              refreshLiveFormState();
-            } catch {
-              refreshLiveFormState();
-            }
-          })();
-        } else {
-          refreshLiveFormState();
-        }
-      },
-      { signal: options.signal },
-    );
-    fin?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
+    function onFechaInicioChange(): void {
+      syncFechasFijas();
+      if (tipo === "home_office") {
+        const empRaw =
+          (host.querySelector("#rh-nr-empleado-id") as HTMLInputElement | null)?.value ||
+          (host.querySelector("#rh-nr-empleado") as HTMLSelectElement | null)?.value ||
+          "";
+        const empId = Number.parseInt(empRaw, 10);
+        void (async (): Promise<void> => {
+          try {
+            await refreshContextForEmpleado(
+              empRaw && Number.isFinite(empId) ? empId : null,
+              inicio?.value ?? "",
+            );
+            refreshLiveFormState();
+          } catch {
+            refreshLiveFormState();
+          }
+        })();
+      } else {
+        refreshLiveFormState();
+      }
+    }
+
+    const pickers = host.querySelectorAll<HTMLElement>("[data-workday-date-picker]");
+    const inicioPicker = pickers[0];
+    const finPicker = pickers[1];
+    if (inicioPicker) {
+      bindWorkdayDatePicker(inicioPicker, { onChange: onFechaInicioChange, signal: dateSignal });
+    }
+    if (finPicker) {
+      bindWorkdayDatePicker(finPicker, { onChange: refreshLiveFormState, signal: dateSignal });
+    }
     motivo?.addEventListener("input", refreshLiveFormState, { signal: options.signal });
     syncFechasFijas();
 
@@ -1226,7 +1260,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             motivo: typeof sol.motivo === "string" ? sol.motivo : "",
             submitLabel: "Guardar y reenviar",
           });
-          (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();
+          focusFechaInicioPicker();
           return;
         }
 
@@ -1266,11 +1300,11 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
                 ? Number.parseInt(selectedId, 10)
                 : null;
           await refreshContextForEmpleado(ctxEmpDir);
-          (
-            host.querySelector(
-              abreSupervisorPersonal ? "#rh-nr-inicio" : "#rh-nr-empleado-q",
-            ) as HTMLElement | null
-          )?.focus();
+          if (abreSupervisorPersonal) {
+            focusFechaInicioPicker();
+          } else {
+            (host.querySelector("#rh-nr-empleado-q") as HTMLElement | null)?.focus();
+          }
         } else {
           await refreshContextForEmpleado(fixedSelfId);
           const today = new Date();
@@ -1281,7 +1315,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             fechaFin: iso(today),
             motivo: "",
           });
-          (host.querySelector("#rh-nr-inicio") as HTMLElement | null)?.focus();
+          focusFechaInicioPicker();
         }
       } catch (e: unknown) {
         if (
@@ -1298,6 +1332,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     },
     close,
     destroy: () => {
+      datePickersAbort?.abort();
+      datePickersAbort = null;
       if (searchTimer) clearTimeout(searchTimer);
       host.innerHTML = "";
       document.body.style.overflow = "";

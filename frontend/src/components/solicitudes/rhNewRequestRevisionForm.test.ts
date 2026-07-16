@@ -64,7 +64,7 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
     expect(html).toContain('id="rh-nr-motivo"');
   });
 
-  it("matrimonio fija fecha fin readonly a 2 días", () => {
+  it("matrimonio fija fecha fin deshabilitada a 2 días", () => {
     const html = buildFormHtml({
       ...base,
       tipo: "matrimonio",
@@ -76,8 +76,9 @@ describe("buildFormHtml — modo revisión (changes_requested)", () => {
       matrimonioTwoDayMode: true,
     });
     expect(html).toContain('id="rh-nr-fin"');
-    expect(html).toContain("readonly");
-    expect(html).toContain("2026-05-05");
+    expect(html).toContain("disabled");
+    expect(html).toContain('value="2026-05-05"');
+    expect(html).toContain("data-workday-date-picker");
   });
 
   it("oculta Home Office cuando showHomeOfficeType es false", () => {

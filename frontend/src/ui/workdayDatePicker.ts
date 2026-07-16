@@ -51,6 +51,8 @@ function monthFromValue(value: string): [number, number] {
 
 export type WorkdayDatePickerHtmlOpts = {
   inputId: string;
+  /** `name` del input oculto (p. ej. para FormData). */
+  inputName?: string;
   value: string;
   disabled?: boolean;
   blockWeekends?: boolean;
@@ -65,13 +67,14 @@ export function buildWorkdayDatePickerHtml(opts: WorkdayDatePickerHtmlOpts): str
   const placeholder = opts.placeholder ?? "Seleccionar fecha";
   const triggerCls = `${TRIGGER} ${opts.invalid ? TRIGGER_INVALID : ""}`.trim();
   const panelCls = opts.align === "end" ? PANEL_ALIGN_END : PANEL_ALIGN_START;
+  const nameAttr = opts.inputName ? ` name="${escapeHtml(opts.inputName)}"` : "";
   return `
     <div
       class="relative"
       data-workday-date-picker
       data-block-weekends="${opts.blockWeekends === true ? "true" : "false"}"
     >
-      <input type="hidden" id="${escapeHtml(opts.inputId)}" value="${escapeHtml(opts.value)}" />
+      <input type="hidden" id="${escapeHtml(opts.inputId)}"${nameAttr} value="${escapeHtml(opts.value)}" />
       <button
         type="button"
         data-wd-trigger
@@ -91,6 +94,30 @@ export function buildWorkdayDatePickerHtml(opts: WorkdayDatePickerHtmlOpts): str
       <div data-wd-panel class="${panelCls} hidden" role="dialog" aria-label="Calendario" hidden></div>
     </div>
   `;
+}
+
+/** Actualiza la etiqueta visible a partir del valor del input oculto. */
+export function syncWorkdayDatePickerDisplay(root: HTMLElement): void {
+  const hidden = root.querySelector("input[type='hidden']") as HTMLInputElement | null;
+  const labelEl = root.querySelector("[data-wd-label]") as HTMLElement | null;
+  if (!hidden || !labelEl) return;
+  const display = formatDisplay(hidden.value);
+  if (display) {
+    labelEl.textContent = display;
+    labelEl.className = "font-medium text-slate-900";
+  } else {
+    labelEl.textContent = "Seleccionar fecha";
+    labelEl.className = "text-slate-400/80";
+  }
+}
+
+/** Marca visualmente el trigger como inválido (bordes rojos + aria). */
+export function setWorkdayDatePickerInvalid(root: HTMLElement, invalid: boolean): void {
+  const trigger = root.querySelector("[data-wd-trigger]") as HTMLButtonElement | null;
+  if (!trigger) return;
+  trigger.setAttribute("aria-invalid", invalid ? "true" : "false");
+  const base = TRIGGER.trim();
+  trigger.className = invalid ? `${base} ${TRIGGER_INVALID}` : base;
 }
 
 function renderPanelHtml(

@@ -23,6 +23,10 @@ import type { UsuarioListItem } from "../../api/usuarios.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+import {
+  buildWorkdayDatePickerHtml,
+  setWorkdayDatePickerInvalid,
+} from "../../ui/workdayDatePicker.ts";
 export { escapeHtml };
 
 /** Título de bloque (escaneable, accesible). */
@@ -559,8 +563,27 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
     <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd" />
   </svg>`;
 
-  const fiClass = `${CONTROL} font-medium tabular-nums ${p.fechaInInvalid ? CONTROL_INVALID : ""}`;
-  const ffClass = `${CONTROL} font-medium tabular-nums ${p.fechaFinInvalid ? CONTROL_INVALID : ""}`;
+  const blockWeekends =
+    p.empleadoAdministrativo === true || p.vacacionesAdministrativo === true;
+  const pickerInicio = (invalid: boolean) =>
+    buildWorkdayDatePickerHtml({
+      inputId: "rh-nr-inicio",
+      inputName: "fecha_inicio",
+      value: p.fechaInicio,
+      blockWeekends,
+      invalid,
+      align: "start",
+    });
+  const pickerFin = (opts: { invalid: boolean; disabled?: boolean }) =>
+    buildWorkdayDatePickerHtml({
+      inputId: "rh-nr-fin",
+      inputName: "fecha_fin",
+      value: p.fechaFin,
+      disabled: opts.disabled === true,
+      blockWeekends: blockWeekends && opts.disabled !== true,
+      invalid: opts.invalid,
+      align: "end",
+    });
 
   const empleadoAyudaFija =
     revision ?
@@ -761,51 +784,29 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
             `<div class="grid grid-cols-1 gap-5">
               <div>
                 <label for="rh-nr-inicio" class="${LABEL}">Fecha</label>
-                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+                ${pickerInicio(p.fechaInInvalid)}
                 <input id="rh-nr-fin" name="fecha_fin" type="hidden" value="${escapeHtml(p.fechaInicio)}" />
               </div>
             </div>`
-          : matrimonioTwoDayMode ?
+          : matrimonioTwoDayMode || defuncionThreeDayMode || paternidadSevenDayMode ?
             `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
               <div>
                 <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
-                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+                ${pickerInicio(p.fechaInInvalid)}
               </div>
               <div>
                 <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
-                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
-              </div>
-            </div>`
-          : defuncionThreeDayMode ?
-            `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
-              <div>
-                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
-                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
-              </div>
-              <div>
-                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
-                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
-              </div>
-            </div>`
-          : paternidadSevenDayMode ?
-            `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
-              <div>
-                <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
-                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
-              </div>
-              <div>
-                <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
-                <input id="rh-nr-fin" name="fecha_fin" type="date" required readonly tabindex="-1" class="${ffClass} cursor-not-allowed bg-slate-50/90" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
+                ${pickerFin({ invalid: p.fechaFinInvalid, disabled: true })}
               </div>
             </div>`
           : `<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
               <div>
                 <label for="rh-nr-inicio" class="${LABEL}">Fecha de inicio</label>
-                <input id="rh-nr-inicio" name="fecha_inicio" type="date" required class="${fiClass}" value="${escapeHtml(p.fechaInicio)}" aria-invalid="${p.fechaInInvalid}" />
+                ${pickerInicio(p.fechaInInvalid)}
               </div>
               <div>
                 <label for="rh-nr-fin" class="${LABEL}">Fecha de fin</label>
-                <input id="rh-nr-fin" name="fecha_fin" type="date" required class="${ffClass}" value="${escapeHtml(p.fechaFin)}" aria-invalid="${p.fechaFinInvalid}" />
+                ${pickerFin({ invalid: p.fechaFinInvalid })}
               </div>
             </div>`
         }
@@ -1097,8 +1098,10 @@ export function applyRhModalLiveFeedback(
     homeOfficeMesOcupado ? false : contextoHoPuedeSolicitarMes,
   );
 
-  fi.className = `${CONTROL} font-medium tabular-nums ${ui.fechaInInvalid ? CONTROL_INVALID : ""}`;
-  ff.className = `${CONTROL} font-medium tabular-nums ${ui.fechaFinInvalid ? CONTROL_INVALID : ""}`;
+  const fiRoot = fi.closest("[data-workday-date-picker]") as HTMLElement | null;
+  const ffRoot = ff.closest("[data-workday-date-picker]") as HTMLElement | null;
+  if (fiRoot) setWorkdayDatePickerInvalid(fiRoot, ui.fechaInInvalid);
+  if (ffRoot) setWorkdayDatePickerInvalid(ffRoot, ui.fechaFinInvalid);
 
   const diasEl = modalHost.querySelector("#rh-nr-dias");
   if (diasEl) {
@@ -1135,7 +1138,4 @@ export function applyRhModalLiveFeedback(
   if (submit && !busyLabel) {
     submit.disabled = !ui.canSubmit;
   }
-
-  fi.setAttribute("aria-invalid", String(ui.fechaInInvalid));
-  ff.setAttribute("aria-invalid", String(ui.fechaFinInvalid));
 }
