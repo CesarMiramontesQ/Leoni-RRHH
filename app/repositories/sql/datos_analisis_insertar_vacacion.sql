@@ -103,15 +103,8 @@ BEGIN TRY
     RETURN;
   END;
 
-  SELECT TOP 1 @TasaPrima = PT_PRIMAVA
-  FROM dbo.PRESTACI
-  WHERE TB_CODIGO = @TablaSS
-    AND PT_YEAR <= @Antiguedad
-  ORDER BY PT_YEAR DESC;
-
-  IF @TasaPrima IS NULL
-    SET @TasaPrima = 50;
-
+  -- Prima vacacional fija al 50% (no se toma de PRESTACI).
+  SET @TasaPrima = 50;
   SET @DiasPrima = @DiasPago * (@TasaPrima / 100.0);
 
   IF @SaldoPrima < @DiasPrima
