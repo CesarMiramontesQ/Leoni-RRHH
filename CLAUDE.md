@@ -69,6 +69,7 @@ Layered architecture: **router → service → repository → models/schemas**
 - **Prohibido** usar cola RPA (`encolar_tress`, `levelup_tress_robot_queue`, robot GUI) en features nuevas.
 - Código de cola/scheduler/robot en `app/integrations/tress/` está **deprecado** (sin consumidor; cleanup pendiente).
 - Patrones vigentes: INSERT síncrono a `dbo.PERMISO` / `dbo.VACACION` (suspensión, home office, goce FJ, vacaciones).
+- **Sin DELETE**: no borrar filas en DATOS_ANALISIS desde este sistema sin autorización previa explícita del dueño de la BD.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 
 ### Frontend (frontend/src/)
@@ -143,7 +144,7 @@ Layered architecture: **router → service → repository → models/schemas**
 
 ### Database — external DB + `levelup_` prefix (mandatory)
 - **External DB (Bono):** never create, alter, or drop tables/columns/indexes belonging to the external schema (any table without the `levelup_` prefix). Read and FKs only.
-- **External DB (DATOS_ANALISIS / SQL Server):** never create, alter, or drop tables, views, columns, or indexes. Entire schema is external; business DML (SELECT/INSERT) does not authorize DDL. Payroll integration is **direct SQL only** — do not use `encolar_tress` / RPA / robot GUI for new features.
+- **External DB (DATOS_ANALISIS / SQL Server):** never create, alter, or drop tables, views, columns, or indexes. Entire schema is external; business DML (SELECT/INSERT) does not authorize DDL. **Never DELETE/TRUNCATE rows** in DATOS_ANALISIS from this system without **prior explicit authorization** from the DB/payroll owners; if a feature seems to need deletes (void/correct/reverse), stop and ask. Payroll integration is **direct SQL only** — do not use `encolar_tress` / RPA / robot GUI for new features.
 - Every **new** table owned by this project must be named `levelup_<name>` (`__tablename__` in SQLAlchemy models).
 - **Do not** create, alter, or drop tables without the `levelup_` prefix in models, repositories, or Alembic migrations.
 - Legacy Bono tables (`empleados`, `areas`, `puestos`, etc.) are **read-only** from this project: query and FK-reference only; no schema migrations or DDL on them.

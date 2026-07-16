@@ -19,6 +19,7 @@
 ## Base de datos — BD externa y prefijo `levelup_` (OBLIGATORIO)
 - **BD externa (Bono)**: **prohibido** crear, modificar o eliminar tablas/columnas/índices del esquema externo (cualquier tabla sin prefijo `levelup_`). Solo lectura y FKs.
 - **BD externa (DATOS_ANALISIS / SQL Server)**: **prohibido** crear, modificar o eliminar tablas, vistas, columnas o índices. Esquema 100% externo; DML de negocio (SELECT/INSERT) no autoriza DDL.
+- **DATOS_ANALISIS — sin DELETE**: **prohibido** eliminar registros (`DELETE` / `TRUNCATE` / limpiezas) desde el sistema sin **autorización previa explícita** del dueño de esa BD. Si un caso de negocio parece requerir borrar (anular, corregir, reversar), detenerse y pedir autorización; no improvisar.
 - Toda tabla **nueva** creada por este proyecto debe llamarse `levelup_<nombre>` (`__tablename__` en SQLAlchemy).
 - **Prohibido** crear, alterar o eliminar tablas sin prefijo `levelup_` en modelos, repositorios o migraciones Alembic.
 - Las tablas legacy de Bono (`empleados`, `areas`, `puestos`, etc.) son **solo lectura** desde este proyecto: se pueden consultar y referenciar en FKs, pero **no** generar migraciones ni cambios de esquema sobre ellas.
@@ -30,6 +31,7 @@
 - **Prohibido** usar cola RPA (`encolar_tress`, `levelup_tress_robot_queue`, robot GUI) en features nuevas.
 - Código de cola/scheduler/robot en `app/integrations/tress/` está deprecado (sin consumidor activo).
 - Patrones vigentes: INSERT síncrono a `dbo.PERMISO` / `dbo.VACACION` (suspensión, home office, goce FJ, vacaciones).
+- **Sin DELETE**: no eliminar registros en DATOS_ANALISIS desde el sistema sin autorización previa explícita del dueño de esa BD.
 
 ## Frontend
 - Centralizar llamadas HTTP en `frontend/src/api/`.
