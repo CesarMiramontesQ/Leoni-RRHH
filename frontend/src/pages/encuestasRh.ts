@@ -1181,6 +1181,13 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     state.metaEditError = null;
     render();
     try {
+      // Solo se envia fecha_cierre_programada si realmente cambio: el form
+      // la prellena siempre (openMetaEdit) y en publicadas el service exige
+      // nueva > actual, asi que reenviar el mismo valor (p. ej. al editar
+      // solo el titulo) rompia el guardado sin este chequeo.
+      const nuevaFechaCierre = f.fechaCierreProgramada || null;
+      const fechaCierreCambio = nuevaFechaCierre !== (state.detalle.fecha_cierre_programada ?? null);
+
       const payload =
         state.detalle.estado === "borrador"
           ? {
@@ -1190,12 +1197,12 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
               es_anonima: f.esAnonima ?? undefined,
               umbral_minimo_respuestas: f.umbralMinimoRespuestas,
               recordatorio_cada_dias: f.recordatorioCadaDias,
-              fecha_cierre_programada: f.fechaCierreProgramada || null,
+              ...(fechaCierreCambio ? { fecha_cierre_programada: nuevaFechaCierre } : {}),
             }
           : {
               titulo: f.titulo.trim(),
               descripcion: f.descripcion.trim() || null,
-              fecha_cierre_programada: f.fechaCierreProgramada || null,
+              ...(fechaCierreCambio ? { fecha_cierre_programada: nuevaFechaCierre } : {}),
             };
       await updateEncuesta(state.detalle.id, payload);
       state.metaEditOpen = false;

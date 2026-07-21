@@ -297,6 +297,32 @@ async def test_publicada_no_permite_editar_preguntas_pero_si_titulo(db):
         )
 
 
+async def test_publicada_editar_titulo_con_fecha_cierre_igual_a_actual_no_es_error(db):
+    """Fix 2 (defensa en profundidad): el frontend puede reenviar
+    fecha_cierre_programada prellenada con el valor actual al editar solo el
+    titulo; el service debe tratar nueva == actual como no-op, no como error."""
+    creador = await make_empleado(db, rol="rh")
+    await make_empleado(db)
+    service = EncuestasRhService(db)
+    resp = await _crear_encuesta_basica(service, creador)
+    publicada = await service.publicar_encuesta(
+        resp.id,
+        PublicarRequest(
+            filtros=AudienciaFiltros(), fecha_cierre_programada=date.today() + timedelta(days=7)
+        ),
+    )
+
+    actualizada = await service.actualizar_encuesta(
+        publicada.id,
+        EncuestaUpdate(
+            titulo="Solo titulo",
+            fecha_cierre_programada=publicada.fecha_cierre_programada,
+        ),
+    )
+    assert actualizada.titulo == "Solo titulo"
+    assert actualizada.fecha_cierre_programada == publicada.fecha_cierre_programada
+
+
 async def test_publicada_no_es_borrable(db):
     creador = await make_empleado(db, rol="rh")
     await make_empleado(db)

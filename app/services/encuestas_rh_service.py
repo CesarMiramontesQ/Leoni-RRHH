@@ -146,7 +146,11 @@ class EncuestasRhService:
             if "fecha_cierre_programada" in payload:
                 nueva_fecha = payload["fecha_cierre_programada"]
                 actual = encuesta.fecha_cierre_programada
-                if nueva_fecha is None or (actual is not None and nueva_fecha <= actual):
+                if actual is not None and nueva_fecha == actual:
+                    # No-op: el cliente puede reenviar la fecha actual sin
+                    # intencion de cambiarla (p. ej. al editar solo el titulo).
+                    payload.pop("fecha_cierre_programada")
+                elif nueva_fecha is None or (actual is not None and nueva_fecha <= actual):
                     raise DomainValidationError(
                         "La nueva fecha_cierre_programada debe ser posterior a la actual"
                     )
