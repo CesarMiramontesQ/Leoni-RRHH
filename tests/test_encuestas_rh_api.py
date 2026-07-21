@@ -426,3 +426,96 @@ async def test_reordenar_preguntas_lista_incompleta_422(client, db):
     assert resp_reorder.status_code == 422
     body = resp_reorder.json()
     assert "exactamente" in body["detail"].lower()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Resultados / analitica (Tarea 4): wiring HTTP de los 4 endpoints nuevos.
+# La logica de agregacion/min-N ya esta cubierta a fondo en
+# tests/test_encuestas_rh_resultados.py (a nivel service); aqui solo se
+# verifica que el router delega correctamente y mapea estados HTTP.
+# ══════════════════════════════════════════════════════════════════════════
+async def test_resultados_endpoints_flujo_http(client, db):
+    rh = await make_empleado(db, rol="rh", email="encrh_res1@leoni.test")
+    emp1 = await make_empleado(db, rol="empleado", email="encrh_res_e1@leoni.test")
+    emp2 = await make_empleado(db, rol="empleado", email="encrh_res_e2@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+
+    resp = await client.post(
+        f"{BASE}/encuestas",
+        json={"titulo": "Pulso resultados", "tipo": "pulso", "es_anonima": False,
+              "umbral_minimo_respuestas": 1},
+        headers=headers_rh,
+    )
+    encuesta_id = resp.json()["id"]
+
+    resp_p = await client.post(
+        f"{BASE}/encuestas/{encuesta_id}/preguntas",
+        json={"orden": 1, "tipo": "likert", "texto": "Que tan satisfecho estas?", "requerida": True},
+        headers=headers_rh,
+    )
+    pregunta_id = resp_p.json()["id"]
+
+    resp_pub = await client.post(
+        f"{BASE}/encuestas/{encuesta_id}/publicar",
+        json={"filtros": {"roles": ["empleado"]}, "fecha_cierre_programada": _fecha_cierre()},
+        headers=headers_rh,
+    )
+    assert resp_pub.status_code == 200, resp_pub.text
+
+    for emp, valor in ((emp1, 4), (emp2, 5)):
+        headers_emp = await auth_headers(client, emp)
+        resp_r = await client.post(
+            f"{BASE}/mis-encuestas/{encuesta_id}/responder",
+            json={"respuestas": [{"pregunta_id": pregunta_id, "valor_likert": valor}]},
+            headers=headers_emp,
+        )
+        assert resp_r.status_code == 204
+
+    resp_global = await client.get(f"{BASE}/encuestas/{encuesta_id}/resultados", headers=headers_rh)
+    assert resp_global.status_code == 200, resp_global.text
+    body_global = resp_global.json()
+    assert body_global["n"] == 2
+    assert body_global["oculto_global"] is False
+    assert body_global["preguntas"][0]["promedio"] == 4.5
+
+    resp_seg = await client.get(
+        f"{BASE}/encuestas/{encuesta_id}/resultados/segmentos?dimension=area", headers=headers_rh
+    )
+    assert resp_seg.status_code == 200, resp_seg.text
+    assert resp_seg.json()["dimension"] == "area"
+
+    resp_seg_invalida = await client.get(
+        f"{BASE}/encuestas/{encuesta_id}/resultados/segmentos?dimension=nope", headers=headers_rh
+    )
+    assert resp_seg_invalida.status_code == 422
+
+    resp_textos = await client.get(
+        f"{BASE}/encuestas/{encuesta_id}/resultados/textos?pregunta_id={pregunta_id}",
+        headers=headers_rh,
+    )
+    # La pregunta es likert, no texto -> DomainValidationError -> 422
+    assert resp_textos.status_code == 422
+
+    resp_excel = await client.get(f"{BASE}/encuestas/{encuesta_id}/export/excel", headers=headers_rh)
+    assert resp_excel.status_code == 200
+    assert resp_excel.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "attachment; filename=resultados_encuesta_pulso_resultados.xlsx" in resp_excel.headers[
+        "content-disposition"
+    ]
+
+
+async def test_resultados_borrador_409(client, db):
+    rh = await make_empleado(db, rol="rh", email="encrh_res2@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+
+    resp = await client.post(
+        f"{BASE}/encuestas",
+        json={"titulo": "Borrador sin resultados", "tipo": "otra", "es_anonima": False},
+        headers=headers_rh,
+    )
+    encuesta_id = resp.json()["id"]
+
+    resp_res = await client.get(f"{BASE}/encuestas/{encuesta_id}/resultados", headers=headers_rh)
+    assert resp_res.status_code == 409
