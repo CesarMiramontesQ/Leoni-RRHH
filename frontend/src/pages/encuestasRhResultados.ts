@@ -2,23 +2,24 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   alertError,
+  alertWarning,
   BTN_PRIMARY,
-  BTN_SECONDARY,
-  FIELD_FOCUS,
+  errorState,
+  FORM_LABEL,
+  FORM_SELECT,
+  pageHeading,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
-  badgeApproved,
-  badgeCancelled,
-  badgeOpen,
+  skeletonBlock,
 } from "../ui/uiTokens.ts";
+import { estadoBadge, renderEmptyState } from "../encuestasRh/shared.ts";
 import {
   descargarResultadosExcel,
   getEncuesta,
   getResultadosGlobales,
   getResultadosSegmentos,
   getResultadosTextos,
-  type EncuestaEstado,
   type EncuestaResponse,
   type ResultadoPregunta,
   type ResultadosGlobal,
@@ -32,12 +33,6 @@ const DIMENSIONES: { value: SegmentoDimension; label: string }[] = [
   { value: "turno", label: "Turno" },
   { value: "clasificacion", label: "Clasificación" },
 ];
-
-function estadoBadge(estado: EncuestaEstado): string {
-  if (estado === "borrador") return badgeCancelled("Borrador");
-  if (estado === "publicada") return badgeOpen("Publicada");
-  return badgeApproved("Cerrada");
-}
 
 function slugFilename(titulo: string): string {
   const slug = titulo
@@ -165,53 +160,86 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
   // ── Render: resumen global ────────────────────────────────────────────────────
 
   function renderResumen(res: ResultadosGlobal): string {
+    const stats: { label: string; value: string }[] = [
+      { label: "Respuestas (n)", value: String(res.n) },
+      { label: "Participantes", value: String(res.total_participantes) },
+      { label: "Tasa de respuesta", value: `${res.tasa_respuesta}%` },
+    ];
     return `
-    <section class="${RH_LISTADO_SURFACE} grid grid-cols-2 gap-4 p-4 sm:grid-cols-4">
-      <div><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Estado</p><div class="mt-1">${estadoBadge(res.estado)}</div></div>
-      <div><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Respuestas (n)</p><p class="text-xl font-bold text-text-primary">${res.n}</p></div>
-      <div><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Participantes</p><p class="text-xl font-bold text-text-primary">${res.total_participantes}</p></div>
-      <div><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Tasa de respuesta</p><p class="text-xl font-bold text-text-primary">${res.tasa_respuesta}%</p></div>
+    <section class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <article class="${RH_LISTADO_SURFACE} flex flex-col gap-2 p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Estado</p>
+        <div>${estadoBadge(res.estado)}</div>
+      </article>
+      ${stats
+        .map(
+          (s) => `
+        <article class="${RH_LISTADO_SURFACE} flex flex-col gap-1 p-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(s.label)}</p>
+          <p class="text-2xl font-bold tabular-nums tracking-tight text-text-primary">${escapeHtml(s.value)}</p>
+        </article>`,
+        )
+        .join("")}
     </section>`;
   }
 
+  // ── Render: barras (% del total de respuestas de la pregunta) ────────────────
+
   function renderLikertBars(p: ResultadoPregunta): string {
-    const maxConteo = Math.max(1, ...p.distribucion.map((d) => d.conteo));
+    const total = p.distribucion.reduce((s, d) => s + d.conteo, 0) || p.n || 0;
+    const totalSafe = total > 0 ? total : 1;
     const rows = p.distribucion
       .map((d) => {
-        const pct = Math.round((d.conteo / maxConteo) * 100);
+        const pct = total > 0 ? Math.round((d.conteo / totalSafe) * 100) : 0;
         return `
         <div class="flex items-center gap-2">
-          <span class="w-4 shrink-0 text-xs font-semibold text-text-muted">${d.valor}</span>
+          <span class="w-4 shrink-0 text-xs font-semibold tabular-nums text-text-muted" aria-hidden="true">${d.valor}</span>
           <div class="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
-            <div class="h-full rounded-full bg-accent" style="width:${pct}%"></div>
+            <div
+              class="h-full rounded-full bg-accent"
+              style="width:${pct}%"
+              role="img"
+              aria-label="Nivel ${d.valor} de 5: ${d.conteo} respuesta(s), ${pct}% del total"
+            ></div>
           </div>
-          <span class="w-8 shrink-0 text-right text-xs tabular-nums text-text-muted">${d.conteo}</span>
+          <span class="w-20 shrink-0 text-right text-xs tabular-nums text-text-muted">${d.conteo} · ${pct}%</span>
         </div>`;
       })
       .join("");
     return `
     <div class="flex flex-col gap-1.5">
-      ${p.promedio != null ? `<p class="text-sm font-semibold text-text-primary">Promedio: <span class="tabular-nums">${p.promedio}</span> / 5</p>` : ""}
+      <div class="flex items-center justify-between gap-2 text-[11px] text-text-muted">
+        <span>${p.promedio != null ? `Promedio: <span class="font-semibold tabular-nums text-text-primary">${p.promedio}</span> / 5` : "Sin promedio"}</span>
+        <span>Escala 1 (mínimo) – 5 (máximo)</span>
+      </div>
       ${rows}
     </div>`;
   }
 
   function renderOpcionesBars(p: ResultadoPregunta): string {
-    const maxConteo = Math.max(1, ...p.opciones.map((o) => o.conteo));
+    const total = p.opciones.reduce((s, o) => s + o.conteo, 0) || p.n || 0;
+    const totalSafe = total > 0 ? total : 1;
     const rows = p.opciones
       .map((o) => {
-        const pct = Math.round((o.conteo / maxConteo) * 100);
+        const pct = total > 0 ? Math.round((o.conteo / totalSafe) * 100) : 0;
         return `
-        <div class="flex items-center gap-2">
-          <span class="w-32 shrink-0 truncate text-xs text-text-secondary" title="${escapeHtml(o.texto)}">${escapeHtml(o.texto)}</span>
-          <div class="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
-            <div class="h-full rounded-full bg-accent" style="width:${pct}%"></div>
+        <div class="flex flex-col gap-1">
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="text-xs text-text-secondary" title="${escapeHtml(o.texto)}">${escapeHtml(o.texto)}</span>
+            <span class="shrink-0 text-xs tabular-nums text-text-muted">${o.conteo} · ${pct}%</span>
           </div>
-          <span class="w-8 shrink-0 text-right text-xs tabular-nums text-text-muted">${o.conteo}</span>
+          <div class="h-3 overflow-hidden rounded-full bg-slate-100">
+            <div
+              class="h-full rounded-full bg-accent"
+              style="width:${pct}%"
+              role="img"
+              aria-label="${escapeHtml(o.texto)}: ${o.conteo} respuesta(s), ${pct}% del total"
+            ></div>
+          </div>
         </div>`;
       })
       .join("");
-    return `<div class="flex flex-col gap-1.5">${rows}</div>`;
+    return `<div class="flex flex-col gap-3">${rows}</div>`;
   }
 
   function renderPreguntaCard(p: ResultadoPregunta): string {
@@ -229,65 +257,97 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
 
   function renderPreguntasSection(res: ResultadosGlobal): string {
     if (res.oculto_global) {
-      return `<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-        Aún no hay respuestas suficientes para mostrar resultados (mínimo ${res.umbral_minimo_respuestas}).
-      </div>`;
+      return alertWarning(`Aún no hay respuestas suficientes para mostrar resultados (mínimo ${res.umbral_minimo_respuestas}).`);
     }
     if (res.preguntas.length === 0) {
-      return `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center text-sm text-text-muted">Esta encuesta no tiene preguntas.</div>`;
+      return renderEmptyState({ title: "Esta encuesta no tiene preguntas." });
     }
     return `<div class="grid grid-cols-1 gap-3 lg:grid-cols-2">${res.preguntas.map(renderPreguntaCard).join("")}</div>`;
   }
 
   // ── Render: segmentos ─────────────────────────────────────────────────────────
 
-  function renderSegmentoMetric(p: ResultadoPregunta): string {
-    if (p.tipo === "likert") return `${escapeHtml(p.texto)}: ${p.promedio ?? "—"}/5 (n=${p.n})`;
-    if (p.tipo === "opcion_multiple") {
-      const top = [...p.opciones].sort((a, b) => b.conteo - a.conteo)[0];
-      return `${escapeHtml(p.texto)}: ${top ? `${escapeHtml(top.texto)} (${top.conteo})` : "sin datos"}`;
+  function renderSegmentoMetricRow(p: ResultadoPregunta): string {
+    if (p.tipo === "likert") {
+      const pct = p.promedio != null ? Math.round((p.promedio / 5) * 100) : 0;
+      return `
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center justify-between gap-2">
+          <span class="truncate text-xs text-text-secondary" title="${escapeHtml(p.texto)}">${escapeHtml(p.texto)}</span>
+          <span class="shrink-0 text-xs font-semibold tabular-nums text-text-primary">${p.promedio != null ? `${p.promedio}/5` : "—"}</span>
+        </div>
+        <div class="h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div class="h-full rounded-full bg-accent" style="width:${pct}%"></div>
+        </div>
+      </div>`;
     }
-    return `${escapeHtml(p.texto)}: ${p.n} respuesta(s)`;
+    if (p.tipo === "opcion_multiple") {
+      const total = p.opciones.reduce((s, o) => s + o.conteo, 0);
+      const top = [...p.opciones].sort((a, b) => b.conteo - a.conteo)[0];
+      const pct = top && total > 0 ? Math.round((top.conteo / total) * 100) : 0;
+      return `
+      <div class="flex flex-col gap-1">
+        <div class="flex items-center justify-between gap-2">
+          <span class="truncate text-xs text-text-secondary" title="${escapeHtml(p.texto)}">${escapeHtml(p.texto)}</span>
+          <span class="shrink-0 text-xs font-semibold tabular-nums text-text-primary">${top ? `${pct}%` : "—"}</span>
+        </div>
+        ${top ? `<p class="truncate text-[11px] text-text-muted" title="${escapeHtml(top.texto)}">${escapeHtml(top.texto)}</p>` : ""}
+        <div class="h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div class="h-full rounded-full bg-accent" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+    }
+    return `
+    <div class="flex items-center justify-between gap-2">
+      <span class="truncate text-xs text-text-secondary" title="${escapeHtml(p.texto)}">${escapeHtml(p.texto)}</span>
+      <span class="shrink-0 text-xs font-semibold tabular-nums text-text-primary">n = ${p.n}</span>
+    </div>`;
   }
 
   function renderSegmentosSection(): string {
     return `
     <div class="flex flex-col gap-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <label class="text-xs font-semibold uppercase tracking-wide text-text-muted" for="resultados-dimension">Dimensión</label>
-        <div class="relative">
-          <select id="resultados-dimension" data-action="dimension" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}">
-            ${DIMENSIONES.map((d) => `<option value="${d.value}"${state.dimension === d.value ? " selected" : ""}>${d.label}</option>`).join("")}
-          </select>
-          ${SELECT_CHEVRON}
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="min-w-[12rem]">
+          <label class="${FORM_LABEL}" for="resultados-dimension">Dimensión</label>
+          <div class="relative">
+            <select id="resultados-dimension" data-action="dimension" class="${FORM_SELECT}">
+              ${DIMENSIONES.map((d) => `<option value="${d.value}"${state.dimension === d.value ? " selected" : ""}>${d.label}</option>`).join("")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </div>
       </div>
       ${
         state.segmentosLoading || !state.segmentos
-          ? `<div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-10" aria-busy="true"></div>`
+          ? skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-10`, label: "Cargando resultados por segmento…" })
           : state.segmentosError
-            ? `<div class="${RH_LISTADO_SURFACE} px-6 py-8 text-center text-sm text-red-700" role="alert">${escapeHtml(state.segmentosError)}</div>`
+            ? errorState({
+                message: state.segmentosError,
+                actionLabel: "Reintentar",
+                actionAttrs: 'data-action="reload-segmentos"',
+              })
             : state.segmentos.celdas.length === 0
-              ? `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center text-sm text-text-muted">Sin datos para esta dimensión.</div>`
+              ? renderEmptyState({ title: "Sin datos para esta dimensión." })
               : `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   ${state.segmentos.celdas
                     .map((c) => {
                       if (c.oculto) {
                         return `
-                        <article class="${RH_LISTADO_SURFACE} p-4">
+                        <article class="${RH_LISTADO_SURFACE} flex flex-col gap-2 p-4">
                           <p class="text-sm font-semibold text-text-primary">${escapeHtml(c.segmento)}</p>
-                          <p class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                            n = ${c.n} &lt; umbral (${state.segmentos!.umbral_minimo_respuestas}) — resultados ocultos para proteger el anonimato.
-                          </p>
+                          ${alertWarning(`n = ${c.n} < umbral (${state.segmentos!.umbral_minimo_respuestas}) — resultados ocultos para proteger el anonimato.`)}
                         </article>`;
                       }
                       return `
-                      <article class="${RH_LISTADO_SURFACE} p-4">
-                        <p class="text-sm font-semibold text-text-primary">${escapeHtml(c.segmento)}</p>
-                        <p class="text-xs text-text-muted">n = ${c.n}</p>
-                        <ul class="mt-2 flex flex-col gap-1 text-xs text-text-secondary">
-                          ${c.preguntas.map((p) => `<li>${renderSegmentoMetric(p)}</li>`).join("")}
-                        </ul>
+                      <article class="${RH_LISTADO_SURFACE} flex flex-col gap-3 p-4">
+                        <div>
+                          <p class="text-sm font-semibold text-text-primary">${escapeHtml(c.segmento)}</p>
+                          <p class="text-xs tabular-nums text-text-muted">n = ${c.n}</p>
+                        </div>
+                        <div class="flex flex-col gap-2.5">
+                          ${c.preguntas.map((p) => renderSegmentoMetricRow(p)).join("")}
+                        </div>
                       </article>`;
                     })
                     .join("")}
@@ -301,30 +361,34 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
   function renderTextosSection(): string {
     const preguntasTexto = state.detalle?.preguntas.filter((p) => p.tipo === "texto") ?? [];
     if (preguntasTexto.length === 0) {
-      return `<div class="${RH_LISTADO_SURFACE} px-6 py-8 text-center text-sm text-text-muted">Esta encuesta no tiene preguntas de texto abierto.</div>`;
+      return renderEmptyState({ title: "Esta encuesta no tiene preguntas de texto abierto." });
     }
     return `
     <div class="flex flex-col gap-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <label class="text-xs font-semibold uppercase tracking-wide text-text-muted" for="resultados-pregunta-texto">Pregunta</label>
-        <div class="relative min-w-[16rem]">
-          <select id="resultados-pregunta-texto" data-action="pregunta-texto" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}">
-            ${preguntasTexto.map((p) => `<option value="${p.id}"${state.preguntaTextoId === p.id ? " selected" : ""}>${escapeHtml(p.texto)}</option>`).join("")}
-          </select>
-          ${SELECT_CHEVRON}
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="min-w-[16rem]">
+          <label class="${FORM_LABEL}" for="resultados-pregunta-texto">Pregunta</label>
+          <div class="relative">
+            <select id="resultados-pregunta-texto" data-action="pregunta-texto" class="${FORM_SELECT}">
+              ${preguntasTexto.map((p) => `<option value="${p.id}"${state.preguntaTextoId === p.id ? " selected" : ""}>${escapeHtml(p.texto)}</option>`).join("")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
         </div>
       </div>
       ${
         state.textosLoading || !state.textos
-          ? `<div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-10" aria-busy="true"></div>`
+          ? skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-10`, label: "Cargando respuestas de texto…" })
           : state.textosError
-            ? `<div class="${RH_LISTADO_SURFACE} px-6 py-8 text-center text-sm text-red-700" role="alert">${escapeHtml(state.textosError)}</div>`
+            ? errorState({
+                message: state.textosError,
+                actionLabel: "Reintentar",
+                actionAttrs: 'data-action="reload-textos"',
+              })
             : state.textos.oculto
-              ? `<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-                  Aún no hay respuestas suficientes para mostrar resultados (mínimo ${state.textos.umbral_minimo_respuestas}).
-                </div>`
+              ? alertWarning(`Aún no hay respuestas suficientes para mostrar resultados (mínimo ${state.textos.umbral_minimo_respuestas}).`)
               : state.textos.textos.length === 0
-                ? `<div class="${RH_LISTADO_SURFACE} px-6 py-8 text-center text-sm text-text-muted">Sin respuestas de texto todavía.</div>`
+                ? renderEmptyState({ title: "Sin respuestas de texto todavía." })
                 : `<div class="flex flex-col gap-2">
                     ${state.textos.textos
                       .map(
@@ -340,33 +404,32 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
 
   function renderPage(): string {
     if (state.detalleLoading || state.resultadosLoading) {
-      return `<div class="${RH_LISTADO_PAGE_OUTER}"><div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-16" aria-busy="true"></div></div>`;
+      return `<div class="${RH_LISTADO_PAGE_OUTER}">${skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando resultados…" })}</div>`;
     }
     if (state.detalleError || state.resultadosError || !state.detalle || !state.resultados) {
       return `<div class="${RH_LISTADO_PAGE_OUTER}">
-        <div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center" role="alert">
-          <p class="text-sm font-semibold text-red-700">${escapeHtml(state.detalleError ?? state.resultadosError ?? "No se pudieron cargar los resultados")}</p>
-          <a href="#/talento/encuestas" class="${BTN_SECONDARY} mx-auto mt-4 w-fit">Volver a encuestas</a>
-        </div>
+        ${errorState({
+          message: state.detalleError ?? state.resultadosError ?? "No se pudieron cargar los resultados",
+          actionLabel: "Volver a encuestas",
+          actionAttrs: 'data-action="volver-encuestas"',
+        })}
       </div>`;
     }
     const detalle = state.detalle;
     const res = state.resultados;
     return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
-      <header class="flex flex-col gap-3">
+      <div class="flex flex-col gap-2">
         <a href="#/talento/encuestas/${detalle.id}" class="w-fit text-xs font-semibold text-accent hover:underline">← Volver a la encuesta</a>
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-xs font-medium text-text-muted">Talento · Resultados</p>
-            <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">${escapeHtml(res.titulo)}</h1>
-            <p class="mt-1 text-xs text-text-muted">${res.es_anonima ? "Anónima" : "No anónima"} · Umbral mínimo ${res.umbral_minimo_respuestas} respuesta(s)</p>
-          </div>
-          <button type="button" data-action="exportar" class="${BTN_PRIMARY} w-fit shrink-0" ${state.exportando ? "disabled" : ""}>
+        <p class="text-xs font-medium text-text-muted">Talento · Resultados</p>
+        ${pageHeading(
+          res.titulo,
+          `${res.es_anonima ? "Anónima" : "No anónima"} · Umbral mínimo ${res.umbral_minimo_respuestas} respuesta(s)`,
+          `<button type="button" data-action="exportar" class="${BTN_PRIMARY} w-fit shrink-0" ${state.exportando ? "disabled" : ""}>
             ${state.exportando ? "Exportando…" : "Exportar a Excel"}
-          </button>
-        </div>
-      </header>
+          </button>`,
+        )}
+      </div>
       ${state.exportError ? alertError(state.exportError) : ""}
       ${renderResumen(res)}
       <section>
@@ -413,8 +476,22 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
     const t = e.target as HTMLElement;
     const actionEl = t.closest<HTMLElement>("[data-action]");
     if (!actionEl) return;
-    if (actionEl.dataset.action === "exportar") {
+    const action = actionEl.dataset.action;
+    if (action === "exportar") {
       void onExportar();
+      return;
+    }
+    if (action === "reload-segmentos") {
+      void loadSegmentos();
+      return;
+    }
+    if (action === "reload-textos") {
+      if (state.preguntaTextoId != null) void loadTextos(state.preguntaTextoId);
+      return;
+    }
+    if (action === "volver-encuestas") {
+      window.location.hash = "#/talento/encuestas";
+      return;
     }
   }
 
