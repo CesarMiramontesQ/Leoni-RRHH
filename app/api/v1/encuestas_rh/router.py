@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
+from app.core.exceptions import DomainValidationError
 from app.models.empleados import Empleado
 from app.schemas.encuestas_rh import (
     AudienciaFiltros,
@@ -164,8 +165,17 @@ async def preview_audiencia(
     current_user: Empleado = Depends(role_checker(["operativo"])),
     svc: EncuestasRhService = Depends(_svc),
 ):
+    area_ids: list[int] = []
+    if areas:
+        area_values = _split_csv(areas)
+        try:
+            area_ids = [int(a) for a in area_values]
+        except ValueError as e:
+            raise DomainValidationError(
+                f"areas debe contener valores numéricos válidos (recibido: {', '.join(area_values)})"
+            ) from e
     filtros = AudienciaFiltros(
-        areas=[int(a) for a in _split_csv(areas)],
+        areas=area_ids,
         turnos=_split_csv(turnos),
         roles=_split_csv(roles),
     )

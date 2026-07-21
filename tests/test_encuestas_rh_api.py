@@ -377,3 +377,52 @@ async def test_reordenar_preguntas(client, db):
     assert resp_reorder.status_code == 200
     reordenadas = resp_reorder.json()
     assert [p["id"] for p in reordenadas] == [ids[1], ids[0]]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Validacion de input (fix post-revision)
+# ══════════════════════════════════════════════════════════════════════════
+async def test_preview_audiencia_areas_no_numerico_422(client, db):
+    """GET /audiencia/preview?areas=abc (no numérico) debe devolver 422,
+    no 500. Fix: capturar ValueError en el router y lanzar DomainValidationError."""
+    rh = await make_empleado(db, rol="rh", email="encrh_rh11@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    resp = await client.get(f"{BASE}/audiencia/preview?areas=abc", headers=headers)
+    assert resp.status_code == 422
+    body = resp.json()
+    assert "areas" in body["detail"].lower()
+
+
+async def test_reordenar_preguntas_lista_incompleta_422(client, db):
+    """PUT /encuestas/{id}/preguntas/reordenar con lista incompleta de ids
+    debe devolver 422, no 500. El service ya lanza DomainValidationError;
+    se verifica el status correcto."""
+    rh = await make_empleado(db, rol="rh", email="encrh_rh12@leoni.test")
+    headers = await auth_headers(client, rh)
+
+    resp = await client.post(
+        f"{BASE}/encuestas",
+        json={"titulo": "Encuesta para reorden", "tipo": "otra", "es_anonima": False},
+        headers=headers,
+    )
+    encuesta_id = resp.json()["id"]
+
+    ids = []
+    for i in range(1, 4):  # 3 preguntas
+        r = await client.post(
+            f"{BASE}/encuestas/{encuesta_id}/preguntas",
+            json={"orden": i, "tipo": "texto", "texto": f"Pregunta {i}", "requerida": False},
+            headers=headers,
+        )
+        ids.append(r.json()["id"])
+
+    # Enviar solo 2 ids en vez de 3 → DomainValidationError -> 422
+    resp_reorder = await client.put(
+        f"{BASE}/encuestas/{encuesta_id}/preguntas/reordenar",
+        json={"pregunta_ids": [ids[0], ids[1]]},
+        headers=headers,
+    )
+    assert resp_reorder.status_code == 422
+    body = resp_reorder.json()
+    assert "exactamente" in body["detail"].lower()
