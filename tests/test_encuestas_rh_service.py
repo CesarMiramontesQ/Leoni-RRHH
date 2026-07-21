@@ -420,6 +420,29 @@ async def test_audiencia_filtra_por_area_turno_rol_y_preview_cuenta(db):
     assert areas_contadas[area_b.area_id] == 1
 
 
+async def test_preview_audiencia_desglose_por_turno(db):
+    """El brief de Tarea 7 solo verificaba `por_area`; aqui se cubre el
+    desglose `por_turno` (incluyendo el bucket None para sin-turno)."""
+    await make_empleado(db, rol="rh")  # creador, se excluye via filtro roles
+
+    emp_t1 = await make_empleado(db, rol="empleado")
+    await _make_turno(db, emp_t1, "T1")
+
+    emp_t2a = await make_empleado(db, rol="empleado")
+    await _make_turno(db, emp_t2a, "T2")
+    emp_t2b = await make_empleado(db, rol="empleado")
+    await _make_turno(db, emp_t2b, "T2")
+
+    await make_empleado(db, rol="empleado")  # sin registro en TurnoEmpleado
+
+    service = EncuestasRhService(db)
+    preview = await service.preview_audiencia(AudienciaFiltros(roles=["empleado"]))
+
+    assert preview.total == 4
+    turnos_contados = {p.turno: p.total for p in preview.por_turno}
+    assert turnos_contados == {"T1": 1, "T2": 2, None: 1}
+
+
 async def test_materializar_participantes_es_idempotente(db):
     creador = await make_empleado(db, rol="rh")
     empleado = await make_empleado(db)

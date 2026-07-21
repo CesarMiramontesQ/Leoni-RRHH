@@ -226,6 +226,32 @@ async def test_min_n_por_segmento_oculta_celda_bajo_umbral_y_muestra_la_otra(db)
     assert chica.preguntas == []
 
 
+async def test_distribucion_likert_visible_en_celda_de_segmento(db):
+    """El brief de Tarea 7 solo verificaba `promedio` en resultados por
+    segmento; aqui se cubre tambien la `distribucion` likert completa en una
+    celda visible."""
+    service, encuesta, empleados = await _publicar_con_participantes(
+        db,
+        4,
+        es_anonima=False,
+        umbral=2,
+        preguntas=[_pregunta_likert()],
+        areas=["Area Unica"] * 4,
+    )
+    valores = [3, 4, 4, 5]
+    for empleado, valor in zip(empleados, valores):
+        await _responder(service, encuesta, empleado, likert=valor)
+
+    resultados = await service.obtener_resultados_segmentos(encuesta.id, "area")
+    celda = next(c for c in resultados.celdas if c.segmento == "Area Unica")
+    assert celda.oculto is False
+
+    pregunta = celda.preguntas[0]
+    assert pregunta.promedio == 4.0
+    dist = {d.valor: d.conteo for d in pregunta.distribucion}
+    assert dist == {1: 0, 2: 0, 3: 1, 4: 2, 5: 1}
+
+
 async def test_nominal_segmentos_ocultan_pese_a_global_visible(db):
     service, encuesta, empleados = await _publicar_con_participantes(
         db,

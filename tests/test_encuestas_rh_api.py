@@ -233,6 +233,28 @@ async def test_responder_sin_ser_participante_da_error(client, db):
     assert resp.status_code == 403
 
 
+async def test_mi_encuesta_detalle_sin_ser_participante_403(client, db):
+    """GET /mis-encuestas/{id} para alguien que no es participante de la
+    encuesta publicada: el service lanza ForbiddenError -> 403 real (no 404),
+    ver EncuestasRhService.obtener_para_responder."""
+    rh = await make_empleado(db, rol="rh", email="encrh_rh_detalle@leoni.test")
+    await make_empleado(db, rol="empleado", email="encrh_emp_detalle@leoni.test")
+    ajeno = await make_empleado(db, rol="supervisor", email="encrh_ajeno_detalle@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+
+    encuesta_id, _ = await _crear_encuesta_con_pregunta(client, headers_rh)
+    resp_pub = await client.post(
+        f"{BASE}/encuestas/{encuesta_id}/publicar",
+        json={"filtros": {"roles": ["empleado"]}, "fecha_cierre_programada": _fecha_cierre()},
+        headers=headers_rh,
+    )
+    assert resp_pub.status_code == 200
+
+    headers_ajeno = await auth_headers(client, ajeno)
+    resp = await client.get(f"{BASE}/mis-encuestas/{encuesta_id}", headers=headers_ajeno)
+    assert resp.status_code == 403
+
+
 async def test_responder_ignora_empleado_id_del_body(client, db):
     """El endpoint self-service jamas debe usar un empleado_id enviado por el
     cliente: siempre usa el del token (`current_user.empleado_id`)."""
@@ -265,6 +287,71 @@ async def test_responder_ignora_empleado_id_del_body(client, db):
     assert len(participantes) == 1
     assert participantes[0]["empleado_id"] == participante.empleado_id
     assert participantes[0]["estado"] == "respondida"
+
+
+async def test_participantes_no_expone_contenido_respuestas_nominal(client, db):
+    """Anti-regresion del contrato de privacidad (test_flujo_completo... ya
+    verifica que "respuestas" no esta en el item, pero solo con una pregunta
+    likert). Aqui se refuerza con una pregunta de texto libre en una encuesta
+    NO anonima: el listado de participantes debe seguir exponiendo unicamente
+    empleado_id/empleado_nombre/estado/fecha_respuesta, nunca el contenido de
+    la respuesta (ni el texto libre capturado)."""
+    rh = await make_empleado(db, rol="rh", email="encrh_rh_priv@leoni.test")
+    participante = await make_empleado(db, rol="empleado", email="encrh_emp_priv@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+
+    resp = await client.post(
+        f"{BASE}/encuestas",
+        json={"titulo": "Nominal privacidad", "tipo": "clima", "es_anonima": False},
+        headers=headers_rh,
+    )
+    encuesta_id = resp.json()["id"]
+
+    resp_p1 = await client.post(
+        f"{BASE}/encuestas/{encuesta_id}/preguntas",
+        json={"orden": 1, "tipo": "likert", "texto": "Satisfaccion", "requerida": True},
+        headers=headers_rh,
+    )
+    pregunta_likert_id = resp_p1.json()["id"]
+
+    resp_p2 = await client.post(
+        f"{BASE}/encuestas/{encuesta_id}/preguntas",
+        json={"orden": 2, "tipo": "texto", "texto": "Comentarios", "requerida": False},
+        headers=headers_rh,
+    )
+    pregunta_texto_id = resp_p2.json()["id"]
+
+    resp_pub = await client.post(
+        f"{BASE}/encuestas/{encuesta_id}/publicar",
+        json={"filtros": {"roles": ["empleado"]}, "fecha_cierre_programada": _fecha_cierre()},
+        headers=headers_rh,
+    )
+    assert resp_pub.status_code == 200
+
+    headers_emp = await auth_headers(client, participante)
+    secreto = "Comentario confidencial del empleado"
+    resp_responder = await client.post(
+        f"{BASE}/mis-encuestas/{encuesta_id}/responder",
+        json={
+            "respuestas": [
+                {"pregunta_id": pregunta_likert_id, "valor_likert": 2},
+                {"pregunta_id": pregunta_texto_id, "texto": secreto},
+            ]
+        },
+        headers=headers_emp,
+    )
+    assert resp_responder.status_code == 204
+
+    resp_part = await client.get(
+        f"{BASE}/encuestas/{encuesta_id}/participantes", headers=headers_rh
+    )
+    assert resp_part.status_code == 200
+    participantes = resp_part.json()
+    assert len(participantes) == 1
+    item = participantes[0]
+    assert set(item.keys()) == {"empleado_id", "empleado_nombre", "estado", "fecha_respuesta"}
+    assert item["estado"] == "respondida"
+    assert secreto not in resp_part.text
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -519,3 +606,18 @@ async def test_resultados_borrador_409(client, db):
 
     resp_res = await client.get(f"{BASE}/encuestas/{encuesta_id}/resultados", headers=headers_rh)
     assert resp_res.status_code == 409
+
+
+async def test_resultados_segmentos_dimension_invalida_con_encuesta_inexistente_422(client, db):
+    """`dimension` se valida en el service ANTES de resolver la encuesta
+    (EncuestasRhService.obtener_resultados_segmentos valida dimension antes
+    de llamar a _get_encuesta_con_resultados); por eso una encuesta_id
+    inexistente + dimension invalida da 422 (DomainValidationError), no 404.
+    Este orden es intencional: se documenta aqui en vez de "arreglarlo"."""
+    rh = await make_empleado(db, rol="rh", email="encrh_res3@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+
+    resp = await client.get(
+        f"{BASE}/encuestas/999999/resultados/segmentos?dimension=invalida", headers=headers_rh
+    )
+    assert resp.status_code == 422
