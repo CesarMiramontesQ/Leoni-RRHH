@@ -268,3 +268,86 @@ class CrearDesdeplantillaRequest(BaseModel):
     no depender del default silencioso `True` del service)."""
 
     es_anonima: bool
+
+
+# ── Resultados / analitica (Tarea 4) ─────────────────────────────────────
+#
+# Regla min-N (aplicada en el service, ver EncuestasRhService):
+#   - Global, en encuestas anonimas: si n < umbral -> oculto_global=True,
+#     preguntas=[] (sin metricas ni textos).
+#   - En encuestas nominales el global NUNCA se oculta.
+#   - Por segmento (anonimas y nominales): celda con n < umbral -> solo
+#     {segmento, n, oculto: true}, sin `preguntas`.
+
+
+class DistribucionLikert(BaseModel):
+    """Conteo de respuestas para un valor 1..5 de una pregunta likert."""
+
+    valor: int
+    conteo: int
+
+
+class OpcionConteo(BaseModel):
+    """Conteo de selecciones de una opcion de una pregunta opcion_multiple."""
+
+    opcion_id: int
+    texto: str
+    conteo: int
+
+
+class ResultadoPregunta(BaseModel):
+    """Metricas agregadas de una pregunta. Los campos aplicables varian por
+    `tipo`: likert -> promedio/distribucion; opcion_multiple -> opciones;
+    texto -> solo `n` (conteo de respuestas no vacias; el contenido de los
+    textos se consulta via el endpoint de textos)."""
+
+    pregunta_id: int
+    tipo: str
+    texto: str
+    n: int
+    promedio: Optional[float] = None
+    distribucion: list[DistribucionLikert] = Field(default_factory=list)
+    opciones: list[OpcionConteo] = Field(default_factory=list)
+
+
+class ResultadosGlobal(BaseModel):
+    encuesta_id: int
+    titulo: str
+    es_anonima: bool
+    estado: str
+    umbral_minimo_respuestas: int
+    n: int
+    total_participantes: int
+    tasa_respuesta: float
+    oculto_global: bool = False
+    preguntas: list[ResultadoPregunta] = Field(default_factory=list)
+
+
+class SegmentoCelda(BaseModel):
+    """Celda de resultados para un valor de segmento. Si `oculto` es True
+    (n < umbral), `preguntas` viene vacio: no se exponen metricas."""
+
+    segmento: str
+    n: int
+    oculto: bool = False
+    preguntas: list[ResultadoPregunta] = Field(default_factory=list)
+
+
+class ResultadosSegmentos(BaseModel):
+    encuesta_id: int
+    dimension: str
+    umbral_minimo_respuestas: int
+    celdas: list[SegmentoCelda] = Field(default_factory=list)
+
+
+class TextosResponse(BaseModel):
+    """Textos abiertos de una pregunta de tipo `texto`, barajados
+    (sin orden ni fecha estables). `oculto` refleja la regla min-N global en
+    encuestas anonimas (en nominales nunca se oculta)."""
+
+    encuesta_id: int
+    pregunta_id: int
+    n: int
+    umbral_minimo_respuestas: int
+    oculto: bool = False
+    textos: list[str] = Field(default_factory=list)
