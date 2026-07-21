@@ -11,6 +11,7 @@ import { LABORALES_SIDEBAR_ITEM, LABORALES_NAV_ITEMS } from "./laboralesNav.ts";
 import { getVisibleLevelUpCategoriesForRhSidebar, LEVEL_UP_SIDEBAR_ITEM } from "./levelUpNav.ts";
 import { NOMINAS_NAV_ITEMS, NOMINAS_SIDEBAR_ITEM } from "./nominasNav.ts";
 import { PUESTOS_SIDEBAR_ITEM, getVisiblePuestosNavItems } from "./puestosNav.ts";
+import { TALENTO_SIDEBAR_ITEM, getVisibleTalentoNavItems } from "./talentoNav.ts";
 
 export type RhNavKey =
   | "dashboard"
@@ -46,6 +47,7 @@ export type RhNavKey =
   | "evidencias"
   | "sugerencias"
   | "encuestas"
+  | "encuestas-rh"
   | "empleados"
   | "nominas"
   | "horas-extra"
@@ -168,6 +170,17 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
       sectionKey: "level-up",
       iconSvgPaths: LEVEL_UP_SIDEBAR_ITEM.svgPaths,
       items: levelUpItems,
+    });
+  }
+
+  const talentoItems = getVisibleTalentoNavItems(rol);
+  if (talentoItems.length > 0) {
+    sections.push({
+      id: "talento",
+      title: TALENTO_SIDEBAR_ITEM.label,
+      sectionKey: "encuestas-rh",
+      iconSvgPaths: TALENTO_SIDEBAR_ITEM.svgPaths,
+      items: talentoItems,
     });
   }
 

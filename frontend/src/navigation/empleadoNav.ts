@@ -11,6 +11,7 @@ export type EmpleadoFlatNavKey =
   | "horas-extra-aprobaciones"
   | "comedor"
   | "mis-encuestas"
+  | "mis-encuestas-rh"
   | "mis-evaluaciones";
 
 export type EmpleadoFlatNavItem = {
@@ -72,5 +73,12 @@ export const EMPLEADO_FLAT_NAV_ITEMS: readonly EmpleadoFlatNavItem[] = [
     href: "#/mis-evaluaciones",
     label: "Mis Evaluaciones",
     svgPaths: `<path d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 3h1A2.25 2.25 0 0 1 16.65 3.836m-5.8 0c-.376.023-.75.05-1.124.08C8.095 4.01 7.25 4.973 7.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 17 18.75h-2.25m-7.5-10.5H5.625c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-9-6 3 3m0 0 3-3m-3 3v-6" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "mis-encuestas-rh",
+    key: "mis-encuestas-rh",
+    href: "#/talento/mis-encuestas",
+    label: "Mis encuestas RH",
+    svgPaths: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
   },
 ];

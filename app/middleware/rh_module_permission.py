@@ -43,6 +43,14 @@ class RhModulePermissionMiddleware(BaseHTTPMiddleware):
         if _path_exempt(path):
             return await call_next(request)
 
+        # Self-service (uso personal, p. ej. "mis-encuestas"/"mis-evaluaciones"):
+        # nunca exige permiso de modulo de gestion, sin importar rol/rh_admin/
+        # inscripcion. Se evalua ANTES del check de modulo y para cualquier
+        # usuario (autenticado o no; si no esta autenticado, el 401 lo emite
+        # la dependency del endpoint, no este middleware).
+        if is_rh_self_service_api_path(path):
+            return await call_next(request)
+
         module_key = resolve_module_from_api_path(path)
         if module_key is None:
             return await call_next(request)
@@ -61,10 +69,6 @@ class RhModulePermissionMiddleware(BaseHTTPMiddleware):
 
         if not jwt_module_guard_applies(payload):
             return await call_next(request)
-
-        if payload.get("rh_admin") or payload.get("rol") == "rh":
-            if is_rh_self_service_api_path(path):
-                return await call_next(request)
 
         if user_has_module_from_claims(payload, module_key, rh_ui_mode=request.headers.get("X-RH-UI-Mode")):
             return await call_next(request)

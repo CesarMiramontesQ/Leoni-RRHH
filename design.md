@@ -643,6 +643,15 @@ de filtro" cuando ambos representan los mismos segmentos. Usado en: Permisos RH.
 **Focus token (`FIELD_FOCUS`)**: Ring + outline hacia accent color.
 **Checkbox**: `appearance-none rounded-sm border border-border checked:border-accent checked:bg-accent`.
 
+**Tokens de formulario vs. tokens de filtro de listado** — mismo propósito visual, contextos distintos, no intercambiables:
+
+| | Formulario (modal / detalle) | Filtro de listado |
+|---|---|---|
+| Label | `FORM_LABEL` — uppercase, `tracking-wide`, `text-text-muted` | `RH_LISTADO_LABEL` — sin uppercase, `text-[#667085]` |
+| Select | `FORM_SELECT` — `rounded-lg`, `border-slate-200`, usa `FIELD_FOCUS` | `RH_LISTADO_SELECT` — `rounded-[10px]`, `border-[#e5e7eb]`, sin focus propio (usa `RH_LISTADO_FOCUS_RING`) |
+
+Ambos pares viven en `uiTokens.ts`. `FORM_SELECT` se usa dentro de un wrapper `relative` junto a `SELECT_CHEVRON`, igual que el patrón existente en `encuestasRh.ts` / `encuestasRhResultados.ts`.
+
 **Combobox server-side (catálogos grandes):** Para pickers que buscan en API (p. ej. tareas del catálogo en «Editar tareas»):
 
 - Input: `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded`, `aria-controls` → listbox.
@@ -690,6 +699,8 @@ Open/close: toggle entre `hidden` y `flex`. Cerrar con Escape, click overlay, o 
   </button>
 </div>
 ```
+
+**Helpers en `uiTokens.ts`**: `tabButton(active: boolean)` devuelve las clases de un tab individual (evita triplicar el string en cada página). `renderTabNav(tabs, activeId, opts?)` arma la barra completa (`role="tablist"` + botones `role="tab"` con `data-tab="{id}"` para event delegation); no incluye el panel asociado.
 
 ### 8.10 Filter Bar
 
@@ -752,6 +763,8 @@ Vertical line con circulos por paso: completed (emerald), current (accent outlin
 </div>
 ```
 
+**Error con reintento**: `errorState({ message, actionLabel?, actionAttrs? })` en `uiTokens.ts` — surface (`RH_LISTADO_SURFACE`) con `role="alert"`, mensaje en rojo y, si se pasa `actionLabel`, un botón `BTN_SECONDARY` con los `actionAttrs` crudos (p. ej. `data-action="retry"`). Reemplaza los bloques de error repetidos que hoy no ofrecen reintento.
+
 ### 8.16 Loading State
 
 **Spinner inline:**
@@ -762,7 +775,7 @@ Vertical line con circulos por paso: completed (emerald), current (accent outlin
 </svg>
 ```
 
-**Skeleton**: `animate-pulse` con `bg-slate-200` (headers) y `bg-slate-100` (body).
+**Skeleton**: `animate-pulse` con `bg-slate-200` (headers) y `bg-slate-100` (body). Helper `skeletonBlock(opts?: { className?; label? })` en `uiTokens.ts`: surface con `animate-pulse`, `aria-busy="true"` y `<span class="sr-only">` con el label (default "Cargando…"); usa `RH_LISTADO_SURFACE` salvo que `className` la sustituya.
 
 ### 8.17 Alert / Banner
 
@@ -772,6 +785,8 @@ Vertical line con circulos por paso: completed (emerald), current (accent outlin
 | Warning | `border-amber-200` | `bg-amber-50` | `text-amber-900` |
 | Info | `border-blue-200` | `bg-blue-50` | `text-blue-800` |
 | Success | `border-emerald-200` | `bg-emerald-50` | `text-emerald-800` |
+
+Helpers en `uiTokens.ts` (misma estructura/rounded/padding, mensaje interpolado con `escapeHtml`): `alertSuccess(message, role = "status")`, `alertError(message, role = "alert")`, `alertInfo(message, role = "status")`, `alertWarning(message, role = "alert")`.
 
 ---
 

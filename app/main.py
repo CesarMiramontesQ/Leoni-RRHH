@@ -54,6 +54,25 @@ async def _eval360_recordatorios_job():
         logger.error("Error en Eval360 recordatorios job: %s", str(exc), exc_info=True)
 
 
+async def _encuestas_rh_recordatorios_job():
+    """Cierre automático de encuestas vencidas + recordatorios a participantes
+    pendientes de Encuestas RH (diario)."""
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.encuestas_rh_service import EncuestasRhService
+
+        async with AsyncSessionLocal() as db:
+            resultado = await EncuestasRhService(db).procesar_recordatorios()
+            await db.commit()
+        logger.info(
+            "Encuestas RH recordatorios | cerradas=%d | recordatorios_enviados=%d",
+            resultado.encuestas_cerradas,
+            resultado.recordatorios_enviados,
+        )
+    except Exception as exc:
+        logger.error("Error en Encuestas RH recordatorios job: %s", str(exc), exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────
@@ -82,6 +101,14 @@ async def lifespan(app: FastAPI):
         hour=8,
         minute=0,
         id="eval360_recordatorios",
+    )
+    # Recordatorios + cierre automático Encuestas RH: una vez al día (08:00).
+    scheduler.add_job(
+        _encuestas_rh_recordatorios_job,
+        "cron",
+        hour=8,
+        minute=0,
+        id="encuestas_rh_recordatorios",
     )
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))
@@ -229,6 +256,7 @@ from app.api.v1.horas_extra.router import router as horas_extra_router
 from app.api.v1.faltas_retardos.router import router as faltas_retardos_router
 from app.api.v1.viajes_laborales.router import router as viajes_laborales_router
 from app.api.v1.evaluacion360.router import router as evaluacion360_router
+from app.api.v1.encuestas_rh.router import router as encuestas_rh_router
 from app.api.v1.juntas.router import router as juntas_router
 from app.api.v1.proveedores_externos.router import router as proveedores_externos_router
 
@@ -269,6 +297,7 @@ app.include_router(horas_extra_router)
 app.include_router(faltas_retardos_router)
 app.include_router(viajes_laborales_router)
 app.include_router(evaluacion360_router)
+app.include_router(encuestas_rh_router)
 app.include_router(juntas_router)
 app.include_router(proveedores_externos_router)
 

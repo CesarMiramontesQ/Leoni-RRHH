@@ -1,0 +1,43 @@
+/**
+ * Navegación del grupo «Talento» para sidebar RH operativo: encuestas de
+ * clima/pulso (módulo `encuestas-rh`, ver app/core/rh_module_registry.py).
+ */
+
+import type { AppShellNavItemId } from "./shellNavPolicy.ts";
+import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
+
+export type TalentoNavKey = "encuestas-rh";
+
+export type TalentoNavItem = {
+  id: AppShellNavItemId;
+  key: TalentoNavKey;
+  href: string;
+  label: string;
+  svgPaths: string;
+};
+
+export const TALENTO_NAV_ITEMS: readonly TalentoNavItem[] = [
+  {
+    id: "encuestas-rh",
+    key: "encuestas-rh",
+    href: "#/talento/encuestas",
+    label: "Encuestas",
+    svgPaths: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+];
+
+export const TALENTO_SIDEBAR_ITEM = {
+  id: "encuestas-rh" as const,
+  key: "encuestas-rh" as const,
+  href: "#/talento/encuestas",
+  label: "Talento",
+  svgPaths: TALENTO_NAV_ITEMS[0]!.svgPaths,
+};
+
+export function getVisibleTalentoNavItems(rol: string | null): TalentoNavItem[] {
+  return TALENTO_NAV_ITEMS.filter((item) => isShellNavItemVisibleForRol(rol, item.id));
+}
+
+export function isTalentoSectionVisibleForRol(rol: string | null): boolean {
+  return getVisibleTalentoNavItems(rol).length > 0;
+}

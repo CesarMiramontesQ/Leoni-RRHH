@@ -79,4 +79,14 @@ describe("resolveRoutedHashForRol", () => {
     expect(resolveRoutedHashForRol("empleado", "#/actas", { enrolledNonRh: false })).toBe("#/");
     expect(resolveRoutedHashForRol("empleado", "#/solicitudes", { enrolledNonRh: false })).toBe("#/solicitudes");
   });
+
+  it("Mis encuestas RH (self-service) es accesible para cualquier autenticado, sin importar el módulo", async () => {
+    const { resolveRoutedHashForRol } = await imports();
+    expect(resolveRoutedHashForRol("empleado", "#/talento/mis-encuestas", { enrolledNonRh: false })).toBe(
+      "#/talento/mis-encuestas",
+    );
+    expect(resolveRoutedHashForRol("supervisor", "#/talento/mis-encuestas", { enrolledNonRh: false })).toBe(
+      "#/talento/mis-encuestas",
+    );
+  });
 });

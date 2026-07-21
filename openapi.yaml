@@ -13320,6 +13320,316 @@ paths:
           content:
             application/pdf: { schema: { type: string, format: binary } }
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: { schema: { type: string, format: binary } }
+
+  # ── Encuestas RH (Level Up / Talento) ────────────────────────────────────
+  /api/v1/encuestas-rh/encuestas:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Listar encuestas (filtro opcional por estado)
+      operationId: encuestas_rh_list_encuestas
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [borrador, publicada, cerrada] } }
+      responses:
+        "200": { description: Encuestas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Talento - Encuestas RH]
+      summary: Crear encuesta en borrador (creado_por_id se toma del token, no del body)
+      operationId: encuestas_rh_create_encuesta
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Encuesta creada, content: { application/json: { schema: { type: object } } } }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Detalle de encuesta (con preguntas y opciones)
+      operationId: encuestas_rh_get_encuesta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Encuesta, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Encuesta no encontrada }
+    put:
+      tags: [Talento - Encuestas RH]
+      summary: Actualizar encuesta (publicada solo permite titulo/descripcion/extender fecha de cierre)
+      operationId: encuestas_rh_update_encuesta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Encuesta actualizada, content: { application/json: { schema: { type: object } } } }
+        "422": { description: Campo no editable en encuesta publicada }
+    delete:
+      tags: [Talento - Encuestas RH]
+      summary: Eliminar encuesta (solo en borrador)
+      operationId: encuestas_rh_delete_encuesta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Encuesta eliminada }
+        "409": { description: Solo se pueden borrar encuestas en borrador }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/preguntas:
+    post:
+      tags: [Talento - Encuestas RH]
+      summary: Agregar pregunta a una encuesta en borrador
+      operationId: encuestas_rh_create_pregunta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Pregunta creada, content: { application/json: { schema: { type: object } } } }
+        "409": { description: La encuesta no esta en borrador }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/preguntas/reordenar:
+    put:
+      tags: [Talento - Encuestas RH]
+      summary: Reordenar preguntas de una encuesta en borrador
+      operationId: encuestas_rh_reordenar_preguntas
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pregunta_ids]
+              properties:
+                pregunta_ids: { type: array, items: { type: integer }, description: "Ids de pregunta en el nuevo orden deseado" }
+      responses:
+        "200": { description: Preguntas reordenadas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        "422": { description: pregunta_ids no cubre exactamente las preguntas existentes }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/preguntas/{pregunta_id}:
+    put:
+      tags: [Talento - Encuestas RH]
+      summary: Actualizar pregunta (solo en borrador; opciones se reemplazan por completo si se envian)
+      operationId: encuestas_rh_update_pregunta
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: encuesta_id, in: path, required: true, schema: { type: integer } }
+        - { name: pregunta_id, in: path, required: true, schema: { type: integer } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Pregunta actualizada, content: { application/json: { schema: { type: object } } } }
+        "409": { description: La encuesta no esta en borrador }
+    delete:
+      tags: [Talento - Encuestas RH]
+      summary: Eliminar pregunta (solo en borrador)
+      operationId: encuestas_rh_delete_pregunta
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: encuesta_id, in: path, required: true, schema: { type: integer } }
+        - { name: pregunta_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Pregunta eliminada }
+        "409": { description: La encuesta no esta en borrador }
+  /api/v1/encuestas-rh/audiencia/turnos:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Catalogo de turnos distintos (normalizados) de empleados activos, para el selector de audiencia
+      operationId: encuestas_rh_list_turnos
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Turnos distintos ordenados alfabeticamente, content: { application/json: { schema: { type: array, items: { type: string } } } } }
+  /api/v1/encuestas-rh/audiencia/preview:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Preview de audiencia por area/turno/rol (conteos, sin materializar)
+      operationId: encuestas_rh_preview_audiencia
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: areas, in: query, required: false, schema: { type: array, items: { type: integer } }, style: form, explode: true, description: "Repetido o separado por comas" }
+        - { name: turnos, in: query, required: false, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: roles, in: query, required: false, schema: { type: array, items: { type: string } }, style: form, explode: true }
+      responses:
+        "200": { description: Preview de audiencia (total, por_area, por_turno), content: { application/json: { schema: { type: object } } } }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/publicar:
+    post:
+      tags: [Talento - Encuestas RH]
+      summary: Publicar encuesta (materializa audiencia, notifica participantes)
+      operationId: encuestas_rh_publicar_encuesta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Encuesta publicada, content: { application/json: { schema: { type: object } } } }
+        "409": { description: Solo encuestas en borrador se pueden publicar }
+        "422": { description: Preguntas/opciones/fecha/audiencia invalida }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/cerrar:
+    post:
+      tags: [Talento - Encuestas RH]
+      summary: Cerrar encuesta manualmente
+      operationId: encuestas_rh_cerrar_encuesta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Encuesta cerrada, content: { application/json: { schema: { type: object } } } }
+        "409": { description: Solo encuestas publicadas se pueden cerrar }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/participantes:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Listar participantes (empleado, estado, fecha de respuesta) — nunca incluye respuestas individuales
+      operationId: encuestas_rh_list_participantes
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Participantes, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/recordatorios:
+    post:
+      tags: [Talento - Encuestas RH]
+      summary: Forzar recordatorio manual a todos los participantes pendientes
+      description: >
+        Envía un recordatorio a TODOS los participantes en estado `pendiente` de la
+        encuesta, sin respetar la cadencia `recordatorio_cada_dias` (esa cadencia solo
+        aplica al job automático diario que corre `procesar_recordatorios`). Actualiza
+        `ultimo_recordatorio_at` e incrementa `recordatorios_enviados` de cada
+        participante notificado. Requiere que la encuesta esté publicada.
+      operationId: encuestas_rh_forzar_recordatorios
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Recordatorios enviados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recordatorios_enviados: { type: integer }
+        "404": { description: Encuesta no encontrada }
+        "409": { description: Solo encuestas publicadas admiten recordatorios }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/resultados:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Resumen global de resultados (tasa, n, metricas por pregunta o oculto_global)
+      description: >
+        Regla min-N: en encuestas anonimas, si el total de respuestas (n) es
+        menor al umbral configurado, `oculto_global=true` y `preguntas` viene
+        vacio (sin metricas ni textos). En encuestas nominales el global
+        nunca se oculta. Solo disponible con la encuesta publicada o cerrada.
+      operationId: encuestas_rh_resultados_globales
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Resultados globales, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Encuesta no encontrada }
+        "409": { description: La encuesta esta en borrador (aun no tiene resultados) }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/resultados/segmentos:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Resultados agregados por segmento (area/turno/clasificacion), min-N aplicado por celda
+      description: >
+        Toda celda con n < umbral se devuelve como `{segmento, n, oculto:
+        true}` sin metricas, tanto en encuestas anonimas como nominales.
+        Los valores NULL del snapshot se agrupan como "Sin dato".
+      operationId: encuestas_rh_resultados_segmentos
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: encuesta_id, in: path, required: true, schema: { type: integer } }
+        - { name: dimension, in: query, required: true, schema: { type: string, enum: [area, turno, clasificacion] } }
+      responses:
+        "200": { description: Resultados por segmento, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Encuesta no encontrada }
+        "409": { description: La encuesta esta en borrador (aun no tiene resultados) }
+        "422": { description: dimension invalida }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/resultados/textos:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Textos abiertos de una pregunta tipo texto (barajados, sin orden ni fecha)
+      description: >
+        En encuestas anonimas solo se devuelven si el global pasa la regla
+        min-N (`oculto=false`); en nominales siempre se devuelven.
+      operationId: encuestas_rh_resultados_textos
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: encuesta_id, in: path, required: true, schema: { type: integer } }
+        - { name: pregunta_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: Textos de la pregunta, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Encuesta o pregunta no encontrada }
+        "409": { description: La encuesta esta en borrador (aun no tiene resultados) }
+        "422": { description: La pregunta no es de tipo texto }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/export/excel:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Exportar resultados a Excel (Resumen, Preguntas, Segmentos, Textos)
+      description: >
+        Aplica la misma regla min-N que los endpoints de resultados (el
+        export nunca expone metricas ni textos de una celda/global oculta).
+        Nombre de archivo con slug del titulo de la encuesta.
+      operationId: encuestas_rh_export_resultados_excel
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Archivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "404": { description: Encuesta no encontrada }
+        "409": { description: La encuesta esta en borrador (aun no tiene resultados) }
+  /api/v1/encuestas-rh/plantillas:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Listar plantillas reutilizables de encuesta
+      operationId: encuestas_rh_list_plantillas
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Plantillas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/encuestas-rh/plantillas/{plantilla_id}/crear-encuesta:
+    post:
+      tags: [Talento - Encuestas RH]
+      summary: Crear encuesta en borrador a partir de una plantilla
+      description: >
+        `es_anonima` es explícito y obligatorio en el body (no se depende del
+        default silencioso del service).
+      operationId: encuestas_rh_crear_encuesta_desde_plantilla
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: plantilla_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [es_anonima]
+              properties:
+                es_anonima: { type: boolean }
+      responses:
+        "201": { description: Encuesta creada desde plantilla, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Plantilla no encontrada }
+  /api/v1/encuestas-rh/mis-encuestas:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Mis encuestas (self-service; empleado_id del token)
+      operationId: encuestas_rh_mis_encuestas
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Encuestas donde el empleado autenticado participa, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/encuestas-rh/mis-encuestas/{encuesta_id}:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Detalle de encuesta para responder (self-service)
+      operationId: encuestas_rh_mi_encuesta_detalle
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Encuesta con preguntas, content: { application/json: { schema: { type: object } } } }
+        "403": { description: No eres participante de esta encuesta }
+  /api/v1/encuestas-rh/mis-encuestas/{encuesta_id}/responder:
+    post:
+      tags: [Talento - Encuestas RH]
+      summary: Responder encuesta (self-service; empleado_id siempre del token, se ignora cualquier valor del body)
+      operationId: encuestas_rh_responder
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "204": { description: Respuesta registrada }
+        "403": { description: No eres participante de esta encuesta }
+        "409": { description: Ya respondiste esta encuesta / encuesta no publicada }
+        "422": { description: Respuesta invalida (rango likert, opcion de otra pregunta, requerida faltante, etc.) }
+
   /api/v1/juntas:
     get:
       tags: [Juntas]

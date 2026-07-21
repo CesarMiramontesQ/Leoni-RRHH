@@ -52,6 +52,12 @@ describe("shellNavPolicy empleado flat nav", () => {
     expect(isShellNavItemVisibleForRol("empleado", "reportes")).toBe(false);
   });
 
+  it("empleado ve Mis encuestas RH (self-service) pero no la gestión de Encuestas RH", async () => {
+    const { isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(isShellNavItemVisibleForRol("empleado", "mis-encuestas-rh")).toBe(true);
+    expect(isShellNavItemVisibleForRol("empleado", "encuestas-rh")).toBe(false);
+  });
+
   it("empleado no ve hubs agrupados en sidebar", async () => {
     const { isComedorHubVisibleForRol } = await import("./comedorNav.ts");
     const { isLaboralesHubVisibleForRol } = await import("./laboralesNav.ts");
