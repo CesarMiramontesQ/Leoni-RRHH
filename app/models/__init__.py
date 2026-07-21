@@ -110,6 +110,16 @@ from app.models.evaluacion360 import (
     Eval360PlantillaCompetencia,
     Eval360PlantillaEvaluadorTipo,
 )
+from app.models.encuestas_rh import (
+    Encuesta,
+    EncuestaPregunta,
+    EncuestaOpcion,
+    EncuestaParticipante,
+    EncuestaRespuestaGrupo,
+    EncuestaRespuesta,
+    EncuestaRespuestaOpcion,
+    EncuestaPlantilla,
+)
 
 __all__ = [
     "Rol",
@@ -213,4 +223,12 @@ __all__ = [
     "Eval360Plantilla",
     "Eval360PlantillaCompetencia",
     "Eval360PlantillaEvaluadorTipo",
+    "Encuesta",
+    "EncuestaPregunta",
+    "EncuestaOpcion",
+    "EncuestaParticipante",
+    "EncuestaRespuestaGrupo",
+    "EncuestaRespuesta",
+    "EncuestaRespuestaOpcion",
+    "EncuestaPlantilla",
 ]
