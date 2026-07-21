@@ -394,6 +394,22 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
 
   function handleChange(e: Event): void {
     const t = e.target as HTMLElement;
+
+    // Texto libre: el estado ya se actualiza en cada tecleo (handleInput,
+    // sin render() para no perder el foco); al salir del campo (blur/change)
+    // se vuelve a renderizar para que el boton "Enviar" refleje si la
+    // pregunta requerida quedo completa.
+    if (t instanceof HTMLTextAreaElement && t.dataset.action === "texto") {
+      const preguntaId = Number(t.dataset.pregunta);
+      if (!preguntaId) return;
+      const r = state.respuestas[preguntaId] ?? emptyRespuesta();
+      r.texto = t.value;
+      state.respuestas[preguntaId] = r;
+      state.formError = null;
+      render();
+      return;
+    }
+
     if (!(t instanceof HTMLInputElement)) return;
     if (t.dataset.action !== "opcion") return;
     const preguntaId = Number(t.dataset.pregunta);
