@@ -57,6 +57,7 @@ import { mountSesionDetalle } from "./pages/sesionDetalle.ts";
 import { mountCursosAjustes } from "./pages/cursosAjustes.ts";
 import { mountCursosSeguimiento } from "./pages/cursosSeguimiento.ts";
 import { mountMisEncuestas } from "./pages/misEncuestas.ts";
+import { mountMisEncuestasRh } from "./pages/misEncuestasRh.ts";
 import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
 import { destroyAllCharts } from "./charts/index.ts";
 import {
@@ -199,6 +200,26 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     }
     if (h.startsWith("#/notificaciones")) {
       mountNotificaciones(container, signal);
+      return;
+    }
+    if (h.startsWith("#/talento/mis-encuestas")) {
+      mountMisEncuestasRh(container, signal);
+      return;
+    }
+    const encuestasRhResultadosMatch = h.match(/^#\/talento\/encuestas\/(\d+)\/resultados/);
+    if (encuestasRhResultadosMatch) {
+      const id = Number.parseInt(encuestasRhResultadosMatch[1] ?? "", 10);
+      if (!Number.isNaN(id)) {
+        void import("./pages/encuestasRhResultados.ts").then(({ mountEncuestasRhResultados }) => {
+          mountEncuestasRhResultados(container, id, signal);
+        });
+        return;
+      }
+    }
+    if (h.startsWith("#/talento/encuestas")) {
+      void import("./pages/encuestasRh.ts").then(({ mountEncuestasRh }) => {
+        mountEncuestasRh(container, signal);
+      });
       return;
     }
     if (h.startsWith("#/organigrama")) {
