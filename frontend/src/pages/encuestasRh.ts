@@ -39,6 +39,7 @@ import {
   reordenarPreguntas,
   updateEncuesta,
   updatePregunta,
+  type AudienciaFiltros,
   type AudienciaPreview,
   type EncuestaEstado,
   type EncuestaResponse,
@@ -90,6 +91,15 @@ function fmtFecha(value: string | null): string {
   const d = new Date(value.length <= 10 ? value + "T00:00:00" : value);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Clave estable de un set de filtros de audiencia (orden-insensible) para detectar si un preview sigue vigente. */
+function filtrosKey(f: AudienciaFiltros): string {
+  return JSON.stringify({
+    areas: [...f.areas].sort((a, b) => a - b),
+    turnos: [...f.turnos].sort(),
+    roles: [...f.roles].sort(),
+  });
 }
 
 interface MetaForm {
@@ -182,6 +192,7 @@ interface State {
   areasOptions: AreaOption[] | null;
   previewLoading: boolean;
   previewResult: AudienciaPreview | null;
+  previewFiltrosKey: string | null;
   previewError: string | null;
   publicarSaving: boolean;
   publicarError: string | null;
@@ -235,6 +246,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     areasOptions: null,
     previewLoading: false,
     previewResult: null,
+    previewFiltrosKey: null,
     previewError: null,
     publicarSaving: false,
     publicarError: null,
@@ -820,6 +832,10 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
   function renderPublicarModal(): string {
     if (!state.publicarOpen) return "";
     const areas = state.areasOptions ?? [];
+    const vigente = previewVigente();
+    const totalVigente = vigente ? (state.previewResult?.total ?? 0) : null;
+    const audienciaVacia = vigente && totalVigente === 0;
+    const puedePublicar = !state.publicarSaving && !!state.publicarFechaCierre && vigente && (totalVigente ?? 0) > 0;
     return `
     <div class="${MODAL_OVERLAY}" data-modal="publicar">
       <div class="${MODAL_PANEL} max-w-xl" role="dialog" aria-modal="true">
@@ -876,24 +892,37 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
                 state.previewError
                   ? `<p class="mt-2 text-xs text-red-700">${escapeHtml(state.previewError)}</p>`
                   : state.previewResult
-                    ? `<div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-                        <p class="font-semibold">${state.previewResult.total} empleado(s) recibirán la encuesta.</p>
-                        ${
-                          state.previewResult.por_area.length > 0
-                            ? `<p class="mt-1 text-xs">${state.previewResult.por_area.map((a) => `${escapeHtml(a.area_nombre ?? "Sin área")}: ${a.total}`).join(" · ")}</p>`
-                            : ""
-                        }
-                      </div>`
+                    ? vigente
+                      ? `<div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                          <p class="font-semibold">${state.previewResult.total} empleado(s) recibirán la encuesta.</p>
+                          ${
+                            state.previewResult.por_area.length > 0
+                              ? `<p class="mt-1 text-xs">${state.previewResult.por_area.map((a) => `${escapeHtml(a.area_nombre ?? "Sin área")}: ${a.total}`).join(" · ")}</p>`
+                              : ""
+                          }
+                        </div>`
+                      : `<p class="mt-2 text-xs text-amber-700">Los filtros cambiaron desde la última vista previa. Vuelve a calcularla antes de publicar.</p>`
                     : ""
               }
             </div>
           </div>
         </div>
-        <footer class="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
-          <button type="button" data-action="publicar-cerrar" class="${BTN_SECONDARY}">Cancelar</button>
-          <button type="button" data-action="publicar-confirmar" class="${BTN_PRIMARY}" ${state.publicarSaving || !state.publicarFechaCierre ? "disabled" : ""}>
-            ${state.publicarSaving ? "Publicando…" : "Publicar"}
-          </button>
+        <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-4">
+          <p class="text-xs ${audienciaVacia ? "text-red-700" : "text-text-muted"}">
+            ${
+              audienciaVacia
+                ? "La audiencia está vacía. Ajusta los filtros."
+                : vigente
+                  ? `Se enviará a ${totalVigente} empleado(s).`
+                  : "Calcula la vista previa de audiencia para habilitar la publicación."
+            }
+          </p>
+          <div class="flex gap-2">
+            <button type="button" data-action="publicar-cerrar" class="${BTN_SECONDARY}">Cancelar</button>
+            <button type="button" data-action="publicar-confirmar" class="${BTN_PRIMARY}" ${!puedePublicar ? "disabled" : ""}>
+              ${state.publicarSaving ? "Publicando…" : "Publicar"}
+            </button>
+          </div>
         </footer>
       </div>
     </div>`;
@@ -1189,6 +1218,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     state.publicarRoles = [];
     state.publicarFechaCierre = "";
     state.previewResult = null;
+    state.previewFiltrosKey = null;
     state.previewError = null;
     state.publicarError = null;
     render();
@@ -1212,12 +1242,19 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     };
   }
 
+  /** true si hay un preview exitoso calculado con exactamente los filtros actuales del modal. */
+  function previewVigente(): boolean {
+    return state.previewResult != null && state.previewFiltrosKey === filtrosKey(currentFiltros());
+  }
+
   async function onPreviewAudiencia(): Promise<void> {
+    const filtros = currentFiltros();
     state.previewLoading = true;
     state.previewError = null;
     render();
     try {
-      state.previewResult = await previewAudiencia(currentFiltros());
+      state.previewResult = await previewAudiencia(filtros);
+      state.previewFiltrosKey = filtrosKey(filtros);
     } catch (err: unknown) {
       state.previewError = (err as Error)?.message ?? "No se pudo calcular la audiencia";
     }
@@ -1229,6 +1266,16 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     if (state.publicarEncuestaId == null) return;
     if (!state.publicarFechaCierre) {
       state.publicarError = "Define la fecha de cierre programada";
+      render();
+      return;
+    }
+    if (!previewVigente()) {
+      state.publicarError = "Calcula la vista previa de audiencia con los filtros actuales antes de publicar";
+      render();
+      return;
+    }
+    if ((state.previewResult?.total ?? 0) === 0) {
+      state.publicarError = "La audiencia está vacía. Ajusta los filtros antes de publicar";
       render();
       return;
     }
@@ -1423,6 +1470,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       state.publicarAreas = t.checked
         ? [...state.publicarAreas.filter((a) => a !== id), id]
         : state.publicarAreas.filter((a) => a !== id);
+      render(); // el preview vigente puede quedar desactualizado al cambiar filtros
       return;
     }
     if (t instanceof HTMLInputElement && t.dataset.publicarRol != null) {
@@ -1430,6 +1478,12 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       state.publicarRoles = t.checked
         ? [...state.publicarRoles.filter((r) => r !== v), v]
         : state.publicarRoles.filter((r) => r !== v);
+      render(); // el preview vigente puede quedar desactualizado al cambiar filtros
+      return;
+    }
+    if (t instanceof HTMLInputElement && t.dataset.publicarField === "turnos") {
+      // "change" (no "input"): se dispara al salir del campo, sin interrumpir la escritura.
+      render(); // refresca el estado vigente/disabled del botón Publicar
       return;
     }
     if (t instanceof HTMLInputElement && t.dataset.preguntaField === "requerida" && state.preguntaForm) {
