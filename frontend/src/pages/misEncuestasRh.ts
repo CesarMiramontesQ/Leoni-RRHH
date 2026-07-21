@@ -54,7 +54,16 @@ function fmtFecha(value: string | null): string | null {
   return d.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
 }
 
+let mountAbort: AbortController | null = null;
+
 export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal): void {
+  mountAbort?.abort();
+  mountAbort = new AbortController();
+  const mountSignal = mountAbort.signal;
+  if (signal) {
+    signal.addEventListener("abort", () => mountAbort?.abort(), { once: true, signal: mountSignal });
+  }
+
   const state: State = {
     items: [],
     loading: true,
@@ -441,9 +450,9 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
   }
 
   render();
-  container.addEventListener("click", handleClick, { signal });
-  container.addEventListener("change", handleChange, { signal });
-  container.addEventListener("input", handleInput, { signal });
+  container.addEventListener("click", handleClick, { signal: mountSignal });
+  container.addEventListener("change", handleChange, { signal: mountSignal });
+  container.addEventListener("input", handleInput, { signal: mountSignal });
 
   void loadItems();
 }

@@ -72,7 +72,16 @@ interface State {
   exportError: string | null;
 }
 
+let mountAbort: AbortController | null = null;
+
 export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: number, signal?: AbortSignal): void {
+  mountAbort?.abort();
+  mountAbort = new AbortController();
+  const mountSignal = mountAbort.signal;
+  if (signal) {
+    signal.addEventListener("abort", () => mountAbort?.abort(), { once: true, signal: mountSignal });
+  }
+
   const state: State = {
     detalle: null,
     detalleLoading: true,
@@ -428,8 +437,8 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
   }
 
   render();
-  container.addEventListener("click", handleClick, { signal });
-  container.addEventListener("change", handleChange, { signal });
+  container.addEventListener("click", handleClick, { signal: mountSignal });
+  container.addEventListener("change", handleChange, { signal: mountSignal });
 
   void loadDetalle();
   void loadResultados();

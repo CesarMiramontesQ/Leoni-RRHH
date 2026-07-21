@@ -198,7 +198,16 @@ interface State {
   publicarError: string | null;
 }
 
+let mountAbort: AbortController | null = null;
+
 export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): void {
+  mountAbort?.abort();
+  mountAbort = new AbortController();
+  const mountSignal = mountAbort.signal;
+  if (signal) {
+    signal.addEventListener("abort", () => mountAbort?.abort(), { once: true, signal: mountSignal });
+  }
+
   const state: State = {
     subview: parseSubview(window.location.hash),
     encuestas: null,
@@ -1014,6 +1023,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
   // ── Acciones: nueva ───────────────────────────────────────────────────────────
 
   async function onGuardarNueva(): Promise<void> {
+    if (state.nuevaSaving) return;
     if (state.nuevaModo === "cero" && !state.nuevaMetaForm.titulo.trim()) {
       state.nuevaError = "El título es obligatorio";
       render();
@@ -1069,7 +1079,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
   }
 
   async function onGuardarPregunta(): Promise<void> {
-    if (!state.preguntaForm || !state.detalle) return;
+    if (!state.preguntaForm || !state.detalle || state.preguntaSaving) return;
     const f = state.preguntaForm;
     if (!f.texto.trim()) {
       state.preguntaError = "El texto de la pregunta es obligatorio";
@@ -1170,7 +1180,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
   }
 
   async function onGuardarMetaEdit(): Promise<void> {
-    if (!state.detalle) return;
+    if (!state.detalle || state.metaEditSaving) return;
     const f = state.metaEditForm;
     if (!f.titulo.trim()) {
       state.metaEditError = "El título es obligatorio";
@@ -1270,7 +1280,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
   }
 
   async function onConfirmarPublicar(): Promise<void> {
-    if (state.publicarEncuestaId == null) return;
+    if (state.publicarEncuestaId == null || state.publicarSaving) return;
     if (!state.publicarFechaCierre) {
       state.publicarError = "Define la fecha de cierre programada";
       render();
@@ -1543,9 +1553,9 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
   }
 
   render();
-  container.addEventListener("click", handleClick, { signal });
-  container.addEventListener("change", handleChange, { signal });
-  container.addEventListener("input", handleInput, { signal });
+  container.addEventListener("click", handleClick, { signal: mountSignal });
+  container.addEventListener("change", handleChange, { signal: mountSignal });
+  container.addEventListener("input", handleInput, { signal: mountSignal });
 
   if (state.subview.kind === "list") {
     void loadList();
