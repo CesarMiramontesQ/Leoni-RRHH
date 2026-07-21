@@ -13466,6 +13466,30 @@ paths:
       parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
       responses:
         "200": { description: Participantes, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/encuestas-rh/encuestas/{encuesta_id}/recordatorios:
+    post:
+      tags: [Talento - Encuestas RH]
+      summary: Forzar recordatorio manual a todos los participantes pendientes
+      description: >
+        Envía un recordatorio a TODOS los participantes en estado `pendiente` de la
+        encuesta, sin respetar la cadencia `recordatorio_cada_dias` (esa cadencia solo
+        aplica al job automático diario que corre `procesar_recordatorios`). Actualiza
+        `ultimo_recordatorio_at` e incrementa `recordatorios_enviados` de cada
+        participante notificado. Requiere que la encuesta esté publicada.
+      operationId: encuestas_rh_forzar_recordatorios
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: encuesta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Recordatorios enviados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recordatorios_enviados: { type: integer }
+        "404": { description: Encuesta no encontrada }
+        "409": { description: Solo encuestas publicadas admiten recordatorios }
   /api/v1/encuestas-rh/encuestas/{encuesta_id}/resultados:
     get:
       tags: [Talento - Encuestas RH]

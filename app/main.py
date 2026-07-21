@@ -54,6 +54,25 @@ async def _eval360_recordatorios_job():
         logger.error("Error en Eval360 recordatorios job: %s", str(exc), exc_info=True)
 
 
+async def _encuestas_rh_recordatorios_job():
+    """Cierre automático de encuestas vencidas + recordatorios a participantes
+    pendientes de Encuestas RH (diario)."""
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.encuestas_rh_service import EncuestasRhService
+
+        async with AsyncSessionLocal() as db:
+            resultado = await EncuestasRhService(db).procesar_recordatorios()
+            await db.commit()
+        logger.info(
+            "Encuestas RH recordatorios | cerradas=%d | recordatorios_enviados=%d",
+            resultado.encuestas_cerradas,
+            resultado.recordatorios_enviados,
+        )
+    except Exception as exc:
+        logger.error("Error en Encuestas RH recordatorios job: %s", str(exc), exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────
@@ -82,6 +101,14 @@ async def lifespan(app: FastAPI):
         hour=8,
         minute=0,
         id="eval360_recordatorios",
+    )
+    # Recordatorios + cierre automático Encuestas RH: una vez al día (08:00).
+    scheduler.add_job(
+        _encuestas_rh_recordatorios_job,
+        "cron",
+        hour=8,
+        minute=0,
+        id="encuestas_rh_recordatorios",
     )
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))

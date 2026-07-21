@@ -27,6 +27,7 @@ from app.schemas.encuestas_rh import (
     EncuestaCreate,
     EncuestaResponse,
     EncuestaUpdate,
+    ForzarRecordatoriosResponse,
     MiEncuestaItem,
     ParticipanteItem,
     PlantillaResponse,
@@ -212,6 +213,21 @@ async def list_participantes(
     svc: EncuestasRhService = Depends(_svc),
 ):
     return await svc.listar_participantes(encuesta_id)
+
+
+@router.post(
+    "/encuestas/{encuesta_id}/recordatorios", response_model=ForzarRecordatoriosResponse
+)
+async def forzar_recordatorios(
+    encuesta_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: EncuestasRhService = Depends(_svc),
+):
+    """Fuerza un recordatorio a TODOS los participantes pendientes de la
+    encuesta, sin respetar la cadencia `recordatorio_cada_dias` (esa cadencia
+    solo aplica al job automatico diario)."""
+    enviados = await svc.forzar_recordatorios(encuesta_id)
+    return ForzarRecordatoriosResponse(recordatorios_enviados=enviados)
 
 
 # ══════════════════════════════════════════════════════════════════════════
