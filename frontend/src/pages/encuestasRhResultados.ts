@@ -187,10 +187,9 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
 
   function renderLikertBars(p: ResultadoPregunta): string {
     const total = p.distribucion.reduce((s, d) => s + d.conteo, 0) || p.n || 0;
-    const totalSafe = total > 0 ? total : 1;
     const rows = p.distribucion
       .map((d) => {
-        const pct = total > 0 ? Math.round((d.conteo / totalSafe) * 100) : 0;
+        const pct = total > 0 ? Math.round((d.conteo / total) * 100) : 0;
         return `
         <div class="flex items-center gap-2">
           <span class="w-4 shrink-0 text-xs font-semibold tabular-nums text-text-muted" aria-hidden="true">${d.valor}</span>
@@ -218,10 +217,9 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
 
   function renderOpcionesBars(p: ResultadoPregunta): string {
     const total = p.opciones.reduce((s, o) => s + o.conteo, 0) || p.n || 0;
-    const totalSafe = total > 0 ? total : 1;
     const rows = p.opciones
       .map((o) => {
-        const pct = total > 0 ? Math.round((o.conteo / totalSafe) * 100) : 0;
+        const pct = total > 0 ? Math.round((o.conteo / total) * 100) : 0;
         return `
         <div class="flex flex-col gap-1">
           <div class="flex items-baseline justify-between gap-2">

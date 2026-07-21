@@ -65,7 +65,7 @@ export function renderAudienciaDesglose(items: { label: string; total: number }[
       <div class="flex items-center gap-2 text-xs">
         <span class="w-24 shrink-0 truncate text-blue-900" title="${escapeHtml(i.label)}">${escapeHtml(i.label)}</span>
         <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-blue-200/50">
-          <div class="h-full rounded-full bg-blue-600" style="width:${Math.round((i.total / max) * 100)}%"></div>
+          <div class="h-full rounded-full bg-accent" style="width:${Math.round((i.total / max) * 100)}%"></div>
         </div>
         <span class="w-8 shrink-0 text-right font-semibold tabular-nums text-blue-900">${i.total}</span>
       </div>`,

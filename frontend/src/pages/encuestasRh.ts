@@ -732,13 +732,24 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     const total = state.participantes.length;
     const respondidas = state.participantes.filter((p) => p.estado === "respondida").length;
     const tasa = total > 0 ? Math.round((respondidas / total) * 1000) / 10 : 0;
+    const stats: { label: string; value: string }[] = [
+      { label: "Participantes", value: String(total) },
+      { label: "Respondieron", value: String(respondidas) },
+      { label: "Tasa de respuesta", value: `${tasa}%` },
+    ];
     return `
     <div class="flex flex-col gap-3">
-      <div class="${RH_LISTADO_SURFACE} flex flex-wrap items-center gap-6 p-4">
-        <div><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Participantes</p><p class="text-xl font-bold text-text-primary">${total}</p></div>
-        <div><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Respondieron</p><p class="text-xl font-bold text-text-primary">${respondidas}</p></div>
-        <div><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Tasa de respuesta</p><p class="text-xl font-bold text-text-primary">${tasa}%</p></div>
-      </div>
+      <section class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        ${stats
+          .map(
+            (s) => `
+        <article class="${RH_LISTADO_SURFACE} flex flex-col gap-1 p-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(s.label)}</p>
+          <p class="text-2xl font-bold tabular-nums tracking-tight text-text-primary">${escapeHtml(s.value)}</p>
+        </article>`,
+          )
+          .join("")}
+      </section>
       <section class="${RH_LISTADO_SURFACE} overflow-x-auto">
         <table class="min-w-[520px] w-full text-left">
           <thead class="${RH_TABLE_HEAD}">
