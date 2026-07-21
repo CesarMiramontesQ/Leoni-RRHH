@@ -79,6 +79,19 @@ export const FIELD_INPUT =
 export const FIELD_TEXTAREA =
   `block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS}`;
 
+/**
+ * Label de campo de formulario (input/select/textarea en formularios y modales).
+ * Distinto de `RH_LISTADO_LABEL` (labels de filtros de listado, sin uppercase).
+ */
+export const FORM_LABEL = "mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted";
+
+/**
+ * Select de formulario (usar dentro de un wrapper `relative` junto a `SELECT_CHEVRON`).
+ * Distinto de `RH_LISTADO_SELECT` (select de filtros de listado, radius `rounded-[10px]`).
+ */
+export const FORM_SELECT =
+  `col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}`;
+
 // ── Encabezado de tabla estándar (thead) ─────────────────────────────────────
 /** `<thead>` consistente: borde inferior, fondo claro, texto micro en mayúsculas. */
 export const RH_TABLE_HEAD =
@@ -93,6 +106,16 @@ export function alertSuccess(message: string, role = "status"): string {
 /** Mensaje de error (red). */
 export function alertError(message: string, role = "alert"): string {
   return `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800" role="${role}">${escapeHtml(message)}</div>`;
+}
+
+/** Mensaje informativo (blue). */
+export function alertInfo(message: string, role = "status"): string {
+  return `<div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800" role="${role}">${escapeHtml(message)}</div>`;
+}
+
+/** Mensaje de advertencia (amber). */
+export function alertWarning(message: string, role = "alert"): string {
+  return `<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900" role="${role}">${escapeHtml(message)}</div>`;
 }
 
 // ── Badges de estado — patrón unificado: píldora + dot ───────────────────────
@@ -135,6 +158,34 @@ export function badgeInProgress(label = "En investigación"): string {
 /** Override / Sobreescrito con resultado positivo (emerald, label diferente). */
 export function badgeOverridden(label = "Override"): string {
   return `<span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-900"><span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>${escapeHtml(label)}</span>`;
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+/** Clases de un tab individual (activo/inactivo) — ver 8.9 Tabs en design.md. */
+export function tabButton(active: boolean): string {
+  return active
+    ? "-mb-px border-b-2 border-accent px-1 py-3 text-sm font-semibold text-accent"
+    : "-mb-px border-b-2 border-transparent px-1 py-3 text-sm font-semibold text-slate-500 hover:text-text-primary";
+}
+
+/**
+ * Barra de tabs (`role="tablist"`) con botones `role="tab"` y `data-tab="{id}"`
+ * para event delegation. No incluye el panel asociado, solo la barra.
+ */
+export function renderTabNav(
+  tabs: { id: string; label: string; badge?: string }[],
+  activeId: string,
+  opts?: { ariaLabel?: string },
+): string {
+  const ariaLabelAttr = opts?.ariaLabel ? ` aria-label="${escapeHtml(opts.ariaLabel)}"` : "";
+  const buttons = tabs
+    .map((t) => {
+      const active = t.id === activeId;
+      const badgeHtml = t.badge ? ` <span class="text-xs font-normal text-text-muted">${escapeHtml(t.badge)}</span>` : "";
+      return `<button type="button" role="tab" aria-selected="${active}" data-tab="${escapeHtml(t.id)}" class="${tabButton(active)}">${escapeHtml(t.label)}${badgeHtml}</button>`;
+    })
+    .join("");
+  return `<div role="tablist" class="flex flex-wrap gap-x-8 gap-y-1 border-b border-slate-200/70"${ariaLabelAttr}>${buttons}</div>`;
 }
 
 // ── Vistas listado RH (Actas, Incidencias, Solicitudes, Empleados) ───────────
@@ -203,4 +254,28 @@ export function htmlAccessDenied(opts: {
       <p class="mt-1.5 leading-snug text-amber-950/90">${escapeHtml(opts.description)}</p>
       ${linkHtml}
     </div>`;
+}
+
+// ── Skeleton / Error state (loaders reutilizables) ───────────────────────────
+/**
+ * Bloque skeleton (`animate-pulse`) reutilizable para estados de carga.
+ * Usa `RH_LISTADO_SURFACE` como base salvo que `opts.className` la sustituya.
+ */
+export function skeletonBlock(opts?: { className?: string; label?: string }): string {
+  const base = opts?.className ?? RH_LISTADO_SURFACE;
+  return `<div class="${base} animate-pulse" aria-busy="true"><span class="sr-only">${escapeHtml(opts?.label ?? "Cargando…")}</span></div>`;
+}
+
+/**
+ * Bloque de error reutilizable con mensaje y, opcionalmente, un botón de
+ * reintento (`actionLabel` + `actionAttrs`, p. ej. `data-action="retry"`).
+ */
+export function errorState(opts: { message: string; actionLabel?: string; actionAttrs?: string }): string {
+  const actionHtml = opts.actionLabel
+    ? `<button type="button" class="${BTN_SECONDARY} mt-3" ${opts.actionAttrs ?? ""}>${escapeHtml(opts.actionLabel)}</button>`
+    : "";
+  return `<div class="${RH_LISTADO_SURFACE} px-5 py-6 text-center" role="alert">
+    <p class="text-sm font-medium text-red-700">${escapeHtml(opts.message)}</p>
+    ${actionHtml}
+  </div>`;
 }
