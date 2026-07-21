@@ -13423,6 +13423,14 @@ paths:
       responses:
         "204": { description: Pregunta eliminada }
         "409": { description: La encuesta no esta en borrador }
+  /api/v1/encuestas-rh/audiencia/turnos:
+    get:
+      tags: [Talento - Encuestas RH]
+      summary: Catalogo de turnos distintos (normalizados) de empleados activos, para el selector de audiencia
+      operationId: encuestas_rh_list_turnos
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Turnos distintos ordenados alfabeticamente, content: { application/json: { schema: { type: array, items: { type: string } } } } }
   /api/v1/encuestas-rh/audiencia/preview:
     get:
       tags: [Talento - Encuestas RH]

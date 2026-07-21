@@ -349,6 +349,14 @@ export async function deletePregunta(encuestaId: number, preguntaId: number): Pr
 
 // ── Gestión — audiencia / ciclo de vida ───────────────────────────────────────
 
+/** Catálogo de turnos distintos (normalizados) de empleados activos, para
+ * ofrecerlos como checkboxes en el selector de audiencia del modal de publicar. */
+export async function listarTurnos(): Promise<string[]> {
+  const res = await fetchWithAuth(`${BASE}/audiencia/turnos`);
+  if (!res.ok) await parseError(res, "No se pudieron cargar los turnos");
+  return res.json() as Promise<string[]>;
+}
+
 export async function previewAudiencia(filtros: {
   areas?: readonly number[];
   turnos?: readonly string[];

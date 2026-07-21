@@ -42,7 +42,10 @@ from app.models.encuestas_rh import (
     EncuestaRespuestaGrupo,
     EncuestaRespuestaOpcion,
 )
-from app.repositories.encuestas_rh_repository import EncuestasRhRepository
+from app.repositories.encuestas_rh_repository import (
+    EncuestasRhRepository,
+    turno_normalizado,
+)
 from app.schemas.encuestas_rh import (
     AudienciaAreaConteo,
     AudienciaFiltros,
@@ -292,19 +295,16 @@ class EncuestasRhService:
                 if rol_nombre not in roles:
                     continue
             if turnos is not None:
-                turno_valor = self._turno_normalizado(empleado)
+                turno_valor = turno_normalizado(empleado)
                 if turno_valor is None or turno_valor not in turnos:
                     continue
             resultado.append(empleado)
         return resultado
 
-    @staticmethod
-    def _turno_normalizado(empleado: Empleado) -> Optional[str]:
-        te = empleado.turno_empleado
-        if not te or not te.turno:
-            return None
-        valor = te.turno.strip().upper()
-        return valor or None
+    async def list_turnos(self) -> list[str]:
+        """Catalogo de turnos distintos (normalizados) de empleados activos,
+        para el selector de audiencia del modal de publicar."""
+        return await self.repo.list_turnos_distintos()
 
     async def preview_audiencia(self, filtros: AudienciaFiltros) -> AudienciaPreview:
         empleados = await self._resolver_audiencia(filtros)
@@ -318,7 +318,7 @@ class EncuestasRhService:
             )
             por_area[area_key] = por_area.get(area_key, 0) + 1
 
-            turno_valor = self._turno_normalizado(empleado)
+            turno_valor = turno_normalizado(empleado)
             por_turno[turno_valor] = por_turno.get(turno_valor, 0) + 1
 
         return AudienciaPreview(
@@ -604,7 +604,7 @@ class EncuestasRhService:
             encuesta_id=encuesta_id,
             empleado_id=None if es_anonima else empleado_id,
             segmento_area=empleado.area.descripcion if empleado and empleado.area else None,
-            segmento_turno=self._turno_normalizado(empleado) if empleado else None,
+            segmento_turno=turno_normalizado(empleado) if empleado else None,
             segmento_clasificacion=(
                 empleado.clasificacion.descripcion
                 if empleado and empleado.clasificacion

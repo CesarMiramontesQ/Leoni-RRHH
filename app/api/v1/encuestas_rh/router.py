@@ -162,6 +162,14 @@ async def delete_pregunta(
 # ══════════════════════════════════════════════════════════════════════════
 # Gestion — audiencia / ciclo de vida
 # ══════════════════════════════════════════════════════════════════════════
+@router.get("/audiencia/turnos", response_model=list[str])
+async def listar_turnos_audiencia(
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: EncuestasRhService = Depends(_svc),
+):
+    return await svc.list_turnos()
+
+
 @router.get("/audiencia/preview", response_model=AudienciaPreview)
 async def preview_audiencia(
     areas: list[str] = Query(default=[]),

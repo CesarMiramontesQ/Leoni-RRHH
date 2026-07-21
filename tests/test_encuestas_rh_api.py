@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models.encuestas_rh import EncuestaPlantilla
+from app.models.turnos_empleados import TurnoEmpleado
 from tests.conftest import auth_headers, make_empleado
 
 pytestmark = pytest.mark.asyncio
@@ -22,6 +23,19 @@ BASE = "/api/v1/encuestas-rh"
 
 def _fecha_cierre(dias: int = 7) -> str:
     return (date.today() + timedelta(days=dias)).isoformat()
+
+
+async def _make_turno(db, empleado, turno: str) -> TurnoEmpleado:
+    from app.utils.turno_empleado_match import no_empleado_as_turno_str
+
+    te = TurnoEmpleado(
+        no_empleado=no_empleado_as_turno_str(empleado.no_empleado),
+        nombre=empleado.nombre,
+        turno=turno,
+    )
+    db.add(te)
+    await db.flush()
+    return te
 
 
 async def _crear_encuesta_con_pregunta(client, headers, tipo_pregunta="likert"):
@@ -366,6 +380,84 @@ async def test_preview_audiencia_por_rol(client, db):
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Catalogo de turnos (Tarea 2 del rediseno: selector de audiencia)
+# ══════════════════════════════════════════════════════════════════════════
+async def test_listar_turnos_distintos_normalizados_y_ordenados(client, db):
+    """Turnos con distinto casing/espacios colapsan al mismo valor normalizado
+    (trim + upper, igual que la resolucion de audiencia) y el catalogo sale
+    ordenado alfabeticamente sin duplicados."""
+    rh = await make_empleado(db, rol="rh", email="encrh_rh_turnos1@leoni.test")
+    emp_a = await make_empleado(db, rol="empleado", email="encrh_turno_a@leoni.test")
+    emp_b = await make_empleado(db, rol="empleado", email="encrh_turno_b@leoni.test")
+    emp_c = await make_empleado(db, rol="empleado", email="encrh_turno_c@leoni.test")
+    await _make_turno(db, emp_a, " matutino ")
+    await _make_turno(db, emp_b, "MATUTINO")
+    await _make_turno(db, emp_c, "vespertino")
+    headers = await auth_headers(client, rh)
+
+    resp = await client.get(f"{BASE}/audiencia/turnos", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == ["MATUTINO", "VESPERTINO"]
+
+
+async def test_listar_turnos_excluye_inactivos_y_nulos(client, db):
+    rh = await make_empleado(db, rol="rh", email="encrh_rh_turnos2@leoni.test")
+    activo = await make_empleado(db, rol="empleado", email="encrh_turno_activo@leoni.test")
+    inactivo = await make_empleado(
+        db, rol="empleado", email="encrh_turno_inactivo@leoni.test", estado_id=2
+    )
+    sin_turno = await make_empleado(db, rol="empleado", email="encrh_turno_sinturno@leoni.test")
+    await _make_turno(db, activo, "NOCTURNO")
+    await _make_turno(db, inactivo, "MIXTO")
+    assert sin_turno  # sin registro en TurnoEmpleado -> no aporta al catalogo
+    headers = await auth_headers(client, rh)
+
+    resp = await client.get(f"{BASE}/audiencia/turnos", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == ["NOCTURNO"]
+
+
+async def test_turno_del_catalogo_materializa_audiencia_esperada_al_publicar(client, db):
+    """Un turno devuelto por el catalogo, usado como filtro en publicar,
+    hace match real (misma normalizacion) y materializa solo esos empleados."""
+    rh = await make_empleado(db, rol="rh", email="encrh_rh_turnos3@leoni.test")
+    del_turno = await make_empleado(db, rol="empleado", email="encrh_turno_pub_si@leoni.test")
+    otro_turno = await make_empleado(db, rol="empleado", email="encrh_turno_pub_no@leoni.test")
+    await _make_turno(db, del_turno, " Matutino ")
+    await _make_turno(db, otro_turno, "Vespertino")
+    headers = await auth_headers(client, rh)
+
+    resp_turnos = await client.get(f"{BASE}/audiencia/turnos", headers=headers)
+    assert resp_turnos.status_code == 200
+    catalogo = resp_turnos.json()
+    assert "MATUTINO" in catalogo
+
+    encuesta_id, _ = await _crear_encuesta_con_pregunta(client, headers)
+    resp_pub = await client.post(
+        f"{BASE}/encuestas/{encuesta_id}/publicar",
+        json={"filtros": {"turnos": ["MATUTINO"]}, "fecha_cierre_programada": _fecha_cierre()},
+        headers=headers,
+    )
+    assert resp_pub.status_code == 200, resp_pub.text
+
+    resp_part = await client.get(
+        f"{BASE}/encuestas/{encuesta_id}/participantes", headers=headers
+    )
+    assert resp_part.status_code == 200
+    participantes = resp_part.json()
+    assert len(participantes) == 1
+    assert participantes[0]["empleado_id"] == del_turno.empleado_id
+
+
+async def test_listar_turnos_sin_modulo_403(client, db):
+    sin_modulo = await make_empleado(db, rol="empleado", email="encrh_turno_sinmod@leoni.test")
+    headers = await auth_headers(client, sin_modulo)
+
+    resp = await client.get(f"{BASE}/audiencia/turnos", headers=headers)
+    assert resp.status_code == 403
 
 
 # ══════════════════════════════════════════════════════════════════════════

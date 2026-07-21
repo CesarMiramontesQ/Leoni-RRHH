@@ -37,6 +37,20 @@ _SEGMENTO_COLUMNAS = {
 }
 
 
+def turno_normalizado(empleado: Empleado) -> Optional[str]:
+    """Normaliza el turno de un empleado (trim + upper).
+
+    Unica fuente de normalizacion de turno: la usan tanto la resolucion de
+    audiencia (`EncuestasRhService`) como el catalogo de turnos distintos
+    (`list_turnos_distintos`) para que los valores hagan match entre si.
+    """
+    te = empleado.turno_empleado
+    if not te or not te.turno:
+        return None
+    valor = te.turno.strip().upper()
+    return valor or None
+
+
 class EncuestasRhRepository(BaseRepository[Encuesta]):
     def __init__(self, db: AsyncSession):
         super().__init__(Encuesta, db)
@@ -147,6 +161,19 @@ class EncuestasRhRepository(BaseRepository[Encuesta]):
             )
         )
         return result.scalars().all()
+
+    async def list_turnos_distintos(self) -> list[str]:
+        """Turnos distintos (normalizados) de empleados activos, para el
+        catalogo del selector de audiencia. Misma normalizacion que usa la
+        resolucion de audiencia (`turno_normalizado`) para que los valores
+        hagan match real al publicar."""
+        candidatos = await self.list_empleados_activos()
+        turnos = {
+            valor
+            for empleado in candidatos
+            if (valor := turno_normalizado(empleado)) is not None
+        }
+        return sorted(turnos)
 
     # ── Plantillas ────────────────────────────────────────────────────────
     async def get_plantilla(self, plantilla_id: int) -> Optional[EncuestaPlantilla]:
