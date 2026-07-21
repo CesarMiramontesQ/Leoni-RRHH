@@ -2,24 +2,31 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   alertError,
+  alertInfo,
   alertSuccess,
+  alertWarning,
   BTN_GHOST,
   BTN_PRIMARY,
   BTN_SECONDARY,
   BTN_DANGER,
-  FIELD_FOCUS,
+  errorState,
   FIELD_INPUT,
   FIELD_TEXTAREA,
+  FORM_LABEL,
+  FORM_SELECT,
   MODAL_OVERLAY,
   MODAL_PANEL,
+  pageHeading,
+  renderTabNav,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
   SELECT_CHEVRON,
+  skeletonBlock,
   badgeApproved,
   badgeCancelled,
-  badgeOpen,
 } from "../ui/uiTokens.ts";
+import { estadoBadge, fmtFechaEncuesta, renderAudienciaDesglose, renderEmptyState } from "../encuestasRh/shared.ts";
 import { getAreasOptions, type AreaOption } from "../api/puestos.ts";
 import {
   addPregunta,
@@ -31,6 +38,7 @@ import {
   forzarRecordatorios,
   getEncuesta,
   getResultadosGlobales,
+  listarTurnos,
   listEncuestas,
   listParticipantes,
   listPlantillas,
@@ -70,6 +78,15 @@ const ROLES_AUDIENCIA: { value: string; label: string }[] = [
   { value: "director", label: "Director" },
 ];
 
+/** Elementos enfocables dentro de un panel de modal, para el focus-trap básico (Tab/Shift+Tab). */
+const FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
 type Subview = { kind: "list" } | { kind: "nueva" } | { kind: "detalle"; id: number };
 
 function parseSubview(hash: string): Subview {
@@ -78,19 +95,6 @@ function parseSubview(hash: string): Subview {
   const m = /^#\/talento\/encuestas\/(\d+)/.exec(h);
   if (m && m[1]) return { kind: "detalle", id: Number(m[1]) };
   return { kind: "list" };
-}
-
-function estadoBadge(estado: EncuestaEstado): string {
-  if (estado === "borrador") return badgeCancelled("Borrador");
-  if (estado === "publicada") return badgeOpen("Publicada");
-  return badgeApproved("Cerrada");
-}
-
-function fmtFecha(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value.length <= 10 ? value + "T00:00:00" : value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 }
 
 /** Clave estable de un set de filtros de audiencia (orden-insensible) para detectar si un preview sigue vigente. */
@@ -186,10 +190,13 @@ interface State {
   publicarOpen: boolean;
   publicarEncuestaId: number | null;
   publicarAreas: number[];
-  publicarTurnos: string;
+  publicarTurnos: string[];
   publicarRoles: string[];
   publicarFechaCierre: string;
   areasOptions: AreaOption[] | null;
+  turnosOptions: string[] | null;
+  turnosLoading: boolean;
+  turnosError: string | null;
   previewLoading: boolean;
   previewResult: AudienciaPreview | null;
   previewFiltrosKey: string | null;
@@ -249,10 +256,13 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     publicarOpen: false,
     publicarEncuestaId: null,
     publicarAreas: [],
-    publicarTurnos: "",
+    publicarTurnos: [],
     publicarRoles: [],
     publicarFechaCierre: "",
     areasOptions: null,
+    turnosOptions: null,
+    turnosLoading: false,
+    turnosError: null,
     previewLoading: false,
     previewResult: null,
     previewFiltrosKey: null,
@@ -260,6 +270,12 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     publicarSaving: false,
     publicarError: null,
   };
+
+  // Focus/scroll diferido a aplicar una sola vez tras el próximo render (evita
+  // robar el foco en cada re-render por cambios de estado, p. ej. al marcar checkboxes).
+  let publicarFocusPending = false;
+  let metaEditFocusPending = false;
+  let preguntaFormScrollPending = false;
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
 
@@ -331,6 +347,21 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     render();
   }
 
+  async function loadTurnosOptions(): Promise<void> {
+    if (state.turnosOptions != null || state.turnosLoading) return;
+    state.turnosLoading = true;
+    state.turnosError = null;
+    render();
+    try {
+      state.turnosOptions = await listarTurnos();
+    } catch (err: unknown) {
+      state.turnosOptions = [];
+      state.turnosError = (err as Error)?.message ?? "No se pudieron cargar los turnos";
+    }
+    state.turnosLoading = false;
+    render();
+  }
+
   // ── Render: lista ────────────────────────────────────────────────────────────
 
   function renderListRow(e: EncuestaResponse): string {
@@ -371,7 +402,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       <td class="px-3 py-3 align-middle">${estadoBadge(e.estado)}</td>
       <td class="px-3 py-3 align-middle text-sm">${e.es_anonima ? "Sí" : "No"}</td>
       <td class="px-3 py-3 align-middle text-sm">${tasaHtml}</td>
-      <td class="px-3 py-3 align-middle text-sm text-text-muted">${escapeHtml(fmtFecha(e.fecha_cierre_programada))}</td>
+      <td class="px-3 py-3 align-middle text-sm text-text-muted">${escapeHtml(fmtFechaEncuesta(e.fecha_cierre_programada))}</td>
       <td class="px-3 py-3 align-middle">
         <div class="flex flex-wrap items-center gap-2">${acciones.join("")}</div>
       </td>
@@ -389,9 +420,9 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     <section class="${RH_LISTADO_SURFACE} p-3 sm:p-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="min-w-[10rem]">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="encuestas-rh-filtro-estado">Estado</label>
+          <label class="${FORM_LABEL}" for="encuestas-rh-filtro-estado">Estado</label>
           <div class="relative">
-            <select id="encuestas-rh-filtro-estado" data-action="filtro-estado" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}">
+            <select id="encuestas-rh-filtro-estado" data-action="filtro-estado" class="${FORM_SELECT}">
               ${opciones.map((o) => `<option value="${o.value}"${state.filtroEstado === o.value ? " selected" : ""}>${o.label}</option>`).join("")}
             </select>
             ${SELECT_CHEVRON}
@@ -403,13 +434,14 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
 
   function renderList(): string {
     if (state.listLoading) {
-      return `<div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-16" aria-busy="true"><p class="sr-only">Cargando…</p></div>`;
+      return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando encuestas…" });
     }
     if (state.listError) {
-      return `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center" role="alert">
-        <p class="text-sm font-semibold text-red-700">${escapeHtml(state.listError)}</p>
-        <button type="button" data-action="reload-list" class="${BTN_GHOST} mx-auto mt-4">Reintentar</button>
-      </div>`;
+      return errorState({
+        message: state.listError,
+        actionLabel: "Reintentar",
+        actionAttrs: 'data-action="reload-list"',
+      });
     }
     const items = state.encuestas ?? [];
     return `
@@ -417,10 +449,11 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       ${renderListFilterBar()}
       ${
         items.length === 0
-          ? `<div class="${RH_LISTADO_SURFACE} flex flex-col items-center justify-center px-6 py-16 text-center">
-              <p class="text-sm font-semibold text-text-primary">No hay encuestas con este filtro</p>
-              <p class="mt-1 text-sm text-text-muted">Crea una encuesta nueva o cambia el filtro de estado.</p>
-            </div>`
+          ? renderEmptyState({
+              title: "No hay encuestas con este filtro",
+              subtitle: "Crea una encuesta nueva o cambia el filtro de estado.",
+              actionHtml: `<a href="#/talento/encuestas/nueva" class="${BTN_PRIMARY}">+ Nueva encuesta</a>`,
+            })
           : `<section class="${RH_LISTADO_SURFACE} overflow-x-auto">
               <table class="min-w-[860px] w-full text-left">
                 <thead class="${RH_TABLE_HEAD}">
@@ -442,41 +475,53 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
 
   // ── Render: nueva ─────────────────────────────────────────────────────────────
 
+  function renderAnonimaFieldset(opts: {
+    legend: string;
+    action: string;
+    value: boolean | null;
+    ariaLabel: string;
+  }): string {
+    return `
+    <fieldset>
+      <legend class="${FORM_LABEL}">${escapeHtml(opts.legend)}</legend>
+      <div class="flex gap-2" role="radiogroup" aria-label="${escapeHtml(opts.ariaLabel)}">
+        <button type="button" role="radio" aria-checked="${opts.value === true}" data-action="${opts.action}" data-value="true" class="${opts.value === true ? BTN_PRIMARY : BTN_SECONDARY}">Sí</button>
+        <button type="button" role="radio" aria-checked="${opts.value === false}" data-action="${opts.action}" data-value="false" class="${opts.value === false ? BTN_PRIMARY : BTN_SECONDARY}">No</button>
+      </div>
+    </fieldset>`;
+  }
+
   function renderNuevaMetaForm(): string {
     const f = state.nuevaMetaForm;
     return `
     <div class="${RH_LISTADO_SURFACE} p-5 sm:p-6">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="nueva-titulo">Título</label>
+          <label class="${FORM_LABEL}" for="nueva-titulo">Título</label>
           <input id="nueva-titulo" data-field="titulo" type="text" value="${escapeHtml(f.titulo)}" class="${FIELD_INPUT}" placeholder="Ej. Encuesta de clima Q3" />
         </div>
         <div class="sm:col-span-2">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="nueva-descripcion">Descripción (opcional)</label>
+          <label class="${FORM_LABEL}" for="nueva-descripcion">Descripción (opcional)</label>
           <textarea id="nueva-descripcion" data-field="descripcion" rows="2" class="${FIELD_TEXTAREA}">${escapeHtml(f.descripcion)}</textarea>
         </div>
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="nueva-tipo">Tipo</label>
+          <label class="${FORM_LABEL}" for="nueva-tipo">Tipo</label>
           <div class="relative">
-            <select id="nueva-tipo" data-field="tipo" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}">
+            <select id="nueva-tipo" data-field="tipo" class="${FORM_SELECT}">
               ${Object.entries(TIPO_LABELS).map(([v, l]) => `<option value="${v}"${f.tipo === v ? " selected" : ""}>${l}</option>`).join("")}
             </select>
             ${SELECT_CHEVRON}
           </div>
         </div>
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">¿Es anónima?</label>
-          <div class="flex gap-2">
-            <button type="button" data-action="nueva-anonima" data-value="true" class="${f.esAnonima === true ? BTN_PRIMARY : BTN_SECONDARY}">Sí</button>
-            <button type="button" data-action="nueva-anonima" data-value="false" class="${f.esAnonima === false ? BTN_PRIMARY : BTN_SECONDARY}">No</button>
-          </div>
+          ${renderAnonimaFieldset({ legend: "¿Es anónima?", action: "nueva-anonima", value: f.esAnonima, ariaLabel: "¿Es anónima?" })}
         </div>
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="nueva-umbral">Umbral mínimo de respuestas</label>
+          <label class="${FORM_LABEL}" for="nueva-umbral">Umbral mínimo de respuestas</label>
           <input id="nueva-umbral" data-field="umbral" type="number" min="1" value="${f.umbralMinimoRespuestas}" class="${FIELD_INPUT}" />
         </div>
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="nueva-recordatorio">Recordatorio cada (días)</label>
+          <label class="${FORM_LABEL}" for="nueva-recordatorio">Recordatorio cada (días)</label>
           <input id="nueva-recordatorio" data-field="recordatorio" type="number" min="1" value="${f.recordatorioCadaDias}" class="${FIELD_INPUT}" />
         </div>
       </div>
@@ -485,7 +530,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
 
   function renderNuevaPlantillas(): string {
     if (state.plantillasLoading || state.plantillas == null) {
-      return `<div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-10" aria-busy="true"></div>`;
+      return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-10`, label: "Cargando plantillas…" });
     }
     if (state.plantillas.length === 0) {
       return `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center text-sm text-text-muted">No hay plantillas disponibles.</div>`;
@@ -510,24 +555,13 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     ${
       state.plantillaSeleccionadaId != null
         ? `<div class="${RH_LISTADO_SURFACE} mt-3 p-4">
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">¿Es anónima?</label>
-            <div class="flex gap-2">
-              <button type="button" data-action="plantilla-anonima" data-value="true" class="${state.plantillaEsAnonima === true ? BTN_PRIMARY : BTN_SECONDARY}">Sí</button>
-              <button type="button" data-action="plantilla-anonima" data-value="false" class="${state.plantillaEsAnonima === false ? BTN_PRIMARY : BTN_SECONDARY}">No</button>
-            </div>
+            ${renderAnonimaFieldset({ legend: "¿Es anónima?", action: "plantilla-anonima", value: state.plantillaEsAnonima, ariaLabel: "¿Es anónima?" })}
           </div>`
         : ""
     }`;
   }
 
   function renderNueva(): string {
-    const modoTab = (id: "cero" | "plantilla", label: string): string => {
-      const active = state.nuevaModo === id;
-      const cls = active
-        ? "-mb-px border-b-2 border-accent px-1 py-3 text-sm font-semibold text-accent"
-        : "-mb-px border-b-2 border-transparent px-1 py-3 text-sm font-semibold text-slate-500 hover:text-text-primary";
-      return `<button type="button" role="tab" aria-selected="${active}" data-action="nueva-modo" data-modo="${id}" class="${cls}">${label}</button>`;
-    };
     // No se valida el título aquí (input de texto: no se re-renderiza en cada
     // tecleo para no perder el foco/cursor); se valida al enviar.
     const puedeGuardar =
@@ -536,15 +570,21 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
         : state.plantillaSeleccionadaId != null && state.plantillaEsAnonima != null;
     return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
-      <header class="flex flex-col gap-1">
+      <div class="flex flex-col gap-2">
         <a href="#/talento/encuestas" class="w-fit text-xs font-semibold text-accent hover:underline">← Volver a encuestas</a>
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Nueva encuesta</h1>
-        <p class="text-sm text-text-muted">Define los metadatos; agregarás las preguntas en el siguiente paso.</p>
-      </header>
+        <p class="text-xs font-medium text-text-muted">Talento</p>
+        ${pageHeading("Nueva encuesta", "Define los metadatos; agregarás las preguntas en el siguiente paso.")}
+      </div>
       ${state.nuevaError ? alertError(state.nuevaError) : ""}
-      <div role="tablist" class="flex gap-x-6 border-b border-slate-200/70">
-        ${modoTab("cero", "Desde cero")}
-        ${modoTab("plantilla", "Desde plantilla")}
+      <div data-tabs="nueva-modo">
+        ${renderTabNav(
+          [
+            { id: "cero", label: "Desde cero" },
+            { id: "plantilla", label: "Desde plantilla" },
+          ],
+          state.nuevaModo,
+          { ariaLabel: "Modo de creación" },
+        )}
       </div>
       ${state.nuevaModo === "cero" ? renderNuevaMetaForm() : renderNuevaPlantillas()}
       <div class="flex justify-end gap-2">
@@ -563,19 +603,19 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     if (!f) return "";
     const isOpcionMultiple = f.tipo === "opcion_multiple";
     return `
-    <div class="${RH_LISTADO_SURFACE} mt-3 p-4">
+    <div data-pregunta-form-panel class="${RH_LISTADO_SURFACE} mt-3 p-4">
       <p class="mb-3 text-sm font-semibold text-text-primary">${f.editingId != null ? "Editar pregunta" : "Nueva pregunta"}</p>
       ${state.preguntaError ? `<div class="mb-3">${alertError(state.preguntaError)}</div>` : ""}
       <div class="flex flex-col gap-3">
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="pregunta-texto">Texto de la pregunta</label>
+          <label class="${FORM_LABEL}" for="pregunta-texto">Texto de la pregunta</label>
           <input id="pregunta-texto" data-pregunta-field="texto" type="text" value="${escapeHtml(f.texto)}" class="${FIELD_INPUT}" />
         </div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="pregunta-tipo">Tipo de pregunta</label>
+            <label class="${FORM_LABEL}" for="pregunta-tipo">Tipo de pregunta</label>
             <div class="relative">
-              <select id="pregunta-tipo" data-pregunta-field="tipo" class="col-start-1 row-start-1 w-full appearance-none rounded-lg border border-slate-200 bg-white py-2 pr-8 pl-3 text-sm text-slate-900 shadow-sm ${FIELD_FOCUS}">
+              <select id="pregunta-tipo" data-pregunta-field="tipo" class="${FORM_SELECT}">
                 ${Object.entries(PREGUNTA_TIPO_LABELS).map(([v, l]) => `<option value="${v}"${f.tipo === v ? " selected" : ""}>${l}</option>`).join("")}
               </select>
               ${SELECT_CHEVRON}
@@ -598,8 +638,8 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
         </div>
         ${
           isOpcionMultiple
-            ? `<div>
-                <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">Opciones</p>
+            ? `<fieldset>
+                <legend class="${FORM_LABEL}">Opciones</legend>
                 <div class="flex flex-col gap-2">
                   ${f.opciones
                     .map(
@@ -612,7 +652,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
                     .join("")}
                 </div>
                 <button type="button" data-action="pregunta-agregar-opcion" class="${BTN_GHOST} mt-2">+ Agregar opción</button>
-              </div>`
+              </fieldset>`
             : ""
         }
       </div>
@@ -625,21 +665,21 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     </div>`;
   }
 
-  function renderPreguntaRow(p: PreguntaResponse, index: number, total: number, editable: boolean): string {
+  function renderPreguntaRow(p: PreguntaResponse, index: number, total: number, editable: boolean, isEditing: boolean): string {
     const detalleTexto =
       p.tipo === "opcion_multiple"
         ? `${p.opciones.length} opción(es)${p.seleccion_multiple ? " · selección múltiple" : ""}`
         : PREGUNTA_TIPO_LABELS[p.tipo];
     const acciones = editable
       ? `<div class="flex shrink-0 items-center gap-1.5">
-          <button type="button" data-action="pregunta-mover" data-id="${p.id}" data-dir="up" class="${BTN_GHOST}" ${index === 0 ? "disabled" : ""} aria-label="Mover arriba">↑</button>
-          <button type="button" data-action="pregunta-mover" data-id="${p.id}" data-dir="down" class="${BTN_GHOST}" ${index === total - 1 ? "disabled" : ""} aria-label="Mover abajo">↓</button>
+          <button type="button" data-action="pregunta-mover" data-id="${p.id}" data-dir="up" class="${BTN_GHOST}" ${index === 0 || state.reorderSaving ? "disabled" : ""} aria-label="Mover arriba">↑</button>
+          <button type="button" data-action="pregunta-mover" data-id="${p.id}" data-dir="down" class="${BTN_GHOST}" ${index === total - 1 || state.reorderSaving ? "disabled" : ""} aria-label="Mover abajo">↓</button>
           <button type="button" data-action="pregunta-editar" data-id="${p.id}" class="${BTN_GHOST}">Editar</button>
           <button type="button" data-action="pregunta-eliminar" data-id="${p.id}" class="${BTN_DANGER}">Eliminar</button>
         </div>`
       : "";
     return `
-    <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0">
+    <div class="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 ${isEditing ? "bg-accent-light ring-1 ring-inset ring-accent" : ""}">
       <div class="min-w-0">
         <p class="text-sm font-semibold text-text-primary">${index + 1}. ${escapeHtml(p.texto)}${p.requerida ? ` <span class="text-red-500">*</span>` : ""}</p>
         <p class="text-xs text-text-muted">${escapeHtml(detalleTexto)}</p>
@@ -655,14 +695,19 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     <div class="flex flex-col gap-3">
       ${
         !editable
-          ? `<div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">Las preguntas ya no se pueden modificar porque la encuesta está ${detalle.estado === "publicada" ? "publicada" : "cerrada"}.</div>`
+          ? alertInfo(`Las preguntas ya no se pueden modificar porque la encuesta está ${detalle.estado === "publicada" ? "publicada" : "cerrada"}.`)
           : ""
       }
       <section class="${RH_LISTADO_SURFACE}">
         ${
           preguntas.length === 0
-            ? `<div class="px-4 py-8 text-center text-sm text-text-muted">Aún no hay preguntas.</div>`
-            : preguntas.map((p, i) => renderPreguntaRow(p, i, preguntas.length, editable)).join("")
+            ? renderEmptyState({
+                title: "Aún no hay preguntas",
+                subtitle: editable ? "Agrega la primera pregunta para empezar a construir la encuesta." : undefined,
+              })
+            : preguntas
+                .map((p, i) => renderPreguntaRow(p, i, preguntas.length, editable, state.preguntaForm?.editingId === p.id))
+                .join("")
         }
       </section>
       ${editable && !state.preguntaForm ? `<button type="button" data-action="pregunta-nueva" class="${BTN_SECONDARY} w-fit">+ Agregar pregunta</button>` : ""}
@@ -675,10 +720,14 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       return `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center text-sm text-text-muted">Publica la encuesta para ver la lista de participantes.</div>`;
     }
     if (state.participantesLoading || state.participantes == null) {
-      return `<div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-16" aria-busy="true"></div>`;
+      return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando participantes…" });
     }
     if (state.participantesError) {
-      return `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center" role="alert"><p class="text-sm font-semibold text-red-700">${escapeHtml(state.participantesError)}</p></div>`;
+      return errorState({
+        message: state.participantesError,
+        actionLabel: "Reintentar",
+        actionAttrs: 'data-action="reload-participantes"',
+      });
     }
     const total = state.participantes.length;
     const respondidas = state.participantes.filter((p) => p.estado === "respondida").length;
@@ -705,7 +754,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
               <tr class="border-b border-slate-100 last:border-b-0">
                 <td class="px-3 py-2.5 text-sm text-text-primary">${escapeHtml(p.empleado_nombre ?? `Empleado #${p.empleado_id}`)}</td>
                 <td class="px-3 py-2.5">${p.estado === "respondida" ? badgeApproved("Respondida") : badgeCancelled("Pendiente")}</td>
-                <td class="px-3 py-2.5 text-sm text-text-muted">${escapeHtml(fmtFecha(p.fecha_respuesta))}</td>
+                <td class="px-3 py-2.5 text-sm text-text-muted">${escapeHtml(fmtFechaEncuesta(p.fecha_respuesta))}</td>
               </tr>`,
                     )
                     .join("")
@@ -739,20 +788,20 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     const f = state.metaEditForm;
     return `
     <div class="${MODAL_OVERLAY}" data-modal="meta-edit">
-      <div class="${MODAL_PANEL} max-w-lg" role="dialog" aria-modal="true">
+      <div class="${MODAL_PANEL} max-w-lg" role="dialog" aria-modal="true" aria-labelledby="metaedit-modal-titulo">
         <header class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 class="text-base font-bold text-text-primary">Editar datos de la encuesta</h2>
+          <h2 id="metaedit-modal-titulo" class="text-base font-bold text-text-primary">Editar datos de la encuesta</h2>
           <button type="button" data-action="metaeditar-cerrar" class="text-text-muted hover:text-text-primary" aria-label="Cerrar">✕</button>
         </header>
         <div class="max-h-[70vh] overflow-y-auto px-5 py-4">
           ${state.metaEditError ? `<div class="mb-3">${alertError(state.metaEditError)}</div>` : ""}
           <div class="flex flex-col gap-3">
             <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="metaedit-titulo">Título</label>
+              <label class="${FORM_LABEL}" for="metaedit-titulo">Título</label>
               <input id="metaedit-titulo" data-metaedit-field="titulo" type="text" value="${escapeHtml(f.titulo)}" class="${FIELD_INPUT}" />
             </div>
             <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="metaedit-descripcion">Descripción</label>
+              <label class="${FORM_LABEL}" for="metaedit-descripcion">Descripción</label>
               <textarea id="metaedit-descripcion" data-metaedit-field="descripcion" rows="2" class="${FIELD_TEXTAREA}">${escapeHtml(f.descripcion)}</textarea>
             </div>
             ${
@@ -760,18 +809,18 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
                 ? `
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="metaedit-umbral">Umbral mínimo</label>
+                <label class="${FORM_LABEL}" for="metaedit-umbral">Umbral mínimo</label>
                 <input id="metaedit-umbral" data-metaedit-field="umbral" type="number" min="1" value="${f.umbralMinimoRespuestas}" class="${FIELD_INPUT}" />
               </div>
               <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="metaedit-recordatorio">Recordatorio (días)</label>
+                <label class="${FORM_LABEL}" for="metaedit-recordatorio">Recordatorio (días)</label>
                 <input id="metaedit-recordatorio" data-metaedit-field="recordatorio" type="number" min="1" value="${f.recordatorioCadaDias}" class="${FIELD_INPUT}" />
               </div>
             </div>`
                 : ""
             }
             <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="metaedit-cierre">Fecha de cierre programada</label>
+              <label class="${FORM_LABEL}" for="metaedit-cierre">Fecha de cierre programada</label>
               <input id="metaedit-cierre" data-metaedit-field="cierre" type="date" value="${escapeHtml(f.fechaCierreProgramada)}" class="${FIELD_INPUT}" />
             </div>
           </div>
@@ -788,48 +837,44 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
 
   function renderDetalle(): string {
     if (state.detalleLoading) {
-      return `<div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-16" aria-busy="true"><p class="sr-only">Cargando…</p></div>`;
+      return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando encuesta…" });
     }
     if (state.detalleError || !state.detalle) {
-      return `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center" role="alert">
-        <p class="text-sm font-semibold text-red-700">${escapeHtml(state.detalleError ?? "No se pudo cargar la encuesta")}</p>
-        <a href="#/talento/encuestas" class="${BTN_GHOST} mx-auto mt-4 w-fit">Volver a encuestas</a>
-      </div>`;
+      return errorState({
+        message: state.detalleError ?? "No se pudo cargar la encuesta",
+        actionLabel: "Volver a encuestas",
+        actionAttrs: 'data-action="volver-encuestas"',
+      });
     }
     const detalle = state.detalle;
-    const tab = (id: "preguntas" | "participantes", label: string): string => {
-      const active = state.detalleTab === id;
-      const cls = active
-        ? "-mb-px border-b-2 border-accent px-1 py-3 text-sm font-semibold text-accent"
-        : "-mb-px border-b-2 border-transparent px-1 py-3 text-sm font-semibold text-slate-500 hover:text-text-primary";
-      return `<button type="button" role="tab" aria-selected="${active}" data-action="detalle-tab" data-tab="${id}" class="${cls}">${label}</button>`;
-    };
     return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
-      <header class="flex flex-col gap-3">
+      <div class="flex flex-col gap-2">
         <a href="#/talento/encuestas" class="w-fit text-xs font-semibold text-accent hover:underline">← Volver a encuestas</a>
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
-              <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">${escapeHtml(detalle.titulo)}</h1>
-              ${estadoBadge(detalle.estado)}
-            </div>
-            ${detalle.descripcion ? `<p class="mt-1 text-sm text-text-muted">${escapeHtml(detalle.descripcion)}</p>` : ""}
-            <p class="mt-1 text-xs text-text-muted">${escapeHtml(TIPO_LABELS[detalle.tipo])} · ${detalle.es_anonima ? "Anónima" : "No anónima"} · Umbral mínimo ${detalle.umbral_minimo_respuestas} · Recordatorio cada ${detalle.recordatorio_cada_dias} día(s)</p>
-            ${
-              detalle.estado !== "borrador"
-                ? `<p class="mt-1 text-xs text-text-muted">Publicada: ${escapeHtml(fmtFecha(detalle.fecha_publicacion))} · Cierre programado: ${escapeHtml(fmtFecha(detalle.fecha_cierre_programada))}${detalle.fecha_cierre_real ? ` · Cierre real: ${escapeHtml(fmtFecha(detalle.fecha_cierre_real))}` : ""}</p>`
-                : ""
-            }
-          </div>
-          ${renderDetalleAcciones(detalle)}
+        <p class="text-xs font-medium text-text-muted">Talento</p>
+        ${pageHeading(detalle.titulo, undefined, renderDetalleAcciones(detalle))}
+        <div class="-mt-2 flex flex-wrap items-center gap-2">
+          ${estadoBadge(detalle.estado)}
         </div>
-      </header>
+        ${detalle.descripcion ? `<p class="text-sm text-text-muted">${escapeHtml(detalle.descripcion)}</p>` : ""}
+        <p class="text-xs text-text-muted">${escapeHtml(TIPO_LABELS[detalle.tipo])} · ${detalle.es_anonima ? "Anónima" : "No anónima"} · Umbral mínimo ${detalle.umbral_minimo_respuestas} · Recordatorio cada ${detalle.recordatorio_cada_dias} día(s)</p>
+        ${
+          detalle.estado !== "borrador"
+            ? `<p class="text-xs text-text-muted">Publicada: ${escapeHtml(fmtFechaEncuesta(detalle.fecha_publicacion))} · Cierre programado: ${escapeHtml(fmtFechaEncuesta(detalle.fecha_cierre_programada))}${detalle.fecha_cierre_real ? ` · Cierre real: ${escapeHtml(fmtFechaEncuesta(detalle.fecha_cierre_real))}` : ""}</p>`
+            : ""
+        }
+      </div>
       ${state.actionError ? alertError(state.actionError) : ""}
       ${state.actionMessage ? alertSuccess(state.actionMessage) : ""}
-      <div role="tablist" class="flex gap-x-6 border-b border-slate-200/70">
-        ${tab("preguntas", "Preguntas")}
-        ${tab("participantes", "Participantes")}
+      <div data-tabs="detalle">
+        ${renderTabNav(
+          [
+            { id: "preguntas", label: "Preguntas" },
+            { id: "participantes", label: "Participantes" },
+          ],
+          state.detalleTab,
+          { ariaLabel: "Secciones de la encuesta" },
+        )}
       </div>
       ${state.detalleTab === "preguntas" ? renderPreguntasTab(detalle) : renderParticipantesTab(detalle)}
     </div>
@@ -847,20 +892,20 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     const puedePublicar = !state.publicarSaving && !!state.publicarFechaCierre && vigente && (totalVigente ?? 0) > 0;
     return `
     <div class="${MODAL_OVERLAY}" data-modal="publicar">
-      <div class="${MODAL_PANEL} max-w-xl" role="dialog" aria-modal="true">
+      <div class="${MODAL_PANEL} max-w-xl" role="dialog" aria-modal="true" aria-labelledby="publicar-modal-titulo">
         <header class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 class="text-base font-bold text-text-primary">Publicar encuesta</h2>
+          <h2 id="publicar-modal-titulo" class="text-base font-bold text-text-primary">Publicar encuesta</h2>
           <button type="button" data-action="publicar-cerrar" class="text-text-muted hover:text-text-primary" aria-label="Cerrar">✕</button>
         </header>
         <div class="max-h-[70vh] overflow-y-auto px-5 py-4">
           ${state.publicarError ? `<div class="mb-3">${alertError(state.publicarError)}</div>` : ""}
           <div class="flex flex-col gap-4">
             <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="publicar-cierre">Fecha de cierre programada</label>
+              <label class="${FORM_LABEL}" for="publicar-cierre">Fecha de cierre programada</label>
               <input id="publicar-cierre" data-publicar-field="cierre" type="date" value="${escapeHtml(state.publicarFechaCierre)}" class="${FIELD_INPUT}" />
             </div>
-            <div>
-              <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">Áreas (vacío = todas)</p>
+            <fieldset>
+              <legend class="${FORM_LABEL}">Áreas (vacío = todas)</legend>
               <div class="grid max-h-40 grid-cols-2 gap-1.5 overflow-y-auto rounded-lg border border-slate-200 p-2 sm:grid-cols-3">
                 ${
                   areas.length === 0
@@ -876,13 +921,31 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
                         .join("")
                 }
               </div>
-            </div>
-            <div>
-              <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted" for="publicar-turnos">Turnos (separados por coma, vacío = todos)</label>
-              <input id="publicar-turnos" data-publicar-field="turnos" type="text" value="${escapeHtml(state.publicarTurnos)}" class="${FIELD_INPUT}" placeholder="Ej. Matutino, Vespertino" />
-            </div>
-            <div>
-              <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-text-muted">Roles (vacío = todos)</p>
+            </fieldset>
+            <fieldset>
+              <legend class="${FORM_LABEL}">Turnos (vacío = todos)</legend>
+              <div class="grid max-h-40 grid-cols-2 gap-1.5 overflow-y-auto rounded-lg border border-slate-200 p-2 sm:grid-cols-3">
+                ${
+                  state.turnosLoading
+                    ? `<p class="col-span-full py-2 text-center text-xs text-text-muted">Cargando turnos…</p>`
+                    : state.turnosError
+                      ? `<p class="col-span-full py-2 text-center text-xs text-red-700">${escapeHtml(state.turnosError)}</p>`
+                      : (state.turnosOptions ?? []).length === 0
+                        ? `<p class="col-span-full py-2 text-center text-xs text-text-muted">No hay turnos registrados.</p>`
+                        : (state.turnosOptions ?? [])
+                            .map(
+                              (t) => `
+                    <label class="flex items-center gap-1.5 text-xs text-text-primary">
+                      <input type="checkbox" data-publicar-turno="${escapeHtml(t)}" class="size-3.5 rounded-sm border-slate-300 text-accent focus:ring-accent" ${state.publicarTurnos.includes(t) ? "checked" : ""} />
+                      ${escapeHtml(t)}
+                    </label>`,
+                            )
+                            .join("")
+                }
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend class="${FORM_LABEL}">Roles (vacío = todos)</legend>
               <div class="flex flex-wrap gap-3">
                 ${ROLES_AUDIENCIA.map(
                   (r) => `
@@ -892,7 +955,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
                   </label>`,
                 ).join("")}
               </div>
-            </div>
+            </fieldset>
             <div>
               <button type="button" data-action="publicar-preview" class="${BTN_SECONDARY}" ${state.previewLoading ? "disabled" : ""}>
                 ${state.previewLoading ? "Calculando…" : "Vista previa de audiencia"}
@@ -902,15 +965,20 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
                   ? `<p class="mt-2 text-xs text-red-700">${escapeHtml(state.previewError)}</p>`
                   : state.previewResult
                     ? vigente
-                      ? `<div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
-                          <p class="font-semibold">${state.previewResult.total} empleado(s) recibirán la encuesta.</p>
+                      ? `<div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900">
+                          <p class="font-semibold tabular-nums">${state.previewResult.total} empleado(s) recibirán la encuesta.</p>
                           ${
                             state.previewResult.por_area.length > 0
-                              ? `<p class="mt-1 text-xs">${state.previewResult.por_area.map((a) => `${escapeHtml(a.area_nombre ?? "Sin área")}: ${a.total}`).join(" · ")}</p>`
+                              ? `<p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Por área</p>${renderAudienciaDesglose(state.previewResult.por_area.map((a) => ({ label: a.area_nombre ?? "Sin área", total: a.total })))}`
+                              : ""
+                          }
+                          ${
+                            state.previewResult.por_turno.length > 0
+                              ? `<p class="mt-3 text-[11px] font-semibold uppercase tracking-wide text-blue-700">Por turno</p>${renderAudienciaDesglose(state.previewResult.por_turno.map((t) => ({ label: t.turno ?? "Sin turno", total: t.total })))}`
                               : ""
                           }
                         </div>`
-                      : `<p class="mt-2 text-xs text-amber-700">Los filtros cambiaron desde la última vista previa. Vuelve a calcularla antes de publicar.</p>`
+                      : alertWarning("Los filtros cambiaron desde la última vista previa. Vuelve a calcularla antes de publicar.")
                     : ""
               }
             </div>
@@ -949,14 +1017,14 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     if (state.subview.kind === "list") {
       return `
       <div class="${RH_LISTADO_PAGE_OUTER}">
-        <header class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p class="text-xs font-medium text-text-muted">Talento</p>
-            <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Encuestas RH</h1>
-            <p class="mt-1 text-sm text-text-muted">Encuestas de clima, pulso y otras mediciones organizacionales.</p>
-          </div>
-          <a href="#/talento/encuestas/nueva" class="${BTN_PRIMARY} w-fit shrink-0">+ Nueva encuesta</a>
-        </header>
+        <div class="flex flex-col gap-2">
+          <p class="text-xs font-medium text-text-muted">Talento</p>
+          ${pageHeading(
+            "Encuestas RH",
+            "Encuestas de clima, pulso y otras mediciones organizacionales.",
+            `<a href="#/talento/encuestas/nueva" class="${BTN_PRIMARY} w-fit shrink-0">+ Nueva encuesta</a>`,
+          )}
+        </div>
         ${renderList()}
       </div>
       ${renderPublicarModal()}`;
@@ -970,6 +1038,34 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       activeNav: "encuestas-rh",
       mainClass: "py-5 sm:py-6",
       mainHtml: pageContent(),
+    });
+
+    if (publicarFocusPending && state.publicarOpen) {
+      publicarFocusPending = false;
+      focusModalFirstField('[data-modal="publicar"]');
+    }
+    if (metaEditFocusPending && state.metaEditOpen) {
+      metaEditFocusPending = false;
+      focusModalFirstField('[data-modal="meta-edit"]');
+    }
+    if (preguntaFormScrollPending) {
+      preguntaFormScrollPending = false;
+      scrollToPreguntaForm();
+    }
+  }
+
+  function focusModalFirstField(dataModalSelector: string): void {
+    window.requestAnimationFrame(() => {
+      const panel = container.querySelector<HTMLElement>(`${dataModalSelector} [role="dialog"]`);
+      const target = panel?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      target?.focus();
+    });
+  }
+
+  function scrollToPreguntaForm(): void {
+    window.requestAnimationFrame(() => {
+      const panel = container.querySelector<HTMLElement>("[data-pregunta-form-panel]");
+      panel?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
 
@@ -1075,6 +1171,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       state.preguntaForm = emptyPreguntaForm();
     }
     state.preguntaError = null;
+    preguntaFormScrollPending = true;
     render();
   }
 
@@ -1176,6 +1273,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     };
     state.metaEditOpen = true;
     state.metaEditError = null;
+    metaEditFocusPending = true;
     render();
   }
 
@@ -1231,15 +1329,17 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     state.publicarOpen = true;
     state.publicarEncuestaId = id;
     state.publicarAreas = [];
-    state.publicarTurnos = "";
+    state.publicarTurnos = [];
     state.publicarRoles = [];
     state.publicarFechaCierre = "";
     state.previewResult = null;
     state.previewFiltrosKey = null;
     state.previewError = null;
     state.publicarError = null;
+    publicarFocusPending = true;
     render();
     void loadAreasOptions();
+    void loadTurnosOptions();
   }
 
   function closePublicarModal(): void {
@@ -1251,10 +1351,7 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
   function currentFiltros(): { areas: number[]; turnos: string[]; roles: string[] } {
     return {
       areas: state.publicarAreas,
-      turnos: state.publicarTurnos
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0),
+      turnos: state.publicarTurnos,
       roles: state.publicarRoles,
     };
   }
@@ -1323,12 +1420,44 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
 
   function handleClick(e: Event): void {
     const t = e.target as HTMLElement;
+
+    // Tabs generadas por renderTabNav() (solo `data-tab`, sin `data-action`):
+    // el grupo se identifica por el wrapper `[data-tabs]` ascendente.
+    const tabEl = t.closest<HTMLElement>('[role="tab"][data-tab]');
+    if (tabEl) {
+      const group = tabEl.closest<HTMLElement>("[data-tabs]")?.dataset.tabs;
+      const tabId = tabEl.dataset.tab;
+      if (group === "nueva-modo" && (tabId === "cero" || tabId === "plantilla")) {
+        state.nuevaModo = tabId;
+        if (tabId === "plantilla" && state.plantillas == null) void loadPlantillas();
+        render();
+        return;
+      }
+      if (group === "detalle" && (tabId === "preguntas" || tabId === "participantes")) {
+        state.detalleTab = tabId;
+        if (tabId === "participantes" && state.participantes == null && state.detalle && state.detalle.estado !== "borrador") {
+          void loadParticipantes(state.detalle.id);
+        }
+        render();
+        return;
+      }
+      return;
+    }
+
     const actionEl = t.closest<HTMLElement>("[data-action]");
     if (!actionEl) return;
     const action = actionEl.dataset.action;
 
     if (action === "reload-list") {
       void loadList();
+      return;
+    }
+    if (action === "reload-participantes") {
+      if (state.detalle) void loadParticipantes(state.detalle.id);
+      return;
+    }
+    if (action === "volver-encuestas") {
+      window.location.hash = "#/talento/encuestas";
       return;
     }
     if (action === "abrir-publicar") {
@@ -1363,15 +1492,6 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       if (id) void onForzarRecordatorios(id);
       return;
     }
-    if (action === "nueva-modo") {
-      const modo = actionEl.dataset.modo as "cero" | "plantilla" | undefined;
-      if (modo) {
-        state.nuevaModo = modo;
-        if (modo === "plantilla" && state.plantillas == null) void loadPlantillas();
-        render();
-      }
-      return;
-    }
     if (action === "nueva-anonima") {
       state.nuevaMetaForm.esAnonima = actionEl.dataset.value === "true";
       render();
@@ -1392,17 +1512,6 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     }
     if (action === "nueva-guardar") {
       void onGuardarNueva();
-      return;
-    }
-    if (action === "detalle-tab") {
-      const tabId = actionEl.dataset.tab as "preguntas" | "participantes" | undefined;
-      if (tabId) {
-        state.detalleTab = tabId;
-        if (tabId === "participantes" && state.participantes == null && state.detalle && state.detalle.estado !== "borrador") {
-          void loadParticipantes(state.detalle.id);
-        }
-        render();
-      }
       return;
     }
     if (action === "pregunta-nueva") {
@@ -1490,17 +1599,20 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
       render(); // el preview vigente puede quedar desactualizado al cambiar filtros
       return;
     }
+    if (t instanceof HTMLInputElement && t.dataset.publicarTurno != null) {
+      const v = t.dataset.publicarTurno;
+      state.publicarTurnos = t.checked
+        ? [...state.publicarTurnos.filter((x) => x !== v), v]
+        : state.publicarTurnos.filter((x) => x !== v);
+      render(); // el preview vigente puede quedar desactualizado al cambiar filtros
+      return;
+    }
     if (t instanceof HTMLInputElement && t.dataset.publicarRol != null) {
       const v = t.dataset.publicarRol;
       state.publicarRoles = t.checked
         ? [...state.publicarRoles.filter((r) => r !== v), v]
         : state.publicarRoles.filter((r) => r !== v);
       render(); // el preview vigente puede quedar desactualizado al cambiar filtros
-      return;
-    }
-    if (t instanceof HTMLInputElement && t.dataset.publicarField === "turnos") {
-      // "change" (no "input"): se dispara al salir del campo, sin interrumpir la escritura.
-      render(); // refresca el estado vigente/disabled del botón Publicar
       return;
     }
     if (t instanceof HTMLInputElement && t.dataset.preguntaField === "requerida" && state.preguntaForm) {
@@ -1535,10 +1647,6 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
         render(); // input tipo date: refresca el estado disabled del botón Publicar
         return;
       }
-      if (publicarField === "turnos") {
-        state.publicarTurnos = t.value;
-        return;
-      }
 
       if (t.dataset.preguntaField === "texto" && state.preguntaForm) {
         state.preguntaForm.texto = t.value;
@@ -1552,10 +1660,45 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     }
   }
 
+  // ── A11y de modales: Escape cierra, Tab hace ciclo dentro del panel abierto ──
+
+  function handleKeydown(e: KeyboardEvent): void {
+    if (e.key === "Escape") {
+      if (state.publicarOpen) {
+        e.preventDefault();
+        closePublicarModal();
+        return;
+      }
+      if (state.metaEditOpen) {
+        e.preventDefault();
+        state.metaEditOpen = false;
+        render();
+        return;
+      }
+      return;
+    }
+    if (e.key === "Tab") {
+      const panel = container.querySelector<HTMLElement>('[data-modal] [role="dialog"]');
+      if (!panel) return;
+      const focusables = panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      if (focusables.length === 0) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    }
+  }
+
   render();
   container.addEventListener("click", handleClick, { signal: mountSignal });
   container.addEventListener("change", handleChange, { signal: mountSignal });
   container.addEventListener("input", handleInput, { signal: mountSignal });
+  container.addEventListener("keydown", handleKeydown, { signal: mountSignal });
 
   if (state.subview.kind === "list") {
     void loadList();
