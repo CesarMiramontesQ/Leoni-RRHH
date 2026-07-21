@@ -2,14 +2,21 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
   alertError,
+  alertInfo,
   alertSuccess,
-  BTN_GHOST,
+  badgeApproved,
+  badgePending,
   BTN_PRIMARY,
   BTN_SECONDARY,
-  FIELD_FOCUS,
+  errorState,
+  FIELD_TEXTAREA,
+  pageHeading,
+  renderTabNav,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
+  skeletonBlock,
 } from "../ui/uiTokens.ts";
+import { fmtFechaEncuesta, renderEmptyState } from "../encuestasRh/shared.ts";
 import {
   getMiEncuesta,
   getMisEncuestas,
@@ -47,13 +54,6 @@ function emptyRespuesta(): RespuestaLocal {
   return { valor_likert: null, texto: "", opcion_ids: [] };
 }
 
-function fmtFecha(value: string | null): string | null {
-  if (!value) return null;
-  const d = new Date(value.length <= 10 ? value + "T00:00:00" : value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
-}
-
 let mountAbort: AbortController | null = null;
 
 export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal): void {
@@ -78,6 +78,11 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
     formError: null,
     successMessage: null,
   };
+
+  // Foco pendiente tras un re-render completo (roving tabindex del likert):
+  // el click/flecha dispara render(), que reemplaza el DOM, así que el botón
+  // recién seleccionado debe volver a recibir foco después de montar.
+  let pendingLikertFocus: { pregunta: number; value: number } | null = null;
 
   async function loadItems(): Promise<void> {
     state.loading = true;
@@ -131,22 +136,42 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
     return false;
   }
 
+  function selectLikert(preguntaId: number, value: number, focusAfterRender: boolean): void {
+    const r = state.respuestas[preguntaId] ?? emptyRespuesta();
+    r.valor_likert = value;
+    state.respuestas[preguntaId] = r;
+    state.formError = null;
+    if (focusAfterRender) pendingLikertFocus = { pregunta: preguntaId, value };
+    render();
+  }
+
+  // Radiogroup Likert (patrón ARIA APG completo): role="radio" + aria-checked,
+  // roving tabindex (solo el seleccionado —o el primero si no hay selección—
+  // es tabbable) y navegación con flechas (ver handleLikertKeydown).
   function renderLikert(p: PreguntaResponse, r: RespuestaLocal): string {
+    const legendId = `pregunta-legend-${p.id}`;
+    const selected = r.valor_likert;
+    const tabbable = selected ?? 1;
     const opciones = [1, 2, 3, 4, 5]
       .map((n) => {
-        const active = r.valor_likert === n;
+        const active = selected === n;
         const cls = active
           ? "border-accent bg-accent text-white"
           : "border-slate-200 bg-white text-text-secondary hover:border-accent/50 hover:text-accent";
-        return `<button type="button" data-action="likert" data-pregunta="${p.id}" data-value="${n}"
+        return `<button type="button" role="radio" aria-checked="${active}" tabindex="${n === tabbable ? 0 : -1}"
+          data-action="likert" data-pregunta="${p.id}" data-value="${n}"
           class="flex size-10 items-center justify-center rounded-full border text-sm font-semibold transition ${cls}"
-          aria-pressed="${active ? "true" : "false"}" aria-label="${n} de 5">${n}</button>`;
+          aria-label="${n} de 5">${n}</button>`;
       })
       .join("");
-    return `<div class="flex items-center gap-2">${opciones}</div>
+    return `<div class="flex items-center gap-2" role="radiogroup" aria-labelledby="${legendId}"${p.requerida ? ' aria-required="true"' : ""}>${opciones}</div>
       <div class="mt-1 flex justify-between text-xs text-text-muted"><span>Muy en desacuerdo</span><span>Muy de acuerdo</span></div>`;
   }
 
+  // Opción única/múltiple: inputs nativos radio/checkbox agrupados por `name`
+  // (grupo asociado programáticamente); el fieldset/legend del contenedor
+  // (renderPregunta) les da el nombre accesible y el roving tabindex de los
+  // radios nativos lo maneja el navegador.
   function renderOpciones(p: PreguntaResponse, r: RespuestaLocal): string {
     const inputType = p.seleccion_multiple ? "checkbox" : "radio";
     const rows = p.opciones
@@ -164,23 +189,24 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
 
   function renderTexto(p: PreguntaResponse, r: RespuestaLocal): string {
     return `<textarea data-action="texto" data-pregunta="${p.id}" rows="3"
-      class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS}"
+      class="${FIELD_TEXTAREA}"
       placeholder="Escribe tu respuesta…">${escapeHtml(r.texto)}</textarea>`;
   }
 
   function renderPregunta(p: PreguntaResponse): string {
     const r = state.respuestas[p.id] ?? emptyRespuesta();
+    const legendId = `pregunta-legend-${p.id}`;
     const body =
       p.tipo === "likert" ? renderLikert(p, r)
       : p.tipo === "opcion_multiple" ? renderOpciones(p, r)
       : renderTexto(p, r);
     return `
-    <div class="border-b border-slate-100 py-4 last:border-b-0">
-      <p class="text-sm font-semibold text-text-primary">
-        ${escapeHtml(p.texto)}${p.requerida ? ` <span class="text-red-500" aria-hidden="true">*</span>` : ""}
-      </p>
+    <fieldset class="border-b border-slate-100 py-4 last:border-b-0">
+      <legend id="${legendId}" class="text-sm font-semibold text-text-primary">
+        ${escapeHtml(p.texto)}${p.requerida ? ` <span class="text-red-500" aria-hidden="true">*</span><span class="sr-only"> (obligatoria)</span>` : ""}
+      </legend>
       <div class="mt-3">${body}</div>
-    </div>`;
+    </fieldset>`;
   }
 
   function renderForm(detalle: EncuestaResponse): string {
@@ -192,11 +218,7 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
         <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">Responder encuesta</p>
         <h2 class="text-lg font-bold text-text-primary">${escapeHtml(detalle.titulo)}</h2>
         ${detalle.descripcion ? `<p class="text-sm text-text-secondary">${escapeHtml(detalle.descripcion)}</p>` : ""}
-        ${
-          detalle.es_anonima
-            ? `<p class="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-900">Tus respuestas no se vinculan a tu nombre</p>`
-            : ""
-        }
+        ${detalle.es_anonima ? `<div class="mt-1">${alertInfo("Tus respuestas no se vinculan a tu nombre")}</div>` : ""}
       </div>
       <div class="px-5 py-2 sm:px-6">
         ${state.formError ? `<div class="my-3">${alertError(state.formError)}</div>` : ""}
@@ -215,77 +237,78 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
 
   function renderRespondingPanel(): string {
     if (state.detalleLoading) {
-      return `<div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-16" aria-busy="true"><p class="sr-only">Cargando…</p></div>`;
+      return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando…" });
     }
     if (state.detalleError || !state.detalle) {
-      return `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center" role="alert">
-        <p class="text-sm font-semibold text-red-700">${escapeHtml(state.detalleError ?? "No se pudo cargar la encuesta")}</p>
-        <button type="button" data-action="responder-cancel" class="${BTN_GHOST} mx-auto mt-4">Volver</button>
-      </div>`;
+      return errorState({
+        message: state.detalleError ?? "No se pudo cargar la encuesta",
+        actionLabel: "Volver",
+        actionAttrs: 'data-action="responder-cancel"',
+      });
     }
     return renderForm(state.detalle);
   }
 
   function renderListItem(item: MiEncuestaItem): string {
-    const fechaLimite = fmtFecha(item.fecha_cierre_programada);
     const respondida = item.participante_estado === "respondida";
+    const fechaLimite = fmtFechaEncuesta(item.fecha_cierre_programada);
+    const fechaRespuesta = fmtFechaEncuesta(item.fecha_respuesta);
     return `
     <div class="${RH_LISTADO_SURFACE} flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
       <div class="min-w-0">
         <h3 class="text-base font-semibold text-text-primary">${escapeHtml(item.titulo)}</h3>
-        <p class="mt-0.5 text-xs text-text-secondary">
-          ${respondida
-            ? `Respondida${fmtFecha(item.fecha_respuesta) ? ` el ${escapeHtml(fmtFecha(item.fecha_respuesta)!)}` : ""}`
-            : fechaLimite ? `<span class="font-medium text-amber-700">Disponible hasta el ${escapeHtml(fechaLimite)}</span>` : "Sin fecha límite"}
-          ${item.es_anonima ? " · Anónima" : ""}
+        <p class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-text-secondary">
+          ${
+            respondida
+              ? `<span>Respondida${fechaRespuesta !== "—" ? ` el ${escapeHtml(fechaRespuesta)}` : ""}</span>`
+              : fechaLimite !== "—"
+                ? badgePending(`Disponible hasta el ${fechaLimite}`)
+                : `<span>Sin fecha límite</span>`
+          }
+          ${item.es_anonima ? `<span class="text-text-muted">· Anónima</span>` : ""}
         </p>
       </div>
       ${
         respondida
-          ? `<span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-900"><span class="size-1.5 rounded-full bg-emerald-500"></span>Respondida</span>`
+          ? badgeApproved("Respondida")
           : `<button type="button" data-action="responder-open" data-id="${item.encuesta_id}" class="${BTN_PRIMARY} shrink-0">Responder</button>`
       }
     </div>`;
   }
 
   function renderEmpty(tab: Tab): string {
-    const msg =
-      tab === "pendientes"
-        ? { title: "No tienes encuestas pendientes", sub: "Cuando RH publique una encuesta dirigida a ti, aparecerá aquí." }
-        : { title: "Aún no has respondido encuestas", sub: "Las encuestas que respondas aparecerán en esta lista." };
-    return `
-    <div class="${RH_LISTADO_SURFACE} flex flex-col items-center justify-center px-6 py-16 text-center">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-12 text-slate-300" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-      <p class="mt-4 text-base font-semibold text-text-primary">${msg.title}</p>
-      <p class="mt-1 max-w-sm text-sm text-text-muted">${msg.sub}</p>
-    </div>`;
+    return tab === "pendientes"
+      ? renderEmptyState({
+          title: "No tienes encuestas pendientes",
+          subtitle: "Cuando RH publique una encuesta dirigida a ti, aparecerá aquí.",
+        })
+      : renderEmptyState({
+          title: "Aún no has respondido encuestas",
+          subtitle: "Las encuestas que respondas aparecerán en esta lista.",
+        });
   }
 
   function renderTabs(): string {
     const pendientesCount = state.items.filter((i) => i.participante_estado === "pendiente").length;
     const respondidasCount = state.items.filter((i) => i.participante_estado === "respondida").length;
-    const tab = (id: Tab, label: string, count: number): string => {
-      const active = state.tab === id;
-      const cls = active
-        ? "-mb-px border-b-2 border-accent px-1 py-3 text-sm font-semibold text-accent"
-        : "-mb-px border-b-2 border-transparent px-1 py-3 text-sm font-semibold text-slate-500 hover:text-text-primary";
-      return `<button type="button" role="tab" aria-selected="${active ? "true" : "false"}" data-action="tab" data-tab="${id}" class="${cls}">${label} (${count})</button>`;
-    };
-    return `<div role="tablist" class="flex flex-wrap gap-x-6 gap-y-1 border-b border-slate-200/70">
-      ${tab("pendientes", "Pendientes", pendientesCount)}
-      ${tab("respondidas", "Respondidas", respondidasCount)}
+    return `<div data-tabs="mis-encuestas">
+      ${renderTabNav(
+        [
+          { id: "pendientes", label: "Pendientes", badge: `(${pendientesCount})` },
+          { id: "respondidas", label: "Respondidas", badge: `(${respondidasCount})` },
+        ],
+        state.tab,
+        { ariaLabel: "Mis encuestas" },
+      )}
     </div>`;
   }
 
   function renderContent(): string {
     if (state.loading) {
-      return `<div class="${RH_LISTADO_SURFACE} animate-pulse px-6 py-16" aria-busy="true"><p class="sr-only">Cargando…</p></div>`;
+      return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando…" });
     }
     if (state.error) {
-      return `<div class="${RH_LISTADO_SURFACE} px-6 py-10 text-center" role="alert">
-        <p class="text-sm font-semibold text-red-700">${escapeHtml(state.error)}</p>
-        <button type="button" data-action="reload" class="${BTN_GHOST} mx-auto mt-4">Reintentar</button>
-      </div>`;
+      return errorState({ message: state.error, actionLabel: "Reintentar", actionAttrs: 'data-action="reload"' });
     }
     if (state.respondingId != null) return renderRespondingPanel();
 
@@ -301,11 +324,10 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
   function renderPage(): string {
     return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
-      <header class="flex flex-col gap-1">
+      <div class="flex flex-col gap-2">
         <p class="text-xs font-medium text-text-muted">Talento</p>
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Mis encuestas RH</h1>
-        <p class="text-sm text-text-muted">Encuestas de clima y pulso organizacional dirigidas a ti.</p>
-      </header>
+        ${pageHeading("Mis encuestas RH", "Encuestas de clima y pulso organizacional dirigidas a ti.")}
+      </div>
       ${state.successMessage ? alertSuccess(state.successMessage) : ""}
       ${renderContent()}
     </div>`;
@@ -318,6 +340,16 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
       mainClass: "py-5 sm:py-6",
       mainHtml: renderPage(),
     });
+
+    if (pendingLikertFocus) {
+      const { pregunta, value } = pendingLikertFocus;
+      pendingLikertFocus = null;
+      window.requestAnimationFrame(() => {
+        container
+          .querySelector<HTMLElement>(`[data-action="likert"][data-pregunta="${pregunta}"][data-value="${value}"]`)
+          ?.focus();
+      });
+    }
   }
 
   async function submitResponse(): Promise<void> {
@@ -358,20 +390,24 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
 
   function handleClick(e: Event): void {
     const t = e.target as HTMLElement;
+
+    // Tabs generadas por renderTabNav() (solo `data-tab`, sin `data-action`).
+    const tabEl = t.closest<HTMLElement>('[role="tab"][data-tab]');
+    if (tabEl) {
+      const tab = tabEl.dataset.tab as Tab | undefined;
+      if (tab === "pendientes" || tab === "respondidas") {
+        state.tab = tab;
+        render();
+      }
+      return;
+    }
+
     const actionEl = t.closest<HTMLElement>("[data-action]");
     if (!actionEl) return;
     const action = actionEl.dataset.action;
 
     if (action === "reload") {
       void loadItems();
-      return;
-    }
-    if (action === "tab") {
-      const tab = actionEl.dataset.tab as Tab | undefined;
-      if (tab) {
-        state.tab = tab;
-        render();
-      }
       return;
     }
     if (action === "responder-open") {
@@ -387,11 +423,7 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
       const preguntaId = Number(actionEl.dataset.pregunta);
       const value = Number(actionEl.dataset.value);
       if (preguntaId && value >= 1 && value <= 5) {
-        const r = state.respuestas[preguntaId] ?? emptyRespuesta();
-        r.valor_likert = value;
-        state.respuestas[preguntaId] = r;
-        state.formError = null;
-        render();
+        selectLikert(preguntaId, value, true);
       }
       return;
     }
@@ -399,6 +431,29 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
       void submitResponse();
       return;
     }
+  }
+
+  // Roving tabindex del likert: las flechas mueven el foco entre los 5
+  // botones del radiogroup y seleccionan el valor al llegar (patrón ARIA APG
+  // de radio group de selección única). El foco se restaura tras el
+  // re-render vía `pendingLikertFocus` (ver render()).
+  function handleKeydown(e: KeyboardEvent): void {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowDown" && e.key !== "ArrowLeft" && e.key !== "ArrowUp") return;
+    const t = e.target as HTMLElement;
+    const radio = t.closest<HTMLElement>('[role="radio"][data-action="likert"]');
+    if (!radio) return;
+    const group = radio.closest<HTMLElement>('[role="radiogroup"]');
+    if (!group) return;
+    const items = Array.from(group.querySelectorAll<HTMLElement>('[role="radio"]'));
+    const idx = items.indexOf(radio);
+    if (idx === -1) return;
+    e.preventDefault();
+    const delta = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+    const nextEl = items[(idx + delta + items.length) % items.length];
+    const preguntaId = Number(nextEl.dataset.pregunta);
+    const value = Number(nextEl.dataset.value);
+    if (!preguntaId || !(value >= 1 && value <= 5)) return;
+    selectLikert(preguntaId, value, true);
   }
 
   function handleChange(e: Event): void {
@@ -453,6 +508,7 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
   container.addEventListener("click", handleClick, { signal: mountSignal });
   container.addEventListener("change", handleChange, { signal: mountSignal });
   container.addEventListener("input", handleInput, { signal: mountSignal });
+  container.addEventListener("keydown", handleKeydown, { signal: mountSignal });
 
   void loadItems();
 }
