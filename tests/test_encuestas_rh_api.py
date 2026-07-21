@@ -608,6 +608,48 @@ async def test_resultados_borrador_409(client, db):
     assert resp_res.status_code == 409
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# Fix 1 (middleware rh_module_permission): self-service para inscritos no-RH
+# ══════════════════════════════════════════════════════════════════════════
+async def test_inscrito_no_rh_sin_modulo_puede_self_service_pero_no_gestion(client, db):
+    """Un supervisor inscrito en permisos RH (con OTRO modulo otorgado, no
+    'encuestas-rh') debe poder usar self-service (mis-encuestas / responder)
+    igual que cualquier autenticado, pero seguir bloqueado en gestion."""
+    supervisor = await make_empleado(
+        db,
+        rol="supervisor",
+        email="encrh_sup_inscrito_fix1@leoni.test",
+        modulos_rh={"actas": True},
+        inscrito_modulos_rh=True,
+    )
+    rh = await make_empleado(db, rol="rh", email="encrh_rh_fix1@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+
+    encuesta_id, pregunta_id = await _crear_encuesta_con_pregunta(client, headers_rh)
+    resp_pub = await client.post(
+        f"{BASE}/encuestas/{encuesta_id}/publicar",
+        json={"filtros": {"roles": ["supervisor"]}, "fecha_cierre_programada": _fecha_cierre()},
+        headers=headers_rh,
+    )
+    assert resp_pub.status_code == 200, resp_pub.text
+
+    headers_sup = await auth_headers(client, supervisor)
+
+    resp_mis = await client.get(f"{BASE}/mis-encuestas", headers=headers_sup)
+    assert resp_mis.status_code == 200, resp_mis.text
+    assert len(resp_mis.json()) == 1
+
+    resp_responder = await client.post(
+        f"{BASE}/mis-encuestas/{encuesta_id}/responder",
+        json={"respuestas": [{"pregunta_id": pregunta_id, "valor_likert": 4}]},
+        headers=headers_sup,
+    )
+    assert resp_responder.status_code == 204, resp_responder.text
+
+    resp_gestion = await client.get(f"{BASE}/encuestas", headers=headers_sup)
+    assert resp_gestion.status_code == 403
+
+
 async def test_resultados_segmentos_dimension_invalida_con_encuesta_inexistente_422(client, db):
     """`dimension` se valida en el service ANTES de resolver la encuesta
     (EncuestasRhService.obtener_resultados_segmentos valida dimension antes
