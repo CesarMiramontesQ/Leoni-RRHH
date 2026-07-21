@@ -16,7 +16,11 @@ se usa flush() (via el repositorio), como el resto de services del proyecto.
 
 from __future__ import annotations
 
+import random
+import re
+import unicodedata
 from datetime import date, datetime, timezone
+from io import BytesIO
 from typing import Optional
 from uuid import uuid4
 
@@ -44,10 +48,12 @@ from app.schemas.encuestas_rh import (
     AudienciaFiltros,
     AudienciaPreview,
     AudienciaTurnoConteo,
+    DistribucionLikert,
     EncuestaCreate,
     EncuestaResponse,
     EncuestaUpdate,
     MiEncuestaItem,
+    OpcionConteo,
     OpcionResponse,
     ParticipanteItem,
     PlantillaResponse,
@@ -56,6 +62,11 @@ from app.schemas.encuestas_rh import (
     PreguntaUpdate,
     PublicarRequest,
     ResponderRequest,
+    ResultadoPregunta,
+    ResultadosGlobal,
+    ResultadosSegmentos,
+    SegmentoCelda,
+    TextosResponse,
 )
 from app.services.notificacion_service import NotificacionService
 
@@ -63,6 +74,11 @@ MIS_ENCUESTAS_TARGET_URL = "#/talento/mis-encuestas"
 
 # Campos editables de la encuesta una vez publicada (el resto es inmutable).
 _CAMPOS_EDITABLES_PUBLICADA = {"titulo", "descripcion", "fecha_cierre_programada"}
+
+# Dimensiones validas para /resultados/segmentos (parametro `dimension`).
+DIMENSIONES_SEGMENTO = ("area", "turno", "clasificacion")
+
+SIN_DATO = "Sin dato"
 
 
 class EncuestasRhService:
@@ -607,6 +623,361 @@ class EncuestasRhService:
         await self.db.flush()
 
         return await self.obtener_encuesta(encuesta.id)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Resultados / analitica (Tarea 4)
+    # ══════════════════════════════════════════════════════════════════════
+    async def _get_encuesta_con_resultados(self, encuesta_id: int) -> Encuesta:
+        """Encuesta publicada o cerrada (borrador -> ConflictError, mismo
+        patron que el resto del ciclo de vida: conflicto de estado -> 409)."""
+        encuesta = await self.repo.get_detalle(encuesta_id)
+        if not encuesta:
+            raise NotFoundError("Encuesta", encuesta_id)
+        if encuesta.estado == "borrador":
+            raise ConflictError(
+                "Una encuesta en borrador aun no tiene resultados (publicala primero)"
+            )
+        return encuesta
+
+    async def _resultado_pregunta_global(self, pregunta: EncuestaPregunta) -> ResultadoPregunta:
+        if pregunta.tipo == "likert":
+            promedio, n = await self.repo.likert_stats_global(pregunta.id)
+            distribucion_dict = await self.repo.likert_distribucion_global(pregunta.id)
+            return ResultadoPregunta(
+                pregunta_id=pregunta.id,
+                tipo=pregunta.tipo,
+                texto=pregunta.texto,
+                n=n,
+                promedio=round(promedio, 2) if promedio is not None else None,
+                distribucion=[
+                    DistribucionLikert(valor=v, conteo=distribucion_dict.get(v, 0))
+                    for v in range(1, 6)
+                ],
+            )
+        if pregunta.tipo == "opcion_multiple":
+            n = await self.repo.respuesta_count_global(pregunta.id)
+            conteos = await self.repo.opcion_conteos_global(pregunta.id)
+            return ResultadoPregunta(
+                pregunta_id=pregunta.id,
+                tipo=pregunta.tipo,
+                texto=pregunta.texto,
+                n=n,
+                opciones=[
+                    OpcionConteo(opcion_id=o.id, texto=o.texto, conteo=conteos.get(o.id, 0))
+                    for o in sorted(pregunta.opciones, key=lambda o: (o.orden or 0, o.id))
+                ],
+            )
+        # texto: solo el conteo de respuestas no vacias (el contenido va en
+        # /resultados/textos, sujeto ademas a shuffle).
+        n = await self.repo.respuesta_count_global(pregunta.id)
+        return ResultadoPregunta(pregunta_id=pregunta.id, tipo=pregunta.tipo, texto=pregunta.texto, n=n)
+
+    async def obtener_resultados_globales(self, encuesta_id: int) -> ResultadosGlobal:
+        encuesta = await self._get_encuesta_con_resultados(encuesta_id)
+
+        n_global = await self.repo.count_grupos_respuesta(encuesta_id)
+        total_participantes = await self.repo.count_participantes(encuesta_id)
+        respondidos = await self.repo.count_participantes_respondidos(encuesta_id)
+        tasa_respuesta = (
+            round(respondidos / total_participantes * 100, 1) if total_participantes else 0.0
+        )
+
+        # Regla min-N: solo las encuestas anonimas ocultan el global (en
+        # nominales el vinculo con el empleado ya existe por diseño).
+        oculto_global = encuesta.es_anonima and n_global < encuesta.umbral_minimo_respuestas
+
+        preguntas: list[ResultadoPregunta] = []
+        if not oculto_global:
+            for pregunta in sorted(encuesta.preguntas, key=lambda p: (p.orden, p.id)):
+                preguntas.append(await self._resultado_pregunta_global(pregunta))
+
+        return ResultadosGlobal(
+            encuesta_id=encuesta.id,
+            titulo=encuesta.titulo,
+            es_anonima=encuesta.es_anonima,
+            estado=encuesta.estado,
+            umbral_minimo_respuestas=encuesta.umbral_minimo_respuestas,
+            n=n_global,
+            total_participantes=total_participantes,
+            tasa_respuesta=tasa_respuesta,
+            oculto_global=oculto_global,
+            preguntas=preguntas,
+        )
+
+    async def obtener_resultados_segmentos(
+        self, encuesta_id: int, dimension: str
+    ) -> ResultadosSegmentos:
+        if dimension not in DIMENSIONES_SEGMENTO:
+            raise DomainValidationError(
+                f"dimension invalida: {dimension!r} (validas: {', '.join(DIMENSIONES_SEGMENTO)})"
+            )
+        encuesta = await self._get_encuesta_con_resultados(encuesta_id)
+
+        conteos = await self.repo.count_grupos_por_segmento(encuesta_id, dimension)
+
+        # Metricas por pregunta precalculadas UNA vez para todos los
+        # segmentos (evita N consultas por celda).
+        metricas: dict[int, dict] = {}
+        for pregunta in encuesta.preguntas:
+            if pregunta.tipo == "likert":
+                metricas[pregunta.id] = {
+                    "stats": await self.repo.likert_stats_por_segmento(
+                        encuesta_id, pregunta.id, dimension
+                    ),
+                    "dist": await self.repo.likert_distribucion_por_segmento(
+                        encuesta_id, pregunta.id, dimension
+                    ),
+                }
+            elif pregunta.tipo == "opcion_multiple":
+                metricas[pregunta.id] = {
+                    "n": await self.repo.respuesta_count_por_segmento(
+                        encuesta_id, pregunta.id, dimension
+                    ),
+                    "opciones": await self.repo.opcion_conteos_por_segmento(
+                        encuesta_id, pregunta.id, dimension
+                    ),
+                }
+            else:
+                metricas[pregunta.id] = {
+                    "n": await self.repo.respuesta_count_por_segmento(
+                        encuesta_id, pregunta.id, dimension
+                    ),
+                }
+
+        celdas: list[SegmentoCelda] = []
+        for valor_crudo, n in sorted(
+            conteos.items(), key=lambda kv: (kv[0] is None, kv[0] or "")
+        ):
+            nombre = valor_crudo if valor_crudo is not None else SIN_DATO
+            if n < encuesta.umbral_minimo_respuestas:
+                celdas.append(SegmentoCelda(segmento=nombre, n=n, oculto=True))
+                continue
+
+            preguntas: list[ResultadoPregunta] = []
+            for pregunta in sorted(encuesta.preguntas, key=lambda p: (p.orden, p.id)):
+                m = metricas[pregunta.id]
+                if pregunta.tipo == "likert":
+                    promedio, cnt = m["stats"].get(valor_crudo, (None, 0))
+                    dist_dict = m["dist"].get(valor_crudo, {})
+                    preguntas.append(
+                        ResultadoPregunta(
+                            pregunta_id=pregunta.id,
+                            tipo=pregunta.tipo,
+                            texto=pregunta.texto,
+                            n=cnt,
+                            promedio=round(promedio, 2) if promedio is not None else None,
+                            distribucion=[
+                                DistribucionLikert(valor=v, conteo=dist_dict.get(v, 0))
+                                for v in range(1, 6)
+                            ],
+                        )
+                    )
+                elif pregunta.tipo == "opcion_multiple":
+                    cnt = m["n"].get(valor_crudo, 0)
+                    conteos_opciones = m["opciones"].get(valor_crudo, {})
+                    preguntas.append(
+                        ResultadoPregunta(
+                            pregunta_id=pregunta.id,
+                            tipo=pregunta.tipo,
+                            texto=pregunta.texto,
+                            n=cnt,
+                            opciones=[
+                                OpcionConteo(
+                                    opcion_id=o.id,
+                                    texto=o.texto,
+                                    conteo=conteos_opciones.get(o.id, 0),
+                                )
+                                for o in sorted(pregunta.opciones, key=lambda o: (o.orden or 0, o.id))
+                            ],
+                        )
+                    )
+                else:
+                    cnt = m["n"].get(valor_crudo, 0)
+                    preguntas.append(
+                        ResultadoPregunta(
+                            pregunta_id=pregunta.id, tipo=pregunta.tipo, texto=pregunta.texto, n=cnt
+                        )
+                    )
+            celdas.append(SegmentoCelda(segmento=nombre, n=n, oculto=False, preguntas=preguntas))
+
+        return ResultadosSegmentos(
+            encuesta_id=encuesta.id,
+            dimension=dimension,
+            umbral_minimo_respuestas=encuesta.umbral_minimo_respuestas,
+            celdas=celdas,
+        )
+
+    async def obtener_textos(self, encuesta_id: int, pregunta_id: int) -> TextosResponse:
+        encuesta = await self._get_encuesta_con_resultados(encuesta_id)
+        pregunta = next((p for p in encuesta.preguntas if p.id == pregunta_id), None)
+        if not pregunta:
+            raise NotFoundError("Pregunta", pregunta_id)
+        if pregunta.tipo != "texto":
+            raise DomainValidationError(f"La pregunta {pregunta_id} no es de tipo texto")
+
+        n_global = await self.repo.count_grupos_respuesta(encuesta_id)
+        oculto = encuesta.es_anonima and n_global < encuesta.umbral_minimo_respuestas
+
+        textos: list[str] = []
+        if not oculto:
+            textos = list(await self.repo.list_textos(pregunta_id))
+            random.shuffle(textos)
+
+        return TextosResponse(
+            encuesta_id=encuesta_id,
+            pregunta_id=pregunta_id,
+            n=n_global,
+            umbral_minimo_respuestas=encuesta.umbral_minimo_respuestas,
+            oculto=oculto,
+            textos=textos,
+        )
+
+    @staticmethod
+    def _slug(titulo: str) -> str:
+        normalizado = unicodedata.normalize("NFKD", titulo).encode("ascii", "ignore").decode()
+        normalizado = re.sub(r"[^a-zA-Z0-9]+", "_", normalizado).strip("_").lower()
+        return normalizado or "encuesta"
+
+    async def exportar_resultados_excel(self, encuesta_id: int) -> tuple[BytesIO, str]:
+        encuesta = await self._get_encuesta_con_resultados(encuesta_id)
+        resumen = await self.obtener_resultados_globales(encuesta_id)
+        segmentos = {
+            dimension: await self.obtener_resultados_segmentos(encuesta_id, dimension)
+            for dimension in DIMENSIONES_SEGMENTO
+        }
+        textos_por_pregunta: dict[int, TextosResponse] = {}
+        for pregunta in encuesta.preguntas:
+            if pregunta.tipo == "texto":
+                textos_por_pregunta[pregunta.id] = await self.obtener_textos(
+                    encuesta_id, pregunta.id
+                )
+
+        output = self._resultados_excel(encuesta, resumen, segmentos, textos_por_pregunta)
+        filename = f"resultados_encuesta_{self._slug(encuesta.titulo)}.xlsx"
+        return output, filename
+
+    @staticmethod
+    def _resultados_excel(
+        encuesta: Encuesta,
+        resumen: ResultadosGlobal,
+        segmentos: dict[str, ResultadosSegmentos],
+        textos_por_pregunta: dict[int, TextosResponse],
+    ) -> BytesIO:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        wb = Workbook()
+
+        # ── Resumen ──────────────────────────────────────────────────────
+        ws = wb.active
+        ws.title = "Resumen"
+        ws.cell(row=1, column=1, value=f"Resultados — {encuesta.titulo}").font = Font(
+            bold=True, size=14
+        )
+        filas = [
+            ("Tipo", encuesta.tipo),
+            ("Anonima", "Si" if resumen.es_anonima else "No"),
+            ("Estado", resumen.estado),
+            ("Umbral minimo de respuestas", resumen.umbral_minimo_respuestas),
+            ("Total de respuestas (n)", resumen.n),
+            ("Total de participantes", resumen.total_participantes),
+            ("Tasa de respuesta (%)", resumen.tasa_respuesta),
+            ("Resultados globales ocultos (min-N)", "Si" if resumen.oculto_global else "No"),
+        ]
+        for i, (etiqueta, valor) in enumerate(filas, start=3):
+            ws.cell(row=i, column=1, value=etiqueta).font = Font(bold=True)
+            ws.cell(row=i, column=2, value=valor)
+
+        # ── Preguntas (global) ──────────────────────────────────────────
+        ws_preguntas = wb.create_sheet("Preguntas")
+        headers = ["Pregunta", "Tipo", "n", "Promedio", "Distribucion 1-5", "Opciones (conteo)"]
+        for col, h in enumerate(headers, 1):
+            ws_preguntas.cell(row=1, column=col, value=h).font = Font(bold=True)
+        if resumen.oculto_global:
+            ws_preguntas.cell(
+                row=2, column=1,
+                value=f"Oculto: n={resumen.n} < umbral={resumen.umbral_minimo_respuestas}",
+            )
+        else:
+            for i, p in enumerate(resumen.preguntas, start=2):
+                ws_preguntas.cell(row=i, column=1, value=p.texto)
+                ws_preguntas.cell(row=i, column=2, value=p.tipo)
+                ws_preguntas.cell(row=i, column=3, value=p.n)
+                ws_preguntas.cell(row=i, column=4, value=p.promedio)
+                ws_preguntas.cell(
+                    row=i, column=5,
+                    value=", ".join(f"{d.valor}:{d.conteo}" for d in p.distribucion) or None,
+                )
+                ws_preguntas.cell(
+                    row=i, column=6,
+                    value=", ".join(f"{o.texto}:{o.conteo}" for o in p.opciones) or None,
+                )
+
+        # ── Segmentos (3 dimensiones, min-N aplicado) ────────────────────
+        ws_seg = wb.create_sheet("Segmentos")
+        headers = ["Dimension", "Segmento", "n", "Oculto", "Pregunta", "Metrica"]
+        for col, h in enumerate(headers, 1):
+            ws_seg.cell(row=1, column=col, value=h).font = Font(bold=True)
+        r = 2
+        for dimension, resultado in segmentos.items():
+            for celda in resultado.celdas:
+                if celda.oculto:
+                    ws_seg.cell(row=r, column=1, value=dimension)
+                    ws_seg.cell(row=r, column=2, value=celda.segmento)
+                    ws_seg.cell(row=r, column=3, value=celda.n)
+                    ws_seg.cell(row=r, column=4, value="Si")
+                    ws_seg.cell(row=r, column=5, value=f"Oculto (n < {resumen.umbral_minimo_respuestas})")
+                    r += 1
+                    continue
+                if not celda.preguntas:
+                    ws_seg.cell(row=r, column=1, value=dimension)
+                    ws_seg.cell(row=r, column=2, value=celda.segmento)
+                    ws_seg.cell(row=r, column=3, value=celda.n)
+                    ws_seg.cell(row=r, column=4, value="No")
+                    r += 1
+                    continue
+                for p in celda.preguntas:
+                    ws_seg.cell(row=r, column=1, value=dimension)
+                    ws_seg.cell(row=r, column=2, value=celda.segmento)
+                    ws_seg.cell(row=r, column=3, value=celda.n)
+                    ws_seg.cell(row=r, column=4, value="No")
+                    ws_seg.cell(row=r, column=5, value=p.texto)
+                    if p.tipo == "likert":
+                        metrica = f"promedio={p.promedio}"
+                    elif p.tipo == "opcion_multiple":
+                        metrica = ", ".join(f"{o.texto}:{o.conteo}" for o in p.opciones)
+                    else:
+                        metrica = f"n={p.n}"
+                    ws_seg.cell(row=r, column=6, value=metrica)
+                    r += 1
+
+        # ── Textos ────────────────────────────────────────────────────────
+        ws_textos = wb.create_sheet("Textos")
+        headers = ["Pregunta", "Oculto", "Texto"]
+        for col, h in enumerate(headers, 1):
+            ws_textos.cell(row=1, column=col, value=h).font = Font(bold=True)
+        r = 2
+        preguntas_texto = [p for p in encuesta.preguntas if p.tipo == "texto"]
+        for pregunta in sorted(preguntas_texto, key=lambda p: (p.orden, p.id)):
+            respuesta_textos = textos_por_pregunta.get(pregunta.id)
+            if respuesta_textos is None:
+                continue
+            if respuesta_textos.oculto or not respuesta_textos.textos:
+                ws_textos.cell(row=r, column=1, value=pregunta.texto)
+                ws_textos.cell(row=r, column=2, value="Si" if respuesta_textos.oculto else "No")
+                ws_textos.cell(row=r, column=3, value=None)
+                r += 1
+                continue
+            for texto in respuesta_textos.textos:
+                ws_textos.cell(row=r, column=1, value=pregunta.texto)
+                ws_textos.cell(row=r, column=2, value="No")
+                ws_textos.cell(row=r, column=3, value=texto)
+                r += 1
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
 
     # ══════════════════════════════════════════════════════════════════════
     # Helpers de conversion
