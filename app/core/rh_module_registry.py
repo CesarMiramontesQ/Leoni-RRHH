@@ -367,6 +367,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/capacidades",),
         api_prefixes=("/api/v1/competencias/multihabilidades",),
     ),
+    "encuestas-rh": RhModuleDef(
+        key="encuestas-rh",
+        label="Encuestas",
+        group="Talento",
+        nav_item_ids=("encuestas-rh",),
+        hash_prefixes=("#/talento/encuestas",),
+        api_prefixes=("/api/v1/encuestas-rh",),
+    ),
 }
 
 RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
@@ -379,6 +387,7 @@ RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
     "Puestos",
     "Cumplimiento",
     "Level Up",
+    "Talento",
 )
 
 RH_MODULE_EXEMPT_API_PREFIXES: tuple[str, ...] = (
@@ -400,6 +409,11 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     # Evaluacion 360: responder evaluaciones es self-service (cualquier evaluador).
     "/api/v1/evaluacion-360/mis-evaluaciones",
     "/api/v1/evaluacion-360/evaluaciones",
+    # Encuestas RH: responder/consultar las propias encuestas es self-service
+    # (gana sobre el api_prefix de gestion "/api/v1/encuestas-rh" — ver
+    # RhModulePermissionMiddleware.dispatch, que revisa is_rh_self_service_api_path
+    # ANTES de exigir el modulo, solo para usuarios rh_admin/rol=="rh").
+    "/api/v1/encuestas-rh/mis-encuestas",
 )
 
 

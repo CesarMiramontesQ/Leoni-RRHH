@@ -228,6 +228,29 @@ class EncuestasRhService:
         encuesta.preguntas.remove(pregunta)
         await self.db.flush()
 
+    async def reordenar_preguntas(
+        self, encuesta_id: int, pregunta_ids: list[int]
+    ) -> list[PreguntaResponse]:
+        """Reasigna `orden` segun la posicion de cada id en `pregunta_ids`.
+
+        La lista debe cubrir exactamente el conjunto de preguntas existentes
+        de la encuesta (ni de mas ni de menos) para evitar huecos/ambiguedad
+        de orden.
+        """
+        encuesta = await self._get_encuesta_borrador(encuesta_id)
+        preguntas_por_id = {p.id: p for p in encuesta.preguntas}
+        if set(pregunta_ids) != set(preguntas_por_id.keys()):
+            raise DomainValidationError(
+                "pregunta_ids debe incluir exactamente todas las preguntas de la encuesta"
+            )
+        for orden, pregunta_id in enumerate(pregunta_ids, start=1):
+            preguntas_por_id[pregunta_id].orden = orden
+        await self.db.flush()
+        return [
+            self._pregunta_to_response(p)
+            for p in sorted(encuesta.preguntas, key=lambda p: (p.orden, p.id))
+        ]
+
     # ══════════════════════════════════════════════════════════════════════
     # Audiencia
     # ══════════════════════════════════════════════════════════════════════

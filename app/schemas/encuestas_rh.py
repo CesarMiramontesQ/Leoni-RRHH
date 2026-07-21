@@ -239,6 +239,16 @@ class ParticipanteItem(BaseModel):
     fecha_respuesta: Optional[datetime] = None
 
 
+# ── Preguntas: reordenar (Tarea 3) ───────────────────────────────────────
+
+
+class ReordenarPreguntasRequest(BaseModel):
+    """Lista de ids de pregunta en el nuevo orden deseado (debe cubrir
+    exactamente todas las preguntas de la encuesta)."""
+
+    pregunta_ids: list[int] = Field(..., min_length=1)
+
+
 # ── Plantillas ───────────────────────────────────────────────────────────
 
 
@@ -251,3 +261,10 @@ class PlantillaResponse(BaseModel):
     tipo: Optional[str] = None
     es_predefinida: bool
     definicion: list[dict]
+
+
+class CrearDesdeplantillaRequest(BaseModel):
+    """`es_anonima` es explicito y obligatorio (decision de revision Tarea 2:
+    no depender del default silencioso `True` del service)."""
+
+    es_anonima: bool
