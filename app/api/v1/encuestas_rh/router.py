@@ -13,6 +13,7 @@ Convenciones (ver app/api/v1/evaluacion360/router.py):
 """
 
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -35,6 +36,9 @@ from app.schemas.encuestas_rh import (
     PublicarRequest,
     ReordenarPreguntasRequest,
     ResponderRequest,
+    ResultadosGlobal,
+    ResultadosSegmentos,
+    TextosResponse,
 )
 from app.services.encuestas_rh_service import EncuestasRhService
 
@@ -234,6 +238,52 @@ async def crear_encuesta_desde_plantilla(
 ):
     return await svc.crear_encuesta_desde_plantilla(
         plantilla_id, creado_por_id=current_user.empleado_id, es_anonima=data.es_anonima
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Gestion — resultados / analitica (Tarea 4)
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/encuestas/{encuesta_id}/resultados", response_model=ResultadosGlobal)
+async def resultados_globales(
+    encuesta_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: EncuestasRhService = Depends(_svc),
+):
+    return await svc.obtener_resultados_globales(encuesta_id)
+
+
+@router.get("/encuestas/{encuesta_id}/resultados/segmentos", response_model=ResultadosSegmentos)
+async def resultados_segmentos(
+    encuesta_id: int,
+    dimension: str = Query(..., description="area|turno|clasificacion"),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: EncuestasRhService = Depends(_svc),
+):
+    return await svc.obtener_resultados_segmentos(encuesta_id, dimension)
+
+
+@router.get("/encuestas/{encuesta_id}/resultados/textos", response_model=TextosResponse)
+async def resultados_textos(
+    encuesta_id: int,
+    pregunta_id: int = Query(...),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: EncuestasRhService = Depends(_svc),
+):
+    return await svc.obtener_textos(encuesta_id, pregunta_id)
+
+
+@router.get("/encuestas/{encuesta_id}/export/excel")
+async def export_resultados_excel(
+    encuesta_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: EncuestasRhService = Depends(_svc),
+):
+    output, filename = await svc.exportar_resultados_excel(encuesta_id)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
