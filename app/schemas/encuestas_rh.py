@@ -270,6 +270,26 @@ class CrearDesdeplantillaRequest(BaseModel):
     es_anonima: bool
 
 
+# ── Recordatorios / cierre automatico (Tarea 5) ──────────────────────────
+
+
+class RecordatoriosResultado(BaseModel):
+    """Resumen de `EncuestasRhService.procesar_recordatorios()`, usado por el
+    job diario de APScheduler para logging (ver `_encuestas_rh_recordatorios_job`
+    en app/main.py)."""
+
+    encuestas_cerradas: int = 0
+    recordatorios_enviados: int = 0
+
+
+class ForzarRecordatoriosResponse(BaseModel):
+    """Respuesta de `POST /encuestas/{id}/recordatorios` (endpoint manual de
+    gestion): cuantos participantes pendientes recibieron el recordatorio
+    forzado (sin respetar `recordatorio_cada_dias`)."""
+
+    recordatorios_enviados: int
+
+
 # ── Resultados / analitica (Tarea 4) ─────────────────────────────────────
 #
 # Regla min-N (aplicada en el service, ver EncuestasRhService):

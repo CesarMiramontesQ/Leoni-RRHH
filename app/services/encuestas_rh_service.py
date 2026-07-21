@@ -19,7 +19,7 @@ from __future__ import annotations
 import random
 import re
 import unicodedata
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from typing import Optional
 from uuid import uuid4
@@ -61,6 +61,7 @@ from app.schemas.encuestas_rh import (
     PreguntaResponse,
     PreguntaUpdate,
     PublicarRequest,
+    RecordatoriosResultado,
     ResponderRequest,
     ResultadoPregunta,
     ResultadosGlobal,
@@ -343,6 +344,10 @@ class EncuestasRhService:
                     encuesta_id=encuesta_id,
                     empleado_id=empleado.empleado_id,
                     estado="pendiente",
+                    # Momento de la convocatoria inicial: base para la cadencia
+                    # de recordatorios cuando aun no hay ultimo_recordatorio_at
+                    # (ver EncuestasRhService.procesar_recordatorios).
+                    notificado_at=datetime.now(timezone.utc),
                 )
             )
             nuevos.append(empleado)
@@ -422,6 +427,96 @@ class EncuestasRhService:
             encuesta.fecha_cierre_real = datetime.now(timezone.utc)
         await self.db.flush()
         return len(vencidas)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Recordatorios automaticos (invocado por APScheduler, ver
+    # `_encuestas_rh_recordatorios_job` en app/main.py) + endpoint manual
+    # ══════════════════════════════════════════════════════════════════════
+    @staticmethod
+    def _dt_utc(value: Optional[datetime]) -> Optional[datetime]:
+        """Normaliza un datetime leido de BD a aware UTC.
+
+        Postgres/asyncpg devuelve datetimes aware para columnas timestamptz;
+        SQLite (tests) los devuelve naive. Todos los timestamps de este modulo
+        se escriben con `datetime.now(timezone.utc)`, asi que asumir UTC en el
+        caso naive es seguro."""
+        if value is None:
+            return None
+        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+    async def _notificar_recordatorio(
+        self, encuesta: Encuesta, participante: EncuestaParticipante
+    ) -> None:
+        await self.notificaciones.enviar(
+            destinatario_id=participante.empleado_id,
+            asunto=f"Recordatorio: encuesta pendiente '{encuesta.titulo}'",
+            cuerpo=(
+                f"Aun no has respondido la encuesta '{encuesta.titulo}'. "
+                "Tu participacion es importante."
+            ),
+            canal="in_app",
+            target_url=MIS_ENCUESTAS_TARGET_URL,
+            metadata={"encuesta_id": encuesta.id},
+        )
+        participante.ultimo_recordatorio_at = datetime.now(timezone.utc)
+        participante.recordatorios_enviados += 1
+
+    async def procesar_recordatorios(self) -> RecordatoriosResultado:
+        """Cierra encuestas publicadas vencidas (reusa `procesar_cierres_vencidos`,
+        misma regla, sin duplicarla) y notifica a los participantes `pendiente`
+        de las encuestas que siguen publicadas, respetando la cadencia
+        `recordatorio_cada_dias` de cada encuesta:
+          - `ultimo_recordatorio_at` no nulo: se remite si pasaron >= N dias
+            desde el ultimo recordatorio.
+          - `ultimo_recordatorio_at` nulo: se remite si pasaron >= N dias desde
+            `notificado_at` (la convocatoria inicial al publicar).
+          - Si ninguno de los dos esta poblado, no se notifica (no hay
+            referencia temporal)."""
+        encuestas_cerradas = await self.procesar_cierres_vencidos()
+
+        ahora = datetime.now(timezone.utc)
+        recordatorios_enviados = 0
+        for encuesta in await self.repo.list_encuestas(estado="publicada"):
+            cadencia = timedelta(days=encuesta.recordatorio_cada_dias)
+            for participante in await self.repo.list_participantes(encuesta.id):
+                if participante.estado != "pendiente":
+                    continue
+                referencia = self._dt_utc(participante.ultimo_recordatorio_at) or self._dt_utc(
+                    participante.notificado_at
+                )
+                if referencia is None or ahora - referencia < cadencia:
+                    continue
+                await self._notificar_recordatorio(encuesta, participante)
+                recordatorios_enviados += 1
+
+        await self.db.flush()
+        return RecordatoriosResultado(
+            encuestas_cerradas=encuestas_cerradas,
+            recordatorios_enviados=recordatorios_enviados,
+        )
+
+    async def forzar_recordatorios(self, encuesta_id: int) -> int:
+        """Endpoint manual de gestion: fuerza un recordatorio a TODOS los
+        participantes `pendiente` de la encuesta, sin respetar la cadencia
+        `recordatorio_cada_dias`. Requiere que la encuesta este publicada.
+        Devuelve el numero de recordatorios enviados."""
+        encuesta = await self.repo.get_detalle(encuesta_id)
+        if not encuesta:
+            raise NotFoundError("Encuesta", encuesta_id)
+        if encuesta.estado != "publicada":
+            raise ConflictError(
+                "Solo se pueden enviar recordatorios de encuestas publicadas"
+            )
+
+        enviados = 0
+        for participante in await self.repo.list_participantes(encuesta_id):
+            if participante.estado != "pendiente":
+                continue
+            await self._notificar_recordatorio(encuesta, participante)
+            enviados += 1
+
+        await self.db.flush()
+        return enviados
 
     # ══════════════════════════════════════════════════════════════════════
     # Responder
