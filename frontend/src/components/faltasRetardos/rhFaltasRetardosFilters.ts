@@ -95,13 +95,6 @@ function renderFilters(vm: FaltasRetardosAdminViewModel, resultCount: number | n
       </button>
     </div>`;
 
-  const nuevoBtn = `<div class="w-full shrink-0 sm:w-auto">
-      <button type="button" id="rh-fr-nuevo" class="${RH_SOLICITUDES_BTN_PRIMARY} rh-sol-header__btn-primary min-h-11 w-full justify-center sm:w-auto">
-        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>
-        ${escapeHtml(FR_COPY.nuevo)}
-      </button>
-    </div>`;
-
   const wrapCls = FILTER_FIELD_WRAP;
   const grid = `
     <div class="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -117,7 +110,6 @@ function renderFilters(vm: FaltasRetardosAdminViewModel, resultCount: number | n
         <div class="flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
           <p class="max-w-2xl text-xs leading-relaxed text-[color:var(--color-text-secondary)] lg:hidden">${escapeHtml(FR_COPY.filtrosAplicadosHint)}</p>
           <div class="flex flex-wrap items-end gap-2 sm:justify-end sm:gap-3">
-            ${nuevoBtn}
             ${applyBtn}
             ${clearBtn}
           </div>

@@ -2452,6 +2452,45 @@ components:
                     total:
                       type: integer
 
+    FaltasRetardosSyncAusenciasResponse:
+      type: object
+      required:
+        - fecha_inicio
+        - fecha_fin
+        - leidos
+        - insertados
+        - actualizados
+        - eliminados
+        - omitidos_sin_empleado
+        - omitidos_sin_semana
+        - omitidos_incompletos
+        - omitidos_sin_cambio
+      properties:
+        fecha_inicio:
+          type: string
+          format: date
+        fecha_fin:
+          type: string
+          format: date
+        id_semana:
+          type: [integer, "null"]
+        leidos:
+          type: integer
+        insertados:
+          type: integer
+        actualizados:
+          type: integer
+        eliminados:
+          type: integer
+        omitidos_sin_empleado:
+          type: integer
+        omitidos_sin_semana:
+          type: integer
+        omitidos_incompletos:
+          type: integer
+        omitidos_sin_cambio:
+          type: integer
+
     ViajeLaboralEstado:
       type: string
       enum: [borrador, pendiente, aprobado, rechazado, cancelado]
@@ -8222,6 +8261,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FaltasRetardosEstadisticasResponse"
+
+  /api/v1/faltas-retardos/sincronizar-ausencias:
+    post:
+      tags: [Faltas y retardos]
+      summary: Sincronizar faltas injustificadas y retardos (semana anterior)
+      description: >
+        Mirror sync de FI y RE desde dbo.AUSENCIA (DATOS_ANALISIS) hacia
+        importadas_historico (Bono) para la semana inmediatamente anterior
+        a la fecha actual (APP_TIMEZONE / semana_historico).
+        Inserta, actualiza y elimina en una sola transacción.
+        Rechaza ejecuciones concurrentes con 409.
+      operationId: faltas_retardos_sincronizar_ausencias
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Sincronización completada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltasRetardosSyncAusenciasResponse"
+        "400":
+          description: Semana anterior no encontrada en semana_historico
+        "409":
+          description: Ya hay una sincronización en curso
+        "503":
+          description: DATOS_ANALISIS o Bono no disponible / error de sync
 
   # ── Viajes laborales ───────────────────────────────
   /api/v1/viajes-laborales:

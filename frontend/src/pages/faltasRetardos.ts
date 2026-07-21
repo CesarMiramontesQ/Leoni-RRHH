@@ -2,11 +2,13 @@ import {
   createFaltaRetardo,
   getFaltasRetardosEstadisticas,
   getFaltasRetardosPage,
+  syncAusenciasFaltasRetardos,
   type FaltaRetardoListItem,
   type FaltasRetardosPageResponse,
 } from "../api/faltasRetardos.ts";
 import { canAccessFaltasRetardosPage } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
+import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import {
   mountFaltaRetardoDetalleModal,
   type FaltaRetardoDetalleModalHandle,
@@ -154,6 +156,8 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   let lastEstadisticas: FaltasRetardosEstadisticasData | null = null;
   let lastEstadisticasStatus: FaltasRetardosAdminViewModel["estadisticasStatus"] = "loading";
   let lastEstadisticasError: string | undefined;
+  let sincronizando = false;
+  let lastVm: FaltasRetardosAdminViewModel | null = null;
 
   function queryFromAppliedFilters() {
     return {
@@ -165,8 +169,47 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   }
 
   function paintVm(vm: FaltasRetardosAdminViewModel): void {
+    lastVm = { ...vm, sincronizando };
     const inner = container.querySelector("#rh-faltas-retardos-inner");
-    if (inner) inner.innerHTML = renderRhFaltasRetardosAdminView(vm);
+    if (inner) inner.innerHTML = renderRhFaltasRetardosAdminView(lastVm);
+  }
+
+  async function sincronizarAusencias(): Promise<void> {
+    if (sincronizando) return;
+    sincronizando = true;
+    if (lastVm) paintVm(lastVm);
+    let ok = false;
+    try {
+      const result = await syncAusenciasFaltasRetardos();
+      showEmpleadosToast(
+        container,
+        FR_COPY.sincronizarExito(result.insertados, result.actualizados, result.eliminados),
+        "success",
+      );
+      ok = true;
+    } catch (error: unknown) {
+      const fetchError = error as { status?: number; detail?: string };
+      if (fetchError?.status === 401) {
+        clearAuth();
+        void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
+          abortAuthenticatedShell();
+          void import("./login.ts").then(({ mountLogin }) => mountLogin(container));
+        });
+        return;
+      }
+      showEmpleadosToast(
+        container,
+        fetchError?.detail || FR_COPY.sincronizarError,
+        "error",
+      );
+    } finally {
+      sincronizando = false;
+    }
+    if (ok) {
+      await load(true);
+    } else if (lastVm) {
+      paintVm(lastVm);
+    }
   }
 
   mountAppShell(container, {
@@ -292,6 +335,10 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
       const t = e.target as HTMLElement;
       if (t.closest("#rh-fr-nuevo") || t.closest("#rh-fr-nueva-empty")) {
         modal?.open();
+        return;
+      }
+      if (t.closest("#rh-fr-sync")) {
+        void sincronizarAusencias();
         return;
       }
       if (t.closest("[data-rh-fr-clear-filters]")) {
