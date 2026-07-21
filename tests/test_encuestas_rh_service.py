@@ -661,6 +661,61 @@ async def test_responder_opcion_multiple_seleccion_unica_rechaza_mas_de_una(db):
         )
 
 
+async def test_responder_pregunta_id_duplicado_da_error_422(db):
+    """Fix 3: dos items con el mismo pregunta_id violarian el UNIQUE de
+    EncuestaRespuesta y hoy revientan en IntegrityError (500); deben
+    rechazarse como DomainValidationError (422) antes de tocar la BD."""
+    preguntas = [_pregunta_likert(requerida=False)]
+    service, publicada, empleado = await _publicar_encuesta_con_participante(
+        db, preguntas=preguntas
+    )
+    pregunta_id = publicada.preguntas[0].id
+
+    with pytest.raises(DomainValidationError):
+        await service.responder(
+            publicada.id,
+            empleado.empleado_id,
+            ResponderRequest(
+                respuestas=[
+                    ResponderItem(pregunta_id=pregunta_id, valor_likert=3),
+                    ResponderItem(pregunta_id=pregunta_id, valor_likert=5),
+                ]
+            ),
+        )
+
+
+async def test_responder_opcion_ids_en_pregunta_no_opcion_da_error(db):
+    """Fix 5: opcion_ids en una pregunta likert/texto no debe insertarse sin
+    validar (podrian referenciar opciones de otra encuesta); se rechaza."""
+    service, publicada, empleado = await _publicar_encuesta_con_participante(
+        db, preguntas=[_pregunta_likert(requerida=False)]
+    )
+    pregunta_id = publicada.preguntas[0].id
+
+    # Opcion de una encuesta distinta (existe en BD, no pertenece a esta
+    # pregunta likert), para probar que ni siquiera intenta insertarse.
+    otro_creador = await make_empleado(db, rol="rh")
+    otra_encuesta = await _crear_encuesta_basica(
+        service, otro_creador, preguntas=[_pregunta_opcion_multiple(orden=1, n_opciones=2)]
+    )
+    opcion_ajena_id = otra_encuesta.preguntas[0].opciones[0].id
+
+    with pytest.raises(DomainValidationError):
+        await service.responder(
+            publicada.id,
+            empleado.empleado_id,
+            ResponderRequest(
+                respuestas=[
+                    ResponderItem(
+                        pregunta_id=pregunta_id,
+                        valor_likert=4,
+                        opcion_ids=[opcion_ajena_id],
+                    )
+                ]
+            ),
+        )
+
+
 # ── Plantillas ────────────────────────────────────────────────────────────
 
 

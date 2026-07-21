@@ -544,11 +544,23 @@ class EncuestasRhService:
         preguntas_por_id = {p.id: p for p in encuesta.preguntas}
         respondidas_ids: set[int] = set()
 
+        vistos_pregunta_ids: set[int] = set()
         for item in payload.respuestas:
+            if item.pregunta_id in vistos_pregunta_ids:
+                raise DomainValidationError(
+                    f"La pregunta {item.pregunta_id} viene duplicada en la respuesta"
+                )
+            vistos_pregunta_ids.add(item.pregunta_id)
+
             pregunta = preguntas_por_id.get(item.pregunta_id)
             if not pregunta:
                 raise DomainValidationError(
                     f"La pregunta {item.pregunta_id} no pertenece a esta encuesta"
+                )
+            if item.opcion_ids and pregunta.tipo != "opcion_multiple":
+                raise DomainValidationError(
+                    f"opcion_ids no aplica para la pregunta {pregunta.id} "
+                    f"(tipo '{pregunta.tipo}')"
                 )
 
             if pregunta.tipo == "likert":
@@ -615,7 +627,8 @@ class EncuestasRhService:
                 texto=item.texto if pregunta.tipo == "texto" else None,
             )
             self.db.add(respuesta)
-            respuestas_creadas.append((respuesta, item.opcion_ids or []))
+            opcion_ids = item.opcion_ids or [] if pregunta.tipo == "opcion_multiple" else []
+            respuestas_creadas.append((respuesta, opcion_ids))
 
         await self.db.flush()
 
