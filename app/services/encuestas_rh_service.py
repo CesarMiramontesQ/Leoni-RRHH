@@ -157,13 +157,17 @@ class EncuestasRhService:
             texto=data.texto,
             requerida=data.requerida,
             seleccion_multiple=data.seleccion_multiple,
+            # `opciones=[]` explicito: marca la coleccion como "ya cargada" en
+            # el identity map. Sin esto, `agregar_pregunta` (que NO recarga
+            # via el repo con selectinload) dispara un lazy-load real al
+            # serializar `pregunta.opciones` tras el flush si la pregunta no
+            # trae opciones (likert/texto) -> MissingGreenlet en async.
+            opciones=[],
         )
         self.db.add(pregunta)
         for opcion_data in data.opciones:
-            self.db.add(
-                EncuestaOpcion(
-                    pregunta=pregunta, texto=opcion_data.texto, orden=opcion_data.orden
-                )
+            pregunta.opciones.append(
+                EncuestaOpcion(texto=opcion_data.texto, orden=opcion_data.orden)
             )
         return pregunta
 
