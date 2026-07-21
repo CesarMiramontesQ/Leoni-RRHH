@@ -1394,6 +1394,36 @@ body {
   background: linear-gradient(135deg, #fff 0%, rgba(219, 234, 254, 0.35) 100%);
 }
 
+/* Sync FI/RE: verde con degradado + sombra — contraste con Nuevo (navy). */
+#rh-faltas-retardos-page .rh-fr-btn-sync {
+  color: #fff;
+  background: linear-gradient(135deg, #047857 0%, #059669 45%, #10b981 100%);
+  border: 1px solid rgba(4, 120, 87, 0.45);
+  box-shadow: 0 8px 20px rgba(4, 120, 87, 0.28);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+#rh-faltas-retardos-page .rh-fr-btn-sync:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 12px 26px rgba(4, 120, 87, 0.34);
+}
+
+#rh-faltas-retardos-page .rh-fr-btn-sync:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 6px 16px rgba(4, 120, 87, 0.22);
+}
+
+#rh-faltas-retardos-page .rh-fr-btn-sync:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px rgba(16, 185, 129, 0.45);
+}
+
 :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card {
   border-width: 1px;
   transition:

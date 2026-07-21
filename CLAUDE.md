@@ -83,7 +83,7 @@ Layered architecture: **router → service → repository → models/schemas**
 ### Key Patterns
 - Async everywhere: asyncpg driver, async sessions, async test fixtures
 - Tests use SQLite in-memory with JSONB→JSON patch (see `tests/conftest.py`); no Docker required
-- APScheduler runs periodic jobs (Eval360 reminders, nightly FI/RE sync, IT Mirror sync, nightly bono imports: `calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`). **No** hay job de cola TRESS/RPA.
+- APScheduler runs periodic jobs (Eval360 reminders). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper
