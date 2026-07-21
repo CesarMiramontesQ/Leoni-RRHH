@@ -265,4 +265,29 @@ describe("rhNav sections", () => {
     expect(sections.some((section) => section.id === "puestos")).toBe(false);
   });
 
+  it("omite Talento por defecto (módulo encuestas-rh no otorgado)", async () => {
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("supervisor");
+
+    expect(sections.some((section) => section.id === "talento")).toBe(false);
+  });
+
+  it("expone Talento con Encuestas cuando se otorga el módulo encuestas-rh", async () => {
+    allowedModules.add("encuestas-rh");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("supervisor");
+    const talentoSection = sections.find((section) => section.id === "talento");
+
+    expect(talentoSection?.title).toBe("Talento");
+    expect(talentoSection?.items).toEqual([
+      expect.objectContaining({
+        id: "encuestas-rh",
+        key: "encuestas-rh",
+        href: "#/talento/encuestas",
+        label: "Encuestas",
+      }),
+    ]);
+  });
+
 });
