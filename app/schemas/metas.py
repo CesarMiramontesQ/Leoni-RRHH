@@ -156,7 +156,11 @@ class MetaCreate(BaseModel):
     descripcion: Optional[str] = None
     peso: Decimal = Field(..., ge=0, le=100)
     meta_padre_id: Optional[int] = None
-    asignada_por_id: int
+    # Opcional a proposito: el cliente no debe declarar "quien asigna" la
+    # meta. El router SIEMPRE lo sobreescribe con current_user.empleado_id
+    # (ver create_meta en app/api/v1/metas/router.py) -- cualquier valor
+    # enviado aqui se ignora por completo.
+    asignada_por_id: Optional[int] = None
     resultados_clave: list[ResultadoClaveCreate] = Field(default_factory=list)
 
     @field_validator("nivel")

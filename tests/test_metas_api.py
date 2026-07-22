@@ -149,6 +149,37 @@ async def test_flujo_completo_ciclo_meta_checkin_cierre_cumplimiento(client, db)
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Regresion: el frontend NO envia asignada_por_id (sale del token). El campo
+# debe ser opcional en el schema para no forzar un 422 antes de que el router
+# lo sobreescriba con current_user.empleado_id.
+# ══════════════════════════════════════════════════════════════════════════
+async def test_crear_meta_sin_asignada_por_id_en_el_body_no_da_422(client, db):
+    rh = await _rh(db, email="metasrh_sinasig@leoni.test")
+    jefe = await _jefe(db, email="metasjefe_sinasig@leoni.test")
+    empleado = await _empleado_de(db, jefe, email="metasemp_sinasig@leoni.test")
+
+    headers_rh = await auth_headers(client, rh)
+    headers_jefe = await auth_headers(client, jefe)
+
+    ciclo = await _crear_ciclo_activo(client, headers_rh, nombre="Ciclo sin asignada_por_id")
+
+    resp_meta = await client.post(
+        f"{BASE}/metas",
+        json={
+            "ciclo_id": ciclo["id"],
+            "nivel": "individual",
+            "empleado_id": empleado.empleado_id,
+            "titulo": "Meta sin asignada_por_id en el body",
+            "peso": 100,
+            "resultados_clave": [],
+        },
+        headers=headers_jefe,
+    )
+    assert resp_meta.status_code == 201, resp_meta.text
+    assert resp_meta.json()["asignada_por_id"] == jefe.empleado_id
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Permisos — scoping de equipo
 # ══════════════════════════════════════════════════════════════════════════
 async def test_jefe_de_otro_equipo_no_puede_crear_meta_para_empleado_ajeno(client, db):
