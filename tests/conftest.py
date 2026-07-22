@@ -59,6 +59,7 @@ import app.models.vacaciones  # noqa: F401
 import app.models.turnos_empleados  # noqa: F401
 import app.models.evaluacion360  # noqa: F401  (incluye plantillas)
 import app.models.encuestas_rh  # noqa: F401
+import app.models.metas  # noqa: F401
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password

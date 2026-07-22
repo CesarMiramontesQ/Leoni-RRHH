@@ -48,6 +48,7 @@ export type RhNavKey =
   | "sugerencias"
   | "encuestas"
   | "encuestas-rh"
+  | "metas"
   | "empleados"
   | "nominas"
   | "horas-extra"

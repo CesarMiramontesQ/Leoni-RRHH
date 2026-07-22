@@ -13630,6 +13630,344 @@ paths:
         "409": { description: Ya respondiste esta encuesta / encuesta no publicada }
         "422": { description: Respuesta invalida (rango likert, opcion de otra pregunta, requerida faltante, etc.) }
 
+  /api/v1/metas/ciclos:
+    get:
+      tags: [Talento - Metas]
+      summary: Listar ciclos de metas (filtro opcional por estado)
+      operationId: metas_list_ciclos
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [borrador, activo, cerrado] } }
+      responses:
+        "200": { description: Ciclos, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Talento - Metas]
+      summary: Crear ciclo de metas en borrador (creado_por_id se toma del token, no del body)
+      operationId: metas_create_ciclo
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Ciclo creado, content: { application/json: { schema: { type: object } } } }
+  /api/v1/metas/ciclos/{ciclo_id}:
+    get:
+      tags: [Talento - Metas]
+      summary: Detalle de ciclo de metas
+      operationId: metas_get_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Ciclo, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Ciclo no encontrado }
+    put:
+      tags: [Talento - Metas]
+      summary: Editar nombre/descripcion/fechas de un ciclo en borrador o activo (bloqueado si esta cerrado)
+      operationId: metas_update_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Ciclo actualizado, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Ciclo no encontrado }
+        "409": { description: No se puede editar un ciclo cerrado }
+        "422": { description: fecha_fin menor a fecha_inicio }
+  /api/v1/metas/ciclos/{ciclo_id}/activar:
+    post:
+      tags: [Talento - Metas]
+      summary: Activar ciclo (borrador -> activo; habilita crear/editar metas)
+      operationId: metas_activar_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Ciclo activado, content: { application/json: { schema: { type: object } } } }
+        "409": { description: Solo ciclos en borrador se pueden activar }
+  /api/v1/metas/ciclos/{ciclo_id}/cerrar:
+    post:
+      tags: [Talento - Metas]
+      summary: Cerrar ciclo (congela metas de equipo; exige metas individuales ya calificadas)
+      operationId: metas_cerrar_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Ciclo cerrado, content: { application/json: { schema: { type: object } } } }
+        "409": { description: Solo ciclos activos se pueden cerrar / hay metas individuales sin calificar }
+  /api/v1/metas/ciclos/{ciclo_id}/recordatorios:
+    post:
+      tags: [Talento - Metas]
+      summary: Forzar recordatorios manuales del ciclo (ignora las ventanas del job diario)
+      description: >
+        Envia un recordatorio (NotificacionService, canal in_app, target_url
+        "#/talento/mis-metas") a todos los empleados con metas individuales
+        pendientes (no cerradas) del ciclo, sin evaluar `dias_cierre` ni
+        `dias_sin_checkin` (a diferencia del job diario
+        `MetasService.procesar_recordatorios`). Metas de equipo y metas ya
+        cerradas nunca notifican.
+      operationId: metas_forzar_recordatorios_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Recordatorios enviados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notificados: { type: integer, description: "Empleados distintos notificados" }
+        "404": { description: Ciclo no encontrado }
+  /api/v1/metas/metas:
+    get:
+      tags: [Talento - Metas]
+      summary: Listar metas (RH global por modulo; jefe con scoping por equipo via lider_id)
+      description: >
+        Jefes (supervisor/gerente, o RH/admin en Modo lider/gerente) solo ven
+        metas de su equipo (reportes directos, o metas de equipo donde
+        lider_id es el propio jefe); RH con el modulo 'metas' concedido
+        (modo operativo) ve todas.
+      operationId: metas_list_metas
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: ciclo_id, in: query, required: false, schema: { type: integer } }
+        - { name: empleado_id, in: query, required: false, schema: { type: integer } }
+        - { name: nivel, in: query, required: false, schema: { type: string, enum: [individual, equipo] } }
+      responses:
+        "200": { description: Metas, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        "403": { description: Empleado fuera del equipo del jefe }
+    post:
+      tags: [Talento - Metas]
+      summary: Crear meta (asignada_por_id se toma del token; scoping por equipo para jefes)
+      operationId: metas_create_meta
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Meta creada, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Empleado/lider fuera del equipo del jefe }
+        "422": { description: Datos de meta invalidos (nivel/empleado_id/area_id/lider_id/meta_padre_id) }
+  /api/v1/metas/metas/{meta_id}:
+    get:
+      tags: [Talento - Metas]
+      summary: Detalle de meta (con resultados clave)
+      operationId: metas_get_meta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: meta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Meta, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Meta fuera del equipo del jefe }
+        "404": { description: Meta no encontrada }
+    put:
+      tags: [Talento - Metas]
+      summary: Actualizar meta (bloqueado si el ciclo no esta activo o la meta esta cerrada)
+      operationId: metas_update_meta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: meta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Meta actualizada, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Meta fuera del equipo del jefe }
+        "409": { description: Ciclo no activo o meta cerrada }
+    delete:
+      tags: [Talento - Metas]
+      summary: Eliminar meta (solo si no tiene check-ins en ninguno de sus resultados clave)
+      operationId: metas_delete_meta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: meta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "204": { description: Meta eliminada }
+        "403": { description: Meta fuera del equipo del jefe }
+        "409": { description: La meta tiene check-ins }
+  /api/v1/metas/metas/{meta_id}/cerrar:
+    post:
+      tags: [Talento - Metas]
+      summary: Cerrar meta con calificacion (0-100) y comentario opcional del jefe
+      operationId: metas_cerrar_meta
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: meta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [calificacion]
+              properties:
+                calificacion: { type: number, minimum: 0, maximum: 100 }
+                comentario: { type: string, nullable: true }
+      responses:
+        "200": { description: Meta cerrada, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Meta fuera del equipo del jefe }
+        "409": { description: Ciclo no activo o meta ya cerrada }
+        "422": { description: Calificacion fuera de rango }
+  /api/v1/metas/metas/{meta_id}/resultados:
+    post:
+      tags: [Talento - Metas]
+      summary: Agregar resultado clave a una meta
+      operationId: metas_create_resultado
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: meta_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Resultado clave creado, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Meta fuera del equipo del jefe }
+        "409": { description: Ciclo no activo o meta cerrada }
+        "422": { description: valor_objetivo igual a valor_inicial (salvo tipo booleano) }
+  /api/v1/metas/metas/{meta_id}/resultados/{rc_id}:
+    put:
+      tags: [Talento - Metas]
+      summary: Actualizar resultado clave
+      operationId: metas_update_resultado
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: meta_id, in: path, required: true, schema: { type: integer } }
+        - { name: rc_id, in: path, required: true, schema: { type: integer } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Resultado clave actualizado, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Meta fuera del equipo del jefe }
+        "404": { description: El resultado clave no pertenece a la meta }
+        "409": { description: Ciclo no activo o meta cerrada }
+    delete:
+      tags: [Talento - Metas]
+      summary: Eliminar resultado clave (solo si no tiene check-ins)
+      operationId: metas_delete_resultado
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: meta_id, in: path, required: true, schema: { type: integer } }
+        - { name: rc_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Resultado clave eliminado }
+        "403": { description: Meta fuera del equipo del jefe }
+        "404": { description: El resultado clave no pertenece a la meta }
+        "409": { description: El resultado clave tiene check-ins }
+  /api/v1/metas/resultados/{rc_id}/checkin:
+    post:
+      tags: [Talento - Metas]
+      summary: Ajuste de avance por el jefe (check-in con es_ajuste_jefe=true)
+      operationId: metas_ajuste_checkin
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: rc_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [valor]
+              properties:
+                valor: { type: number }
+                nota: { type: string, nullable: true }
+      responses:
+        "201": { description: Check-in registrado, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Resultado clave fuera del equipo del jefe }
+        "404": { description: Resultado clave no encontrado }
+        "409": { description: Ciclo no activo o meta cerrada }
+  /api/v1/metas/equipo/avance:
+    get:
+      tags: [Talento - Metas]
+      summary: Tablero de avance del equipo del jefe (o del ciclo completo para RH global)
+      description: >
+        Agrupado por miembro (`miembros[]`: empleado_id, empleado_nombre,
+        sus metas individuales del ciclo con avance derivado, y
+        `avance_global` = promedio ponderado por peso del avance de esas
+        metas). Las metas de nivel "equipo" (lider_id, sin empleado_id) van
+        aparte en `metas_equipo` con su avance ya resuelto (roll-up de
+        submetas si no tienen resultados clave propios).
+      operationId: metas_equipo_avance
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: ciclo_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Tablero de equipo agrupado por miembro
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ciclo_id: { type: integer }
+                  miembros:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        empleado_id: { type: integer }
+                        empleado_nombre: { type: string, nullable: true }
+                        metas: { type: array, items: { type: object } }
+                        avance_global: { type: number }
+                  metas_equipo: { type: array, items: { type: object } }
+  /api/v1/metas/empleados/{empleado_id}/cumplimiento:
+    get:
+      tags: [Talento - Metas]
+      summary: Cumplimiento ponderado (peso x calificacion) de metas cerradas del empleado en el ciclo
+      operationId: metas_cumplimiento_empleado
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: empleado_id, in: path, required: true, schema: { type: integer } }
+        - { name: ciclo_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: Cumplimiento ponderado, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Empleado fuera del equipo del jefe }
+  /api/v1/metas/ciclos/{ciclo_id}/export/excel:
+    get:
+      tags: [Talento - Metas]
+      summary: Exportar a Excel las metas del ciclo (mismo scoping de equipo que la gestion)
+      description: >
+        Una hoja ("Metas y avance") con: empleado (o "Equipo (líder N)"),
+        meta, nivel, estado, peso, avance % derivado, calificación de cierre
+        y cumplimiento ponderado del empleado (columna vacía en filas de
+        metas de equipo; 0 mientras la meta no esté cerrada/calificada). El
+        jefe solo exporta las metas de su equipo; RH con el módulo 'metas'
+        exporta el ciclo completo.
+      operationId: metas_export_ciclo_excel
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Archivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "404": { description: Ciclo no encontrado }
+  /api/v1/metas/mis-metas:
+    get:
+      tags: [Talento - Metas]
+      summary: Mis metas (self-service; empleado_id del token)
+      operationId: metas_mis_metas
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: ciclo_id, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200": { description: Metas asignadas al empleado autenticado, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+  /api/v1/metas/mis-metas/{meta_id}:
+    get:
+      tags: [Talento - Metas]
+      summary: Detalle de una meta propia (self-service)
+      operationId: metas_mi_meta_detalle
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: meta_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Meta, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Meta no encontrada o no pertenece al empleado }
+  /api/v1/metas/mis-metas/resultados/{rc_id}/checkin:
+    post:
+      tags: [Talento - Metas]
+      summary: Check-in propio de un resultado clave (self-service; empleado_id siempre del token, se ignora cualquier valor del body)
+      operationId: metas_mi_checkin
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: rc_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [valor]
+              properties:
+                valor: { type: number }
+                nota: { type: string, nullable: true }
+      responses:
+        "201": { description: Check-in registrado, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Resultado clave no encontrado o no pertenece al empleado }
+        "409": { description: Ciclo no activo o meta cerrada }
+
   /api/v1/juntas:
     get:
       tags: [Juntas]

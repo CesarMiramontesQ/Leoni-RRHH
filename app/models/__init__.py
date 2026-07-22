@@ -120,6 +120,12 @@ from app.models.encuestas_rh import (
     EncuestaRespuestaOpcion,
     EncuestaPlantilla,
 )
+from app.models.metas import (
+    MetaCiclo,
+    Meta,
+    MetaResultadoClave,
+    MetaCheckin,
+)
 
 __all__ = [
     "Rol",
@@ -231,4 +237,8 @@ __all__ = [
     "EncuestaRespuesta",
     "EncuestaRespuestaOpcion",
     "EncuestaPlantilla",
+    "MetaCiclo",
+    "Meta",
+    "MetaResultadoClave",
+    "MetaCheckin",
 ]
