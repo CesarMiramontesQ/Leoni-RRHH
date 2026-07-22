@@ -402,3 +402,52 @@ async def test_put_ciclo_edita_borrador_y_activo_y_rechaza_fechas_invertidas(cli
     )
     assert resp_409.status_code == 409, resp_409.text
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# Fixes post-revision — PUT /metas/{id} revalida scope al reasignar (Fix 2)
+# ══════════════════════════════════════════════════════════════════════════
+async def test_put_meta_no_permite_reasignar_fuera_del_scope_del_jefe(client, db):
+    rh = await _rh(db, email="metasrh8@leoni.test")
+    jefe = await _jefe(db, email="metasjefe8@leoni.test")
+    empleado_propio = await _empleado_de(db, jefe, email="metasemp8a@leoni.test")
+    otro_empleado_propio = await _empleado_de(db, jefe, email="metasemp8c@leoni.test")
+    otro_jefe = await _jefe(db, email="metasotrojefe8@leoni.test")
+    empleado_ajeno = await _empleado_de(db, otro_jefe, email="metasemp8b@leoni.test")
+
+    headers_rh = await auth_headers(client, rh)
+    headers_jefe = await auth_headers(client, jefe)
+
+    ciclo = await _crear_ciclo_activo(client, headers_rh, nombre="Ciclo scope reasignacion")
+
+    resp_meta = await client.post(
+        f"{BASE}/metas",
+        json={
+            "ciclo_id": ciclo["id"],
+            "nivel": "individual",
+            "empleado_id": empleado_propio.empleado_id,
+            "titulo": "Meta reasignable",
+            "peso": 100,
+            "asignada_por_id": jefe.empleado_id,
+            "resultados_clave": [],
+        },
+        headers=headers_jefe,
+    )
+    assert resp_meta.status_code == 201, resp_meta.text
+    meta_id = resp_meta.json()["id"]
+
+    # Reasignar a un empleado FUERA de su equipo -> 403.
+    resp_403 = await client.put(
+        f"{BASE}/metas/{meta_id}",
+        json={"empleado_id": empleado_ajeno.empleado_id},
+        headers=headers_jefe,
+    )
+    assert resp_403.status_code == 403, resp_403.text
+
+    # Reasignar a un miembro DE su equipo -> OK.
+    resp_ok = await client.put(
+        f"{BASE}/metas/{meta_id}",
+        json={"empleado_id": otro_empleado_propio.empleado_id},
+        headers=headers_jefe,
+    )
+    assert resp_ok.status_code == 200, resp_ok.text
+    assert resp_ok.json()["empleado_id"] == otro_empleado_propio.empleado_id

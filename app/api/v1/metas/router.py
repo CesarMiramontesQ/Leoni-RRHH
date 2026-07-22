@@ -114,6 +114,33 @@ async def _resolve_scope(
     return {e.empleado_id for e in subordinados}
 
 
+def _validar_asignacion_en_scope(
+    nivel: str,
+    empleado_id: Optional[int],
+    lider_id: Optional[int],
+    scope: Optional[set[int]],
+    jefe_empleado_id: int,
+) -> None:
+    """Valida que una asignacion de meta (creacion en `create_meta` o
+    reasignacion via `MetaUpdate` en `update_meta`) caiga dentro del scope
+    del jefe. Unica fuente de esta regla — NO duplicar en cada endpoint
+    (fix post-revision de Tarea 3: `update_meta` reasignaba `empleado_id`/
+    `lider_id` sin pasar por esta validacion)."""
+    if scope is None:
+        return
+    if nivel == "equipo":
+        if lider_id != jefe_empleado_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo puedes asignar metas de equipo a tu propio equipo.",
+            )
+    elif empleado_id not in scope:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No puedes asignar metas a empleados fuera de tu equipo.",
+        )
+
+
 def _meta_in_scope(meta: MetaResponse, scope: Optional[set[int]], jefe_empleado_id: int) -> bool:
     if scope is None:
         return True
@@ -260,18 +287,9 @@ async def create_meta(
     svc: MetasService = Depends(_svc),
 ):
     scope = await _resolve_scope(current_user, rh_ui_mode, db)
-    if scope is not None:
-        if data.nivel == "equipo":
-            if data.lider_id != current_user.empleado_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Solo puedes crear metas de equipo para tu propio equipo.",
-                )
-        elif data.empleado_id not in scope:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No puedes asignar metas a empleados fuera de tu equipo.",
-            )
+    _validar_asignacion_en_scope(
+        data.nivel, data.empleado_id, data.lider_id, scope, current_user.empleado_id
+    )
     data = data.model_copy(update={"asignada_por_id": current_user.empleado_id})
     return await svc.crear_meta(data)
 
@@ -298,7 +316,23 @@ async def update_meta(
     svc: MetasService = Depends(_svc),
 ):
     scope = await _resolve_scope(current_user, rh_ui_mode, db)
-    await _get_meta_en_scope(svc, meta_id, scope, current_user.empleado_id)
+    meta = await _get_meta_en_scope(svc, meta_id, scope, current_user.empleado_id)
+    # Fix post-revision de Tarea 3 (seguridad): `MetaUpdate` acepta
+    # `empleado_id`/`lider_id` — si el jefe intenta REASIGNAR la meta via
+    # estos campos, el nuevo valor tambien debe caer en su scope (si solo se
+    # validara la meta ANTES de aplicar el update, un jefe dueño podria
+    # reasignarla a un empleado/lider fuera de su equipo). Se reutiliza el
+    # mismo helper que usa `create_meta`, sin duplicar la logica.
+    if scope is not None:
+        payload = data.model_dump(exclude_unset=True)
+        if "empleado_id" in payload or "lider_id" in payload:
+            _validar_asignacion_en_scope(
+                meta.nivel,
+                payload.get("empleado_id", meta.empleado_id),
+                payload.get("lider_id", meta.lider_id),
+                scope,
+                current_user.empleado_id,
+            )
     return await svc.actualizar_meta(meta_id, data)
 
 
