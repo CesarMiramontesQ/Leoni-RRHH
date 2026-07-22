@@ -59,6 +59,8 @@ import { mountCursosSeguimiento } from "./pages/cursosSeguimiento.ts";
 import { mountMisEncuestas } from "./pages/misEncuestas.ts";
 import { mountMisEncuestasRh } from "./pages/misEncuestasRh.ts";
 import { mountMisMetas } from "./pages/misMetas.ts";
+import { mountAppShell, type ShellNavKey } from "./layouts/appShell.ts";
+import { errorState, RH_LISTADO_PAGE_OUTER } from "./ui/uiTokens.ts";
 import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
 import { destroyAllCharts } from "./charts/index.ts";
 import {
@@ -73,6 +75,25 @@ import { mountHorasExtraAprobaciones } from "./pages/horasExtraAprobaciones.ts";
 import { mountHorasExtraSolicitud } from "./pages/horasExtraSolicitud.ts";
 import { mountGestionPdi } from "./pages/gestionPdi.ts";
 import { mountRhModoInicio } from "./pages/rhModoInicio.ts";
+
+/**
+ * Renderiza un estado de error dentro del app shell cuando un `import()`
+ * dinámico de una página falla (chunk no disponible / error de red), en vez
+ * de dejar el contenedor en blanco (lección de un incidente previo).
+ */
+function renderLazyPageImportError(container: HTMLElement, activeNav: ShellNavKey, pageTitle: string, err: unknown): void {
+  console.error(`No se pudo cargar la página "${pageTitle}"`, err);
+  mountAppShell(container, {
+    pageTitle,
+    activeNav,
+    mainClass: "py-5 sm:py-6",
+    mainHtml: `<div class="${RH_LISTADO_PAGE_OUTER}">${errorState({
+      message: "No se pudo cargar esta página. Recarga para intentar de nuevo.",
+      actionLabel: "Recargar",
+      actionAttrs: 'onclick="window.location.reload()"',
+    })}</div>`,
+  });
+}
 
 let routeAbort: AbortController | null = null;
 
@@ -231,6 +252,18 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       void import("./pages/metas.ts").then(({ mountMetas }) => {
         mountMetas(container, signal);
       });
+      return;
+    }
+    if (h.startsWith("#/talento/mi-desempeno")) {
+      void import("./pages/misDesempeno.ts").then(({ mountMisDesempeno }) => {
+        mountMisDesempeno(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "mi-desempeno", "Mi desempeño", err));
+      return;
+    }
+    if (h.startsWith("#/talento/ciclo-desempeno")) {
+      void import("./pages/cicloDesempeno.ts").then(({ mountCicloDesempeno }) => {
+        mountCicloDesempeno(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "ciclo-desempeno", "Ciclo de Desempeño", err));
       return;
     }
     if (h.startsWith("#/organigrama")) {

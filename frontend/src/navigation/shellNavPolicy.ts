@@ -177,9 +177,11 @@ export type AppShellNavItemId =
   | "encuestas"
   | "encuestas-rh"
   | "metas"
+  | "ciclo-desempeno"
   | "mis-encuestas"
   | "mis-encuestas-rh"
   | "mis-metas"
+  | "mi-desempeno"
   | "mis-evaluaciones"
   | "level-up"
   | "nominas"
@@ -196,6 +198,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "mis-encuestas",
   "mis-encuestas-rh",
   "mis-metas",
+  "mi-desempeno",
   "mis-evaluaciones",
 ]);
 
@@ -217,6 +220,8 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "mis-encuestas-rh",
   "mis-metas",
   "metas",
+  "mi-desempeno",
+  "ciclo-desempeno",
   "comedor",
   "empleados",
 ]);
@@ -253,7 +258,7 @@ const NOMINAS_NAV_ROLES: ReadonlySet<string> = new Set([OPERATIVO_NAV_ROL, "dire
 
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
-  "cursos", "cursos-seguimiento", "cursos-ajustes", "cursos-juntas", "cursos-proveedores", "cursos-externos", "cursos-vencimientos", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "encuestas-rh", "metas", "level-up",
+  "cursos", "cursos-seguimiento", "cursos-ajustes", "cursos-juntas", "cursos-proveedores", "cursos-externos", "cursos-vencimientos", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "encuestas-rh", "metas", "ciclo-desempeno", "level-up",
 ]);
 
 const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["actas", "reportes"]);
@@ -367,6 +372,7 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/mis-encuestas")) return true;
   if (h.startsWith("#/talento/mis-encuestas")) return true;
   if (h.startsWith("#/talento/mis-metas")) return true;
+  if (h.startsWith("#/talento/mi-desempeno")) return true;
   if (h.startsWith("#/mis-evaluaciones")) return true;
   if (h.startsWith("#/notificaciones")) return true;
   if (h.startsWith("#/metricas")) return false;
