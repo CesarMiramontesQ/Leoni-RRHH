@@ -343,3 +343,62 @@ async def test_rh_con_modulo_gestiona_metas_de_cualquier_equipo(client, db):
     )
     assert resp_list.status_code == 200, resp_list.text
     assert len(resp_list.json()) == 1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Fixes post-revision — PUT /ciclos/{id} (Fix 1)
+# ══════════════════════════════════════════════════════════════════════════
+async def test_put_ciclo_edita_borrador_y_activo_y_rechaza_fechas_invertidas(client, db):
+    rh = await _rh(db, email="metasrh7@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+
+    inicio, fin = _fechas()
+    resp = await client.post(
+        f"{BASE}/ciclos",
+        json={"nombre": "Ciclo editable", "fecha_inicio": inicio, "fecha_fin": fin},
+        headers=headers_rh,
+    )
+    assert resp.status_code == 201, resp.text
+    ciclo = resp.json()
+
+    # Editar en borrador: solo nombre.
+    resp_borrador = await client.put(
+        f"{BASE}/ciclos/{ciclo['id']}",
+        json={"nombre": "Ciclo editado (borrador)"},
+        headers=headers_rh,
+    )
+    assert resp_borrador.status_code == 200, resp_borrador.text
+    assert resp_borrador.json()["nombre"] == "Ciclo editado (borrador)"
+
+    # Activar y editar en activo: fechas.
+    resp_act = await client.post(f"{BASE}/ciclos/{ciclo['id']}/activar", headers=headers_rh)
+    assert resp_act.status_code == 200, resp_act.text
+
+    nueva_fin = (date.today() + timedelta(days=120)).isoformat()
+    resp_activo = await client.put(
+        f"{BASE}/ciclos/{ciclo['id']}",
+        json={"fecha_fin": nueva_fin},
+        headers=headers_rh,
+    )
+    assert resp_activo.status_code == 200, resp_activo.text
+    assert resp_activo.json()["fecha_fin"] == nueva_fin
+
+    # fecha_fin < fecha_inicio -> 422.
+    resp_422 = await client.put(
+        f"{BASE}/ciclos/{ciclo['id']}",
+        json={"fecha_inicio": nueva_fin, "fecha_fin": inicio},
+        headers=headers_rh,
+    )
+    assert resp_422.status_code == 422, resp_422.text
+
+    # Cerrar el ciclo (sin metas individuales pendientes) y editar -> 409.
+    resp_cerrar = await client.post(f"{BASE}/ciclos/{ciclo['id']}/cerrar", headers=headers_rh)
+    assert resp_cerrar.status_code == 200, resp_cerrar.text
+
+    resp_409 = await client.put(
+        f"{BASE}/ciclos/{ciclo['id']}",
+        json={"nombre": "No deberia poder"},
+        headers=headers_rh,
+    )
+    assert resp_409.status_code == 409, resp_409.text
+

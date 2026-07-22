@@ -37,13 +37,13 @@ from app.core.dependencies import get_current_user, get_rh_ui_mode, gestor_team_
 from app.core.exceptions import NotFoundError
 from app.models.empleados import Empleado
 from app.repositories.empleado_repository import EmpleadoRepository
-from app.repositories.metas_repository import MetasRepository
 from app.schemas.metas import (
     CerrarMetaRequest,
     CheckinResponse,
     CumplimientoResponse,
     MetaCicloCreate,
     MetaCicloResponse,
+    MetaCicloUpdate,
     MetaCreate,
     MetaFiltros,
     MetaResponse,
@@ -198,15 +198,19 @@ async def create_ciclo(
 async def get_ciclo(
     ciclo_id: int,
     current_user: Empleado = Depends(role_checker(["operativo"])),
-    db: AsyncSession = Depends(get_db),
+    svc: MetasService = Depends(_svc),
 ):
-    # `MetasService` (Tarea 2) no expone un `get_ciclo` puntual — se lee del
-    # repository directamente (solo lectura) en vez de listar+filtrar todos
-    # los ciclos. Ver concern en el reporte de Tarea 3.
-    ciclo = await MetasRepository(db).get_ciclo(ciclo_id)
-    if ciclo is None:
-        raise NotFoundError("Ciclo de metas", ciclo_id)
-    return MetaCicloResponse.model_validate(ciclo)
+    return await svc.get_ciclo(ciclo_id)
+
+
+@router.put("/ciclos/{ciclo_id}", response_model=MetaCicloResponse)
+async def update_ciclo(
+    ciclo_id: int,
+    data: MetaCicloUpdate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: MetasService = Depends(_svc),
+):
+    return await svc.actualizar_ciclo(ciclo_id, data)
 
 
 @router.post("/ciclos/{ciclo_id}/activar", response_model=MetaCicloResponse)

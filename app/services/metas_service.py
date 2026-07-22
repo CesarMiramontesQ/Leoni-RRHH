@@ -30,6 +30,7 @@ from app.schemas.metas import (
     CheckinResponse,
     MetaCicloCreate,
     MetaCicloResponse,
+    MetaCicloUpdate,
     MetaCreate,
     MetaFiltros,
     MetaResponse,
@@ -178,6 +179,45 @@ class MetasService:
             metas=[],
         )
         self.db.add(ciclo)
+        await self.db.flush()
+        await self.db.refresh(ciclo)
+        return self._ciclo_to_response(ciclo)
+
+    async def get_ciclo(self, ciclo_id: int) -> MetaCicloResponse:
+        ciclo = await self.repo.get_ciclo(ciclo_id)
+        if not ciclo:
+            raise NotFoundError("MetaCiclo", ciclo_id)
+        return self._ciclo_to_response(ciclo)
+
+    async def actualizar_ciclo(self, ciclo_id: int, data: MetaCicloUpdate) -> MetaCicloResponse:
+        """Edita nombre/descripcion/fechas de un ciclo (Tarea 3, fix post-revision).
+
+        Politica de edicion (decision documentada, no estaba en el spec de
+        Tarea 2): se permite editar un ciclo en "borrador" o "activo" —
+        nombre/descripcion sin restriccion, y fechas con la unica validacion
+        de que `fecha_fin >= fecha_inicio` (se usa `>=`, no `>`, a proposito:
+        mas laxo que `crear_ciclo`, que exige `>` estricto en la creacion
+        inicial; edición admite igualar limites en un ajuste puntual). Un
+        ciclo "cerrado" es inmutable -> `ConflictError` (409): ya congelo
+        metas de equipo y sirvio de base para `cumplimiento_empleado`,
+        cambiar sus fechas retroactivamente no tiene sentido de negocio.
+        """
+        ciclo = await self.repo.get_ciclo(ciclo_id)
+        if not ciclo:
+            raise NotFoundError("MetaCiclo", ciclo_id)
+        if ciclo.estado == "cerrado":
+            raise ConflictError("No se puede editar un ciclo cerrado")
+
+        payload = data.model_dump(exclude_unset=True)
+        nueva_fecha_inicio = payload.get("fecha_inicio", ciclo.fecha_inicio)
+        nueva_fecha_fin = payload.get("fecha_fin", ciclo.fecha_fin)
+        if nueva_fecha_fin < nueva_fecha_inicio:
+            raise DomainValidationError(
+                "fecha_fin debe ser mayor o igual a fecha_inicio", field="fecha_fin"
+            )
+
+        for key, value in payload.items():
+            setattr(ciclo, key, value)
         await self.db.flush()
         await self.db.refresh(ciclo)
         return self._ciclo_to_response(ciclo)

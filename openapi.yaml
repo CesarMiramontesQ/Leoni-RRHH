@@ -13658,6 +13658,18 @@ paths:
       responses:
         "200": { description: Ciclo, content: { application/json: { schema: { type: object } } } }
         "404": { description: Ciclo no encontrado }
+    put:
+      tags: [Talento - Metas]
+      summary: Editar nombre/descripcion/fechas de un ciclo en borrador o activo (bloqueado si esta cerrado)
+      operationId: metas_update_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Ciclo actualizado, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Ciclo no encontrado }
+        "409": { description: No se puede editar un ciclo cerrado }
+        "422": { description: fecha_fin menor a fecha_inicio }
   /api/v1/metas/ciclos/{ciclo_id}/activar:
     post:
       tags: [Talento - Metas]
