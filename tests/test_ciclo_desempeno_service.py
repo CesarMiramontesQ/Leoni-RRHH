@@ -235,6 +235,29 @@ def test_combinar_score_metas_en_cero_real_cuenta_distinto_de_ausente():
     assert (pm_ef, pc_ef) == (60.0, 40.0)
 
 
+# ── Tarea 7 (huecos de cobertura): pesos configurables != default 60/40 ────
+
+
+def test_combinar_score_pesos_configurables_70_30():
+    """Blinda la formula ante un cambio de los pesos default (60/40): con
+    peso_metas=70/peso_competencias=30, (70*80 + 30*60)/100 = 74.0 (verificado
+    a mano)."""
+    score, pm_ef, pc_ef = combinar_score(80, 60, 70, 30)
+    assert score == 74.0
+    assert (pm_ef, pc_ef) == (70.0, 30.0)
+
+
+def test_combinar_score_pesos_100_0_con_ambas_senales_presentes():
+    """peso_competencias=0 CONFIGURADO (no "ausente"): con ambas senales
+    presentes el score se reduce a la senal de metas -- (100*80 + 0*60)/100 =
+    80.0 (verificado a mano) -- pero llega por la rama "ambas presentes", no
+    por la rama "solo metas presente" (aunque los efectivos resultantes
+    coincidan en (100, 0) en los dos casos)."""
+    score, pm_ef, pc_ef = combinar_score(80, 60, 100, 0)
+    assert score == 80.0
+    assert (pm_ef, pc_ef) == (100.0, 0.0)
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Bandas y segmentos 9-Box (funcion pura)
 # ══════════════════════════════════════════════════════════════════════════
@@ -497,6 +520,95 @@ async def test_cerrar_ciclo_que_no_esta_activo_falla_409(db):
         await service.cerrar_ciclo(ciclo.id)
 
 
+async def test_cerrar_ciclo_con_pesos_configurados_70_30(db):
+    """Tarea 7 (hueco de cobertura): blinda `cerrar_ciclo` end-to-end (no
+    solo la formula pura) ante un cambio de los pesos default -- ciclo
+    creado con peso_metas=70/peso_competencias=30, verificado a mano."""
+    jefe = await make_empleado(db, rol="supervisor")
+    empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+
+    metas_service = MetasService(db)
+    meta_ciclo_id = await _crear_meta_ciclo_activo(metas_service, jefe)
+    await _crear_meta_individual_cerrada(metas_service, meta_ciclo_id, empleado, jefe, calificacion=80)
+    await metas_service.cerrar_ciclo(meta_ciclo_id)
+
+    campana = await _crear_campana_360(db, estado="finalizada")
+    # calificacion=3 en escala 1-5 -> norm = (3-1)/(5-1)*100 = 50.0
+    await _agregar_participante_360(db, campana.id, empleado.empleado_id, calificacion_general=3)
+
+    service = CicloDesempenoService(db)
+    ciclo = await _crear_cd_ciclo(
+        service, meta_ciclo_id=meta_ciclo_id, eval360_campana_id=campana.id,
+        peso_metas=Decimal("70"), peso_competencias=Decimal("30"),
+    )
+    await service.activar_ciclo(ciclo.id)
+    cerrado = await service.cerrar_ciclo(ciclo.id)
+    assert cerrado.estado == "cerrado"
+
+    resultados = await service.resultados_ciclo(ciclo.id)
+    r = next(x for x in resultados if x.empleado_id == empleado.empleado_id)
+    assert r.calificacion_360_norm == Decimal("50.00")
+    # (70*80 + 30*50)/100 = (5600+1500)/100 = 71.0
+    assert r.calificacion_desempeno == Decimal("71.00")
+    assert r.peso_metas_efectivo == Decimal("70.00")
+    assert r.peso_competencias_efectivo == Decimal("30.00")
+
+
+async def test_cerrar_ciclo_con_eval360_campana_id_apuntando_a_id_inexistente(db):
+    """Tarea 7 (hueco de cobertura, revision): si `eval360_campana_id` queda
+    apuntando a una campana que ya no existe -- la FK real usa
+    `ondelete=SET NULL` (ver `app/models/ciclo_desempeno.py`), pero aqui se
+    fuerza el puntero a un id inexistente directamente para aislar el
+    comportamiento sin depender de que SQLite respete ON DELETE en tests --
+    `cerrar_ciclo` NO lanza error aunque `forzar=False`.
+
+    Comportamiento REAL documentado (intencional, no un bug a arreglar en
+    esta tarea): en `CicloDesempenoService.cerrar_ciclo`, el chequeo
+    `if campana is not None and campana.estado not in (...)` se SALTA
+    silenciosamente cuando `Evaluacion360Repository.get_campana` devuelve
+    `None` (no valida "la campana referenciada debe existir"). Luego
+    `_contexto_senales` tambien devuelve `campana=None` -- la senal 360
+    queda AUSENTE para ese resultado, igual que "sin campana vinculada"."""
+    jefe = await make_empleado(db, rol="supervisor")
+    empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+
+    metas_service = MetasService(db)
+    meta_ciclo_id = await _crear_meta_ciclo_activo(metas_service, jefe)
+    await _crear_meta_individual_cerrada(metas_service, meta_ciclo_id, empleado, jefe, calificacion=80)
+    await metas_service.cerrar_ciclo(meta_ciclo_id)
+
+    campana = await _crear_campana_360(db, estado="finalizada")
+    await _agregar_participante_360(db, campana.id, empleado.empleado_id, calificacion_general=4)
+
+    service = CicloDesempenoService(db)
+    ciclo = await _crear_cd_ciclo(
+        service, meta_ciclo_id=meta_ciclo_id, eval360_campana_id=campana.id
+    )
+    await service.activar_ciclo(ciclo.id)
+
+    # Simula "campana borrada": el puntero queda apuntando a un id inexistente
+    # (equivalente al resultado de un ON DELETE SET NULL seguido de otro
+    # ciclo re-vinculado a un id que tampoco existe, o un dato huerfano).
+    repo = CicloDesempenoRepository(db)
+    ciclo_orm = await repo.get_ciclo(ciclo.id)
+    ciclo_orm.eval360_campana_id = 999999
+    await db.flush()
+
+    cerrado = await service.cerrar_ciclo(ciclo.id)  # forzar=False, NO deberia lanzar
+    assert cerrado.estado == "cerrado"
+
+    resultados = await service.resultados_ciclo(ciclo.id)
+    r = next(x for x in resultados if x.empleado_id == empleado.empleado_id)
+    assert r.calificacion_360_raw is None
+    assert r.calificacion_360_norm is None
+    # Solo metas presente -> score = cumplimiento de metas (no se diluye
+    # por una senal 360 "ausente" que en realidad tenia datos reales).
+    assert r.cumplimiento_metas == Decimal("80.00")
+    assert r.calificacion_desempeno == Decimal("80.00")
+    assert r.peso_metas_efectivo == Decimal("100.00")
+    assert r.peso_competencias_efectivo == Decimal("0.00")
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Resultados en vivo (ciclo activo): distinguir ausente vs cero real
 # ══════════════════════════════════════════════════════════════════════════
@@ -660,6 +772,77 @@ async def test_construir_9box_agrupa_por_celda_y_excluye_sin_banda(db):
         e.empleado_id for c in nueve_box.celdas for e in c.empleados
     }
     assert sin_senales.empleado_id not in todos_los_empleados_en_celdas
+
+
+async def test_construir_9box_distribuye_multiples_celdas_de_la_matriz(db):
+    """Tarea 7 (hueco de cobertura): el test existente
+    (`test_construir_9box_agrupa_por_celda_y_excluye_sin_banda`) solo arma UN
+    empleado en la celda alto_alto; aqui se cubren 5 de las 9 celdas
+    (combinaciones bajo/medio/alto de desempeno x potencial, incluyendo
+    diagonales cruzadas bajo_alto/alto_bajo) para confirmar que
+    `construir_9box` agrupa cada empleado en su celda correcta y no los
+    mezcla entre si. Solo senal de metas (mas simple, ya probado que
+    combinar_score con una sola senal = esa senal)."""
+    jefe = await make_empleado(db, rol="supervisor")
+    emp_bajo_bajo = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    emp_medio_medio = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    emp_alto_alto = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    emp_bajo_alto = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    emp_alto_bajo = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    emp_sin_senal = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+
+    metas_service = MetasService(db)
+    meta_ciclo_id = await _crear_meta_ciclo_activo(metas_service, jefe)
+    # umbral_medio=50, umbral_alto=75 (defaults de _crear_cd_ciclo): 20 -> bajo, 60 -> medio, 90 -> alto.
+    await _crear_meta_individual_cerrada(metas_service, meta_ciclo_id, emp_bajo_bajo, jefe, calificacion=20)
+    await _crear_meta_individual_cerrada(metas_service, meta_ciclo_id, emp_medio_medio, jefe, calificacion=60)
+    await _crear_meta_individual_cerrada(metas_service, meta_ciclo_id, emp_alto_alto, jefe, calificacion=90)
+    await _crear_meta_individual_cerrada(metas_service, meta_ciclo_id, emp_bajo_alto, jefe, calificacion=20)
+    await _crear_meta_individual_cerrada(metas_service, meta_ciclo_id, emp_alto_bajo, jefe, calificacion=90)
+    # sin_senal: meta abierta (nunca cerrada) -> sin banda_desempeno.
+    await _crear_meta_individual_abierta(metas_service, meta_ciclo_id, emp_sin_senal, jefe)
+
+    service = CicloDesempenoService(db)
+    ciclo = await _crear_cd_ciclo(service, meta_ciclo_id=meta_ciclo_id)
+    await service.activar_ciclo(ciclo.id)
+
+    admin = await make_empleado(db, rol="rh")
+    potenciales = {
+        emp_bajo_bajo.empleado_id: Decimal("20"),
+        emp_medio_medio.empleado_id: Decimal("60"),
+        emp_alto_alto.empleado_id: Decimal("90"),
+        emp_bajo_alto.empleado_id: Decimal("90"),
+        emp_alto_bajo.empleado_id: Decimal("20"),
+    }
+    await service.set_potencial(
+        ciclo.id,
+        [PotencialUpdateItem(empleado_id=eid, potencial=val) for eid, val in potenciales.items()],
+        current_user_id=admin.empleado_id,
+    )
+
+    nueve_box = await service.construir_9box(ciclo.id)
+    assert len(nueve_box.celdas) == 9
+
+    def _empleados_en(banda_desempeno, banda_potencial):
+        celda = next(
+            c for c in nueve_box.celdas
+            if c.banda_desempeno == banda_desempeno and c.banda_potencial == banda_potencial
+        )
+        return {e.empleado_id for e in celda.empleados}
+
+    assert _empleados_en("bajo", "bajo") == {emp_bajo_bajo.empleado_id}
+    assert _empleados_en("medio", "medio") == {emp_medio_medio.empleado_id}
+    assert _empleados_en("alto", "alto") == {emp_alto_alto.empleado_id}
+    assert _empleados_en("bajo", "alto") == {emp_bajo_alto.empleado_id}
+    assert _empleados_en("alto", "bajo") == {emp_alto_bajo.empleado_id}
+    # Celdas no usadas por ningun empleado quedan vacias (ej. medio_bajo).
+    assert _empleados_en("medio", "bajo") == set()
+
+    todos_los_empleados_en_celdas = {
+        e.empleado_id for c in nueve_box.celdas for e in c.empleados
+    }
+    assert emp_sin_senal.empleado_id not in todos_los_empleados_en_celdas
+    assert len(todos_los_empleados_en_celdas) == 5
 
 
 # ══════════════════════════════════════════════════════════════════════════
