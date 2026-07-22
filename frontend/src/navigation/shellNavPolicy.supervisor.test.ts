@@ -52,6 +52,8 @@ describe("shellNavPolicy supervisor structured nav", () => {
     expect(isShellNavItemVisibleForRol("supervisor", "comedor")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "empleados")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "metas")).toBe(true);
+    expect(isShellNavItemVisibleForRol("supervisor", "ciclo-desempeno")).toBe(true);
+    expect(isShellNavItemVisibleForRol("supervisor", "mi-desempeno")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "actas")).toBe(false);
     expect(isShellNavItemVisibleForRol("supervisor", "reportes")).toBe(false);
     expect(isShellNavItemVisibleForRol("supervisor", "level-up")).toBe(false);
@@ -61,6 +63,14 @@ describe("shellNavPolicy supervisor structured nav", () => {
     const { supervisorMayAccessHash, isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
     expect(isShellNavItemVisibleForRol("supervisor", "metas")).toBe(true);
     expect(supervisorMayAccessHash("#/talento/metas")).toBe(true);
+  });
+
+  it("supervisor puede acceder a #/talento/ciclo-desempeno y #/talento/mi-desempeno", async () => {
+    const { supervisorMayAccessHash, isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(isShellNavItemVisibleForRol("supervisor", "ciclo-desempeno")).toBe(true);
+    expect(isShellNavItemVisibleForRol("supervisor", "mi-desempeno")).toBe(true);
+    expect(supervisorMayAccessHash("#/talento/ciclo-desempeno")).toBe(true);
+    expect(supervisorMayAccessHash("#/talento/mi-desempeno")).toBe(true);
   });
 
   it("supervisor no ve hubs agrupados", async () => {
@@ -104,6 +114,7 @@ describe("shellNavPolicy gerente structured nav", () => {
     expect(isShellNavItemVisibleForRol("gerente", "comedor")).toBe(true);
     expect(isShellNavItemVisibleForRol("gerente", "empleados")).toBe(true);
     expect(isShellNavItemVisibleForRol("gerente", "metas")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "ciclo-desempeno")).toBe(true);
     expect(isShellNavItemVisibleForRol("gerente", "actas")).toBe(false);
     expect(isShellNavItemVisibleForRol("gerente", "reportes")).toBe(false);
     expect(isShellNavItemVisibleForRol("gerente", "level-up")).toBe(false);
@@ -127,5 +138,7 @@ describe("shellNavPolicy gerente structured nav", () => {
     expect(supervisorMayAccessHash("#/comedor/reporte")).toBe(false);
     expect(supervisorMayAccessHash("#/level-up")).toBe(true);
     expect(supervisorMayAccessHash("#/talento/metas")).toBe(true);
+    expect(supervisorMayAccessHash("#/talento/ciclo-desempeno")).toBe(true);
+    expect(supervisorMayAccessHash("#/talento/mi-desempeno")).toBe(true);
   });
 });

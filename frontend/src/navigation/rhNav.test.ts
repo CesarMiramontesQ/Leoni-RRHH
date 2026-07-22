@@ -290,4 +290,22 @@ describe("rhNav sections", () => {
     ]);
   });
 
+  it("expone Talento con Ciclo de Desempeño cuando se otorga el módulo ciclo-desempeno", async () => {
+    allowedModules.add("ciclo-desempeno");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("supervisor");
+    const talentoSection = sections.find((section) => section.id === "talento");
+
+    expect(talentoSection?.title).toBe("Talento");
+    expect(talentoSection?.items).toEqual([
+      expect.objectContaining({
+        id: "ciclo-desempeno",
+        key: "ciclo-desempeno",
+        href: "#/talento/ciclo-desempeno",
+        label: "Ciclo de Desempeño",
+      }),
+    ]);
+  });
+
 });
