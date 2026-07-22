@@ -47,7 +47,7 @@ import {
 import { getAreasOptions, type AreaOption } from "../api/puestos.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
-import { canAccessRhOperationalDashboard, getEmpleadoDirectoryNumericIdFromAccessToken } from "../auth/jwt.ts";
+import { canAccessRhAssignedModule, getEmpleadoDirectoryNumericIdFromAccessToken } from "../auth/jwt.ts";
 import {
   activarCiclo,
   addResultado,
@@ -246,16 +246,23 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
 
   const liderDefault = getEmpleadoDirectoryNumericIdFromAccessToken();
   /**
-   * Mismo criterio (positivo) que usa `mountRhOperationalDashboard` en
-   * `pages/dashboard.ts`: solo RH-operativo con el módulo `dashboard`
-   * administra ciclos. Cualquier otro rol (supervisor/gerente nativo,
-   * director, empleado, o admin/RH-legacy en Modo líder/gerente) cae en la
-   * vista de jefe: gestiona metas/tablero de su equipo, scope ya aplicado
-   * por el backend en `_gestion_or_equipo()`. Usar la forma positiva evita
-   * que un rol no-líder (p. ej. director) que llegue a la página vea
-   * controles de administración de ciclos que el backend rechazaría (403).
+   * Criterio (positivo) alineado con el backend: `POST/activar/cerrar/PUT
+   * /ciclos` exige `role_checker(["operativo"])`, cuyo criterio para un RH
+   * inscrito no-admin es el módulo `metas` (prefix `/api/v1/metas`), NO
+   * `dashboard` — no cambiar el módulo aquí sin revisar `role_checker` en
+   * `app/api/v1/metas/router.py`. Cualquier otro rol (supervisor/gerente
+   * nativo, director, empleado, o admin/RH-legacy en Modo líder/gerente)
+   * cae en la vista de jefe: gestiona metas/tablero de su equipo, scope ya
+   * aplicado por el backend en `_gestion_or_equipo()`. Usar la forma
+   * positiva evita que un rol no-líder (p. ej. director) que llegue a la
+   * página vea controles de administración de ciclos que el backend
+   * rechazaría (403).
    */
-  const esGestionRh = canAccessRhOperationalDashboard();
+  const esGestionRh = canAccessRhAssignedModule("metas", {
+    blockGestorTeam: true,
+    blockEmpleado: true,
+    blockDirector: true,
+  });
 
   const state: State = {
     esGestionRh,
