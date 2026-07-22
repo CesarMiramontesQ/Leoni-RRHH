@@ -506,6 +506,18 @@ class MetasService:
             )
         return rc
 
+    async def get_rc_meta(self, rc_id: int) -> MetaResponse:
+        """Resuelve (ya serializada) la `Meta` dueña de un resultado clave a
+        partir de su `rc_id` suelto — usado por el router (Tarea 3) para el
+        scoping de equipo/ownership antes de un check-in (ajuste del jefe o
+        self-service), casos en los que el cliente solo envia `rc_id`, no
+        `meta_id`. Reemplaza el uso directo de `MetasRepository.get_rc` que
+        hacia el router (ver concern de Tarea 3 / fix post-revision)."""
+        rc = await self.repo.get_rc(rc_id)
+        if not rc:
+            raise NotFoundError("Resultado clave", rc_id)
+        return await self.get_meta(rc.meta_id)
+
     # ── Check-in ───────────────────────────────────────────────────────────
     async def registrar_checkin(
         self,

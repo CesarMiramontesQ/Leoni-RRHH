@@ -17,10 +17,12 @@ Convenciones (ver app/api/v1/encuestas_rh/router.py):
     su prefijo (`/mis-metas`) esta en RH_SELF_SERVICE_API_PREFIXES para que el
     middleware de permisos por modulo no lo bloquee. El empleado siempre usa
     `current_user.empleado_id` — nunca un empleado_id del body/cliente.
-  - El router instancia el service (y, solo para lecturas de autorizacion no
-    expuestas aun por el service — `get_ciclo` puntual y `get_rc` para
-    resolver el dueno de un resultado clave — el repository directamente;
-    ver concern en el reporte de Tarea 3) y delega toda la logica de dominio.
+  - El router SOLO instancia `MetasService` (nunca `MetasRepository`
+    directamente): las lecturas de autorizacion que antes se resolvian con el
+    repository (`get_ciclo` puntual, `get_rc` para resolver el dueno de un
+    resultado clave) ahora usan los wrappers delgados `MetasService.get_ciclo`
+    / `MetasService.get_rc_meta` (fix post-revision de Tarea 3, ver
+    `.superpowers/sdd/task-3-report.md`).
 """
 
 from __future__ import annotations
@@ -447,13 +449,11 @@ async def ajuste_checkin(
 ):
     # `MetasService.registrar_checkin` no valida por si solo que el rc_id
     # pertenezca al scope del jefe (no conoce el concepto de equipo) — se
-    # resuelve la meta dueña vía el repository (solo lectura) para aplicar
-    # el mismo scoping que el resto de endpoints de meta.
-    rc = await MetasRepository(db).get_rc(rc_id)
-    if rc is None:
-        raise NotFoundError("Resultado clave", rc_id)
+    # resuelve la meta dueña vía `svc.get_rc_meta` (wrapper de service, no
+    # repository directo) para aplicar el mismo scoping que el resto de
+    # endpoints de meta.
+    meta = await svc.get_rc_meta(rc_id)
     scope = await _resolve_scope(current_user, rh_ui_mode, db)
-    meta = await svc.get_meta(rc.meta_id)
     if not _meta_in_scope(meta, scope, current_user.empleado_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -549,13 +549,12 @@ async def mi_checkin(
     rc_id: int,
     data: MiCheckinRequest,
     current_user: Empleado = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
     svc: MetasService = Depends(_svc),
 ):
     # `empleado_id` SIEMPRE del token — nunca del cliente (`MiCheckinRequest`
     # no tiene ese campo, asi que no hay forma de que el body lo cuele).
-    rc = await MetasRepository(db).get_rc(rc_id)
-    if rc is None or rc.meta.empleado_id != current_user.empleado_id:
+    meta = await svc.get_rc_meta(rc_id)
+    if meta.empleado_id != current_user.empleado_id:
         raise NotFoundError("Resultado clave", rc_id)
     return await svc.registrar_checkin(
         rc_id,
