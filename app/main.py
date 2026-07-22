@@ -285,6 +285,7 @@ from app.api.v1.viajes_laborales.router import router as viajes_laborales_router
 from app.api.v1.evaluacion360.router import router as evaluacion360_router
 from app.api.v1.encuestas_rh.router import router as encuestas_rh_router
 from app.api.v1.metas.router import router as metas_router
+from app.api.v1.ciclo_desempeno.router import router as ciclo_desempeno_router
 from app.api.v1.juntas.router import router as juntas_router
 from app.api.v1.proveedores_externos.router import router as proveedores_externos_router
 
@@ -327,6 +328,7 @@ app.include_router(viajes_laborales_router)
 app.include_router(evaluacion360_router)
 app.include_router(encuestas_rh_router)
 app.include_router(metas_router)
+app.include_router(ciclo_desempeno_router)
 app.include_router(juntas_router)
 app.include_router(proveedores_externos_router)
 

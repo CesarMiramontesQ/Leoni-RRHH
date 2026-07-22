@@ -13,6 +13,7 @@ export type EmpleadoFlatNavKey =
   | "mis-encuestas"
   | "mis-encuestas-rh"
   | "mis-metas"
+  | "mi-desempeno"
   | "mis-evaluaciones";
 
 export type EmpleadoFlatNavItem = {
@@ -88,5 +89,12 @@ export const EMPLEADO_FLAT_NAV_ITEMS: readonly EmpleadoFlatNavItem[] = [
     href: "#/talento/mis-metas",
     label: "Mis metas",
     svgPaths: `<path d="M3 3v18M3 8.25c1.75-1 3.75-1 5.5 0s3.75 1 5.5 0 3.75-1 5.5 0V15c-1.75 1-3.75 1-5.5 0s-3.75-1-5.5 0-3.75 1-5.5 0V8.25Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "mi-desempeno",
+    key: "mi-desempeno",
+    href: "#/talento/mi-desempeno",
+    label: "Mi desempeño",
+    svgPaths: `<path d="M9 17.25v1.5a2.25 2.25 0 0 0 2.25 2.25h1.5a2.25 2.25 0 0 0 2.25-2.25v-1.5m-6 0h6m-6 0-.75-3m6.75 3 .75-3M9 14.25l1.5-6 1.5 3 1.5-4.5 1.5 7.5M4.5 8.25a7.5 7.5 0 1 1 15 0" stroke-linecap="round" stroke-linejoin="round" />`,
   },
 ];

@@ -13968,6 +13968,153 @@ paths:
         "404": { description: Resultado clave no encontrado o no pertenece al empleado }
         "409": { description: Ciclo no activo o meta cerrada }
 
+  /api/v1/ciclo-desempeno/ciclos:
+    get:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Listar ciclos de desempeño (RH global por módulo; jefe con scoping de equipo)
+      operationId: ciclo_desempeno_list_ciclos
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [borrador, activo, cerrado] } }
+      responses:
+        "200": { description: Ciclos, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+    post:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Crear ciclo de desempeño en borrador (creado_por_id se toma del token, no del body; solo RH con módulo)
+      operationId: ciclo_desempeno_create_ciclo
+      security: [ { BearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "201": { description: Ciclo creado, content: { application/json: { schema: { type: object } } } }
+        "422": { description: Fechas/pesos/umbrales inválidos }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}:
+    get:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Detalle de ciclo de desempeño
+      operationId: ciclo_desempeno_get_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Ciclo, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Ciclo no encontrado }
+    put:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Editar un ciclo en borrador (todos los campos) (solo RH con módulo)
+      operationId: ciclo_desempeno_update_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        "200": { description: Ciclo actualizado, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Ciclo no encontrado }
+        "409": { description: Solo se puede editar un ciclo en borrador }
+        "422": { description: Fechas/pesos/umbrales inválidos }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/activar:
+    post:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Activar ciclo (borrador -> activo; materializa resultados = metas individuales ∪ participantes 360 vinculados)
+      operationId: ciclo_desempeno_activar_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Ciclo activado, content: { application/json: { schema: { type: object } } } }
+        "409": { description: Solo ciclos en borrador se pueden activar }
+        "422": { description: Falta periodo, pesos en 0, o ninguna señal (meta_ciclo_id/eval360_campana_id) vinculada }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/cerrar:
+    post:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Cerrar ciclo (congela snapshot de calificación/bandas/segmento por empleado)
+      description: >
+        Exige que las fuentes vinculadas estén estables (meta_ciclo en estado
+        "cerrado"; campaña 360 en "finalizada"/"cerrada") salvo que el body
+        envíe `forzar: true` (override puntual de quien ejecuta el cierre).
+      operationId: ciclo_desempeno_cerrar_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                forzar: { type: boolean, default: false }
+      responses:
+        "200": { description: Ciclo cerrado, content: { application/json: { schema: { type: object } } } }
+        "409": { description: Solo ciclos activos se pueden cerrar }
+        "422": { description: Meta_ciclo vinculado no cerrado o campaña 360 vinculada no finalizada (sin forzar) }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/resultados:
+    get:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Resultados del ciclo por empleado (scoping de equipo; en vivo mientras el ciclo no esté cerrado, snapshot si ya cerró)
+      operationId: ciclo_desempeno_resultados_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Resultados (filtrados por el scope del jefe; vacío si ninguno cae en su equipo), content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        "404": { description: Ciclo no encontrado }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/9box:
+    get:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Matriz 9-Box del ciclo (9 celdas banda_desempeno x banda_potencial, scoping de equipo)
+      operationId: ciclo_desempeno_nueve_box
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200": { description: Matriz 9-Box, content: { application/json: { schema: { type: object } } } }
+        "404": { description: Ciclo no encontrado }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/potencial:
+    put:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Capturar potencial (0-100) en batch para empleados del ciclo (scoping de equipo)
+      operationId: ciclo_desempeno_set_potencial
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [empleado_id, potencial]
+                    properties:
+                      empleado_id: { type: integer }
+                      potencial: { type: number, minimum: 0, maximum: 100 }
+      responses:
+        "200": { description: Resultados con potencial/banda/segmento actualizados, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        "403": { description: Empleado fuera del scope del jefe }
+        "404": { description: Ciclo o resultado de empleado no encontrado }
+        "409": { description: Solo se puede capturar potencial en un ciclo activo }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/export/excel:
+    get:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Exportar a Excel los resultados del ciclo (mismo scoping de equipo que la gestión)
+      operationId: ciclo_desempeno_export_ciclo_excel
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Archivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "404": { description: Ciclo no encontrado }
+  /api/v1/ciclo-desempeno/mis-resultados:
+    get:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Mis resultados (self-service; empleado_id del token, solo ciclos cerrados)
+      operationId: ciclo_desempeno_mis_resultados
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200": { description: Resultados propios en ciclos ya cerrados (vacío si no hay), content: { application/json: { schema: { type: array, items: { type: object } } } } }
+
   /api/v1/juntas:
     get:
       tags: [Juntas]
