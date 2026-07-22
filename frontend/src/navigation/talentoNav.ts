@@ -6,7 +6,7 @@
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 
-export type TalentoNavKey = "encuestas-rh";
+export type TalentoNavKey = "encuestas-rh" | "metas";
 
 export type TalentoNavItem = {
   id: AppShellNavItemId;
@@ -23,6 +23,13 @@ export const TALENTO_NAV_ITEMS: readonly TalentoNavItem[] = [
     href: "#/talento/encuestas",
     label: "Encuestas",
     svgPaths: `<path d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" stroke-linecap="round" stroke-linejoin="round" /><path d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
+  {
+    id: "metas",
+    key: "metas",
+    href: "#/talento/metas",
+    label: "Metas",
+    svgPaths: `<path d="M3 3v18M3 8.25c1.75-1 3.75-1 5.5 0s3.75 1 5.5 0 3.75-1 5.5 0V15c-1.75 1-3.75 1-5.5 0s-3.75-1-5.5 0-3.75 1-5.5 0V8.25Z" stroke-linecap="round" stroke-linejoin="round" />`,
   },
 ];
 
