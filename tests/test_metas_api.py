@@ -620,3 +620,61 @@ async def test_put_meta_no_permite_reasignar_fuera_del_scope_del_jefe(client, db
     )
     assert resp_ok.status_code == 200, resp_ok.text
     assert resp_ok.json()["empleado_id"] == otro_empleado_propio.empleado_id
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Tarea 1 (gestion de metas para jefes) — GET /ciclos abierto a jefes con
+# scoping (`_gestion_or_equipo`); administracion de ciclos sigue solo-RH.
+# ══════════════════════════════════════════════════════════════════════════
+async def test_supervisor_puede_listar_y_ver_ciclos(client, db):
+    rh = await _rh(db, email="metasrh9@leoni.test")
+    jefe = await _jefe(db, email="metasjefe9@leoni.test")
+    await _empleado_de(db, jefe, email="metasemp9@leoni.test")
+
+    headers_rh = await auth_headers(client, rh)
+    headers_jefe = await auth_headers(client, jefe)
+
+    ciclo = await _crear_ciclo_activo(client, headers_rh, nombre="Ciclo lectura jefe")
+
+    resp_list = await client.get(f"{BASE}/ciclos", headers=headers_jefe)
+    assert resp_list.status_code == 200, resp_list.text
+    assert any(c["id"] == ciclo["id"] for c in resp_list.json())
+
+    resp_get = await client.get(f"{BASE}/ciclos/{ciclo['id']}", headers=headers_jefe)
+    assert resp_get.status_code == 200, resp_get.text
+    assert resp_get.json()["id"] == ciclo["id"]
+
+
+async def test_supervisor_no_puede_administrar_ciclos(client, db):
+    rh = await _rh(db, email="metasrh10@leoni.test")
+    jefe = await _jefe(db, email="metasjefe10@leoni.test")
+
+    headers_rh = await auth_headers(client, rh)
+    headers_jefe = await auth_headers(client, jefe)
+
+    ciclo = await _crear_ciclo_activo(client, headers_rh, nombre="Ciclo admin jefe")
+    inicio, fin = _fechas()
+
+    resp_create = await client.post(
+        f"{BASE}/ciclos",
+        json={"nombre": "Ciclo intento jefe", "fecha_inicio": inicio, "fecha_fin": fin},
+        headers=headers_jefe,
+    )
+    assert resp_create.status_code == 403, resp_create.text
+
+    resp_activar = await client.post(
+        f"{BASE}/ciclos/{ciclo['id']}/activar", headers=headers_jefe
+    )
+    assert resp_activar.status_code == 403, resp_activar.text
+
+    resp_cerrar = await client.post(
+        f"{BASE}/ciclos/{ciclo['id']}/cerrar", headers=headers_jefe
+    )
+    assert resp_cerrar.status_code == 403, resp_cerrar.text
+
+    resp_put = await client.put(
+        f"{BASE}/ciclos/{ciclo['id']}",
+        json={"nombre": "Ciclo renombrado por jefe"},
+        headers=headers_jefe,
+    )
+    assert resp_put.status_code == 403, resp_put.text

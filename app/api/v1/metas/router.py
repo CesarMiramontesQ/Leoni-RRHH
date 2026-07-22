@@ -3,8 +3,13 @@
 Router del modulo Metas (OKR ligero) — objetivos con resultados clave.
 
 Convenciones (ver app/api/v1/encuestas_rh/router.py):
-  - Ciclos: gestion global de RH, exige `role_checker(["operativo"])` (RH con
-    modulo 'metas' via middleware de permisos, o admin en Modo RH operativo).
+  - Ciclos: administracion (crear/activar/cerrar/actualizar/recordatorios)
+    exige `role_checker(["operativo"])` (solo RH con modulo 'metas' via
+    middleware de permisos, o admin en Modo RH operativo). Lectura (`GET
+    /ciclos`, `GET /ciclos/{id}`) usa `_gestion_or_equipo()` (Tarea 1 de
+    "Gestion de Metas para jefes"): el jefe (supervisor/gerente) tambien
+    puede listar/ver ciclos para poder gestionar las metas de su equipo,
+    aunque no pueda administrarlos.
   - Metas / resultados clave / checkin de ajuste / equipo / cumplimiento:
     gestion con SCOPING DE EQUIPO. Acceso combinado (ver `_gestion_or_equipo`):
     RH con modulo 'metas' en modo operativo (acceso global, sin scoping) O
@@ -205,12 +210,12 @@ async def _list_metas_scoped(
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Ciclos — gestion global RH
+# Ciclos — lectura (RH o jefe con scope) / administracion (solo RH global)
 # ══════════════════════════════════════════════════════════════════════════
 @router.get("/ciclos", response_model=list[MetaCicloResponse])
 async def list_ciclos(
     estado: Optional[str] = Query(None),
-    current_user: Empleado = Depends(role_checker(["operativo"])),
+    current_user: Empleado = Depends(_gestion_or_equipo()),
     svc: MetasService = Depends(_svc),
 ):
     return await svc.list_ciclos(estado=estado)
@@ -229,7 +234,7 @@ async def create_ciclo(
 @router.get("/ciclos/{ciclo_id}", response_model=MetaCicloResponse)
 async def get_ciclo(
     ciclo_id: int,
-    current_user: Empleado = Depends(role_checker(["operativo"])),
+    current_user: Empleado = Depends(_gestion_or_equipo()),
     svc: MetasService = Depends(_svc),
 ):
     return await svc.get_ciclo(ciclo_id)

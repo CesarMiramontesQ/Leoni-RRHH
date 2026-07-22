@@ -56,7 +56,7 @@ type RhModuleAccessOpts = {
 };
 
 /** Acceso a módulo RH vía admin operativo, Modo RH inscrito o grant explícito. */
-function canAccessRhAssignedModule(moduleKey: string, opts: RhModuleAccessOpts = {}): boolean {
+export function canAccessRhAssignedModule(moduleKey: string, opts: RhModuleAccessOpts = {}): boolean {
   if (opts.blockEmpleado && isRhEmpleadoUiMode()) return false;
   if (opts.blockGestorTeam && isRhGestorTeamUiMode()) return false;
   if (opts.blockDirector && isRhDirectorUiMode()) return false;
