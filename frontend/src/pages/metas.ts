@@ -47,7 +47,7 @@ import {
 import { getAreasOptions, type AreaOption } from "../api/puestos.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
-import { getEmpleadoDirectoryNumericIdFromAccessToken } from "../auth/jwt.ts";
+import { canAccessLiderTeamDashboard, getEmpleadoDirectoryNumericIdFromAccessToken } from "../auth/jwt.ts";
 import {
   activarCiclo,
   addResultado,
@@ -86,6 +86,21 @@ const FOCUSABLE_SELECTOR = [
   "textarea:not([disabled])",
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
+
+/**
+ * Acciones de administración de ciclos (solo-RH). Usadas para defensa en
+ * profundidad en `handleClick`: aunque el backend ya las rechaza con 403
+ * (`role_checker(["operativo"])`), un jefe no debe poder dispararlas ni
+ * siquiera si el markup quedara desincronizado.
+ */
+const CICLO_ADMIN_ACTIONS = new Set([
+  "ciclo-nuevo-abrir",
+  "ciclo-nuevo-guardar",
+  "ciclo-editar-abrir",
+  "ciclo-editar-guardar",
+  "ciclo-activar",
+  "ciclo-cerrar",
+]);
 
 type Tab = "ciclos" | "metas" | "tablero";
 
@@ -141,6 +156,8 @@ function emptyNuevaMetaForm(liderIdDefault: string): NuevaMetaForm {
 }
 
 interface State {
+  /** RH-operativo (todas las pestañas/acciones) vs. jefe con scope de equipo (sin administración de ciclos). */
+  esGestionRh: boolean;
   tab: Tab;
 
   ciclos: MetaCicloResponse[] | null;
@@ -228,9 +245,18 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
   }
 
   const liderDefault = getEmpleadoDirectoryNumericIdFromAccessToken();
+  /**
+   * Mismo criterio que separa `mountRhOperationalDashboard` de
+   * `mountLiderTeamDashboardShell` en `pages/dashboard.ts`: un jefe (supervisor/
+   * gerente nativo, o admin/RH-legacy en Modo líder/gerente) NO administra
+   * ciclos, solo gestiona metas/tablero de su equipo (scope ya aplicado por el
+   * backend en `_gestion_or_equipo()`).
+   */
+  const esGestionRh = !canAccessLiderTeamDashboard();
 
   const state: State = {
-    tab: "ciclos",
+    esGestionRh,
+    tab: esGestionRh ? "ciclos" : "metas",
 
     ciclos: null,
     ciclosLoading: true,
@@ -576,7 +602,7 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
     </tr>`;
   }
 
-  function renderMetasList(): string {
+  function renderMetasList(puedeAsignar: boolean): string {
     if (state.metasLoading) {
       return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando metas…" });
     }
@@ -585,7 +611,18 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
     }
     const metas = (state.metas ?? []).filter((m) => state.filtroNivel === "todas" || m.nivel === state.filtroNivel);
     if (metas.length === 0) {
-      return renderEmptyState({ title: "No hay metas con este filtro", subtitle: "Asigna una nueva meta para este ciclo." });
+      const sinNingunaMeta = state.filtroNivel === "todas";
+      if (sinNingunaMeta && puedeAsignar) {
+        return renderEmptyState({
+          title: state.esGestionRh ? "Aún no hay metas en este ciclo" : "Tu equipo aún no tiene metas en este ciclo",
+          subtitle: "Asigna una nueva meta para este ciclo.",
+          actionHtml: `<button type="button" data-action="meta-nueva-abrir" class="${BTN_PRIMARY}">+ Asignar meta</button>`,
+        });
+      }
+      return renderEmptyState({
+        title: "No hay metas con este filtro",
+        subtitle: sinNingunaMeta ? "Asigna una nueva meta para este ciclo." : "Ajusta el filtro de nivel para ver otras metas.",
+      });
     }
     return `<section class="${RH_LISTADO_SURFACE} overflow-x-auto">
       <table class="min-w-[860px] w-full text-left">
@@ -609,7 +646,11 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
       return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando ciclos…" });
     }
     if ((state.ciclos ?? []).length === 0) {
-      return renderEmptyState({ title: "Aún no hay ciclos", subtitle: "Crea un ciclo en la pestaña Ciclos antes de asignar metas." });
+      return renderEmptyState(
+        state.esGestionRh
+          ? { title: "Aún no hay ciclos", subtitle: "Crea un ciclo en la pestaña Ciclos antes de asignar metas." }
+          : { title: "Aún no hay ciclos de metas", subtitle: "Pídele a RH que cree uno." },
+      );
     }
     const cicloActual = (state.ciclos ?? []).find((c) => c.id === state.cicloSeleccionadoId) ?? null;
     const puedeAsignar = cicloActual?.estado === "activo";
@@ -635,7 +676,7 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
       ${!puedeAsignar ? alertInfo("Solo se pueden asignar metas nuevas en un ciclo activo.") : ""}
       ${state.metaActionError ? alertError(state.metaActionError) : ""}
       ${state.metaActionMessage ? alertSuccess(state.metaActionMessage) : ""}
-      ${renderMetasList()}
+      ${renderMetasList(puedeAsignar)}
     </div>`;
   }
 
@@ -1083,7 +1124,11 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
       return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando ciclos…" });
     }
     if ((state.ciclos ?? []).length === 0) {
-      return renderEmptyState({ title: "Aún no hay ciclos", subtitle: "Crea un ciclo para ver el tablero de avance." });
+      return renderEmptyState(
+        state.esGestionRh
+          ? { title: "Aún no hay ciclos", subtitle: "Crea un ciclo para ver el tablero de avance." }
+          : { title: "Aún no hay ciclos de metas", subtitle: "Pídele a RH que cree uno." },
+      );
     }
     return `
     <div class="flex flex-col gap-4">
@@ -1101,13 +1146,18 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
     return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
       <div class="flex flex-col gap-2">
-        <p class="text-xs font-medium text-text-muted">Talento</p>
-        ${pageHeading("Metas", "Objetivos y resultados clave (OKR) por ciclo, con seguimiento de avance y cumplimiento del equipo.")}
+        <p class="text-xs font-medium text-text-muted">${state.esGestionRh ? "Talento" : "Talento · Mi equipo"}</p>
+        ${pageHeading(
+          state.esGestionRh ? "Metas" : "Metas de mi equipo",
+          state.esGestionRh
+            ? "Objetivos y resultados clave (OKR) por ciclo, con seguimiento de avance y cumplimiento del equipo."
+            : "Asigna objetivos y resultados clave (OKR) a tu equipo, da seguimiento a su avance y califica el cierre del ciclo.",
+        )}
       </div>
       <div data-tabs="metas-main">
         ${renderTabNav(
           [
-            { id: "ciclos", label: "Ciclos" },
+            ...(state.esGestionRh ? [{ id: "ciclos", label: "Ciclos" }] : []),
             { id: "metas", label: "Metas" },
             { id: "tablero", label: "Tablero de equipo" },
           ],
@@ -1115,7 +1165,7 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
           { ariaLabel: "Secciones de Metas" },
         )}
       </div>
-      ${state.tab === "ciclos" ? renderCiclosTab() : state.tab === "metas" ? renderMetasTab() : renderTableroTab()}
+      ${state.tab === "ciclos" && state.esGestionRh ? renderCiclosTab() : state.tab === "metas" ? renderMetasTab() : renderTableroTab()}
     </div>
     ${renderNuevoCicloModal()}
     ${renderEditCicloModal()}
@@ -1604,6 +1654,7 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
       const group = tabEl.closest<HTMLElement>("[data-tabs]")?.dataset.tabs;
       const tabId = tabEl.dataset.tab;
       if (group === "metas-main" && (tabId === "ciclos" || tabId === "metas" || tabId === "tablero")) {
+        if (tabId === "ciclos" && !state.esGestionRh) return;
         state.tab = tabId;
         render();
         if (tabId === "metas") void loadMetas();
@@ -1615,6 +1666,8 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
     const actionEl = t.closest<HTMLElement>("[data-action]");
     if (!actionEl) return;
     const action = actionEl.dataset.action;
+
+    if (action && CICLO_ADMIN_ACTIONS.has(action) && !state.esGestionRh) return;
 
     switch (action) {
       case "reload-ciclos":
