@@ -69,3 +69,52 @@ export async function getMiHistorial(
   if (!res.ok) return null;
   return res.json();
 }
+
+export interface HistorialObjetivoEquipoItemApi {
+  empleado_id: number;
+  no_empleado: string | null;
+  nombre: string | null;
+  resultado: ResultadoIndiceApi;
+}
+
+export interface HistorialObjetivoEquipoApi {
+  items: HistorialObjetivoEquipoItemApi[];
+  bono_disponible: boolean;
+}
+
+/**
+ * `GET /equipo` — ranking del equipo (peor índice primero). El jefe ve su
+ * equipo; RH/director con el módulo otorgado ve el universo acotado
+ * ("top offenders", ver Tarea 4). El backend exige rango cuando el scope
+ * efectivo es universo, pero el router completa el default de últimos 12
+ * meses — el llamante no necesita mandar fechas para evitar un 422.
+ */
+export async function getHistorialEquipo(
+  params?: HistorialObjetivoRangoParams,
+): Promise<HistorialObjetivoEquipoApi | null> {
+  const res = await fetchWithAuth(`${BASE}/equipo${rangoQueryString(params)}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/** Descarga el export Excel del ranking de equipo (mismo patrón que `descargarCicloExcel` de Metas). */
+export async function descargarHistorialEquipoExcel(
+  params: HistorialObjetivoRangoParams,
+  filenameFallback = "historial_objetivo_equipo.xlsx",
+): Promise<boolean> {
+  const res = await fetchWithAuth(`${BASE}/equipo/export${rangoQueryString(params)}`);
+  if (!res.ok) return false;
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename=([^;]+)/.exec(disposition);
+  const filename = match?.[1]?.trim().replace(/^"|"$/g, "") || filenameFallback;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return true;
+}
