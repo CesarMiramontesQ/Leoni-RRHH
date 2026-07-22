@@ -266,6 +266,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       }).catch((err) => renderLazyPageImportError(container, "ciclo-desempeno", "Ciclo de Desempeño", err));
       return;
     }
+    if (h.startsWith("#/cumplimiento/historial-objetivo")) {
+      void import("./pages/historialObjetivo.ts").then(({ mountHistorialObjetivo }) => {
+        mountHistorialObjetivo(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "historial-objetivo", "Historial Objetivo", err));
+      return;
+    }
     if (h.startsWith("#/organigrama")) {
       if (!canAccessOrganigramaPage()) {
         history.replaceState(null, "", "#/");
