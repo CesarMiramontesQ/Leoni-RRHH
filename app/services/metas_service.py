@@ -19,6 +19,7 @@ se usa flush() (via el repositorio), como el resto de services del proyecto.
 from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
+from io import BytesIO
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +29,8 @@ from app.models.metas import Meta, MetaCheckin, MetaCiclo, MetaResultadoClave
 from app.repositories.metas_repository import MetasRepository
 from app.schemas.metas import (
     CheckinResponse,
+    EquipoAvanceMiembro,
+    EquipoAvanceResponse,
     MetaCicloCreate,
     MetaCicloResponse,
     MetaCicloUpdate,
@@ -160,6 +163,118 @@ class MetasService:
             float(m.peso) * float(m.calificacion_cierre or 0) for m in metas
         )
         return _clamp_round_pct(total_ponderado / total_peso, ndigits=2)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Tablero de equipo / export (Tarea 4)
+    # ══════════════════════════════════════════════════════════════════════
+    @staticmethod
+    def _avance_global(metas: list[MetaResponse]) -> float:
+        """Promedio ponderado por `peso` del `avance` (derivado, no la
+        calificacion de cierre) de un conjunto de metas individuales. Sin
+        metas o con peso total 0 -> 0.0 (mismo borde que `cumplimiento_empleado`,
+        documentado ahi)."""
+        total_peso = sum(float(m.peso) for m in metas)
+        if total_peso <= 0:
+            return 0.0
+        total_ponderado = sum(float(m.peso) * m.avance for m in metas)
+        return _clamp_round_pct(total_ponderado / total_peso, ndigits=2)
+
+    async def construir_equipo_avance(
+        self, ciclo_id: int, metas: list[MetaResponse]
+    ) -> EquipoAvanceResponse:
+        """Agrupa `metas` (ya resueltas/filtradas por el scope de equipo en
+        el router, ver `_list_metas_scoped`) por empleado para el tablero
+        `GET /equipo/avance`: por miembro, sus metas individuales, su avance
+        global ponderado (`_avance_global`) y el nombre del empleado
+        (`MetasRepository.get_nombres_empleados`, lectura Bono). Las metas
+        de nivel "equipo" (lider_id, sin empleado_id) van aparte en
+        `metas_equipo` — no pertenecen a "un miembro"."""
+        individuales = [m for m in metas if m.nivel == "individual"]
+        metas_equipo = [m for m in metas if m.nivel == "equipo"]
+
+        orden: list[int] = []
+        por_empleado: dict[int, list[MetaResponse]] = {}
+        for m in individuales:
+            eid = m.empleado_id
+            if eid is None:
+                continue
+            if eid not in por_empleado:
+                por_empleado[eid] = []
+                orden.append(eid)
+            por_empleado[eid].append(m)
+
+        nombres = await self.repo.get_nombres_empleados(orden)
+        miembros = [
+            EquipoAvanceMiembro(
+                empleado_id=eid,
+                empleado_nombre=nombres.get(eid),
+                metas=por_empleado[eid],
+                avance_global=self._avance_global(por_empleado[eid]),
+            )
+            for eid in orden
+        ]
+        return EquipoAvanceResponse(
+            ciclo_id=ciclo_id, miembros=miembros, metas_equipo=metas_equipo
+        )
+
+    async def exportar_ciclo_excel(self, ciclo_id: int, metas: list[MetaResponse]) -> BytesIO:
+        """Exporta a un `.xlsx` (una hoja) las `metas` del ciclo (ya
+        resueltas/filtradas por el scope de equipo en el router, mismo
+        patron que `construir_equipo_avance`): meta, avance derivado y
+        cumplimiento ponderado del empleado (solo metas individuales,
+        calculado una vez por empleado vía `cumplimiento_empleado` — que a
+        su vez solo considera metas YA CERRADAS/calificadas; durante el
+        ciclo aparece en 0.0, ver borde documentado ahi). Patron de export
+        Excel con openpyxl: `Evaluacion360Service._resultados_campana_excel`."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        ciclo = await self.get_ciclo(ciclo_id)
+
+        empleados_individuales = sorted(
+            {m.empleado_id for m in metas if m.nivel == "individual" and m.empleado_id is not None}
+        )
+        cumplimientos = {
+            eid: await self.cumplimiento_empleado(ciclo_id, eid) for eid in empleados_individuales
+        }
+        nombres = await self.repo.get_nombres_empleados(empleados_individuales)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Metas y avance"
+        ws.cell(row=1, column=1, value=f"Metas — {ciclo.nombre}").font = Font(bold=True, size=14)
+        headers = [
+            "Empleado", "Meta", "Nivel", "Estado", "Peso",
+            "Avance %", "Calificación cierre", "Cumplimiento ponderado",
+        ]
+        for col, h in enumerate(headers, 1):
+            ws.cell(row=3, column=col, value=h).font = Font(bold=True)
+
+        row = 4
+        for m in metas:
+            if m.nivel == "individual":
+                empleado_label = nombres.get(m.empleado_id, str(m.empleado_id))
+                cumplimiento = cumplimientos.get(m.empleado_id)
+            else:
+                empleado_label = f"Equipo (líder {m.lider_id})"
+                cumplimiento = None
+            ws.cell(row=row, column=1, value=empleado_label)
+            ws.cell(row=row, column=2, value=m.titulo)
+            ws.cell(row=row, column=3, value=m.nivel)
+            ws.cell(row=row, column=4, value=m.estado)
+            ws.cell(row=row, column=5, value=float(m.peso))
+            ws.cell(row=row, column=6, value=m.avance)
+            ws.cell(
+                row=row, column=7,
+                value=float(m.calificacion_cierre) if m.calificacion_cierre is not None else None,
+            )
+            ws.cell(row=row, column=8, value=cumplimiento)
+            row += 1
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
 
     # ══════════════════════════════════════════════════════════════════════
     # Ciclo

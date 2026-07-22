@@ -31,6 +31,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
@@ -43,6 +44,7 @@ from app.schemas.metas import (
     CerrarMetaRequest,
     CheckinResponse,
     CumplimientoResponse,
+    EquipoAvanceResponse,
     MetaCicloCreate,
     MetaCicloResponse,
     MetaCicloUpdate,
@@ -471,7 +473,7 @@ async def ajuste_checkin(
 # ══════════════════════════════════════════════════════════════════════════
 # Equipo — tablero de avance y cumplimiento por empleado
 # ══════════════════════════════════════════════════════════════════════════
-@router.get("/equipo/avance", response_model=list[MetaResponse])
+@router.get("/equipo/avance", response_model=EquipoAvanceResponse)
 async def equipo_avance(
     ciclo_id: int = Query(...),
     current_user: Empleado = Depends(_gestion_or_equipo()),
@@ -479,11 +481,16 @@ async def equipo_avance(
     db: AsyncSession = Depends(get_db),
     svc: MetasService = Depends(_svc),
 ):
+    """Tablero de avance del equipo del jefe (o del ciclo completo si RH con
+    modulo 'metas' en modo operativo, ver `_resolve_scope`): agrupado por
+    miembro (metas individuales + avance global ponderado) con las metas de
+    equipo (lider_id) aparte — ver `MetasService.construir_equipo_avance`."""
     scope = await _resolve_scope(current_user, rh_ui_mode, db)
-    return await _list_metas_scoped(
+    metas = await _list_metas_scoped(
         svc, scope, current_user.empleado_id,
         ciclo_id=ciclo_id, empleado_id=None, nivel=None,
     )
+    return await svc.construir_equipo_avance(ciclo_id, metas)
 
 
 @router.get("/empleados/{empleado_id}/cumplimiento", response_model=CumplimientoResponse)
@@ -511,6 +518,33 @@ async def cumplimiento_empleado(
         empleado_id=empleado_id,
         cumplimiento=cumplimiento,
         metas_consideradas=metas_consideradas,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Export — Excel (patron Eval360: openpyxl + StreamingResponse)
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/ciclos/{ciclo_id}/export/excel")
+async def export_ciclo_excel(
+    ciclo_id: int,
+    current_user: Empleado = Depends(_gestion_or_equipo()),
+    rh_ui_mode: Optional[str] = Depends(get_rh_ui_mode),
+    db: AsyncSession = Depends(get_db),
+    svc: MetasService = Depends(_svc),
+):
+    """Exporta a `.xlsx` las metas del ciclo (mismo scoping de equipo que el
+    resto de endpoints de gestion: RH con modulo 'metas' ve el ciclo
+    completo, el jefe solo las metas de su equipo)."""
+    scope = await _resolve_scope(current_user, rh_ui_mode, db)
+    metas = await _list_metas_scoped(
+        svc, scope, current_user.empleado_id,
+        ciclo_id=ciclo_id, empleado_id=None, nivel=None,
+    )
+    output = await svc.exportar_ciclo_excel(ciclo_id, metas)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=metas_ciclo_{ciclo_id}.xlsx"},
     )
 
 

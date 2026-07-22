@@ -233,3 +233,33 @@ class CumplimientoResponse(BaseModel):
     empleado_id: int
     cumplimiento: float
     metas_consideradas: int
+
+
+# ── Tablero de equipo (Tarea 4) ───────────────────────────────────────────
+
+
+class EquipoAvanceMiembro(BaseModel):
+    """Un miembro del equipo (reporte directo del jefe) con sus metas
+    individuales del ciclo y su avance global derivado (ver
+    `MetasService.construir_equipo_avance`)."""
+
+    empleado_id: int
+    empleado_nombre: Optional[str] = None
+    metas: list[MetaResponse] = Field(default_factory=list)
+    # Promedio ponderado por `peso` del `avance` (derivado, no la
+    # calificacion de cierre) de las metas individuales del empleado en el
+    # ciclo. Sin metas -> 0.0. Senal de SEGUIMIENTO durante el ciclo; el
+    # cumplimiento oficial (ponderado por calificacion) sigue siendo
+    # `CumplimientoResponse`/`cumplimiento_empleado`, solo disponible tras
+    # el cierre de cada meta.
+    avance_global: float = 0.0
+
+
+class EquipoAvanceResponse(BaseModel):
+    """Tablero de avance del equipo del jefe (o del ciclo completo si RH
+    global) para `GET /equipo/avance`. Las metas de nivel "equipo" (lider_id,
+    sin empleado_id) van aparte en `metas_equipo` — no son de "un miembro"."""
+
+    ciclo_id: int
+    miembros: list[EquipoAvanceMiembro] = Field(default_factory=list)
+    metas_equipo: list[MetaResponse] = Field(default_factory=list)

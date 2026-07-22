@@ -13839,12 +13839,36 @@ paths:
     get:
       tags: [Talento - Metas]
       summary: Tablero de avance del equipo del jefe (o del ciclo completo para RH global)
+      description: >
+        Agrupado por miembro (`miembros[]`: empleado_id, empleado_nombre,
+        sus metas individuales del ciclo con avance derivado, y
+        `avance_global` = promedio ponderado por peso del avance de esas
+        metas). Las metas de nivel "equipo" (lider_id, sin empleado_id) van
+        aparte en `metas_equipo` con su avance ya resuelto (roll-up de
+        submetas si no tienen resultados clave propios).
       operationId: metas_equipo_avance
       security: [ { BearerAuth: [] } ]
       parameters:
         - { name: ciclo_id, in: query, required: true, schema: { type: integer } }
       responses:
-        "200": { description: Metas del equipo con avance, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        "200":
+          description: Tablero de equipo agrupado por miembro
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ciclo_id: { type: integer }
+                  miembros:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        empleado_id: { type: integer }
+                        empleado_nombre: { type: string, nullable: true }
+                        metas: { type: array, items: { type: object } }
+                        avance_global: { type: number }
+                  metas_equipo: { type: array, items: { type: object } }
   /api/v1/metas/empleados/{empleado_id}/cumplimiento:
     get:
       tags: [Talento - Metas]
@@ -13857,6 +13881,27 @@ paths:
       responses:
         "200": { description: Cumplimiento ponderado, content: { application/json: { schema: { type: object } } } }
         "403": { description: Empleado fuera del equipo del jefe }
+  /api/v1/metas/ciclos/{ciclo_id}/export/excel:
+    get:
+      tags: [Talento - Metas]
+      summary: Exportar a Excel las metas del ciclo (mismo scoping de equipo que la gestion)
+      description: >
+        Una hoja ("Metas y avance") con: empleado (o "Equipo (líder N)"),
+        meta, nivel, estado, peso, avance % derivado, calificación de cierre
+        y cumplimiento ponderado del empleado (columna vacía en filas de
+        metas de equipo; 0 mientras la meta no esté cerrada/calificada). El
+        jefe solo exporta las metas de su equipo; RH con el módulo 'metas'
+        exporta el ciclo completo.
+      operationId: metas_export_ciclo_excel
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Archivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "404": { description: Ciclo no encontrado }
   /api/v1/metas/mis-metas:
     get:
       tags: [Talento - Metas]

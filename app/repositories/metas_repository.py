@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.empleados import Empleado
 from app.models.metas import Meta, MetaCiclo, MetaResultadoClave
 
 
@@ -115,6 +116,20 @@ class MetasRepository:
             )
         )
         return result.scalars().all()
+
+    # ── Empleado (solo lectura, tabla Bono externa) ──────────────────────
+    async def get_nombres_empleados(self, empleado_ids: Sequence[int]) -> dict[int, str]:
+        """Mapa `empleado_id` -> `nombre` para enriquecer el tablero de
+        equipo/export (Tarea 4). Solo lectura sobre `empleados` (Bono,
+        prohibido escribir/alterar el esquema desde este proyecto)."""
+        if not empleado_ids:
+            return {}
+        result = await self.db.execute(
+            select(Empleado.empleado_id, Empleado.nombre).where(
+                Empleado.empleado_id.in_(empleado_ids)
+            )
+        )
+        return {eid: nombre for eid, nombre in result.all()}
 
     # ── Resultado clave ──────────────────────────────────────────────────
     async def get_rc(self, rc_id: int) -> Optional[MetaResultadoClave]:
