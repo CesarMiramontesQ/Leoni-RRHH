@@ -27,7 +27,7 @@ from sqlalchemy import select
 from app.models.metas import Meta, MetaCheckin, MetaResultadoClave
 from app.models.notificaciones import Notificacion
 from app.schemas.metas import MetaCicloCreate, MetaCreate, ResultadoClaveCreate
-from app.services.metas_service import MetasService
+from app.services.metas_service import MetasService, _dt_utc
 from tests.conftest import auth_headers, make_empleado
 
 pytestmark = pytest.mark.asyncio
@@ -336,6 +336,119 @@ async def test_endpoint_forzar_recordatorios_ignora_ventanas(client, db):
     assert resp2.status_code == 200, resp2.text
     assert resp2.json()["notificados"] == 1
     assert len(await _notificaciones_de(db, empleado.empleado_id)) == 2
+
+
+async def test_endpoint_forzar_recordatorios_actualiza_ultimo_recordatorio_at(client, db):
+    """`forzar_recordatorios_ciclo` re-notifica aunque este dentro de la
+    cadencia (`RECORDATORIO_CADENCIA_DIAS`) Y actualiza
+    `ultimo_recordatorio_at` (fix post-revision, dedupe temporal)."""
+    from app.models.metas import Meta as MetaModel
+
+    rh = await _rh(db, email="mrec_rh4@leoni.test")
+    jefe = await make_empleado(db, rol="supervisor", email="mrec_jefe12@leoni.test")
+    empleado = await make_empleado(
+        db, rol="empleado", lider_id=jefe.empleado_id, email="mrec_emp12@leoni.test"
+    )
+    service = MetasService(db)
+
+    ciclo = await _crear_ciclo_activo(service, jefe, fecha_fin=date.today() + timedelta(days=60))
+    meta = await _crear_meta_individual(service, ciclo.id, empleado, jefe)
+    # Recordatorio reciente (dentro de la cadencia): el job automatico NO
+    # volveria a notificar, pero el endpoint manual si debe hacerlo.
+    meta_obj = await db.get(MetaModel, meta.id)
+    meta_obj.ultimo_recordatorio_at = _hace_dias(1)
+    await db.flush()
+    await db.commit()
+
+    headers_rh = await auth_headers(client, rh)
+    resp = await client.post(f"{BASE}/ciclos/{ciclo.id}/recordatorios", headers=headers_rh)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["notificados"] == 1
+    assert len(await _notificaciones_de(db, empleado.empleado_id)) == 1
+
+    meta_refrescada = await db.get(MetaModel, meta.id)
+    await db.refresh(meta_refrescada)
+    assert meta_refrescada.ultimo_recordatorio_at is not None
+    assert (datetime.now(timezone.utc) - _dt_utc(meta_refrescada.ultimo_recordatorio_at)) < timedelta(
+        minutes=1
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Dedupe temporal (fix post-revision) — cadencia RECORDATORIO_CADENCIA_DIAS
+# ══════════════════════════════════════════════════════════════════════════
+async def test_no_renotifica_meta_notificada_hoy(db):
+    """Una meta con `ultimo_recordatorio_at` = ahora (recien notificada) NO
+    se vuelve a notificar en la misma corrida/dia (dedupe de cadencia)."""
+    from app.models.metas import Meta as MetaModel
+
+    jefe = await make_empleado(db, rol="supervisor", email="mrec_jefe13@leoni.test")
+    empleado = await make_empleado(
+        db, rol="empleado", lider_id=jefe.empleado_id, email="mrec_emp13@leoni.test"
+    )
+    service = MetasService(db)
+
+    ciclo = await _crear_ciclo_activo(service, jefe, fecha_fin=date.today() + timedelta(days=1))
+    meta = await _crear_meta_individual(service, ciclo.id, empleado, jefe)
+    await _set_meta_created_at(db, meta.id, _hace_dias(8))  # tambien estancada
+
+    meta_obj = await db.get(MetaModel, meta.id)
+    meta_obj.ultimo_recordatorio_at = datetime.now(timezone.utc)
+    await db.flush()
+
+    resultado = await service.procesar_recordatorios(dias_cierre=3, dias_sin_checkin=7)
+
+    assert resultado.notificados == 0
+    assert await _notificaciones_de(db, empleado.empleado_id) == []
+
+
+async def test_renotifica_meta_con_ultimo_recordatorio_fuera_de_cadencia(db):
+    """Una meta con `ultimo_recordatorio_at` de hace >= cadencia dias SI se
+    vuelve a notificar (la condicion original sigue vigente)."""
+    from app.services.metas_service import RECORDATORIO_CADENCIA_DIAS
+    from app.models.metas import Meta as MetaModel
+
+    jefe = await make_empleado(db, rol="supervisor", email="mrec_jefe14@leoni.test")
+    empleado = await make_empleado(
+        db, rol="empleado", lider_id=jefe.empleado_id, email="mrec_emp14@leoni.test"
+    )
+    service = MetasService(db)
+
+    ciclo = await _crear_ciclo_activo(service, jefe, fecha_fin=date.today() + timedelta(days=1))
+    meta = await _crear_meta_individual(service, ciclo.id, empleado, jefe)
+
+    meta_obj = await db.get(MetaModel, meta.id)
+    meta_obj.ultimo_recordatorio_at = _hace_dias(RECORDATORIO_CADENCIA_DIAS + 1)
+    await db.flush()
+
+    resultado = await service.procesar_recordatorios(dias_cierre=3, dias_sin_checkin=7)
+
+    assert resultado.notificados == 1
+    notifs = await _notificaciones_de(db, empleado.empleado_id)
+    assert len(notifs) == 1
+
+    meta_refrescada = await db.get(MetaModel, meta.id)
+    await db.refresh(meta_refrescada)
+    assert meta_refrescada.ultimo_recordatorio_at is not None
+
+
+async def test_notifica_meta_nunca_notificada_ultimo_recordatorio_null(db):
+    """`ultimo_recordatorio_at` NULL (nunca notificada) SI entra: el dedupe
+    de cadencia no bloquea el primer recordatorio."""
+    jefe = await make_empleado(db, rol="supervisor", email="mrec_jefe15@leoni.test")
+    empleado = await make_empleado(
+        db, rol="empleado", lider_id=jefe.empleado_id, email="mrec_emp15@leoni.test"
+    )
+    service = MetasService(db)
+
+    ciclo = await _crear_ciclo_activo(service, jefe, fecha_fin=date.today() + timedelta(days=1))
+    await _crear_meta_individual(service, ciclo.id, empleado, jefe)
+
+    resultado = await service.procesar_recordatorios(dias_cierre=3, dias_sin_checkin=7)
+
+    assert resultado.notificados == 1
+    assert len(await _notificaciones_de(db, empleado.empleado_id)) == 1
 
 
 async def test_endpoint_forzar_recordatorios_404_si_ciclo_no_existe(client, db):

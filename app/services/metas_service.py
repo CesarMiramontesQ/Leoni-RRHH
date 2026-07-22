@@ -18,7 +18,7 @@ se usa flush() (via el repositorio), como el resto de services del proyecto.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from io import BytesIO
 from typing import Optional
@@ -52,6 +52,15 @@ Numero = Decimal | int | float
 MIS_METAS_TARGET_URL = "#/talento/mis-metas"
 DIAS_CIERRE_PROXIMO_DEFAULT = 3
 DIAS_SIN_CHECKIN_DEFAULT = 7
+# Cadencia minima (dias) entre dos recordatorios automaticos de la MISMA meta
+# (fix post-revision: sin esto, el job diario re-notificaba cada corrida
+# mientras la condicion se siguiera cumpliendo — en particular "RC sin
+# check-in" generaba spam diario indefinido). Sin cadencia configurable por
+# ciclo a proposito (mantenido simple, ver `Meta.ultimo_recordatorio_at`).
+# Mismo patron que `EncuestaParticipante.ultimo_recordatorio_at` /
+# `Encuesta.recordatorio_cada_dias` en Encuestas RH, simplificado a una
+# constante (no hay equivalente de "cadencia por ciclo" en el spec de Metas).
+RECORDATORIO_CADENCIA_DIAS = 3
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -743,6 +752,7 @@ class MetasService:
             target_url=MIS_METAS_TARGET_URL,
             metadata={"ciclo_id": ciclo.id, "meta_id": meta.id},
         )
+        meta.ultimo_recordatorio_at = datetime.now(timezone.utc)
 
     async def procesar_recordatorios(
         self,
@@ -764,11 +774,13 @@ class MetasService:
         `MetasRepository.list_metas_individuales_no_cerradas`, que ya filtra
         por ciclo + nivel individual + no cerrada).
 
-        Sin estado persistido de "ultimo recordatorio" (no se agrego ninguna
-        columna nueva a `Meta`/`MetaCiclo` en esta tarea): mientras la
-        condicion se siga cumpliendo, cada corrida diaria vuelve a notificar
-        — mismo principio que Eval360 (recordatorios en dias fijos antes del
-        limite), simplificado aqui a una ventana continua.
+        Dedupe temporal (fix post-revision, ver `RECORDATORIO_CADENCIA_DIAS`):
+        una meta con `ultimo_recordatorio_at` dentro de los ultimos
+        `RECORDATORIO_CADENCIA_DIAS` dias se EXCLUYE aunque su condicion siga
+        cumpliendose (evita spam diario mientras, p. ej., el RC sigue sin
+        check-in); `ultimo_recordatorio_at is None` (nunca notificada) si
+        entra. Mismo patron que `EncuestasRhService.procesar_recordatorios`
+        con `EncuestaParticipante.ultimo_recordatorio_at`.
 
         Devuelve `{notificados, ciclos_por_cerrar}`: `notificados` cuenta
         EMPLEADOS distintos notificados en esta corrida (no notificaciones
@@ -788,6 +800,11 @@ class MetasService:
 
             for meta in await self.repo.list_metas_individuales_no_cerradas(ciclo.id):
                 if meta.empleado_id is None:
+                    continue
+                ultimo = _dt_utc(meta.ultimo_recordatorio_at)
+                if ultimo is not None and (ahora - ultimo) < timedelta(
+                    days=RECORDATORIO_CADENCIA_DIAS
+                ):
                     continue
                 estancada = any(
                     _rc_dias_sin_checkin(rc, meta.created_at, ahora) >= dias_sin_checkin
@@ -809,7 +826,12 @@ class MetasService:
         """Endpoint manual de gestion (`POST /ciclos/{id}/recordatorios`):
         fuerza un recordatorio a TODOS los empleados con metas individuales
         pendientes (no cerradas) del ciclo, sin evaluar `dias_cierre`/
-        `dias_sin_checkin` (a diferencia de `procesar_recordatorios`).
+        `dias_sin_checkin` NI la cadencia `RECORDATORIO_CADENCIA_DIAS` (a
+        diferencia de `procesar_recordatorios`) — un jefe/RH que fuerza el
+        envio manualmente quiere notificar YA, sin importar cuando fue el
+        ultimo automatico. Si actualiza `ultimo_recordatorio_at` (vía
+        `_notificar_recordatorio_meta`), asi el job automatico siguiente
+        respeta la cadencia desde este envio forzado.
         Devuelve el numero de empleados distintos notificados."""
         ciclo = await self.repo.get_ciclo(ciclo_id)
         if not ciclo:

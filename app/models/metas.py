@@ -140,6 +140,11 @@ class Meta(Base):
         Numeric(6, 2), nullable=True, comment="Calificacion 0-100 al cerrar"
     )
     comentario_cierre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ultimo_recordatorio_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp del ultimo recordatorio enviado (dedupe de cadencia, "
+        "ver MetasService.RECORDATORIO_CADENCIA_DIAS); NULL = nunca notificada",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -57,6 +57,7 @@ def upgrade() -> None:
         sa.Column("asignada_por_id", sa.Integer(), nullable=False),
         sa.Column("calificacion_cierre", sa.Numeric(6, 2), nullable=True),
         sa.Column("comentario_cierre", sa.Text(), nullable=True),
+        sa.Column("ultimo_recordatorio_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["ciclo_id"], ["levelup_meta_ciclo.id"], ondelete="CASCADE"),
