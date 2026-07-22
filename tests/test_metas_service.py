@@ -461,6 +461,48 @@ async def test_crear_meta_con_meta_padre_equipo_valido_enlaza_submeta(db):
     assert meta_actualizada.meta_padre_id == meta_equipo.id
 
 
+async def test_crear_meta_padre_hijo_debe_ser_nivel_individual(db):
+    """Fix (revision Tarea 2): meta_padre_id solo aplica a una meta hija de
+    nivel individual. Una meta de equipo con meta_padre_id a otra meta de
+    equipo (equipo-de-equipos) debe rechazarse: el spec describe las
+    submetas como "metas individuales enlazadas por meta_padre_id", y
+    permitir un padre de equipo evitaba la recursion de un solo nivel de
+    `avance_meta` (equipo -> equipo -> ...)."""
+    jefe = await make_empleado(db, rol="supervisor")
+    service = MetasService(db)
+    ciclo_id = await _crear_ciclo_activo(service, jefe)
+    meta_equipo_padre = await _crear_meta_equipo(service, ciclo_id, jefe)
+
+    data = MetaCreate(
+        ciclo_id=ciclo_id,
+        nivel="equipo",
+        area_id=11,
+        lider_id=jefe.empleado_id,
+        titulo="Equipo hijo invalido",
+        peso=Decimal("50"),
+        asignada_por_id=jefe.empleado_id,
+        meta_padre_id=meta_equipo_padre.id,
+    )
+    with pytest.raises(DomainValidationError):
+        await service.crear_meta(data)
+
+
+async def test_actualizar_meta_padre_hijo_debe_ser_nivel_individual(db):
+    """Mismo guard que crear_meta, pero via actualizar_meta (MetaUpdate no
+    permite cambiar `nivel`, asi que se valida contra el nivel existente de
+    la meta)."""
+    jefe = await make_empleado(db, rol="supervisor")
+    service = MetasService(db)
+    ciclo_id = await _crear_ciclo_activo(service, jefe)
+    meta_equipo_padre = await _crear_meta_equipo(service, ciclo_id, jefe, peso="50")
+    meta_equipo_hijo = await _crear_meta_equipo(service, ciclo_id, jefe, peso="50")
+
+    with pytest.raises(DomainValidationError):
+        await service.actualizar_meta(
+            meta_equipo_hijo.id, MetaUpdate(meta_padre_id=meta_equipo_padre.id)
+        )
+
+
 async def test_agregar_rc_valor_objetivo_igual_inicial_no_booleano_falla(db):
     jefe = await make_empleado(db, rol="supervisor")
     empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)

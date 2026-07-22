@@ -257,7 +257,7 @@ class MetasService:
                 )
 
         if data.meta_padre_id is not None:
-            await self._validar_meta_padre(data.meta_padre_id, data.ciclo_id)
+            await self._validar_meta_padre(data.meta_padre_id, data.ciclo_id, data.nivel)
 
         for rc_data in data.resultados_clave:
             _validar_rc_valores(rc_data.tipo_metrica, rc_data.valor_inicial, rc_data.valor_objetivo)
@@ -282,7 +282,15 @@ class MetasService:
         await self.db.flush()
         return await self.get_meta(meta.id)
 
-    async def _validar_meta_padre(self, meta_padre_id: int, ciclo_id: int) -> Meta:
+    async def _validar_meta_padre(
+        self, meta_padre_id: int, ciclo_id: int, nivel_hijo: str
+    ) -> Meta:
+        if nivel_hijo != "individual":
+            raise DomainValidationError(
+                "meta_padre_id solo aplica a una meta hija de nivel individual "
+                "(las submetas enlazadas a un padre de equipo son individuales)",
+                field="meta_padre_id",
+            )
         meta_padre = await self.repo.get_meta(meta_padre_id)
         if not meta_padre:
             raise NotFoundError("Meta", meta_padre_id)
@@ -340,7 +348,7 @@ class MetasService:
                 "area_id/lider_id solo aplican a metas de nivel equipo", field="area_id"
             )
         if "meta_padre_id" in payload and payload["meta_padre_id"] is not None:
-            await self._validar_meta_padre(payload["meta_padre_id"], meta.ciclo_id)
+            await self._validar_meta_padre(payload["meta_padre_id"], meta.ciclo_id, meta.nivel)
 
         for key, value in payload.items():
             setattr(meta, key, value)
