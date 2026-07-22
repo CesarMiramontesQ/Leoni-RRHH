@@ -80,12 +80,23 @@ class MetasRepository:
         return result.scalars().all()
 
     async def list_metas_individuales_no_cerradas(self, ciclo_id: int) -> Sequence[Meta]:
-        """Metas individuales del ciclo sin calificar (bloquean `cerrar_ciclo`)."""
+        """Metas individuales del ciclo sin calificar (bloquean `cerrar_ciclo`;
+        tambien usado por `MetasService.procesar_recordatorios`/
+        `forzar_recordatorios_ciclo`, Tarea 5). `resultados_clave` + sus
+        `checkins` precargados (`selectinload`) para que los recordatorios
+        puedan calcular "dias sin check-in" sin lazy-load en contexto async
+        (MissingGreenlet, ver memoria del proyecto)."""
         result = await self.db.execute(
-            select(Meta).where(
+            select(Meta)
+            .where(
                 Meta.ciclo_id == ciclo_id,
                 Meta.nivel == "individual",
                 Meta.estado != "cerrada",
+            )
+            .options(
+                selectinload(Meta.resultados_clave).selectinload(
+                    MetaResultadoClave.checkins
+                )
             )
         )
         return result.scalars().all()

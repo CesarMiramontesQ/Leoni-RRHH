@@ -263,3 +263,22 @@ class EquipoAvanceResponse(BaseModel):
     ciclo_id: int
     miembros: list[EquipoAvanceMiembro] = Field(default_factory=list)
     metas_equipo: list[MetaResponse] = Field(default_factory=list)
+
+
+# ── Recordatorios (Tarea 5) ────────────────────────────────────────────────
+
+
+class RecordatoriosResultado(BaseModel):
+    """Resumen de `MetasService.procesar_recordatorios` (job diario)."""
+
+    notificados: int
+    ciclos_por_cerrar: int
+
+
+class ForzarRecordatoriosResponse(BaseModel):
+    """Respuesta de `POST /ciclos/{ciclo_id}/recordatorios` (endpoint manual):
+    fuerza un recordatorio a todos los empleados con metas individuales
+    pendientes (no cerradas) del ciclo, sin importar la cadencia de
+    `procesar_recordatorios`."""
+
+    notificados: int

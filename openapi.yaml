@@ -13690,6 +13690,30 @@ paths:
       responses:
         "200": { description: Ciclo cerrado, content: { application/json: { schema: { type: object } } } }
         "409": { description: Solo ciclos activos se pueden cerrar / hay metas individuales sin calificar }
+  /api/v1/metas/ciclos/{ciclo_id}/recordatorios:
+    post:
+      tags: [Talento - Metas]
+      summary: Forzar recordatorios manuales del ciclo (ignora las ventanas del job diario)
+      description: >
+        Envia un recordatorio (NotificacionService, canal in_app, target_url
+        "#/talento/mis-metas") a todos los empleados con metas individuales
+        pendientes (no cerradas) del ciclo, sin evaluar `dias_cierre` ni
+        `dias_sin_checkin` (a diferencia del job diario
+        `MetasService.procesar_recordatorios`). Metas de equipo y metas ya
+        cerradas nunca notifican.
+      operationId: metas_forzar_recordatorios_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Recordatorios enviados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notificados: { type: integer, description: "Empleados distintos notificados" }
+        "404": { description: Ciclo no encontrado }
   /api/v1/metas/metas:
     get:
       tags: [Talento - Metas]

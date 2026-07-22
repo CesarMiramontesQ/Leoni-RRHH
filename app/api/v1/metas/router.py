@@ -45,6 +45,7 @@ from app.schemas.metas import (
     CheckinResponse,
     CumplimientoResponse,
     EquipoAvanceResponse,
+    ForzarRecordatoriosResponse,
     MetaCicloCreate,
     MetaCicloResponse,
     MetaCicloUpdate,
@@ -260,6 +261,20 @@ async def cerrar_ciclo(
     svc: MetasService = Depends(_svc),
 ):
     return await svc.cerrar_ciclo(ciclo_id)
+
+
+@router.post("/ciclos/{ciclo_id}/recordatorios", response_model=ForzarRecordatoriosResponse)
+async def forzar_recordatorios(
+    ciclo_id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: MetasService = Depends(_svc),
+):
+    """Endpoint manual de gestion: fuerza un recordatorio a todos los
+    empleados con metas individuales pendientes del ciclo (ver
+    `MetasService.forzar_recordatorios_ciclo`), sin esperar al job diario ni
+    respetar sus ventanas de `dias_cierre`/`dias_sin_checkin`."""
+    notificados = await svc.forzar_recordatorios_ciclo(ciclo_id)
+    return ForzarRecordatoriosResponse(notificados=notificados)
 
 
 # ══════════════════════════════════════════════════════════════════════════

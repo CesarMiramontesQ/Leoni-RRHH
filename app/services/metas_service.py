@@ -18,6 +18,7 @@ se usa flush() (via el repositorio), como el resto de services del proyecto.
 
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from io import BytesIO
 from typing import Optional
@@ -38,12 +39,19 @@ from app.schemas.metas import (
     MetaFiltros,
     MetaResponse,
     MetaUpdate,
+    RecordatoriosResultado,
     ResultadoClaveCreate,
     ResultadoClaveResponse,
     ResultadoClaveUpdate,
 )
+from app.services.notificacion_service import NotificacionService
 
 Numero = Decimal | int | float
+
+# Recordatorios (Tarea 5) — ver `MetasService.procesar_recordatorios`.
+MIS_METAS_TARGET_URL = "#/talento/mis-metas"
+DIAS_CIERRE_PROXIMO_DEFAULT = 3
+DIAS_SIN_CHECKIN_DEFAULT = 7
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -114,10 +122,35 @@ def _validar_rc_valores(tipo_metrica: str, valor_inicial: Numero, valor_objetivo
         )
 
 
+def _dt_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """Normaliza un datetime leido de BD a aware UTC (Postgres/asyncpg
+    devuelve datetimes aware para timestamptz; SQLite en tests los devuelve
+    naive). Mismo patron que `EncuestasRhService._dt_utc`."""
+    if value is None:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
+def _rc_dias_sin_checkin(
+    rc: MetaResultadoClave, meta_creada_at: datetime, ahora: datetime
+) -> int:
+    """Dias transcurridos desde el ultimo check-in del RC. Si el RC nunca
+    tuvo un check-in, se usa la fecha de creacion de la meta (asignacion)
+    como referencia — un RC recien asignado y nunca tocado tambien debe
+    poder marcarse como "estancado" tras M dias."""
+    checkins = list(rc.checkins)
+    if checkins:
+        referencia = max(_dt_utc(c.created_at) for c in checkins)
+    else:
+        referencia = _dt_utc(meta_creada_at)
+    return (ahora - referencia).days
+
+
 class MetasService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = MetasRepository(db)
+        self.notificaciones = NotificacionService(db)
 
     # ══════════════════════════════════════════════════════════════════════
     # Calculo — wrappers de service (operan sobre objetos ya cargados)
@@ -680,6 +713,119 @@ class MetasService:
             created_at=checkin.created_at,
             avance_resultante=self.avance_rc(rc),
         )
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Recordatorios (Tarea 5)
+    # ══════════════════════════════════════════════════════════════════════
+    async def _notificar_recordatorio_meta(
+        self,
+        meta: Meta,
+        ciclo: MetaCiclo,
+        *,
+        proximo_a_cerrar: bool,
+        estancada: bool,
+    ) -> None:
+        motivos = []
+        if proximo_a_cerrar:
+            motivos.append(
+                f"el ciclo '{ciclo.nombre}' cierra el {ciclo.fecha_fin.isoformat()}"
+            )
+        if estancada:
+            motivos.append(
+                f"la meta '{meta.titulo}' no tiene check-ins recientes"
+            )
+        cuerpo = "Recordatorio de metas: " + "; ".join(motivos) + "."
+        await self.notificaciones.enviar(
+            destinatario_id=meta.empleado_id,
+            asunto="Recordatorio de metas pendientes",
+            cuerpo=cuerpo,
+            canal="in_app",
+            target_url=MIS_METAS_TARGET_URL,
+            metadata={"ciclo_id": ciclo.id, "meta_id": meta.id},
+        )
+
+    async def procesar_recordatorios(
+        self,
+        dias_cierre: int = DIAS_CIERRE_PROXIMO_DEFAULT,
+        dias_sin_checkin: int = DIAS_SIN_CHECKIN_DEFAULT,
+    ) -> RecordatoriosResultado:
+        """Job diario (`app.main._metas_recordatorios_job`): notifica a los
+        empleados con metas INDIVIDUALES no cerradas de un ciclo ACTIVO
+        cuando aplica al menos uno de estos motivos:
+
+          - El ciclo esta proximo a cerrar: `0 <= (fecha_fin - hoy) <=
+            dias_cierre`.
+          - Alguno de los resultados clave de la meta lleva `>= dias_sin_checkin`
+            dias sin un check-in nuevo (o sin ninguno, desde que se asigno la
+            meta) — ver `_rc_dias_sin_checkin`.
+
+        Metas cerradas (calificadas) o de ciclos no activos (borrador/cerrado)
+        nunca se consideran (se apoya en
+        `MetasRepository.list_metas_individuales_no_cerradas`, que ya filtra
+        por ciclo + nivel individual + no cerrada).
+
+        Sin estado persistido de "ultimo recordatorio" (no se agrego ninguna
+        columna nueva a `Meta`/`MetaCiclo` en esta tarea): mientras la
+        condicion se siga cumpliendo, cada corrida diaria vuelve a notificar
+        — mismo principio que Eval360 (recordatorios en dias fijos antes del
+        limite), simplificado aqui a una ventana continua.
+
+        Devuelve `{notificados, ciclos_por_cerrar}`: `notificados` cuenta
+        EMPLEADOS distintos notificados en esta corrida (no notificaciones
+        individuales); `ciclos_por_cerrar` cuenta ciclos activos dentro de la
+        ventana de `dias_cierre`, independientemente de si tenian metas
+        pendientes que notificar."""
+        hoy = date.today()
+        ahora = datetime.now(timezone.utc)
+        ciclos_por_cerrar = 0
+        notificados: set[int] = set()
+
+        for ciclo in await self.repo.list_ciclos(estado="activo"):
+            dias_restantes = (ciclo.fecha_fin - hoy).days
+            proximo_a_cerrar = 0 <= dias_restantes <= dias_cierre
+            if proximo_a_cerrar:
+                ciclos_por_cerrar += 1
+
+            for meta in await self.repo.list_metas_individuales_no_cerradas(ciclo.id):
+                if meta.empleado_id is None:
+                    continue
+                estancada = any(
+                    _rc_dias_sin_checkin(rc, meta.created_at, ahora) >= dias_sin_checkin
+                    for rc in meta.resultados_clave
+                )
+                if not proximo_a_cerrar and not estancada:
+                    continue
+                await self._notificar_recordatorio_meta(
+                    meta, ciclo, proximo_a_cerrar=proximo_a_cerrar, estancada=estancada
+                )
+                notificados.add(meta.empleado_id)
+
+        await self.db.flush()
+        return RecordatoriosResultado(
+            notificados=len(notificados), ciclos_por_cerrar=ciclos_por_cerrar
+        )
+
+    async def forzar_recordatorios_ciclo(self, ciclo_id: int) -> int:
+        """Endpoint manual de gestion (`POST /ciclos/{id}/recordatorios`):
+        fuerza un recordatorio a TODOS los empleados con metas individuales
+        pendientes (no cerradas) del ciclo, sin evaluar `dias_cierre`/
+        `dias_sin_checkin` (a diferencia de `procesar_recordatorios`).
+        Devuelve el numero de empleados distintos notificados."""
+        ciclo = await self.repo.get_ciclo(ciclo_id)
+        if not ciclo:
+            raise NotFoundError("MetaCiclo", ciclo_id)
+
+        notificados: set[int] = set()
+        for meta in await self.repo.list_metas_individuales_no_cerradas(ciclo_id):
+            if meta.empleado_id is None:
+                continue
+            await self._notificar_recordatorio_meta(
+                meta, ciclo, proximo_a_cerrar=True, estancada=False
+            )
+            notificados.add(meta.empleado_id)
+
+        await self.db.flush()
+        return len(notificados)
 
     # ══════════════════════════════════════════════════════════════════════
     # Serializacion
