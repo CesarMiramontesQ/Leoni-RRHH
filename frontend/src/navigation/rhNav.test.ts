@@ -308,4 +308,22 @@ describe("rhNav sections", () => {
     ]);
   });
 
+  it("expone Talento con Historial Objetivo cuando se otorga el módulo historial-objetivo", async () => {
+    allowedModules.add("historial-objetivo");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("supervisor");
+    const talentoSection = sections.find((section) => section.id === "talento");
+
+    expect(talentoSection?.title).toBe("Talento");
+    expect(talentoSection?.items).toEqual([
+      expect.objectContaining({
+        id: "historial-objetivo",
+        key: "historial-objetivo",
+        href: "#/cumplimiento/historial-objetivo",
+        label: "Historial Objetivo",
+      }),
+    ]);
+  });
+
 });
