@@ -255,6 +255,72 @@ async def test_equipo_avance_scoping_jefe_solo_ve_su_equipo(client, db):
     assert emp.empleado_id in ids_rh
 
 
+async def test_equipo_avance_rh_global_devuelve_todos_los_equipos_y_metas(client, db):
+    """Hueco senalado en revision: T4 no probo explicitamente que RH (sin
+    scope de equipo) vea TODOS los equipos/metas del ciclo, no solo uno.
+    Se arman 2 jefes con equipos distintos + una meta de equipo de cada uno
+    y se verifica que RH ve a los miembros de ambos y las 2 metas de equipo,
+    mientras que cada jefe solo ve lo propio."""
+    rh = await _rh(db, email="metasresrhglobal@leoni.test")
+    jefe_a = await _jefe(db, email="metasresjefeglobala@leoni.test")
+    jefe_b = await _jefe(db, email="metasresjefeglobalb@leoni.test")
+    emp_a = await _empleado_de(db, jefe_a, email="metasresempglobala@leoni.test")
+    emp_b = await _empleado_de(db, jefe_b, email="metasresempglobalb@leoni.test")
+
+    headers_rh = await auth_headers(client, rh)
+    headers_jefe_a = await auth_headers(client, jefe_a)
+    headers_jefe_b = await auth_headers(client, jefe_b)
+
+    ciclo = await _crear_ciclo_activo(client, headers_rh, nombre="Ciclo tablero RH global")
+
+    await _crear_meta_individual(
+        client, headers_jefe_a, ciclo["id"], emp_a.empleado_id, jefe_a.empleado_id,
+        "Meta individual equipo A", peso=100,
+    )
+    await _crear_meta_individual(
+        client, headers_jefe_b, ciclo["id"], emp_b.empleado_id, jefe_b.empleado_id,
+        "Meta individual equipo B", peso=100,
+    )
+
+    for headers, jefe in ((headers_jefe_a, jefe_a), (headers_jefe_b, jefe_b)):
+        resp_meta_equipo = await client.post(
+            f"{BASE}/metas",
+            json={
+                "ciclo_id": ciclo["id"],
+                "nivel": "equipo",
+                "area_id": jefe.empleado_id,
+                "lider_id": jefe.empleado_id,
+                "titulo": f"Meta de equipo de {jefe.empleado_id}",
+                "peso": 100,
+                "asignada_por_id": jefe.empleado_id,
+                "resultados_clave": [],
+            },
+            headers=headers,
+        )
+        assert resp_meta_equipo.status_code == 201, resp_meta_equipo.text
+
+    # RH (sin scope) ve a los miembros de AMBOS equipos y las 2 metas de equipo.
+    resp_rh = await client.get(
+        f"{BASE}/equipo/avance", params={"ciclo_id": ciclo["id"]}, headers=headers_rh
+    )
+    assert resp_rh.status_code == 200, resp_rh.text
+    tablero_rh = resp_rh.json()
+    ids_miembros_rh = {m["empleado_id"] for m in tablero_rh["miembros"]}
+    assert {emp_a.empleado_id, emp_b.empleado_id} <= ids_miembros_rh
+    assert len(tablero_rh["metas_equipo"]) == 2
+    lideres_rh = {m["lider_id"] for m in tablero_rh["metas_equipo"]}
+    assert lideres_rh == {jefe_a.empleado_id, jefe_b.empleado_id}
+
+    # Cada jefe, en cambio, solo ve su propio equipo (scoping intacto).
+    resp_jefe_a = await client.get(
+        f"{BASE}/equipo/avance", params={"ciclo_id": ciclo["id"]}, headers=headers_jefe_a
+    )
+    assert resp_jefe_a.status_code == 200, resp_jefe_a.text
+    ids_miembros_a = {m["empleado_id"] for m in resp_jefe_a.json()["miembros"]}
+    assert ids_miembros_a == {emp_a.empleado_id}
+    assert len(resp_jefe_a.json()["metas_equipo"]) == 1
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # GET /empleados/{id}/cumplimiento — solo tras cierre
 # ══════════════════════════════════════════════════════════════════════════
@@ -346,6 +412,9 @@ async def test_export_excel_devuelve_workbook_valido_con_metas_avance_cumplimien
     assert fila[2] == "individual"
     assert fila[3] == "cerrada"
     assert fila[4] == 100.0
+    # Columna F "Avance %": meta sin RC (avance 0.0), saltada en el assert
+    # original (hueco senalado en revision).
+    assert fila[5] == 0.0
     assert fila[6] == 70.0
     assert fila[7] == 70.0
 

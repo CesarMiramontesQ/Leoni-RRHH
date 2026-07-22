@@ -232,6 +232,30 @@ async def test_cumplimiento_empleado_ponderado(db):
     assert cumplimiento == 62
 
 
+async def test_cumplimiento_empleado_ponderado_con_calificacion_cero_no_es_promedio_simple(db):
+    """Hueco senalado en revision: se pide un caso con una calificacion en 0
+    para distinguir sin ambiguedad el ponderado del promedio simple (con
+    peso=90/calificacion=100 y peso=10/calificacion=0, el promedio simple
+    daria 50, el ponderado real da 90)."""
+    jefe = await make_empleado(db, rol="supervisor")
+    empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    service = MetasService(db)
+    ciclo_id = await _crear_ciclo_activo(service, jefe)
+
+    meta_alta = await _crear_meta_individual(service, ciclo_id, empleado, jefe, peso="90")
+    meta_cero = await _crear_meta_individual(
+        service, ciclo_id, empleado, jefe, peso="10",
+        resultados_clave=[_rc_data(titulo="RC cero")],
+    )
+    await service.cerrar_meta(meta_alta.id, calificacion=100, actor_id=jefe.empleado_id)
+    await service.cerrar_meta(meta_cero.id, calificacion=0, actor_id=jefe.empleado_id)
+
+    cumplimiento = await service.cumplimiento_empleado(ciclo_id, empleado.empleado_id)
+    # Ponderado: (90*100 + 10*0) / 100 = 90 (promedio simple seria (100+0)/2=50).
+    assert cumplimiento == 90
+    assert cumplimiento != 50
+
+
 async def test_cumplimiento_empleado_sin_metas_cerradas_es_cero(db):
     jefe = await make_empleado(db, rol="supervisor")
     empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)

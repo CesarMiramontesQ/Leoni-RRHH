@@ -379,6 +379,144 @@ async def test_rh_con_modulo_gestiona_metas_de_cualquier_equipo(client, db):
 # ══════════════════════════════════════════════════════════════════════════
 # Fixes post-revision — PUT /ciclos/{id} (Fix 1)
 # ══════════════════════════════════════════════════════════════════════════
+async def test_jefe_de_otro_equipo_403_en_subrutas_de_resultados_clave_y_delete_meta(client, db):
+    """Hueco senalado en revision: T3 solo probo GET/PUT/cerrar/cumplimiento
+    para el scoping negativo de un jefe de OTRO equipo; faltaban las
+    sub-rutas de resultados clave (crear/editar/eliminar), el ajuste de
+    avance del jefe y el DELETE de la meta."""
+    rh = await _rh(db, email="metasrh9@leoni.test")
+    jefe = await _jefe(db, email="metasjefe9@leoni.test")
+    otro_jefe = await _jefe(db, email="metasotrojefe9@leoni.test")
+    empleado = await _empleado_de(db, jefe, email="metasemp9@leoni.test")
+
+    headers_rh = await auth_headers(client, rh)
+    headers_jefe = await auth_headers(client, jefe)
+    headers_otro_jefe = await auth_headers(client, otro_jefe)
+
+    ciclo = await _crear_ciclo_activo(client, headers_rh, nombre="Ciclo scope subrutas")
+
+    resp_meta = await client.post(
+        f"{BASE}/metas",
+        json={
+            "ciclo_id": ciclo["id"],
+            "nivel": "individual",
+            "empleado_id": empleado.empleado_id,
+            "titulo": "Meta con RC para scoping",
+            "peso": 100,
+            "asignada_por_id": jefe.empleado_id,
+            "resultados_clave": [
+                {
+                    "orden": 1,
+                    "titulo": "RC existente",
+                    "tipo_metrica": "numero",
+                    "direccion": "subir",
+                    "valor_inicial": 0,
+                    "valor_objetivo": 10,
+                }
+            ],
+        },
+        headers=headers_jefe,
+    )
+    assert resp_meta.status_code == 201, resp_meta.text
+    meta_id = resp_meta.json()["id"]
+    rc_id = resp_meta.json()["resultados_clave"][0]["id"]
+
+    # POST /metas/{id}/resultados — crear un RC nuevo.
+    resp_crear_rc = await client.post(
+        f"{BASE}/metas/{meta_id}/resultados",
+        json={
+            "orden": 2,
+            "titulo": "RC ajeno",
+            "tipo_metrica": "numero",
+            "direccion": "subir",
+            "valor_inicial": 0,
+            "valor_objetivo": 5,
+        },
+        headers=headers_otro_jefe,
+    )
+    assert resp_crear_rc.status_code == 403, resp_crear_rc.text
+
+    # PUT /metas/{id}/resultados/{rc_id}.
+    resp_put_rc = await client.put(
+        f"{BASE}/metas/{meta_id}/resultados/{rc_id}",
+        json={"titulo": "Hackeo RC"},
+        headers=headers_otro_jefe,
+    )
+    assert resp_put_rc.status_code == 403, resp_put_rc.text
+
+    # DELETE /metas/{id}/resultados/{rc_id}.
+    resp_del_rc = await client.delete(
+        f"{BASE}/metas/{meta_id}/resultados/{rc_id}", headers=headers_otro_jefe
+    )
+    assert resp_del_rc.status_code == 403, resp_del_rc.text
+
+    # POST /resultados/{rc_id}/checkin (ajuste jefe).
+    resp_ajuste = await client.post(
+        f"{BASE}/resultados/{rc_id}/checkin",
+        json={"valor": 3, "nota": "ajuste ajeno"},
+        headers=headers_otro_jefe,
+    )
+    assert resp_ajuste.status_code == 403, resp_ajuste.text
+
+    # DELETE /metas/{id}.
+    resp_del_meta = await client.delete(
+        f"{BASE}/metas/{meta_id}", headers=headers_otro_jefe
+    )
+    assert resp_del_meta.status_code == 403, resp_del_meta.text
+
+    # El jefe dueno SI puede ejercer las mismas acciones (sanity del scope).
+    resp_ajuste_ok = await client.post(
+        f"{BASE}/resultados/{rc_id}/checkin",
+        json={"valor": 3, "nota": "ajuste dueno"},
+        headers=headers_jefe,
+    )
+    assert resp_ajuste_ok.status_code == 201, resp_ajuste_ok.text
+
+
+async def test_put_meta_equipo_no_permite_reasignar_lider_id_fuera_del_scope(client, db):
+    """Hueco senalado en revision: el fix de Tarea 3 (revalidar scope al
+    reasignar) solo se probo con `empleado_id` de meta individual; faltaba
+    el caso de reasignar `lider_id` en una meta de NIVEL EQUIPO."""
+    rh = await _rh(db, email="metasrh10@leoni.test")
+    jefe = await _jefe(db, email="metasjefe10@leoni.test")
+    otro_jefe = await _jefe(db, email="metasotrojefe10@leoni.test")
+
+    headers_rh = await auth_headers(client, rh)
+    headers_jefe = await auth_headers(client, jefe)
+
+    ciclo = await _crear_ciclo_activo(client, headers_rh, nombre="Ciclo scope lider_id")
+
+    resp_meta = await client.post(
+        f"{BASE}/metas",
+        json={
+            "ciclo_id": ciclo["id"],
+            "nivel": "equipo",
+            "area_id": 1,
+            "lider_id": jefe.empleado_id,
+            "titulo": "Meta de equipo reasignable",
+            "peso": 100,
+            "asignada_por_id": jefe.empleado_id,
+            "resultados_clave": [],
+        },
+        headers=headers_jefe,
+    )
+    assert resp_meta.status_code == 201, resp_meta.text
+    meta_id = resp_meta.json()["id"]
+
+    # Reasignar el liderazgo de la meta de equipo a OTRO jefe -> 403.
+    resp_403 = await client.put(
+        f"{BASE}/metas/{meta_id}",
+        json={"lider_id": otro_jefe.empleado_id},
+        headers=headers_jefe,
+    )
+    assert resp_403.status_code == 403, resp_403.text
+
+    # El jefe se mantiene como lider (sin cambios) tras el intento rechazado.
+    resp_get = await client.get(f"{BASE}/metas/{meta_id}", headers=headers_jefe)
+    assert resp_get.status_code == 200, resp_get.text
+    assert resp_get.json()["lider_id"] == jefe.empleado_id
+
+
 async def test_put_ciclo_edita_borrador_y_activo_y_rechaza_fechas_invertidas(client, db):
     rh = await _rh(db, email="metasrh7@leoni.test")
     headers_rh = await auth_headers(client, rh)
