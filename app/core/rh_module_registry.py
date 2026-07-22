@@ -343,6 +343,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/pdi-gestion",),
         api_prefixes=("/api/v1/evaluaciones/pdi",),
     ),
+    "historial-objetivo": RhModuleDef(
+        key="historial-objetivo",
+        label="Historial Objetivo",
+        group="Cumplimiento",
+        nav_item_ids=("historial-objetivo",),
+        hash_prefixes=("#/cumplimiento/historial-objetivo",),
+        api_prefixes=("/api/v1/historial-objetivo",),
+    ),
     "level-up": RhModuleDef(
         key="level-up",
         label="Resumen operativo",
@@ -435,6 +443,8 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     # Ciclo de Desempeno: consultar el propio resultado (snapshot de ciclos
     # cerrados) es self-service.
     "/api/v1/ciclo-desempeno/mis-resultados",
+    # Historial Objetivo: consultar el propio indice es self-service.
+    "/api/v1/historial-objetivo/mi-historial",
 )
 
 
