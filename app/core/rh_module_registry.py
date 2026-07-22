@@ -383,6 +383,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/talento/metas",),
         api_prefixes=("/api/v1/metas",),
     ),
+    "ciclo-desempeno": RhModuleDef(
+        key="ciclo-desempeno",
+        label="Ciclo de Desempeño",
+        group="Talento",
+        nav_item_ids=("ciclo-desempeno",),
+        hash_prefixes=("#/talento/ciclo-desempeno",),
+        api_prefixes=("/api/v1/ciclo-desempeno",),
+    ),
 }
 
 RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
@@ -424,6 +432,9 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/encuestas-rh/mis-encuestas",
     # Metas: seguimiento propio (checkins de resultados clave) es self-service.
     "/api/v1/metas/mis-metas",
+    # Ciclo de Desempeno: consultar el propio resultado (snapshot de ciclos
+    # cerrados) es self-service.
+    "/api/v1/ciclo-desempeno/mis-resultados",
 )
 
 
