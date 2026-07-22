@@ -371,6 +371,13 @@ class HistorialObjetivoService:
                 | set(bono.incidencias_por_empleado)
             )
 
+        # Empleados que solo aparecen en actas (sin eventos de bono en el
+        # rango): no tenemos su no_empleado/nombre desde la agregación de
+        # bono. Se resuelven en UNA sola query bulk (evita N+1 -- antes se
+        # disparaba una consulta puntual por empleado dentro del loop).
+        faltantes_ids = [eid for eid in ids_universo if eid not in bono.info_por_empleado]
+        nombres_faltantes = await self.empleado_repo.get_nombres_por_empleado_ids(faltantes_ids)
+
         items: list[HistorialObjetivoEquipoItem] = []
         for eid in ids_universo:
             conteos = ConteosHistorial(
@@ -380,15 +387,10 @@ class HistorialObjetivoService:
                 progresivo=ConteosFuente(),
             )
             resultado = calcular_indice(conteos)
-            no, nombre = bono.info_por_empleado.get(eid, (None, None))
-            if no is None and nombre is None:
-                # Empleado que solo aparece en actas (sin eventos de bono en el
-                # rango): no tenemos su no_empleado/nombre desde la agregación,
-                # se resuelve con una consulta puntual.
-                empleado = await self.empleado_repo.get_by_empleado_id(eid)
-                if empleado is not None:
-                    no = str(empleado.no_empleado) if empleado.no_empleado is not None else None
-                    nombre = empleado.nombre
+            if eid in bono.info_por_empleado:
+                no, nombre = bono.info_por_empleado[eid]
+            else:
+                no, nombre = nombres_faltantes.get(eid, (None, None))
             items.append(
                 HistorialObjetivoEquipoItem(
                     empleado_id=eid, no_empleado=no, nombre=nombre, resultado=resultado

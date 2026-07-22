@@ -352,6 +352,54 @@ async def test_indice_equipo_rh_sin_filtro_aplica_tope_alto_explicito(db):
 
 
 @pytest.mark.asyncio
+async def test_indice_equipo_resuelve_nombres_faltantes_en_una_sola_query_bulk(db):
+    """Fix post-revisión (N+1): empleados sin eventos de bono en el rango
+    deben resolver no_empleado/nombre con UNA sola query bulk, no una
+    consulta puntual por empleado."""
+    from app.repositories.empleado_repository import EmpleadoRepository
+
+    jefe = await make_empleado(db, rol="supervisor", email="ho_svc_bulk_jefe@leoni.test")
+    sin_bono_1 = await make_empleado(
+        db, rol="empleado", email="ho_svc_bulk_1@leoni.test", lider_id=jefe.empleado_id
+    )
+    sin_bono_2 = await make_empleado(
+        db, rol="empleado", email="ho_svc_bulk_2@leoni.test", lider_id=jefe.empleado_id
+    )
+
+    service = HistorialObjetivoService(db)
+
+    async def _no_deberia_llamarse(*args, **kwargs):
+        raise AssertionError(
+            "N+1 detectado: get_by_empleado_id no debe llamarse dentro de indice_equipo"
+        )
+
+    with _mock_bono_repos():
+        with patch.object(EmpleadoRepository, "get_by_empleado_id", _no_deberia_llamarse):
+            with patch.object(
+                EmpleadoRepository,
+                "get_nombres_por_empleado_ids",
+                wraps=service.empleado_repo.get_nombres_por_empleado_ids,
+            ) as bulk_mock:
+                resultado = await service.indice_equipo(jefe, None, None)
+
+    bulk_mock.assert_called_once()
+
+    por_id = {item.empleado_id: (item.no_empleado, item.nombre) for item in resultado.items}
+    assert por_id[jefe.empleado_id] == (
+        str(jefe.no_empleado) if jefe.no_empleado is not None else None,
+        jefe.nombre,
+    )
+    assert por_id[sin_bono_1.empleado_id] == (
+        str(sin_bono_1.no_empleado) if sin_bono_1.no_empleado is not None else None,
+        sin_bono_1.nombre,
+    )
+    assert por_id[sin_bono_2.empleado_id] == (
+        str(sin_bono_2.no_empleado) if sin_bono_2.no_empleado is not None else None,
+        sin_bono_2.nombre,
+    )
+
+
+@pytest.mark.asyncio
 async def test_indice_historial_empleado_mismo_calculo_sin_scoping(db):
     rh = await make_empleado(db, rol="rh", email="ho_svc_mirror_rh@leoni.test")
     emp = await make_empleado(db, rol="empleado", email="ho_svc_mirror_emp@leoni.test")
