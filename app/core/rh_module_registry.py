@@ -375,6 +375,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/talento/encuestas",),
         api_prefixes=("/api/v1/encuestas-rh",),
     ),
+    "metas": RhModuleDef(
+        key="metas",
+        label="Metas",
+        group="Talento",
+        nav_item_ids=("metas",),
+        hash_prefixes=("#/talento/metas",),
+        api_prefixes=("/api/v1/metas",),
+    ),
 }
 
 RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
@@ -414,6 +422,8 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     # RhModulePermissionMiddleware.dispatch, que revisa is_rh_self_service_api_path
     # ANTES de exigir el modulo, solo para usuarios rh_admin/rol=="rh").
     "/api/v1/encuestas-rh/mis-encuestas",
+    # Metas: seguimiento propio (checkins de resultados clave) es self-service.
+    "/api/v1/metas/mis-metas",
 )
 
 
