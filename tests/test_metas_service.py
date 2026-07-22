@@ -543,6 +543,95 @@ async def test_agregar_rc_booleano_permite_valor_objetivo_igual_inicial(db):
     assert rc.tipo_metrica == "booleano"
 
 
+async def test_agregar_rc_en_meta_de_ciclo_cerrado_falla_409(db):
+    """Minor #5: agregar_rc tambien respeta el guard de ciclo activo (mismo
+    patron que test_actualizar_meta_de_ciclo_cerrado_falla_409)."""
+    jefe = await make_empleado(db, rol="supervisor")
+    empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    service = MetasService(db)
+    ciclo_id = await _crear_ciclo_activo(service, jefe)
+    meta = await _crear_meta_individual(service, ciclo_id, empleado, jefe)
+    await service.cerrar_meta(meta.id, calificacion=90)
+    await service.cerrar_ciclo(ciclo_id)
+
+    with pytest.raises(ConflictError):
+        await service.agregar_rc(meta.id, _rc_data(titulo="RC tardio"))
+
+
+async def test_actualizar_rc_cambia_campos_en_ciclo_activo(db):
+    jefe = await make_empleado(db, rol="supervisor")
+    empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    service = MetasService(db)
+    ciclo_id = await _crear_ciclo_activo(service, jefe)
+    meta = await _crear_meta_individual(service, ciclo_id, empleado, jefe)
+    rc_id = meta.resultados_clave[0].id
+
+    actualizado = await service.actualizar_rc(
+        rc_id,
+        ResultadoClaveUpdate(titulo="OPLs revisadas", unidad="pzas", valor_objetivo=Decimal("10")),
+    )
+    assert actualizado.titulo == "OPLs revisadas"
+    assert actualizado.unidad == "pzas"
+    assert actualizado.valor_objetivo == Decimal("10")
+
+
+async def test_actualizar_rc_en_ciclo_cerrado_falla_409(db):
+    jefe = await make_empleado(db, rol="supervisor")
+    empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    service = MetasService(db)
+    ciclo_id = await _crear_ciclo_activo(service, jefe)
+    meta = await _crear_meta_individual(service, ciclo_id, empleado, jefe)
+    rc_id = meta.resultados_clave[0].id
+    await service.cerrar_meta(meta.id, calificacion=90)
+    await service.cerrar_ciclo(ciclo_id)
+
+    with pytest.raises(ConflictError):
+        await service.actualizar_rc(rc_id, ResultadoClaveUpdate(titulo="No deberia aplicar"))
+
+
+async def test_eliminar_rc_sin_checkins_ok(db):
+    """Verifica el borrado consultando el RC directamente (via
+    `actualizar_rc` -> `NotFoundError`), no a traves de la coleccion
+    `meta.resultados_clave` ya cargada en memoria: dentro de una misma
+    sesion, esa coleccion del padre no se refresca sola tras el DELETE del
+    hijo (identity map de SQLAlchemy) hasta que se vuelve a cargar de forma
+    explicita; en produccion cada request usa una sesion nueva, asi que esto
+    no aplica ahi. La fila si se borra en BD de inmediato (confirmado leyendo
+    el codigo real de `eliminar_rc`: `session.delete(rc)` + `flush()`)."""
+    jefe = await make_empleado(db, rol="supervisor")
+    empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    service = MetasService(db)
+    ciclo_id = await _crear_ciclo_activo(service, jefe)
+    meta = await _crear_meta_individual(
+        service, ciclo_id, empleado, jefe,
+        resultados_clave=[_rc_data(titulo="RC 1", orden=1), _rc_data(titulo="RC 2", orden=2)],
+    )
+    rc_a_borrar = meta.resultados_clave[0].id
+
+    await service.eliminar_rc(rc_a_borrar)
+
+    with pytest.raises(NotFoundError):
+        await service.actualizar_rc(rc_a_borrar, ResultadoClaveUpdate(titulo="ya no existe"))
+
+
+async def test_eliminar_rc_con_checkins_falla(db):
+    """Comportamiento REAL de `eliminar_rc` (verificado leyendo el codigo,
+    no solo el reporte de Tarea 2): bloquea (`ConflictError`) si el RC tiene
+    check-ins registrados, igual que `eliminar_meta` — el reporte de Tarea 2
+    (punto 7) dice que se extendio la regla "DELETE solo si sin check-ins"
+    a RC individual, y este test lo confirma directamente."""
+    jefe = await make_empleado(db, rol="supervisor")
+    empleado = await make_empleado(db, rol="empleado", lider_id=jefe.empleado_id)
+    service = MetasService(db)
+    ciclo_id = await _crear_ciclo_activo(service, jefe)
+    meta = await _crear_meta_individual(service, ciclo_id, empleado, jefe)
+    rc_id = meta.resultados_clave[0].id
+    await service.registrar_checkin(rc_id, autor_id=empleado.empleado_id, valor=Decimal("2"))
+
+    with pytest.raises(ConflictError):
+        await service.eliminar_rc(rc_id)
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Ciclo de vida de la meta: check-in, edicion/eliminacion, cierre
 # ══════════════════════════════════════════════════════════════════════════
