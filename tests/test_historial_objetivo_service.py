@@ -336,6 +336,49 @@ async def test_indice_equipo_ranking_ordenado_peor_primero(db):
 
 
 @pytest.mark.asyncio
+async def test_indice_equipo_ranking_ordenado_peor_primero_con_tres_indices_distintos(db):
+    """Hueco T8 #4: `test_indice_equipo_ranking_ordenado_peor_primero` ya
+    cubre 2 empleados (uno malo, uno perfecto) -- aqui se verifica el orden
+    explicito con >=3 empleados de indices distintos (no solo que la lista
+    quede ordenada de forma trivial con un solo par)."""
+    jefe = await make_empleado(db, rol="supervisor", email="ho_svc_rank3_jefe@leoni.test")
+    excelente = await make_empleado(
+        db, rol="empleado", email="ho_svc_rank3_excelente@leoni.test", lider_id=jefe.empleado_id
+    )
+    medio = await make_empleado(
+        db, rol="empleado", email="ho_svc_rank3_medio@leoni.test", lider_id=jefe.empleado_id
+    )
+    pesimo = await make_empleado(
+        db, rol="empleado", email="ho_svc_rank3_pesimo@leoni.test", lider_id=jefe.empleado_id
+    )
+
+    # excelente: sin eventos -> indice 100.
+    # medio: 1 acta signed (15) -> indice 85.
+    await _crear_acta(db, empleado_id=medio.empleado_id, generado_por=jefe.empleado_id, estado="signed")
+    # pesimo: 2 actas signed (30) -> indice 70.
+    await _crear_acta(db, empleado_id=pesimo.empleado_id, generado_por=jefe.empleado_id, estado="signed")
+    await _crear_acta(db, empleado_id=pesimo.empleado_id, generado_por=jefe.empleado_id, estado="signed")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos():
+        resultado = await service.indice_equipo(jefe, None, None)
+
+    # jefe (sin actas propias) tambien queda en indice 100 -- empatado con
+    # excelente. El orden relativo entre pesimo/medio/excelente es lo que
+    # importa aqui (peor primero); no se fija una posicion para el empate.
+    orden_ids = [item.empleado_id for item in resultado.items]
+    assert orden_ids.index(pesimo.empleado_id) < orden_ids.index(medio.empleado_id)
+    assert orden_ids.index(medio.empleado_id) < orden_ids.index(excelente.empleado_id)
+
+    indices = [item.resultado.indice for item in resultado.items]
+    assert indices == sorted(indices)  # ascendente == peor primero
+    por_id = {item.empleado_id: item.resultado.indice for item in resultado.items}
+    assert por_id[pesimo.empleado_id] == 70.0
+    assert por_id[medio.empleado_id] == 85.0
+    assert por_id[excelente.empleado_id] == 100.0
+
+
+@pytest.mark.asyncio
 async def test_indice_equipo_rh_sin_filtro_aplica_tope_alto_explicito(db):
     rh = await make_empleado(db, rol="rh", email="ho_svc_eq_rh@leoni.test")
 

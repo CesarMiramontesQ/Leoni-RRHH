@@ -224,6 +224,60 @@ async def test_no_rh_con_modulo_otorgado_ve_universo_en_equipo(client, db):
     assert ajeno.empleado_id in ids
 
 
+async def test_no_rh_con_modulo_otorgado_ve_universo_en_equipo_con_rango_de_fechas_explicito(
+    client, db
+):
+    """Hueco T8 #2: variante de `test_no_rh_con_modulo_otorgado_ve_universo_
+    en_equipo` con `fecha_inicio`/`fecha_fin` explicitos en vez del default
+    de 12 meses -- confirma que la elevacion de scope por permiso RH tambien
+    funciona end-to-end cuando el cliente manda su propio rango."""
+    grantee = await make_empleado(
+        db,
+        rol="supervisor",
+        email="ho_api_grant_rango@leoni.test",
+        modulos_rh={"historial-objetivo": True},
+        inscrito_modulos_rh=True,
+    )
+    ajeno = await make_empleado(db, rol="empleado", email="ho_api_grant_rango_ajeno@leoni.test")
+    await _crear_acta(db, empleado_id=ajeno.empleado_id, generado_por=grantee.empleado_id, estado="signed")
+    headers = await auth_headers(client, grantee)
+
+    with _mock_bono_repos():
+        res = await client.get(
+            f"{BASE}/equipo",
+            params={"fecha_inicio": "2026-01-01", "fecha_fin": "2026-12-31"},
+            headers=headers,
+        )
+
+    assert res.status_code == 200, res.text
+    ids = {item["empleado_id"] for item in res.json()["items"]}
+    assert ajeno.empleado_id in ids
+
+
+async def test_equipo_degrada_a_solo_actas_si_bono_no_configurado(client, db):
+    """Hueco T8 #3: la degradacion de bono no solo aplica en
+    `GET /empleados/{id}` (`test_bono_no_configurado_degrada_a_solo_actas`) --
+    tambien debe funcionar en `GET /equipo`: con `create_read_engine` en
+    None, el ranking se calcula solo con actas sin crashear y el flag
+    `bono_disponible` (a nivel de la respuesta, no por item) viaja en False."""
+    jefe = await make_empleado(db, rol="supervisor", email="ho_api_equipo_sin_bono_jefe@leoni.test")
+    emp = await make_empleado(
+        db, rol="empleado", email="ho_api_equipo_sin_bono_emp@leoni.test", lider_id=jefe.empleado_id
+    )
+    await _crear_acta(db, empleado_id=emp.empleado_id, generado_por=jefe.empleado_id, estado="signed")
+    headers = await auth_headers(client, jefe)
+
+    with _mock_bono_repos(engine_configurado=False):
+        res = await client.get(f"{BASE}/equipo", headers=headers)
+
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["bono_disponible"] is False
+    por_id = {item["empleado_id"]: item for item in body["items"]}
+    assert por_id[emp.empleado_id]["resultado"]["indice"] == 85.0
+    assert por_id[jefe.empleado_id]["resultado"]["indice"] == 100.0
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # GET /equipo/export
 # ══════════════════════════════════════════════════════════════════════════
@@ -240,6 +294,55 @@ async def test_equipo_export_excel(client, db):
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     assert "attachment; filename=historial_objetivo_equipo_" in res.headers["content-disposition"]
+
+
+async def test_equipo_export_excel_contenido_hoja_y_filas(client, db):
+    """Hueco T8 #1: hasta ahora solo se validaba content-type/disposition --
+    aqui se abre el .xlsx real con openpyxl y se verifica la hoja + al menos
+    una fila con empleado/indice/semaforo (mismo formato que arma el router
+    en `export_equipo_excel`: empleado_id, no_empleado, nombre, indice,
+    semaforo, penalizacion_total)."""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    jefe = await make_empleado(db, rol="supervisor", email="ho_api_export_jefe@leoni.test")
+    emp = await make_empleado(
+        db, rol="empleado", email="ho_api_export_emp@leoni.test", lider_id=jefe.empleado_id
+    )
+    await _crear_acta(db, empleado_id=emp.empleado_id, generado_por=jefe.empleado_id, estado="signed")
+    headers = await auth_headers(client, jefe)
+
+    with _mock_bono_repos():
+        res = await client.get(f"{BASE}/equipo/export", headers=headers)
+
+    assert res.status_code == 200, res.text
+
+    wb = load_workbook(BytesIO(res.content))
+    ws = wb["Historial Objetivo"]
+
+    header = [c.value for c in ws[1]]
+    assert header == [
+        "empleado_id",
+        "no_empleado",
+        "nombre",
+        "indice",
+        "semaforo",
+        "penalizacion_total",
+    ]
+
+    filas = list(ws.iter_rows(min_row=2, values_only=True))
+    por_empleado_id = {fila[0]: fila for fila in filas}
+    assert jefe.empleado_id in por_empleado_id
+    assert emp.empleado_id in por_empleado_id
+
+    # emp tiene un acta signed -> indice 85.0 / verde (solo actas, sin bono
+    # en este mock, ver `_mock_bono_repos` default engine_configurado=True
+    # pero sin incidencias/faltas -> solo penaliza el acta).
+    fila_emp = por_empleado_id[emp.empleado_id]
+    assert fila_emp[2] == emp.nombre
+    assert fila_emp[3] == 85.0
+    assert fila_emp[4] == "verde"
 
 
 # ══════════════════════════════════════════════════════════════════════════
