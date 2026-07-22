@@ -1,10 +1,11 @@
 """Constantes del indice objetivo (pesos por tipo + umbrales de semaforo).
 
 Pesos de penalizacion documentados y ajustables (cambiar el valor aqui basta,
-no hay logica dispersa en otro lado). Todo tipo ya modelado en otro modulo
-se REUSA de su constante existente en vez de duplicar strings -- ver los
-imports de `app.models.faltas_retardos` y
-`app.services.incidencia_fuentes.constants`.
+no hay logica dispersa en otro lado). Este paquete es de calculo puro (sin
+SQLAlchemy, importable sin BD): los tipos ya modelados en `app.models.*` se
+REPLICAN como strings literales (no se importan) para no arrastrar
+`app.core.database.Base`; los de `app.services.incidencia_fuentes.constants`
+si se importan porque ese modulo tampoco depende de BD.
 
 Formula (ver `app.services.historial_objetivo.formula.calcular_indice`):
 
@@ -17,10 +18,18 @@ los "indices/scores" del proyecto.
 
 from __future__ import annotations
 
-from app.models.faltas_retardos import FALTA_RETARDO_TIPOS_GOCE
 from app.services.incidencia_fuentes.constants import (
     TIPO_INCIDENCIA_CALIDAD,
     TIPO_INCIDENCIA_SEGURIDAD,
+)
+
+# Tipos de falta/retardo con goce de sueldo (`FALTA_RETARDO_TIPOS_GOCE` en
+# `app/models/faltas_retardos.py`). Se replican como strings literales -- y NO
+# se importa el modelo -- porque ese modulo importa `app.core.database.Base`
+# (construye el engine y revienta con RuntimeError fuera de APP_ENV=test).
+# Este paquete debe ser importable sin BD; ver docstring del modulo.
+FALTA_RETARDO_TIPOS_GOCE: frozenset[str] = frozenset(
+    {"matrimonio", "defuncion", "paternidad", "incapacidad_interna"}
 )
 
 # ══════════════════════════════════════════════════════════════════════════

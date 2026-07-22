@@ -8,10 +8,18 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.historial_objetivo.constants import semaforo
+from app.services.historial_objetivo.constants import (
+    PESOS_ACTAS,
+    PESOS_FALTAS,
+    PESOS_INCIDENCIAS,
+    semaforo,
+)
 from app.services.historial_objetivo.formula import calcular_indice
 from app.services.historial_objetivo.types import ConteosFuente, ConteosHistorial
-from app.services.incidencia_fuentes.constants import TIPO_INCIDENCIA_CALIDAD
+from app.services.incidencia_fuentes.constants import (
+    TIPO_INCIDENCIA_CALIDAD,
+    TIPO_INCIDENCIA_SEGURIDAD,
+)
 
 
 def _historial(
@@ -103,3 +111,35 @@ def test_desglose_por_tipo_incluye_peso_y_conteo():
 def test_tipo_goce_en_faltas_no_penaliza():
     resultado = calcular_indice(_historial(faltas={"matrimonio": 5}))
     assert resultado.indice == 100.0
+
+
+def test_pesos_faltas_cubre_todos_los_tipos_del_modelo():
+    """Blindaje anti-drift: si se agrega un tipo nuevo a `FALTA_RETARDO_TIPOS`
+    en el modelo, este test falla y obliga a asignarle un peso en
+    `PESOS_FALTAS` (import solo aqui -- el paquete de calculo sigue puro)."""
+    from app.models.faltas_retardos import FALTA_RETARDO_TIPOS
+
+    assert set(PESOS_FALTAS.keys()) == set(FALTA_RETARDO_TIPOS)
+
+
+def test_pesos_actas_cubre_todos_los_estados_del_enum():
+    """Blindaje anti-drift equivalente para los estados de acta (import solo
+    aqui, derivado del Enum real de la columna -- no un literal duplicado)."""
+    from app.models.actas import ActaAdministrativa
+
+    estados_enum = set(ActaAdministrativa.__table__.columns["estado"].type.enums)
+    assert estados_enum == {
+        "draft",
+        "pending_sign",
+        "signed",
+        "archived",
+        "cancelled",
+    }
+    assert set(PESOS_ACTAS.keys()) == estados_enum
+
+
+def test_pesos_incidencias_coincide_con_tipos_calidad_y_seguridad():
+    assert set(PESOS_INCIDENCIAS.keys()) == {
+        TIPO_INCIDENCIA_CALIDAD,
+        TIPO_INCIDENCIA_SEGURIDAD,
+    }
