@@ -340,7 +340,17 @@ class HistorialObjetivoService:
             # RH/director sin equipo delimitado: universo. Requisito del plan --
             # nunca agregar toda la organización sin límite -- se aplica un tope
             # duro explícito tanto al `limit` de las agregaciones de bono como al
-            # tamaño final del ranking devuelto (ver truncado más abajo).
+            # tamaño final del ranking devuelto (ver truncado más abajo). Además,
+            # sin rango de fechas la consulta de actas (`count_por_empleado_por_estado`
+            # con `empleado_ids=None`) queda sin acotar por empleado NI por fecha --
+            # se exige un rango explícito para que TODAS las fuentes (incluidas
+            # actas) queden acotadas. El default (últimos 12 meses) lo aplica la
+            # API (Tarea 5); el service se protege y nunca agrega el universo sin
+            # rango, sin importar quién llame.
+            if fecha_inicio is None or fecha_fin is None:
+                raise DomainValidationError(
+                    "Para el ranking global de RH debes especificar un rango de fechas"
+                )
             limit = TOPE_ALTO_EQUIPO
             actas_empleado_ids = None
             bono_scope = None

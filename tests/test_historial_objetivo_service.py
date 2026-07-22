@@ -341,7 +341,7 @@ async def test_indice_equipo_rh_sin_filtro_aplica_tope_alto_explicito(db):
 
     service = HistorialObjetivoService(db)
     with _mock_bono_repos() as (_engine, inc_mock, falt_mock):
-        await service.indice_equipo(rh, None, None)
+        await service.indice_equipo(rh, date(2026, 1, 1), date(2026, 6, 30))
 
     from app.services.historial_objetivo_service import TOPE_ALTO_EQUIPO
 
@@ -349,6 +349,55 @@ async def test_indice_equipo_rh_sin_filtro_aplica_tope_alto_explicito(db):
     assert kwargs_inc["limit"] == TOPE_ALTO_EQUIPO
     _, kwargs_falt = falt_mock.aggregate_empleados_top_por_tipo.await_args
     assert kwargs_falt["limit"] == TOPE_ALTO_EQUIPO
+
+
+@pytest.mark.asyncio
+async def test_indice_equipo_rh_sin_filtro_y_sin_rango_de_fechas_da_422(db):
+    """Fix post-revisión: RH/director sin equipo delimitado (`scope_ids is
+    None`) y sin rango de fechas debe rechazarse -- de lo contrario la
+    consulta de actas corre sin filtro de empleado NI de fecha."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_eq_rh_sinrango@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos():
+        with pytest.raises(DomainValidationError):
+            await service.indice_equipo(rh, None, None)
+        with pytest.raises(DomainValidationError):
+            await service.indice_equipo(rh, date(2026, 1, 1), None)
+        with pytest.raises(DomainValidationError):
+            await service.indice_equipo(rh, None, date(2026, 6, 30))
+
+
+@pytest.mark.asyncio
+async def test_indice_equipo_rh_sin_filtro_con_rango_de_fechas_funciona(db):
+    rh = await make_empleado(db, rol="rh", email="ho_svc_eq_rh_conrango@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ho_svc_eq_emp_conrango@leoni.test")
+    await _crear_acta(db, empleado_id=emp.empleado_id, generado_por=rh.empleado_id, estado="signed")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos():
+        resultado = await service.indice_equipo(rh, date(2026, 1, 1), date(2026, 12, 31))
+
+    ids_en_resultado = {item.empleado_id for item in resultado.items}
+    assert emp.empleado_id in ids_en_resultado
+
+
+@pytest.mark.asyncio
+async def test_indice_equipo_supervisor_sin_rango_de_fechas_sigue_funcionando(db):
+    """El requisito de rango de fechas aplica solo al universo sin acotar
+    (scope_ids is None) -- un equipo delimitado (supervisor/gerente) no
+    necesita rango explícito."""
+    jefe = await make_empleado(db, rol="supervisor", email="ho_svc_eq_sup_sinrango@leoni.test")
+    emp = await make_empleado(
+        db, rol="empleado", email="ho_svc_eq_sup_sinrango_emp@leoni.test", lider_id=jefe.empleado_id
+    )
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos():
+        resultado = await service.indice_equipo(jefe, None, None)
+
+    ids_en_resultado = {item.empleado_id for item in resultado.items}
+    assert ids_en_resultado == {jefe.empleado_id, emp.empleado_id}
 
 
 @pytest.mark.asyncio
