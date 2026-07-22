@@ -126,6 +126,10 @@ from app.models.metas import (
     MetaResultadoClave,
     MetaCheckin,
 )
+from app.models.ciclo_desempeno import (
+    CicloDesempeno,
+    CicloDesempenoResultado,
+)
 
 __all__ = [
     "Rol",
@@ -241,4 +245,6 @@ __all__ = [
     "Meta",
     "MetaResultadoClave",
     "MetaCheckin",
+    "CicloDesempeno",
+    "CicloDesempenoResultado",
 ]
