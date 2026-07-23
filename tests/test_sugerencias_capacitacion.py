@@ -343,3 +343,48 @@ async def test_api_con_modulo_otorgado_200(client, db):
     headers = await auth_headers(client, grantee)
     resp = await client.get(BASE, headers=headers)
     assert resp.status_code == 200
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Task 1: ampliar SugerenciaCapacitacionUpdate con los campos manuales
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_actualizar_setea_campos_manuales(db):
+    svc = SugerenciaCapacitacionService(db)
+    s = await svc.crear(SugerenciaCapacitacionCreate(titulo="Borrador sembrado"))
+    upd = await svc.actualizar(
+        s.id,
+        SugerenciaCapacitacionUpdate(
+            inversion_estimada=15000.0,
+            proveedor_sugerido="Proveedor X",
+            duracion_sugerida="16 horas",
+            brecha_pct=42.5,
+            personas_alcanzables=12,
+            capacidades_afectadas=["Soldadura"],
+            areas_afectadas=["Produccion"],
+            adopcion_sector_pct=70.0,
+        ),
+    )
+    assert upd.inversion_estimada == 15000.0
+    assert upd.proveedor_sugerido == "Proveedor X"
+    assert upd.duracion_sugerida == "16 horas"
+    assert upd.brecha_pct == 42.5
+    assert upd.personas_alcanzables == 12
+    assert upd.capacidades_afectadas == ["Soldadura"]
+    assert upd.areas_afectadas == ["Produccion"]
+    assert upd.adopcion_sector_pct == 70.0
+
+
+def test_update_rechaza_brecha_fuera_de_rango():
+    import pytest as _pytest
+    import pydantic
+    with _pytest.raises(pydantic.ValidationError):
+        SugerenciaCapacitacionUpdate(brecha_pct=150)
+
+
+def test_update_rechaza_inversion_negativa():
+    import pydantic
+    with pytest.raises(pydantic.ValidationError):
+        SugerenciaCapacitacionUpdate(inversion_estimada=-5)

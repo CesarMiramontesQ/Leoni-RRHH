@@ -6091,6 +6091,14 @@ components:
           type: string
           enum: [activa, aprobada, pospuesta, descartada]
           nullable: true
+        brecha_pct: { type: number, format: float, minimum: 0, maximum: 100, nullable: true }
+        adopcion_sector_pct: { type: number, format: float, minimum: 0, maximum: 100, nullable: true }
+        capacidades_afectadas: { type: array, items: { type: string }, nullable: true }
+        areas_afectadas: { type: array, items: { type: string }, nullable: true }
+        personas_alcanzables: { type: integer, minimum: 0, nullable: true }
+        duracion_sugerida: { type: string, nullable: true }
+        inversion_estimada: { type: number, format: float, minimum: 0, nullable: true }
+        proveedor_sugerido: { type: string, nullable: true }
     SugerenciaCapacitacionResponse:
       type: object
       properties:

@@ -45,6 +45,14 @@ export interface SugerenciaUpdatePayload {
   curso_id?: number | null;
   prioridad?: number;
   estado?: SugerenciaEstado;
+  brecha_pct?: number | null;
+  adopcion_sector_pct?: number | null;
+  capacidades_afectadas?: string[] | null;
+  areas_afectadas?: string[] | null;
+  personas_alcanzables?: number | null;
+  duracion_sugerida?: string | null;
+  inversion_estimada?: number | null;
+  proveedor_sugerido?: string | null;
 }
 
 // ── Helper de error (mismo patron que el resto de api clients) ───────────────
