@@ -73,6 +73,46 @@ async def empleado_ids_en_alcance(
     return [user.id]
 
 
+async def empleado_ids_scope_por_modulo(
+    empleado_repo: "EmpleadoRepository",
+    current_user: "Empleado",
+    module_key: str,
+    rh_ui_mode: str | None,
+) -> list[int] | None:
+    """IDs de empleados visibles por scope de equipo, elevado por módulo RH.
+
+    Centraliza la lógica hoy triplicada como ``_empleado_ids_scope`` en
+    ``IncidenciaFuentesService``, ``FaltasRetardosService`` y
+    ``ViajesLaboralesService`` (replicada aquí sin cambios de comportamiento).
+
+    Usa ``effective_data_scope_for_module`` (scope elevado a ``"rh"`` si el
+    usuario tiene ``module_key`` otorgado) para decidir:
+    - ``None`` si el scope efectivo es ``"director"`` o ``"rh"`` (universo,
+      sin restricción).
+    - supervisor → reportes directos (``get_subordinados``) + él mismo.
+    - gerente → subárbol completo (``get_ids_subarbol``) + él mismo.
+    - resto (empleado base) → solo ``[current_user.empleado_id]``.
+
+    Recibe ``empleado_repo`` (no ``db``) para que el caller controle la
+    sesión/instancia del repositorio, igual que hacen las tres copias
+    existentes.
+    """
+    scope = effective_data_scope_for_module(current_user, module_key, rh_ui_mode)
+    if scope in ("director", "rh"):
+        return None
+    if scope == "supervisor":
+        subordinados = await empleado_repo.get_subordinados(
+            current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+        )
+        return [e.empleado_id for e in subordinados] + [current_user.empleado_id]
+    if scope == "gerente":
+        equipo = await empleado_repo.get_ids_subarbol(
+            current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+        )
+        return list(equipo) + [current_user.empleado_id]
+    return [current_user.empleado_id]
+
+
 async def equipo_empleado_ids_comedor(
     empleado_repo: "EmpleadoRepository",
     user: "Empleado",

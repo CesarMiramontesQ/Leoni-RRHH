@@ -29,10 +29,21 @@ import {
   generarEval360Pdi,
   type ResumenEmpleadoApi,
 } from "../api/evaluacion360.ts";
+import { getHistorialEmpleado, type HistorialObjetivoEmpleadoApi } from "../api/historialObjetivo.ts";
 import { vista360TimelineHtml } from "../components/vista360/timeline.ts";
 import { loadEmpleadoVista360, type EmpleadoIncidenciasMetricas } from "../hooks/useVista360.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
-import { htmlAccessDenied } from "../ui/uiTokens.ts";
+import {
+  alertWarning,
+  badgeApproved,
+  badgeCancelled,
+  badgePending,
+  badgeRejected,
+  errorState,
+  htmlAccessDenied,
+  RH_LISTADO_SURFACE,
+  skeletonBlock,
+} from "../ui/uiTokens.ts";
 import {
   antiguedadAniosMeses,
   buildTimelineItems,
@@ -50,6 +61,7 @@ const VISTA360_TAB_IDS: Vista360TabId[] = [
   "capacidades",
   "plan_desarrollo",
   "evaluacion360",
+  "historial_objetivo",
   "actas",
   "registros-comedor",
 ];
@@ -421,6 +433,99 @@ async function loadEval360Panel(
   });
 }
 
+// ── Panel Historial objetivo (carga bajo demanda) ─────────────────────────────
+const HO_FUENTE_LABELS: Record<string, string> = {
+  actas: "Actas",
+  faltas: "Faltas y retardos",
+  incidencias: "Incidencias",
+  progresivo: "Progresivo (bono)",
+};
+
+function renderHistorialObjetivoPanelPlaceholder(): string {
+  return `<div id="v360-historial-objetivo-mount" data-loaded="0">
+    ${skeletonBlock({ className: `${RH_LISTADO_SURFACE} h-40`, label: "Cargando historial objetivo…" })}
+  </div>`;
+}
+
+function hoFmt(n: number): string {
+  return Number(n).toFixed(1);
+}
+
+function hoSemaforoBadge(semaforo: string): string {
+  if (semaforo === "verde") return badgeApproved("Verde");
+  if (semaforo === "amarillo") return badgePending("Amarillo");
+  if (semaforo === "rojo") return badgeRejected("Rojo");
+  return badgeCancelled("Sin datos");
+}
+
+function renderHistorialObjetivoPanelContent(data: HistorialObjetivoEmpleadoApi): string {
+  const r = data.resultado;
+
+  const avisoBono = !data.bono_disponible
+    ? alertWarning(
+        "Los datos de faltas/retardos e incidencias (Bono) no están disponibles en este momento; el índice se calculó solo con actas.",
+      )
+    : "";
+
+  const desglose = r.desglose
+    .map((f) => {
+      const tipos = f.tipos.length
+        ? `<ul class="mt-2 space-y-1">${f.tipos
+            .map(
+              (t) => `
+        <li class="flex items-center justify-between gap-2 text-sm">
+          <span class="text-text-secondary">${escapeHtml(t.tipo)} <span class="text-text-muted">×${t.conteo}</span></span>
+          <span class="font-semibold tabular-nums text-slate-700">-${hoFmt(t.penalizacion)}</span>
+        </li>`,
+            )
+            .join("")}</ul>`
+        : `<p class="mt-2 text-sm text-text-muted">Sin eventos en el rango.</p>`;
+      return `
+      <div class="rounded-lg border border-slate-100 px-3 py-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(HO_FUENTE_LABELS[f.fuente] ?? f.fuente)}</p>
+          <p class="text-sm font-semibold tabular-nums text-slate-700">-${hoFmt(f.penalizacion)}</p>
+        </div>
+        ${tipos}
+      </div>`;
+    })
+    .join("");
+
+  return `
+    <div class="space-y-5">
+      ${avisoBono}
+      <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-xs font-medium text-text-muted">Índice objetivo</p>
+          <p class="mt-0.5 text-3xl font-bold tabular-nums text-leoni-blue">${hoFmt(r.indice)}</p>
+          <p class="text-xs text-text-muted">Penalización total: <span class="font-semibold tabular-nums">${hoFmt(r.penalizacion_total)}</span></p>
+        </div>
+        ${hoSemaforoBadge(r.semaforo)}
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <h3 class="mb-3 text-sm font-semibold text-text-primary">Desglose por fuente</h3>
+        <div class="grid gap-3 sm:grid-cols-2">${desglose}</div>
+      </div>
+    </div>`;
+}
+
+async function loadHistorialObjetivoPanel(
+  root: HTMLElement,
+  empleadoId: number,
+  signal: AbortSignal,
+): Promise<void> {
+  const mount = root.querySelector<HTMLElement>("#v360-historial-objetivo-mount");
+  if (!mount || mount.dataset.loaded === "1") return;
+  mount.dataset.loaded = "1";
+  const data = await getHistorialEmpleado(empleadoId);
+  if (signal.aborted || !mount.isConnected) return;
+  if (!data) {
+    mount.innerHTML = errorState({ message: "No se pudo cargar el historial objetivo." });
+    return;
+  }
+  mount.innerHTML = renderHistorialObjetivoPanelContent(data);
+}
+
 function renderVista360Content(
   data: UsuarioVista360,
   activeTab: Vista360TabId,
@@ -573,6 +678,7 @@ function renderVista360Content(
     panel("capacidades", capacidadesInner) +
     panel("plan_desarrollo", planDesarrolloInner) +
     panel("evaluacion360", renderEval360PanelPlaceholder()) +
+    panel("historial_objetivo", renderHistorialObjetivoPanelPlaceholder()) +
     panel("actas", renderVista360TablaMount("actas")) +
     panel("registros-comedor", renderVista360TablaMount("registros-comedor"));
 
@@ -699,9 +805,11 @@ export function mountEmployeeVista360(
       (tab) => {
         if (isTableTab(tab)) tablasLoader?.loadTab(tab);
         if (tab === "evaluacion360") void loadEval360Panel(v360Root, empleadoId, signal);
+        if (tab === "historial_objetivo") void loadHistorialObjetivoPanel(v360Root, empleadoId, signal);
       },
     );
     if (initialTab === "evaluacion360") void loadEval360Panel(v360Root, empleadoId, signal);
+    if (initialTab === "historial_objetivo") void loadHistorialObjetivoPanel(v360Root, empleadoId, signal);
   }
 
   if (isRh && modalHost && v360Root) {

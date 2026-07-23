@@ -1,3 +1,5 @@
+from typing import Sequence
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,6 +90,27 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             select(Empleado).where(Empleado.empleado_id == empleado_id)
         )
         return result.scalar_one_or_none()
+
+    async def get_nombres_por_empleado_ids(
+        self, empleado_ids: Sequence[int]
+    ) -> dict[int, tuple[str | None, str | None]]:
+        """Mapa `empleado_id` -> (`no_empleado` como str, `nombre`) en una sola
+        query. Evita el N+1 de resolver nombres uno por uno (p. ej.
+        `HistorialObjetivoService.indice_equipo` para empleados sin eventos de
+        bono en el rango). Mismo patrón que
+        `MetasRepository.get_nombres_empleados` / `CicloDesempenoRepository.
+        get_nombres_empleados`, aquí incluyendo también `no_empleado`."""
+        if not empleado_ids:
+            return {}
+        result = await self.db.execute(
+            select(Empleado.empleado_id, Empleado.no_empleado, Empleado.nombre).where(
+                Empleado.empleado_id.in_(empleado_ids)
+            )
+        )
+        return {
+            eid: (str(no) if no is not None else None, nombre)
+            for eid, no, nombre in result.all()
+        }
 
     async def get_with_rol(self, id: int) -> Empleado | None:
         result = await self.db.execute(

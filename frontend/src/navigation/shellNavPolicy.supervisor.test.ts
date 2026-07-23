@@ -53,6 +53,7 @@ describe("shellNavPolicy supervisor structured nav", () => {
     expect(isShellNavItemVisibleForRol("supervisor", "empleados")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "metas")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "ciclo-desempeno")).toBe(true);
+    expect(isShellNavItemVisibleForRol("supervisor", "historial-objetivo")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "mi-desempeno")).toBe(true);
     expect(isShellNavItemVisibleForRol("supervisor", "actas")).toBe(false);
     expect(isShellNavItemVisibleForRol("supervisor", "reportes")).toBe(false);
@@ -71,6 +72,12 @@ describe("shellNavPolicy supervisor structured nav", () => {
     expect(isShellNavItemVisibleForRol("supervisor", "mi-desempeno")).toBe(true);
     expect(supervisorMayAccessHash("#/talento/ciclo-desempeno")).toBe(true);
     expect(supervisorMayAccessHash("#/talento/mi-desempeno")).toBe(true);
+  });
+
+  it("supervisor puede acceder a #/cumplimiento/historial-objetivo (ítem Historial Objetivo descubrible)", async () => {
+    const { supervisorMayAccessHash, isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(isShellNavItemVisibleForRol("supervisor", "historial-objetivo")).toBe(true);
+    expect(supervisorMayAccessHash("#/cumplimiento/historial-objetivo")).toBe(true);
   });
 
   it("supervisor no ve hubs agrupados", async () => {
@@ -115,6 +122,7 @@ describe("shellNavPolicy gerente structured nav", () => {
     expect(isShellNavItemVisibleForRol("gerente", "empleados")).toBe(true);
     expect(isShellNavItemVisibleForRol("gerente", "metas")).toBe(true);
     expect(isShellNavItemVisibleForRol("gerente", "ciclo-desempeno")).toBe(true);
+    expect(isShellNavItemVisibleForRol("gerente", "historial-objetivo")).toBe(true);
     expect(isShellNavItemVisibleForRol("gerente", "actas")).toBe(false);
     expect(isShellNavItemVisibleForRol("gerente", "reportes")).toBe(false);
     expect(isShellNavItemVisibleForRol("gerente", "level-up")).toBe(false);
@@ -140,5 +148,6 @@ describe("shellNavPolicy gerente structured nav", () => {
     expect(supervisorMayAccessHash("#/talento/metas")).toBe(true);
     expect(supervisorMayAccessHash("#/talento/ciclo-desempeno")).toBe(true);
     expect(supervisorMayAccessHash("#/talento/mi-desempeno")).toBe(true);
+    expect(supervisorMayAccessHash("#/cumplimiento/historial-objetivo")).toBe(true);
   });
 });

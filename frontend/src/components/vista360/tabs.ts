@@ -9,7 +9,8 @@ export type Vista360TabId =
   | "beneficios"
   | "capacidades"
   | "plan_desarrollo"
-  | "evaluacion360";
+  | "evaluacion360"
+  | "historial_objetivo";
 
 const TABS: { id: Vista360TabId; label: string }[] = [
   { id: "resumen", label: "Resumen" },
@@ -19,6 +20,7 @@ const TABS: { id: Vista360TabId; label: string }[] = [
   { id: "capacidades", label: "Capacidades" },
   { id: "plan_desarrollo", label: "Plan de desarrollo" },
   { id: "evaluacion360", label: "Evaluación 360°" },
+  { id: "historial_objetivo", label: "Historial objetivo" },
   { id: "actas", label: "Actas" },
   { id: "registros-comedor", label: "Registros comedor" },
 ];

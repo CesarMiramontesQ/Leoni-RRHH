@@ -14115,6 +14115,77 @@ paths:
       responses:
         "200": { description: Resultados propios en ciclos ya cerrados (vacío si no hay), content: { application/json: { schema: { type: array, items: { type: object } } } } }
 
+  /api/v1/historial-objetivo/empleados/{empleado_id}:
+    get:
+      tags: [Cumplimiento - Historial Objetivo]
+      summary: Índice objetivo (0-100) + semáforo + desglose por fuente de un empleado (scoped)
+      description: >
+        Combina actas administrativas + faltas/retardos e incidencias
+        (Bono) en un solo índice 0-100 con semáforo (rojo/amarillo/verde) y
+        desglose de penalización por fuente (actas, faltas, incidencias,
+        progresivo). Scoping resuelto por el service
+        (`empleado_ids_scope_por_modulo`): RH con el módulo
+        'historial-objetivo' o director ven a cualquier empleado; jefe
+        (supervisor/gerente) solo a su equipo. Si `fecha_inicio`/`fecha_fin`
+        se omiten, la API aplica un default de "últimos 12 meses"
+        (hoy - 365 días / hoy).
+      operationId: historial_objetivo_indice_empleado
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: empleado_id, in: path, required: true, schema: { type: integer } }
+        - { name: fecha_inicio, in: query, required: false, schema: { type: string, format: date } }
+        - { name: fecha_fin, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        "200": { description: Índice objetivo del empleado, content: { application/json: { schema: { type: object } } } }
+        "403": { description: Empleado fuera del alcance del jefe }
+        "404": { description: Empleado no encontrado }
+        "422": { description: fecha_inicio posterior a fecha_fin }
+  /api/v1/historial-objetivo/equipo:
+    get:
+      tags: [Cumplimiento - Historial Objetivo]
+      summary: Ranking de índice objetivo del equipo (peor índice primero)
+      description: >
+        RH con el módulo 'historial-objetivo' (o director) ve el universo
+        acotado a "top offenders" (empleados con al menos un evento en
+        actas/faltas/incidencias en el rango, tope 500); jefe
+        (supervisor/gerente) ve a todo su equipo (incluye empleados con
+        historial limpio, índice 100). Mismo default de rango de fechas
+        (últimos 12 meses) que `GET /empleados/{empleado_id}`.
+      operationId: historial_objetivo_indice_equipo
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: fecha_inicio, in: query, required: false, schema: { type: string, format: date } }
+        - { name: fecha_fin, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        "200": { description: Ranking de equipo, content: { application/json: { schema: { type: object } } } }
+        "422": { description: fecha_inicio posterior a fecha_fin }
+  /api/v1/historial-objetivo/equipo/export:
+    get:
+      tags: [Cumplimiento - Historial Objetivo]
+      summary: Exportar a Excel el ranking de equipo (mismo scoping que GET /equipo)
+      operationId: historial_objetivo_export_equipo_excel
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: fecha_inicio, in: query, required: false, schema: { type: string, format: date } }
+        - { name: fecha_fin, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Archivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+  /api/v1/historial-objetivo/mi-historial:
+    get:
+      tags: [Cumplimiento - Historial Objetivo]
+      summary: Mi índice objetivo (self-service; empleado_id del token)
+      operationId: historial_objetivo_mi_historial
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: fecha_inicio, in: query, required: false, schema: { type: string, format: date } }
+        - { name: fecha_fin, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        "200": { description: Índice objetivo del empleado autenticado, content: { application/json: { schema: { type: object } } } }
+
   /api/v1/juntas:
     get:
       tags: [Juntas]
