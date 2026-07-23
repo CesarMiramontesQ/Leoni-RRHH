@@ -214,7 +214,7 @@ async def set_potencial(
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Calibración — ajuste directo de banda (solo RH global) + distribución
+# Calibracion — ajuste directo de banda (solo RH global) + distribucion
 # ══════════════════════════════════════════════════════════════════════════
 @router.put(
     "/ciclos/{ciclo_id}/calibracion",
@@ -228,7 +228,7 @@ async def calibrar_ciclo(
     db: AsyncSession = Depends(get_db),
     svc: CicloDesempenoService = Depends(_svc),
 ):
-    """Calibración es potestad de RH corporativo (scope global). Un jefe de
+    """Calibracion es potestad de RH corporativo (alcance global). Un jefe de
     equipo (scope != None) recibe 403."""
     scope = await _resolve_scope(current_user, rh_ui_mode, db)
     if scope is not None:
