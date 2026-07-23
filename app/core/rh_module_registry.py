@@ -317,7 +317,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
         group="Cumplimiento",
         nav_item_ids=("opls",),
         hash_prefixes=("#/opls",),
-        api_prefixes=(),
+        api_prefixes=("/api/v1/level-up/opls",),
     ),
     "evidencias": RhModuleDef(
         key="evidencias",
@@ -449,6 +449,12 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     # (gana sobre el api_prefix de gestion "/api/v1/level-up/evidencias").
     "/api/v1/level-up/evidencias/mis-firmas",
     "/api/v1/level-up/evidencias/firmas",
+    # OPLs: la aprobacion es self-service del aprobador designado (rol no-RH).
+    # "/mis-aprobaciones" lista sus pendientes; "/aprobaciones/{id}/(aprobar|
+    # regresar)" resuelve la revision. Gana sobre el api_prefix de gestion
+    # "/api/v1/level-up/opls".
+    "/api/v1/level-up/opls/mis-aprobaciones",
+    "/api/v1/level-up/opls/aprobaciones",
 )
 
 

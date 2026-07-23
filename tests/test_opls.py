@@ -135,3 +135,100 @@ async def test_mis_aprobaciones_pendientes(db):
     ajenas = await svc.mis_aprobaciones_pendientes((await make_empleado(db)).empleado_id)
     assert len(mias) == 1
     assert len(ajenas) == 0
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Tests HTTP del router (Tarea 4): gestion RH-gated + self-service aprobador.
+# ══════════════════════════════════════════════════════════════════════════
+from tests.conftest import auth_headers  # noqa: E402
+
+BASE = "/api/v1/level-up/opls"
+
+
+async def _crear_opl_api(client, headers, codigo, titulo="Cambio de dado", aprobador_id=None):
+    body = {"codigo": codigo, "titulo": titulo}
+    if aprobador_id is not None:
+        body["aprobador_id"] = aprobador_id
+    resp = await client.post(BASE, json=body, headers=headers)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_api_listar_rh_200(client, db):
+    rh = await make_empleado(
+        db, rol="rh", email="opl_rh1@leoni.test",
+        modulos_rh={"opls": True}, inscrito_modulos_rh=True,
+    )
+    headers = await auth_headers(client, rh)
+    await _crear_opl_api(client, headers, "OPL-API-1")
+    resp = await client.get(BASE, headers=headers)
+    assert resp.status_code == 200, resp.text
+    codigos = [o["codigo"] for o in resp.json()]
+    assert "OPL-API-1" in codigos
+
+
+@pytest.mark.asyncio
+async def test_api_gestion_sin_modulo_403(client, db):
+    sin_modulo = await make_empleado(db, rol="empleado", email="opl_emp1@leoni.test")
+    headers = await auth_headers(client, sin_modulo)
+    resp = await client.get(BASE, headers=headers)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_api_mis_aprobaciones_self_service(client, db):
+    rh = await make_empleado(
+        db, rol="rh", email="opl_rh2@leoni.test",
+        modulos_rh={"opls": True}, inscrito_modulos_rh=True,
+    )
+    headers_rh = await auth_headers(client, rh)
+    aprobador = await make_empleado(db, rol="empleado", email="opl_aprob1@leoni.test")
+    headers_aprob = await auth_headers(client, aprobador)
+
+    opl = await _crear_opl_api(
+        client, headers_rh, "OPL-SS-1", aprobador_id=aprobador.empleado_id
+    )
+    resp_v = await client.post(
+        f"{BASE}/{opl['id']}/versiones",
+        json={"archivo_url": "http://x/1.pdf"}, headers=headers_rh,
+    )
+    assert resp_v.status_code == 200, resp_v.text
+    resp_env = await client.post(f"{BASE}/{opl['id']}/enviar-a-revision", headers=headers_rh)
+    assert resp_env.status_code == 200, resp_env.text
+
+    # El aprobador (rol empleado, sin modulo de gestion) ve su pendiente...
+    resp_mis = await client.get(f"{BASE}/mis-aprobaciones", headers=headers_aprob)
+    assert resp_mis.status_code == 200, resp_mis.text
+    ids = [o["id"] for o in resp_mis.json()]
+    assert opl["id"] in ids
+
+    # ...y puede aprobarla.
+    resp_ap = await client.post(f"{BASE}/aprobaciones/{opl['id']}/aprobar", headers=headers_aprob)
+    assert resp_ap.status_code == 200, resp_ap.text
+    assert resp_ap.json()["estado_aprobacion"] == "aprobada"
+
+
+@pytest.mark.asyncio
+async def test_api_aprobar_ajena_403(client, db):
+    rh = await make_empleado(
+        db, rol="rh", email="opl_rh3@leoni.test",
+        modulos_rh={"opls": True}, inscrito_modulos_rh=True,
+    )
+    headers_rh = await auth_headers(client, rh)
+    aprobador = await make_empleado(db, rol="empleado", email="opl_aprob2@leoni.test")
+    otro = await make_empleado(db, rol="empleado", email="opl_otro1@leoni.test")
+    headers_otro = await auth_headers(client, otro)
+
+    opl = await _crear_opl_api(
+        client, headers_rh, "OPL-AJ-1", aprobador_id=aprobador.empleado_id
+    )
+    await client.post(
+        f"{BASE}/{opl['id']}/versiones",
+        json={"archivo_url": "http://x/1.pdf"}, headers=headers_rh,
+    )
+    await client.post(f"{BASE}/{opl['id']}/enviar-a-revision", headers=headers_rh)
+
+    # Un empleado que no es el aprobador designado -> 403 (ForbiddenError).
+    resp = await client.post(f"{BASE}/aprobaciones/{opl['id']}/aprobar", headers=headers_otro)
+    assert resp.status_code == 403, resp.text
