@@ -158,6 +158,33 @@ def banda(valor: Numero, umbral_medio: Numero, umbral_alto: Numero) -> str:
     return "alto"
 
 
+DISTRIBUCION_OBJETIVO_DEFAULT: dict[str, float] = {"alto": 20.0, "medio": 70.0, "bajo": 10.0}
+
+
+def banda_efectiva(
+    banda_calculada: Optional[str], banda_ajustada: Optional[str]
+) -> Optional[str]:
+    """Banda oficial de desempeno: la ajustada (override RH) si existe, si no
+    la calculada. `None` en ambas => sin banda (senal ausente)."""
+    return banda_ajustada or banda_calculada
+
+
+def distribucion_bandas(bandas: list[Optional[str]]) -> dict:
+    """Cuenta bandas `bajo`/`medio`/`alto` (ignora `None`) y calcula el
+    porcentaje de cada una sobre el total de bandas no nulas. `total == 0`
+    => todos los porcentajes en `0.0`."""
+    conteo = {"bajo": 0, "medio": 0, "alto": 0}
+    for b in bandas:
+        if b in conteo:
+            conteo[b] += 1
+    total = conteo["bajo"] + conteo["medio"] + conteo["alto"]
+    if total == 0:
+        pct = {"bajo": 0.0, "medio": 0.0, "alto": 0.0}
+    else:
+        pct = {k: round(v * 100.0 / total, 2) for k, v in conteo.items()}
+    return {**conteo, "total": total, "pct": pct}
+
+
 def _dec(value: Optional[float]) -> Optional[Decimal]:
     """Convierte un `float` calculado a `Decimal` (2 decimales) para los
     campos `Optional[Decimal]` de los schemas de respuesta -- evita el
