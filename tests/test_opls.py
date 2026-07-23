@@ -137,6 +137,122 @@ async def test_mis_aprobaciones_pendientes(db):
     assert len(ajenas) == 0
 
 
+# ── Huecos de cobertura (Tarea 7) ──────────────────────────────────────────
+from app.models.level_up import OPLVersion  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_aprobar_y_luego_versionar_regresa_a_borrador(db):
+    # Una OPL aprobada que recibe una version nueva vuelve a borrador
+    # (el contenido cambio) y puede re-enviarse a revision.
+    aprob = await make_empleado(db)
+    svc, opl_id = await _opl_en_revision(db, aprob.empleado_id)
+    aprobada = await svc.aprobar(opl_id, aprob.empleado_id)
+    assert aprobada.estado_aprobacion == "aprobada"
+
+    autor = await make_empleado(db)
+    tras_version = await svc.agregar_version(
+        opl_id, OPLVersionAgregar(archivo_url="http://x/2.pdf"), autor.empleado_id
+    )
+    assert tras_version.estado_aprobacion == "borrador"
+    assert tras_version.total_versiones == 2
+
+    reenviada = await svc.enviar_a_revision(opl_id)
+    assert reenviada.estado_aprobacion == "revision"
+
+
+@pytest.mark.asyncio
+async def test_regresar_y_reaprobar(db):
+    # revision -> regresar_a_borrador -> enviar_a_revision -> aprobar -> aprobada.
+    aprob = await make_empleado(db)
+    svc, opl_id = await _opl_en_revision(db, aprob.empleado_id)
+
+    regresada = await svc.regresar_a_borrador(opl_id, aprob.empleado_id)
+    assert regresada.estado_aprobacion == "borrador"
+
+    reenviada = await svc.enviar_a_revision(opl_id)
+    assert reenviada.estado_aprobacion == "revision"
+
+    aprobada = await svc.aprobar(opl_id, aprob.empleado_id)
+    assert aprobada.estado_aprobacion == "aprobada"
+
+
+@pytest.mark.asyncio
+async def test_eliminar_borra_versiones_en_cascada(db):
+    # Al eliminar la OPL, la fila de version deja de existir en la BD.
+    autor = await make_empleado(db)
+    svc = OPLService(db)
+    opl = await svc.crear(OPLCreate(codigo="OPL-CASCADE", titulo="Aa"))
+    con_version = await svc.agregar_version(
+        opl.id, OPLVersionAgregar(archivo_url="http://x/1.pdf"), autor.empleado_id
+    )
+    version_id = con_version.versiones[0].id
+    assert await db.get(OPLVersion, version_id) is not None
+
+    await svc.eliminar(opl.id)
+
+    assert await db.get(OPLVersion, version_id) is None
+
+
+@pytest.mark.asyncio
+async def test_enviar_a_revision_desde_no_borrador_409(db):
+    # Reenviar una OPL que ya esta en revision -> ConflictError.
+    aprob = await make_empleado(db)
+    svc, opl_id = await _opl_en_revision(db, aprob.empleado_id)
+    with pytest.raises(ConflictError):
+        await svc.enviar_a_revision(opl_id)
+
+
+@pytest.mark.asyncio
+async def test_enviar_a_revision_con_version_sin_aprobador(db):
+    # Con version pero sin aprobador designado -> DomainValidationError.
+    # Ejercita el branch de aprobador, que el test de "exige version y
+    # aprobador" no alcanza porque ese falla antes por falta de version.
+    autor = await make_empleado(db)
+    svc = OPLService(db)
+    opl = await svc.crear(OPLCreate(codigo="OPL-SINAP", titulo="Aa"))  # sin aprobador
+    await svc.agregar_version(
+        opl.id, OPLVersionAgregar(archivo_url="http://x/1.pdf"), autor.empleado_id
+    )
+    with pytest.raises(DomainValidationError):
+        await svc.enviar_a_revision(opl.id)
+
+
+@pytest.mark.asyncio
+async def test_mis_aprobaciones_solo_en_revision(db):
+    # Solo las OPL en 'revision' del aprobador aparecen; borrador y aprobada no.
+    aprob = await make_empleado(db)
+    autor = await make_empleado(db)
+    svc = OPLService(db)
+
+    # En revision (debe aparecer).
+    en_rev = await svc.crear(
+        OPLCreate(codigo="OPL-EST-REV", titulo="Aa", aprobador_id=aprob.empleado_id)
+    )
+    await svc.agregar_version(
+        en_rev.id, OPLVersionAgregar(archivo_url="http://x/1.pdf"), autor.empleado_id
+    )
+    await svc.enviar_a_revision(en_rev.id)
+
+    # En borrador (no debe aparecer).
+    await svc.crear(
+        OPLCreate(codigo="OPL-EST-BOR", titulo="Aa", aprobador_id=aprob.empleado_id)
+    )
+
+    # Aprobada (no debe aparecer).
+    aprobada = await svc.crear(
+        OPLCreate(codigo="OPL-EST-APR", titulo="Aa", aprobador_id=aprob.empleado_id)
+    )
+    await svc.agregar_version(
+        aprobada.id, OPLVersionAgregar(archivo_url="http://x/1.pdf"), autor.empleado_id
+    )
+    await svc.enviar_a_revision(aprobada.id)
+    await svc.aprobar(aprobada.id, aprob.empleado_id)
+
+    pendientes = await svc.mis_aprobaciones_pendientes(aprob.empleado_id)
+    assert [o.codigo for o in pendientes] == ["OPL-EST-REV"]
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Tests HTTP del router (Tarea 4): gestion RH-gated + self-service aprobador.
 # ══════════════════════════════════════════════════════════════════════════
