@@ -31,14 +31,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_rh_ui_mode, gestor_team_role_checker, role_checker
+from app.core.exceptions import ForbiddenError
 from app.models.empleados import Empleado
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas.ciclo_desempeno import (
+    CalibracionRequest,
     CicloDesempenoCerrarRequest,
     CicloDesempenoCreate,
     CicloDesempenoResponse,
     CicloDesempenoResultadoResponse,
     CicloDesempenoUpdate,
+    DistribucionResponse,
     MisResultadoResponse,
     NueveBoxResponse,
     PotencialUpdateRequest,
@@ -208,6 +211,43 @@ async def set_potencial(
         current_user_id=current_user.empleado_id,
         empleado_ids_scope=scope,
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Calibración — ajuste directo de banda (solo RH global) + distribución
+# ══════════════════════════════════════════════════════════════════════════
+@router.put(
+    "/ciclos/{ciclo_id}/calibracion",
+    response_model=list[CicloDesempenoResultadoResponse],
+)
+async def calibrar_ciclo(
+    ciclo_id: int,
+    data: CalibracionRequest,
+    current_user: Empleado = Depends(_gestion_or_equipo()),
+    rh_ui_mode: Optional[str] = Depends(get_rh_ui_mode),
+    db: AsyncSession = Depends(get_db),
+    svc: CicloDesempenoService = Depends(_svc),
+):
+    """Calibración es potestad de RH corporativo (scope global). Un jefe de
+    equipo (scope != None) recibe 403."""
+    scope = await _resolve_scope(current_user, rh_ui_mode, db)
+    if scope is not None:
+        raise ForbiddenError("La calibracion es exclusiva de RH (alcance global)")
+    return await svc.ajustar_banda(
+        ciclo_id, data.items, current_user_id=current_user.empleado_id
+    )
+
+
+@router.get("/ciclos/{ciclo_id}/distribucion", response_model=DistribucionResponse)
+async def distribucion_ciclo(
+    ciclo_id: int,
+    current_user: Empleado = Depends(_gestion_or_equipo()),
+    rh_ui_mode: Optional[str] = Depends(get_rh_ui_mode),
+    db: AsyncSession = Depends(get_db),
+    svc: CicloDesempenoService = Depends(_svc),
+):
+    scope = await _resolve_scope(current_user, rh_ui_mode, db)
+    return await svc.distribucion_ciclo(ciclo_id, empleado_ids_scope=scope)
 
 
 # ══════════════════════════════════════════════════════════════════════════

@@ -67,6 +67,84 @@ components:
       description: Clave de API para terminales de comedor
 
   schemas:
+    # ── Ciclo de Desempeño / Calibración ──────────────
+    BandaAjusteItem:
+      type: object
+      required: [empleado_id]
+      properties:
+        empleado_id:
+          type: integer
+        banda_ajustada:
+          type: [string, "null"]
+          enum: [bajo, medio, alto, null]
+          description: Override de banda; null revierte el ajuste
+        motivo:
+          type: [string, "null"]
+          description: Obligatorio (no vacío) cuando banda_ajustada no es null
+
+    CalibracionRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/BandaAjusteItem" }
+
+    DistribucionBanda:
+      type: object
+      properties:
+        bajo: { type: integer, default: 0 }
+        medio: { type: integer, default: 0 }
+        alto: { type: integer, default: 0 }
+        total: { type: integer, default: 0 }
+        pct:
+          type: object
+          additionalProperties: { type: number }
+
+    DistribucionResponse:
+      type: object
+      required: [ciclo_id, actual, objetivo, desviacion]
+      properties:
+        ciclo_id:
+          type: integer
+        actual: { $ref: "#/components/schemas/DistribucionBanda" }
+        objetivo:
+          type: object
+          additionalProperties: { type: number }
+        desviacion:
+          type: object
+          additionalProperties: { type: number }
+
+    CicloDesempenoResultadoResponse:
+      type: object
+      required: [id, ciclo_id, empleado_id]
+      properties:
+        id: { type: integer }
+        ciclo_id: { type: integer }
+        empleado_id: { type: integer }
+        empleado_nombre: { type: [string, "null"] }
+        cumplimiento_metas: { type: [number, "null"] }
+        calificacion_360_raw: { type: [number, "null"] }
+        calificacion_360_norm: { type: [number, "null"] }
+        escala_min: { type: [number, "null"] }
+        escala_max: { type: [number, "null"] }
+        calificacion_desempeno: { type: [number, "null"] }
+        peso_metas_efectivo: { type: [number, "null"] }
+        peso_competencias_efectivo: { type: [number, "null"] }
+        potencial: { type: [number, "null"] }
+        banda_desempeno: { type: [string, "null"], enum: [bajo, medio, alto, null] }
+        banda_potencial: { type: [string, "null"], enum: [bajo, medio, alto, null] }
+        segmento_9box: { type: [string, "null"] }
+        banda_desempeno_ajustada: { type: [string, "null"], enum: [bajo, medio, alto, null] }
+        banda_desempeno_efectiva: { type: [string, "null"], enum: [bajo, medio, alto, null] }
+        banda_ajuste_motivo: { type: [string, "null"] }
+        banda_ajustada_por_id: { type: [integer, "null"] }
+        banda_ajustada_at: { type: [string, "null"], format: date-time }
+        potencial_capturado_por_id: { type: [integer, "null"] }
+        potencial_capturado_at: { type: [string, "null"], format: date-time }
+        snapshot_at: { type: [string, "null"], format: date-time }
+
     # ── Auth ──────────────────────────────────────────
     TokenResponse:
       type: object
@@ -14092,6 +14170,53 @@ paths:
         "403": { description: Empleado fuera del scope del jefe }
         "404": { description: Ciclo o resultado de empleado no encontrado }
         "409": { description: Solo se puede capturar potencial en un ciclo activo }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/calibracion:
+    put:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Calibrar bandas de desempeño (override directo, solo RH global)
+      description: >
+        Aplica overrides de banda de desempeño por empleado (calibración
+        corporativa). Exclusivo de RH con alcance global: un jefe de equipo
+        (scope != None) recibe 403. Por item, `banda_ajustada=null` revierte
+        el override; una banda válida requiere `motivo` no vacío. Recompone
+        `segmento_9box` con la banda efectiva. Exige ciclo activo.
+      operationId: ciclo_desempeno_calibrar_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CalibracionRequest" }
+      responses:
+        "200":
+          description: Resultados con banda ajustada/efectiva y segmento recompuestos
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/CicloDesempenoResultadoResponse" } }
+        "403": { description: La calibración es exclusiva de RH (alcance global) }
+        "404": { description: Ciclo o resultado de empleado no encontrado }
+        "409": { description: Solo se puede calibrar un ciclo activo }
+        "422": { description: Banda inválida o motivo vacío al fijar un override }
+  /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/distribucion:
+    get:
+      tags: [Talento - Ciclo de Desempeño]
+      summary: Distribución de bandas efectivas vs. objetivo (scoping de equipo)
+      description: >
+        Cuenta las bandas de desempeño efectivas del ciclo (scope aplicado)
+        y las compara con la distribución objetivo (config del ciclo o
+        default bajo/medio/alto). `desviacion` = pct actual - objetivo por
+        banda.
+      operationId: ciclo_desempeno_distribucion_ciclo
+      security: [ { BearerAuth: [] } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      responses:
+        "200":
+          description: Distribución actual, objetivo y desviación
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DistribucionResponse" }
+        "404": { description: Ciclo no encontrado }
   /api/v1/ciclo-desempeno/ciclos/{ciclo_id}/export/excel:
     get:
       tags: [Talento - Ciclo de Desempeño]

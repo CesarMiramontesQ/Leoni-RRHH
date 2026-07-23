@@ -14,6 +14,7 @@ from app.services.ciclo_desempeno_service import (
     banda_efectiva,
     distribucion_bandas,
 )
+from tests.conftest import auth_headers, make_empleado
 
 
 def test_modelo_resultado_tiene_columnas_de_ajuste():
@@ -193,3 +194,62 @@ async def test_distribucion_ciclo_cuenta_bandas_efectivas(db):
     assert dist.actual.bajo == 0  # la calculada era bajo, pero cuenta la efectiva (alto)
     assert dist.objetivo["alto"] == 20.0
     assert dist.desviacion["alto"] == round(100.0 - 20.0, 2)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Tests de API (HTTP) — endpoints PUT /calibracion y GET /distribucion.
+# Montaje de auth/ciclo reproducido de tests/test_ciclo_desempeno_api.py:
+# RH global = usuario rol="rh" con modulo 'ciclo-desempeno' (scope None);
+# jefe = supervisor (scope de equipo != None -> 403 en calibracion global).
+# El ciclo activo con resultado se arma via ORM (_ciclo_activo_con_resultado),
+# mismo patron que los tests de service de arriba.
+# ══════════════════════════════════════════════════════════════════════════
+BASE = "/api/v1/ciclo-desempeno"
+
+
+@pytest.mark.asyncio
+async def test_api_calibracion_admin_rh_200(client, db):
+    rh = await make_empleado(
+        db, rol="rh", modulos_rh={"ciclo-desempeno": True}, email="calibrh1@leoni.test"
+    )
+    headers_admin_rh = await auth_headers(client, rh)
+    ciclo = await _ciclo_activo_con_resultado(db, banda="medio")
+
+    resp = await client.put(
+        f"{BASE}/ciclos/{ciclo.id}/calibracion",
+        json={"items": [{"empleado_id": 10, "banda_ajustada": "alto", "motivo": "corrige sesgo"}]},
+        headers=headers_admin_rh,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()[0]["banda_desempeno_efectiva"] == "alto"
+
+
+@pytest.mark.asyncio
+async def test_api_calibracion_jefe_equipo_403(client, db):
+    jefe = await make_empleado(db, rol="supervisor", email="calibjefe1@leoni.test")
+    headers_jefe = await auth_headers(client, jefe)
+    ciclo = await _ciclo_activo_con_resultado(db, banda="medio")
+
+    resp = await client.put(
+        f"{BASE}/ciclos/{ciclo.id}/calibracion",
+        json={"items": [{"empleado_id": 10, "banda_ajustada": "alto", "motivo": "x"}]},
+        headers=headers_jefe,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_api_distribucion_admin_rh_200(client, db):
+    rh = await make_empleado(
+        db, rol="rh", modulos_rh={"ciclo-desempeno": True}, email="calibrh2@leoni.test"
+    )
+    headers_admin_rh = await auth_headers(client, rh)
+    ciclo = await _ciclo_activo_con_resultado(db, banda="medio")
+
+    resp = await client.get(
+        f"{BASE}/ciclos/{ciclo.id}/distribucion",
+        headers=headers_admin_rh,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "actual" in body and "objetivo" in body and "desviacion" in body
