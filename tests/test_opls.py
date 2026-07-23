@@ -253,6 +253,26 @@ async def test_mis_aprobaciones_solo_en_revision(db):
     assert [o.codigo for o in pendientes] == ["OPL-EST-REV"]
 
 
+@pytest.mark.asyncio
+async def test_listar_estado_invalido_devuelve_lista_vacia(db):
+    # Un valor de estado que no existe en el enum no debe lanzar (500 en Postgres);
+    # debe devolver lista vacia porque no hay OPLs en un estado inexistente.
+    svc = OPLService(db)
+    await svc.crear(OPLCreate(codigo="OPL-FILTRO-1", titulo="Aa"))
+
+    resultado = await svc.listar(estado="foo")
+    assert resultado == []
+
+
+@pytest.mark.asyncio
+async def test_listar_estado_valido_filtra_correctamente(db):
+    svc = OPLService(db)
+    await svc.crear(OPLCreate(codigo="OPL-FILTRO-2", titulo="Aa"))
+
+    resultado = await svc.listar(estado="borrador")
+    assert [o.codigo for o in resultado] == ["OPL-FILTRO-2"]
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Tests HTTP del router (Tarea 4): gestion RH-gated + self-service aprobador.
 # ══════════════════════════════════════════════════════════════════════════

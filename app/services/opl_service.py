@@ -13,7 +13,7 @@ from app.core.exceptions import (
     ForbiddenError,
     NotFoundError,
 )
-from app.models.level_up import OPL, OPLVersion
+from app.models.level_up import OPL, EstadoAprobacionOPL, OPLVersion
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.schemas.level_up import (
     OPLConVersionesResponse,
@@ -87,6 +87,11 @@ class OPLService:
         )
 
     async def listar(self, codigo=None, estado=None, proceso=None, maquina=None):
+        if estado and estado not in {e.value for e in EstadoAprobacionOPL}:
+            # Estado fuera del enum: no existen OPLs en ese estado.
+            # Evita construir la query con un valor invalido (500 en Postgres
+            # con columna Enum nativa; ver revision final del modulo OPLs).
+            return []
         stmt = select(OPL).options(selectinload(OPL.versiones))
         if codigo:
             stmt = stmt.where(OPL.codigo.ilike(f"%{codigo}%"))
