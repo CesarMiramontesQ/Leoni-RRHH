@@ -47,7 +47,7 @@ export interface SugerenciaUpdatePayload {
   estado?: SugerenciaEstado;
 }
 
-// ── Helper de error (mismo patrón que el resto de api clients) ───────────────
+// ── Helper de error (mismo patron que el resto de api clients) ───────────────
 
 async function readErrorDetail(res: Response): Promise<string> {
   const raw = await res.text();
