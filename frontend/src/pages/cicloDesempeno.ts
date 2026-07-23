@@ -21,6 +21,7 @@ import {
   alertError,
   alertInfo,
   alertSuccess,
+  alertWarning,
   BTN_DANGER,
   BTN_GHOST,
   BTN_PRIMARY,
@@ -46,18 +47,22 @@ import { listCiclos as listMetaCiclos, type MetaCicloResponse } from "../api/met
 import { fetchEval360Campanas, type CampanaApi } from "../api/evaluacion360.ts";
 import {
   activarCicloDesempeno,
+  calibrarCiclo,
   cerrarCicloDesempeno,
   createCicloDesempeno,
   descargarCicloDesempenoExcel,
   get9BoxCiclo,
+  getDistribucionCiclo,
   getResultadosCiclo,
   listCiclosDesempeno,
   setPotencialCiclo,
   updateCicloDesempeno,
+  type BandaAjusteItem,
   type CeldaResponse,
   type CicloDesempenoBanda,
   type CicloDesempenoResponse,
   type CicloDesempenoResultadoResponse,
+  type DistribucionResponse,
   type NueveBoxResponse,
   type PotencialUpdateItem,
 } from "../api/cicloDesempeno.ts";
@@ -85,6 +90,7 @@ const CICLO_ADMIN_ACTIONS = new Set([
   "ciclo-activar",
   "ciclo-cerrar",
   "ciclo-cerrar-forzar",
+  "calibracion-guardar",
 ]);
 
 type Tab = "ciclos" | "resultados";
@@ -92,6 +98,17 @@ type Tab = "ciclos" | "resultados";
 /** Orden de filas (vertical, alto arriba) y columnas (horizontal) de la matriz 9-Box. */
 const FILAS_DESEMPENO: readonly CicloDesempenoBanda[] = ["alto", "medio", "bajo"];
 const COLUMNAS_POTENCIAL: readonly CicloDesempenoBanda[] = ["bajo", "medio", "alto"];
+
+/**
+ * Relleno de la barra de distribución por banda. Reutiliza los mismos tonos
+ * semánticos del punto de las badges (`badgeApproved`/`badgePending`/
+ * `badgeRejected` en uiTokens): alto=positivo, medio=neutro, bajo=negativo.
+ */
+const BANDA_BAR_CLASS: Record<CicloDesempenoBanda, string> = {
+  alto: "bg-emerald-500",
+  medio: "bg-amber-400",
+  bajo: "bg-red-400",
+};
 
 interface CicloForm {
   nombre: string;
@@ -177,6 +194,17 @@ interface State {
   potencialSaving: boolean;
   potencialError: string | null;
   potencialMessage: string | null;
+
+  /** Calibración (solo RH global): distribución + ajuste directo de banda. */
+  distribucion: DistribucionResponse | null;
+  distribucionLoading: boolean;
+  /** Banda ajustada en edición por `empleado_id`: "" = sin ajuste (reversión). */
+  bandaAjustadaEdits: Record<number, string>;
+  /** Motivo del ajuste en edición por `empleado_id`. */
+  motivoEdits: Record<number, string>;
+  calibracionSaving: boolean;
+  calibracionError: string | null;
+  calibracionMessage: string | null;
 }
 
 let mountAbort: AbortController | null = null;
@@ -241,6 +269,14 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     potencialSaving: false,
     potencialError: null,
     potencialMessage: null,
+
+    distribucion: null,
+    distribucionLoading: false,
+    bandaAjustadaEdits: {},
+    motivoEdits: {},
+    calibracionSaving: false,
+    calibracionError: null,
+    calibracionMessage: null,
   };
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
@@ -273,20 +309,31 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     const cicloId = state.cicloSeleccionadoId;
     state.resultadosLoading = true;
     state.nueveBoxLoading = true;
+    if (state.esGestionRh) state.distribucionLoading = true;
     render();
     try {
-      const [resultados, nueveBox] = await Promise.all([getResultadosCiclo(cicloId), get9BoxCiclo(cicloId)]);
+      const [resultados, nueveBox, distribucion] = await Promise.all([
+        getResultadosCiclo(cicloId),
+        get9BoxCiclo(cicloId),
+        state.esGestionRh ? getDistribucionCiclo(cicloId) : Promise.resolve(null),
+      ]);
       state.resultados = resultados;
       state.nueveBox = nueveBox;
+      state.distribucion = distribucion;
       state.resultadosError = null;
       state.potencialEdits = Object.fromEntries(
         resultados.map((r) => [r.empleado_id, r.potencial != null ? String(r.potencial) : ""]),
       );
+      state.bandaAjustadaEdits = Object.fromEntries(
+        resultados.map((r) => [r.empleado_id, r.banda_desempeno_ajustada ?? ""]),
+      );
+      state.motivoEdits = Object.fromEntries(resultados.map((r) => [r.empleado_id, r.banda_ajuste_motivo ?? ""]));
     } catch (err: unknown) {
       state.resultadosError = (err as Error)?.message ?? "No se pudieron cargar los resultados";
     }
     state.resultadosLoading = false;
     state.nueveBoxLoading = false;
+    state.distribucionLoading = false;
     render();
   }
 
@@ -628,6 +675,130 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     </section>`;
   }
 
+  // ── Render: Calibración (solo RH global) ─────────────────────────────────────
+
+  /**
+   * Barra de distribución actual vs. objetivo por banda (orden alto→medio→bajo).
+   * El relleno reutiliza los tonos semánticos de las badges (emerald/amber/red);
+   * no se introducen colores nuevos.
+   */
+  function renderDistribucionBar(): string {
+    if (state.distribucionLoading) {
+      return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-12`, label: "Cargando distribución…" });
+    }
+    const d = state.distribucion;
+    if (!d) return "";
+    const filas = FILAS_DESEMPENO.map((b) => {
+      const count = d.actual[b] ?? 0;
+      const pctActual = d.actual.pct[b] ?? 0;
+      const objetivo = d.objetivo[b] ?? 0;
+      const desv = d.desviacion[b] ?? 0;
+      const anchoActual = Math.max(0, Math.min(100, pctActual));
+      const posObjetivo = Math.max(0, Math.min(100, objetivo));
+      const desvStr = `${desv > 0 ? "+" : ""}${desv.toFixed(1)} pp`;
+      return `
+      <div class="flex flex-col gap-1.5">
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+          <span class="flex items-center gap-2">${bandaBadge(b)}<span class="tabular-nums text-text-secondary">${count} colab.</span></span>
+          <span class="tabular-nums text-text-muted">Actual ${pctActual.toFixed(1)}% · Objetivo ${objetivo.toFixed(1)}% · Desv. ${desvStr}</span>
+        </div>
+        <div class="relative h-2 w-full rounded-full bg-slate-100">
+          <div class="absolute inset-y-0 left-0 rounded-full ${BANDA_BAR_CLASS[b]}" style="width:${anchoActual}%"></div>
+          <div class="absolute inset-y-[-3px] w-px bg-slate-500/70" style="left:${posObjetivo}%" title="Objetivo ${objetivo.toFixed(1)}%"></div>
+        </div>
+      </div>`;
+    }).join("");
+    return `
+    <div class="${RH_LISTADO_SURFACE} p-4">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm font-semibold text-text-primary">Distribución de bandas</p>
+        <p class="text-xs text-text-muted">Relleno = actual · marca = objetivo · ${d.actual.total} colaborador(es)</p>
+      </div>
+      <div class="flex flex-col gap-3">${filas}</div>
+    </div>`;
+  }
+
+  function renderCalibracionRow(r: CicloDesempenoResultadoResponse): string {
+    const bandaSel = state.bandaAjustadaEdits[r.empleado_id] ?? "";
+    const motivo = state.motivoEdits[r.empleado_id] ?? "";
+    const opciones = ["", "bajo", "medio", "alto"]
+      .map((v) => {
+        const label = v === "" ? "Sin ajuste (usar cálculo)" : BANDA_LABELS[v as CicloDesempenoBanda];
+        return `<option value="${v}"${bandaSel === v ? " selected" : ""}>${escapeHtml(label)}</option>`;
+      })
+      .join("");
+    const ajustadoPor =
+      r.banda_desempeno_ajustada != null
+        ? `<p class="text-xs text-text-muted">Ajustó #${r.banda_ajustada_por_id ?? "—"}</p>
+           <p class="text-xs text-text-muted">${escapeHtml(fmtFechaCiclo(r.banda_ajustada_at))}</p>`
+        : `<span class="text-xs text-text-muted">—</span>`;
+    const calculada = r.banda_desempeno ? BANDA_LABELS[r.banda_desempeno] : "sin dato";
+    const avisoOverride =
+      r.banda_desempeno_ajustada != null
+        ? `<tr class="border-b border-slate-100"><td colspan="5" class="px-3 pb-3 pt-0">
+            ${alertWarning(`Banda ajustada manualmente (calculada: ${calculada}).`, "note")}
+          </td></tr>`
+        : "";
+    return `
+    <tr class="border-b border-slate-100 last:border-b-0">
+      <td class="px-3 py-3 align-middle">
+        <p class="font-semibold text-text-primary">${escapeHtml(r.empleado_nombre ?? `Empleado #${r.empleado_id}`)}</p>
+      </td>
+      <td class="px-3 py-3 align-middle">${bandaBadge(r.banda_desempeno)}</td>
+      <td class="px-3 py-3 align-middle">
+        <div class="relative w-40">
+          <select data-banda-ajustada-empleado="${r.empleado_id}" class="${FORM_SELECT}">${opciones}</select>
+          ${SELECT_CHEVRON}
+        </div>
+      </td>
+      <td class="px-3 py-3 align-middle">
+        <input type="text" data-motivo-empleado="${r.empleado_id}" value="${escapeHtml(motivo)}" maxlength="500" placeholder="Motivo del ajuste" class="${FIELD_INPUT} w-56" />
+      </td>
+      <td class="px-3 py-3 align-middle">${ajustadoPor}</td>
+    </tr>
+    ${avisoOverride}`;
+  }
+
+  function renderCalibracion(): string {
+    if (!state.esGestionRh) return "";
+    if (state.resultadosLoading) return "";
+    if (state.resultadosError) return "";
+    const resultados = state.resultados ?? [];
+    return `
+    <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-base font-bold text-text-primary">Calibración</h2>
+        <p class="text-sm text-text-muted">Ajusta manualmente la banda de desempeño sobre el cálculo automático. Dejar “Sin ajuste” revierte al valor calculado.</p>
+      </div>
+      ${renderDistribucionBar()}
+      ${state.calibracionError ? alertError(state.calibracionError) : ""}
+      ${state.calibracionMessage ? alertSuccess(state.calibracionMessage) : ""}
+      ${
+        resultados.length === 0
+          ? renderEmptyState({ title: "Sin colaboradores para calibrar", subtitle: "Activa el ciclo para poblar los resultados." })
+          : `<section class="${RH_LISTADO_SURFACE} overflow-x-auto">
+              <table class="min-w-[820px] w-full text-left">
+                <thead class="${RH_TABLE_HEAD}">
+                  <tr>
+                    <th class="px-3 py-2.5">Empleado</th>
+                    <th class="px-3 py-2.5">Banda calculada</th>
+                    <th class="px-3 py-2.5">Banda ajustada</th>
+                    <th class="px-3 py-2.5">Motivo</th>
+                    <th class="px-3 py-2.5">Ajuste</th>
+                  </tr>
+                </thead>
+                <tbody>${resultados.map(renderCalibracionRow).join("")}</tbody>
+              </table>
+            </section>
+            <div class="flex justify-end">
+              <button type="button" data-action="calibracion-guardar" class="${BTN_PRIMARY}" ${state.calibracionSaving ? "disabled" : ""}>
+                ${state.calibracionSaving ? "Guardando…" : "Guardar calibración"}
+              </button>
+            </div>`
+      }
+    </div>`;
+  }
+
   function renderResultadosTab(): string {
     if (state.ciclosLoading) {
       return skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando ciclos…" });
@@ -662,6 +833,7 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
             </div>`
           : ""
       }
+      ${state.esGestionRh ? `<div class="mt-2 border-t border-slate-200/70 pt-4">${renderCalibracion()}</div>` : ""}
     </div>`;
   }
 
@@ -889,6 +1061,54 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     }
   }
 
+  // ── Acciones: calibración (solo RH global) ───────────────────────────────────
+
+  async function onGuardarCalibracion(): Promise<void> {
+    if (!state.esGestionRh || state.cicloSeleccionadoId == null || state.calibracionSaving) return;
+    const resultados = state.resultados ?? [];
+    const items: BandaAjusteItem[] = [];
+    for (const r of resultados) {
+      const loadedBanda = r.banda_desempeno_ajustada ?? "";
+      const loadedMotivo = (r.banda_ajuste_motivo ?? "").trim();
+      const curBanda = state.bandaAjustadaEdits[r.empleado_id] ?? "";
+      const curMotivo = (state.motivoEdits[r.empleado_id] ?? "").trim();
+      // Fila modificada = banda cambiada, o (con ajuste vigente) motivo editado.
+      const bandaCambio = curBanda !== loadedBanda;
+      const motivoCambio = curBanda !== "" && curMotivo !== loadedMotivo;
+      if (!bandaCambio && !motivoCambio) continue;
+      if (curBanda !== "" && !curMotivo) {
+        state.calibracionError = `Captura el motivo del ajuste de ${r.empleado_nombre ?? `Empleado #${r.empleado_id}`}`;
+        state.calibracionMessage = null;
+        render();
+        return;
+      }
+      items.push({
+        empleado_id: r.empleado_id,
+        banda_ajustada: curBanda === "" ? null : (curBanda as CicloDesempenoBanda),
+        motivo: curBanda === "" ? null : curMotivo,
+      });
+    }
+    if (items.length === 0) {
+      state.calibracionError = "No hay cambios de calibración que guardar.";
+      state.calibracionMessage = null;
+      render();
+      return;
+    }
+    state.calibracionSaving = true;
+    state.calibracionError = null;
+    render();
+    try {
+      await calibrarCiclo(state.cicloSeleccionadoId, items);
+      state.calibracionSaving = false;
+      state.calibracionMessage = "Calibración guardada.";
+      await loadResultadosYBox();
+    } catch (err: unknown) {
+      state.calibracionSaving = false;
+      state.calibracionError = (err as Error)?.message ?? "No se pudo guardar la calibración";
+      render();
+    }
+  }
+
   // ── Delegación de eventos ─────────────────────────────────────────────────────
 
   function handleClick(e: Event): void {
@@ -987,6 +1207,9 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
       case "potencial-guardar":
         void onGuardarPotencial();
         return;
+      case "calibracion-guardar":
+        void onGuardarCalibracion();
+        return;
       default:
         return;
     }
@@ -1010,6 +1233,10 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
       form.eval360CampanaId = t.value;
       return;
     }
+    if (t instanceof HTMLSelectElement && t.dataset.bandaAjustadaEmpleado != null) {
+      state.bandaAjustadaEdits[Number(t.dataset.bandaAjustadaEmpleado)] = t.value;
+      return;
+    }
   }
 
   function handleInput(e: Event): void {
@@ -1027,6 +1254,12 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     const potencialEmpleadoId = t.dataset.potencialEmpleado;
     if (potencialEmpleadoId != null) {
       state.potencialEdits[Number(potencialEmpleadoId)] = t.value;
+      return;
+    }
+
+    const motivoEmpleadoId = t.dataset.motivoEmpleado;
+    if (motivoEmpleadoId != null) {
+      state.motivoEdits[Number(motivoEmpleadoId)] = t.value;
       return;
     }
   }
