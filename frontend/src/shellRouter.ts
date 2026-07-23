@@ -44,10 +44,10 @@ import {
   mountLevelUpDashboard,
   mountCursos,
   mountOPLs,
-  mountEvidencias,
   mountSugerencias,
   mountEncuestas,
 } from "./pages/levelUp.ts";
+import { mountEvidencias } from "./pages/evidencias.ts";
 import { mountLevelUpHub } from "./pages/levelUpHub.ts";
 import { mountLaboralesHub } from "./pages/laboralesHub.ts";
 import { mountComedorHub } from "./pages/comedorHub.ts";
@@ -346,7 +346,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
     if (h.startsWith("#/evidencias")) {
-      mountEvidencias(container);
+      mountEvidencias(container, signal);
       return;
     }
     if (h.startsWith("#/sugerencias")) {
