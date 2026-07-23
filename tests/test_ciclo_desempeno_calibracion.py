@@ -14,3 +14,11 @@ def test_modelo_resultado_tiene_columnas_de_ajuste():
     assert r.banda_ajuste_motivo == "corrige sesgo del jefe"
     assert r.banda_ajustada_por_id == 99
     assert r.banda_ajustada_at is not None
+
+    cols = set(CicloDesempenoResultado.__table__.columns.keys())
+    assert {
+        "banda_desempeno_ajustada",
+        "banda_ajuste_motivo",
+        "banda_ajustada_por_id",
+        "banda_ajustada_at",
+    } <= cols
