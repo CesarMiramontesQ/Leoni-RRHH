@@ -146,3 +146,29 @@ export async function quitarFirmante(firmaId: number): Promise<EvidenciaResponse
   if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
   return res.json();
 }
+
+// ── Self-service (firmante en sesión) ────────────────────────────────────────
+
+/** Espejo de `FirmarRequest`. El id se toma del token; solo firma/rechaza. */
+export interface FirmarPayload {
+  estado: Extract<FirmaEstado, "firmada" | "rechazada">;
+  comentario?: string | null;
+}
+
+/** Evidencias que el usuario en sesión debe firmar (su fila `firmas[]` está pendiente). */
+export async function getMisFirmas(): Promise<EvidenciaResponse[]> {
+  const res = await fetchWithAuth(`${BASE}/mis-firmas`);
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+  return res.json();
+}
+
+/** Firma o rechaza la fila de firma propia (`firmaId`); devuelve la evidencia actualizada. */
+export async function firmar(firmaId: number, payload: FirmarPayload): Promise<EvidenciaResponse> {
+  const res = await fetchWithAuth(`${BASE}/firmas/${firmaId}/firmar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+  return res.json();
+}

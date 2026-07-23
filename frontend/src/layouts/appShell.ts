@@ -136,6 +136,7 @@ export type ShellNavKey =
   | "historial-objetivo"
   | "mis-encuestas"
   | "mis-encuestas-rh"
+  | "mis-firmas"
   | "mis-metas"
   | "mi-desempeno"
   | "mis-evaluaciones"

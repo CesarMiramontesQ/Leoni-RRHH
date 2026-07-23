@@ -353,6 +353,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountSugerencias(container, signal);
       return;
     }
+    if (h.startsWith("#/mis-firmas")) {
+      void import("./pages/misFirmas.ts").then(({ mountMisFirmas }) => {
+        mountMisFirmas(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "mis-firmas", "Mis firmas", err));
+      return;
+    }
     if (h.startsWith("#/mis-encuestas")) {
       mountMisEncuestas(container, signal);
       return;
