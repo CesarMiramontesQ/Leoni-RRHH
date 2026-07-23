@@ -6063,6 +6063,61 @@ components:
         page: { type: integer }
         page_size: { type: integer }
 
+    # ── Motor de Sugerencias de Capacitación ──────────────────────────────────
+    SugerenciaCapacitacionCreate:
+      type: object
+      required: [titulo]
+      properties:
+        titulo: { type: string, minLength: 2, maxLength: 255 }
+        justificacion: { type: string, nullable: true }
+        brecha_pct: { type: number, format: float, minimum: 0, maximum: 100, nullable: true }
+        adopcion_sector_pct: { type: number, format: float, minimum: 0, maximum: 100, nullable: true }
+        capacidades_afectadas: { type: array, items: { type: string }, nullable: true }
+        areas_afectadas: { type: array, items: { type: string }, nullable: true }
+        personas_alcanzables: { type: integer, minimum: 0, nullable: true }
+        duracion_sugerida: { type: string, nullable: true }
+        inversion_estimada: { type: number, format: float, minimum: 0, nullable: true }
+        proveedor_sugerido: { type: string, nullable: true }
+        curso_id: { type: integer, nullable: true }
+        prioridad: { type: integer, minimum: 1, maximum: 5, default: 3 }
+    SugerenciaCapacitacionUpdate:
+      type: object
+      properties:
+        titulo: { type: string, minLength: 2, maxLength: 255, nullable: true }
+        justificacion: { type: string, nullable: true }
+        curso_id: { type: integer, nullable: true }
+        prioridad: { type: integer, minimum: 1, maximum: 5, nullable: true }
+        estado:
+          type: string
+          enum: [activa, aprobada, pospuesta, descartada]
+          nullable: true
+    SugerenciaCapacitacionResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        titulo: { type: string }
+        justificacion: { type: string, nullable: true }
+        brecha_pct: { type: number, format: float, nullable: true }
+        adopcion_sector_pct: { type: number, format: float, nullable: true }
+        capacidades_afectadas: { type: array, items: { type: string }, nullable: true }
+        areas_afectadas: { type: array, items: { type: string }, nullable: true }
+        personas_alcanzables: { type: integer, nullable: true }
+        duracion_sugerida: { type: string, nullable: true }
+        inversion_estimada: { type: number, format: float, nullable: true }
+        proveedor_sugerido: { type: string, nullable: true }
+        curso_id: { type: integer, nullable: true }
+        curso_nombre: { type: string, nullable: true }
+        prioridad: { type: integer }
+        estado: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    GenerarDesdeBrechasRequest:
+      type: object
+      required: [area_id]
+      properties:
+        area_id: { type: integer }
+        umbral_brecha: { type: number, format: float, minimum: 0, maximum: 100, default: 0 }
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -12975,6 +13030,127 @@ paths:
           description: Ya respondiste la encuesta de esta sesión
         "422":
           description: Encuesta no activa o empleado no asistente
+
+  # ── Motor de Sugerencias de Capacitación (Level Up) ──────────────────────────
+  /api/v1/level-up/sugerencias:
+    get:
+      tags: [Level Up - Sugerencias]
+      summary: Listar sugerencias de capacitación (módulo 'sugerencias')
+      operationId: listar_sugerencias
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: estado
+          in: query
+          schema: { type: string }
+        - name: prioridad
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Lista de sugerencias
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SugerenciaCapacitacionResponse"
+        "403":
+          description: Requiere el módulo 'sugerencias'
+    post:
+      tags: [Level Up - Sugerencias]
+      summary: Crear sugerencia de capacitación
+      operationId: crear_sugerencia
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SugerenciaCapacitacionCreate"
+      responses:
+        "201":
+          description: Sugerencia creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SugerenciaCapacitacionResponse"
+        "403":
+          description: Requiere el módulo 'sugerencias'
+        "404":
+          description: Curso inexistente
+  /api/v1/level-up/sugerencias/{sugerencia_id}:
+    put:
+      tags: [Level Up - Sugerencias]
+      summary: Actualizar sugerencia de capacitación
+      operationId: actualizar_sugerencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sugerencia_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SugerenciaCapacitacionUpdate"
+      responses:
+        "200":
+          description: Sugerencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SugerenciaCapacitacionResponse"
+        "403":
+          description: Requiere el módulo 'sugerencias'
+        "404":
+          description: Sugerencia o curso inexistente
+    delete:
+      tags: [Level Up - Sugerencias]
+      summary: Eliminar sugerencia de capacitación
+      operationId: eliminar_sugerencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sugerencia_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Sugerencia eliminada
+        "403":
+          description: Requiere el módulo 'sugerencias'
+        "404":
+          description: Sugerencia inexistente
+  /api/v1/level-up/sugerencias/generar-desde-brechas:
+    post:
+      tags: [Level Up - Sugerencias]
+      summary: Generar sugerencias desde las brechas de un área
+      operationId: generar_sugerencias_desde_brechas
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerarDesdeBrechasRequest"
+      responses:
+        "200":
+          description: Sugerencias creadas (solo las nuevas)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SugerenciaCapacitacionResponse"
+        "403":
+          description: Requiere el módulo 'sugerencias'
 
   # ── Evaluación 360 (Level Up) ────────────────────────────────────────────────
   /api/v1/evaluacion-360/dashboard:

@@ -417,6 +417,7 @@ class SugerenciaCapacitacionCreate(BaseModel):
     duracion_sugerida: Optional[str] = None
     inversion_estimada: Optional[float] = Field(None, ge=0)
     proveedor_sugerido: Optional[str] = None
+    curso_id: Optional[int] = None
     prioridad: int = Field(default=3, ge=1, le=5)
 
 
@@ -424,6 +425,7 @@ class SugerenciaCapacitacionUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
     titulo: Optional[str] = Field(None, min_length=2, max_length=255)
     justificacion: Optional[str] = None
+    curso_id: Optional[int] = None
     prioridad: Optional[int] = Field(None, ge=1, le=5)
     estado: Optional[Literal["activa", "aprobada", "pospuesta", "descartada"]] = None
 
@@ -441,10 +443,17 @@ class SugerenciaCapacitacionResponse(BaseModel):
     duracion_sugerida: Optional[str] = None
     inversion_estimada: Optional[float] = None
     proveedor_sugerido: Optional[str] = None
+    curso_id: Optional[int] = None
+    curso_nombre: Optional[str] = None
     prioridad: int
     estado: str
     created_at: datetime
     updated_at: datetime
+
+
+class GenerarDesdeBrechasRequest(BaseModel):
+    area_id: int
+    umbral_brecha: float = Field(default=0, ge=0, le=100)
 
 
 # ── PlanDesarrollo ───────────────────────────────────────────────────────────

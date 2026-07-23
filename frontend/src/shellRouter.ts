@@ -350,7 +350,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
     if (h.startsWith("#/sugerencias")) {
-      mountSugerencias(container);
+      mountSugerencias(container, signal);
       return;
     }
     if (h.startsWith("#/mis-encuestas")) {

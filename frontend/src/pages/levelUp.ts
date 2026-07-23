@@ -13,7 +13,10 @@ import {
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  FIELD_INPUT,
   pageHeading,
+  errorState,
+  skeletonBlock,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
 import { getCursos, getCursoById, createCurso, updateCurso, deleteCurso, getCursoPuestos, getCursoEmpleadosExtra, getCursoSesiones, createCursoSesion, deleteCursoSesion, getSesionEmpleados, inscribirEmpleadoSesion, quitarEmpleadoSesion, getSesionEmpleadosElegibles, getCursoCatalogosAsignacion, getCursoAreas, agregarAreaCurso, quitarAreaCurso, agregarPuestoCurso, quitarPuestoCurso, getCursoCatalogosPuestos, buscarEmpleadosExtraCurso, agregarEmpleadoExtraCurso, quitarEmpleadoExtraCurso } from "../api/cursos.ts";
@@ -29,6 +32,14 @@ import { hasRhModule } from "../auth/rhModulePermissions.ts";
 import { getEmpleadosPage } from "../api/empleados.ts";
 import type { UsuarioListItem } from "../api/usuarios.ts";
 import { getEncuestasDashboard, getCursoEncuestasResumen } from "../api/encuestas.ts";
+import {
+  listarSugerencias,
+  actualizarSugerencia,
+  generarSugerenciasDesdeBrechas,
+} from "../api/sugerencias.ts";
+import type { SugerenciaResponse, SugerenciaEstado } from "../api/sugerencias.ts";
+import { getAreasOptions } from "../api/puestos.ts";
+import type { AreaOption } from "../api/puestos.ts";
 import type {
   EncuestasDashboard,
   DashboardCursoItem,
@@ -3448,6 +3459,8 @@ type SugImpacto = "Alto" | "Medio" | "Bajo";
 
 interface SugerenciaItem {
   id: string;
+  sugId: number;
+  estado: SugerenciaEstado;
   titulo: string;
   fuente: SugFuente;
   impacto: SugImpacto;
@@ -3466,78 +3479,48 @@ interface SugerenciaItem {
   badge?: string;
 }
 
-const FAKE_SUGERENCIAS: SugerenciaItem[] = [
-  {
-    id: "SUG-118",
-    titulo: "Diagnóstico de continuidad · nivel avanzado",
-    fuente: "Brecha interna",
-    impacto: "Alto",
-    prio: 3,
-    razon: "14 colaboradores en Línea 5 están dos niveles por debajo del requerido en CT-01 Continuidad eléctrica.",
-    capCubre: ["CT-01", "CT-02", "QA-02"],
-    areas: ["Cableado · L3", "Ensamble · L5"],
-    personas: 14,
-    dur: "12h",
-    costo: "$ 38,000",
-    proveedor: "Interno · Patricia Loera",
-    brechaPct: 38,
-    mercadoPct: 72,
-    benchmark: "En el sector automotriz mexicano, 72% de plantas tier-1 incluyen un curso avanzado de continuidad eléctrica para operadores con +18m de antigüedad.",
-    featured: true,
-    badge: "Recomendada",
-  },
-  {
-    id: "SUG-117",
-    titulo: "IPC/WHMA-A-620 Rev.D · actualización 2026",
-    fuente: "Mercado laboral",
-    impacto: "Medio",
-    prio: 2,
-    razon: "IPC actualizó Rev.D en enero 2026; las plantas certificadas requieren reentrenamiento dentro de 12 meses.",
-    capCubre: ["QA-01", "QA-02"],
-    areas: ["Calidad", "Inspección"],
-    personas: 14,
-    dur: "32h",
-    costo: "$ 124,000",
-    proveedor: "Externo · IPC México",
-    brechaPct: 0,
-    mercadoPct: 89,
-    benchmark: "89% de plantas tier-1 ya están en proceso de re-certificación a Rev.D según índice ANIA 2026.",
-  },
-  {
-    id: "SUG-116",
-    titulo: "Resolución de problemas · método 8D",
-    fuente: "Brecha interna",
-    impacto: "Medio",
-    prio: 2,
-    razon: "Líderes de línea con nivel 2/4 en habilidad BL-03 resolución de problemas. Identificado en evaluación 360 marzo 2026.",
-    capCubre: ["BL-03"],
-    areas: ["Operaciones", "Líderes"],
-    personas: 24,
-    dur: "8h",
-    costo: "$ 28,000",
-    proveedor: "Externo · Crehana",
-    brechaPct: 41,
-    mercadoPct: 64,
-    benchmark: "64% de plantas IATF 16949 capacitan a sus líderes en 8D dentro del primer año.",
-  },
-  {
-    id: "SUG-115",
-    titulo: "Polivalencia: Ruteo en tablero",
-    fuente: "Brecha interna",
-    impacto: "Medio",
-    prio: 1,
-    razon: "Para absorber el aumento de demanda Q3, se requiere 18 polivalencias adicionales en EN-02 Ruteo.",
-    capCubre: ["EN-02"],
-    areas: ["Ensamble · L2", "Ensamble · L5"],
-    personas: 18,
-    dur: "6h",
-    costo: "$ 22,000",
-    proveedor: "Interno · Jorge Salazar",
-    brechaPct: 28,
-    mercadoPct: 0,
-    benchmark: "No aplica · sugerencia 100% por necesidad operativa interna.",
-  },
-];
+const SUG_ESTADO_LABELS: Record<SugerenciaEstado, string> = {
+  activa: "Activa",
+  aprobada: "Aprobada",
+  pospuesta: "Pospuesta",
+  descartada: "Descartada",
+};
+
+function sugToStringList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => (typeof x === "string" ? x : String(x))).filter((s) => s.length > 0);
+}
+
+/** Mapea la respuesta del backend al view-model que consume `renderSugCard`. */
+function mapSugerencia(r: SugerenciaResponse): SugerenciaItem {
+  const brechaPct = Math.round(r.brecha_pct ?? 0);
+  const mercadoPct = Math.round(r.adopcion_sector_pct ?? 0);
+  const impacto: SugImpacto = r.prioridad >= 4 ? "Alto" : r.prioridad === 3 ? "Medio" : "Bajo";
+  const fuente: SugFuente = brechaPct >= mercadoPct ? "Brecha interna" : "Mercado laboral";
+  const costo =
+    r.inversion_estimada != null
+      ? `$ ${Number(r.inversion_estimada).toLocaleString("es-MX")}`
+      : "—";
+  return {
+    id: `SUG-${r.id}`,
+    sugId: r.id,
+    estado: r.estado,
+    titulo: r.titulo,
+    fuente,
+    impacto,
+    prio: r.prioridad,
+    razon: r.justificacion ?? "",
+    capCubre: sugToStringList(r.capacidades_afectadas),
+    areas: sugToStringList(r.areas_afectadas),
+    personas: r.personas_alcanzables ?? 0,
+    dur: r.duracion_sugerida ?? "—",
+    costo,
+    proveedor: r.proveedor_sugerido ?? "—",
+    brechaPct,
+    mercadoPct,
+    benchmark: "",
+  };
+}
 
 function sugFuentePill(fuente: SugFuente): string {
   const styles: Record<SugFuente, { border: string; bg: string; text: string; dot: string }> = {
@@ -3576,12 +3559,20 @@ function sugProgressBar(pct: number, color: string): string {
   </div>`;
 }
 
-function renderSugKpis(): string {
+function renderSugKpis(items: SugerenciaResponse[]): string {
+  const activas = items.filter((s) => s.estado === "activa");
+  const porBrecha = activas.filter((s) => (s.brecha_pct ?? 0) >= (s.adopcion_sector_pct ?? 0)).length;
+  const porMercado = activas.length - porBrecha;
+  const impactoAlto = activas.filter((s) => s.prioridad >= 4).length;
+  const inversion = activas.reduce((acc, s) => acc + (s.inversion_estimada ?? 0), 0);
+  const personas = activas.reduce((acc, s) => acc + (s.personas_alcanzables ?? 0), 0);
+  const inversionLabel =
+    inversion >= 1000 ? `$ ${Math.round(inversion / 1000)}k` : `$ ${inversion.toLocaleString("es-MX")}`;
   const kpis = [
-    { label: "Sugerencias activas", value: "11", sub: "7 por brecha · 4 por mercado" },
-    { label: "Impacto alto", value: "3", sub: "Bloquean cumplimiento operativo" },
-    { label: "Inversión sugerida", value: "$ 312k", sub: "Acumulado anual estimado" },
-    { label: "Personas alcanzables", value: "142", sub: "Si se aprueban todas" },
+    { label: "Sugerencias activas", value: String(activas.length), sub: `${porBrecha} por brecha · ${porMercado} por mercado` },
+    { label: "Impacto alto", value: String(impactoAlto), sub: "Prioridad 4-5 (brecha crítica)" },
+    { label: "Inversión sugerida", value: inversionLabel, sub: "Acumulado estimado (activas)" },
+    { label: "Personas alcanzables", value: String(personas), sub: "Si se aprueban todas" },
   ];
   return `
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -3595,6 +3586,16 @@ function renderSugKpis(): string {
   </div>`;
 }
 
+function sugEstadoPill(estado: SugerenciaEstado): string {
+  const styles: Record<SugerenciaEstado, string> = {
+    activa: "border-blue-200 bg-blue-50 text-blue-700",
+    aprobada: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    pospuesta: "border-amber-200 bg-amber-50 text-amber-700",
+    descartada: "border-slate-200 bg-slate-50 text-slate-500",
+  };
+  return `<span class="inline-flex items-center rounded-full border ${styles[estado]} px-2 py-0.5 text-[10px] font-semibold">${escapeHtml(SUG_ESTADO_LABELS[estado])}</span>`;
+}
+
 function renderSugCard(sug: SugerenciaItem): string {
   const featuredBorder = sug.featured ? "border-l-[3px] border-l-blue-500" : "";
 
@@ -3604,11 +3605,13 @@ function renderSugCard(sug: SugerenciaItem): string {
       <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-600">${escapeHtml(sug.id)}</span>
       ${sugFuentePill(sug.fuente)}
       ${sugImpactoPill(sug.impacto)}
+      ${sugEstadoPill(sug.estado)}
       ${sug.badge ? `<span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">${escapeHtml(sug.badge)}</span>` : ""}
     </div>`;
 
   const capPills = sug.capCubre.map(c => `<span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-600">${escapeHtml(c)}</span>`).join("");
   const areaPills = sug.areas.map(a => `<span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600">${escapeHtml(a)}</span>`).join("");
+  const sep = sug.capCubre.length > 0 && sug.areas.length > 0 ? `<span class="text-slate-300">|</span>` : "";
 
   const col1 = `
     <div class="flex flex-col gap-2.5 min-w-0">
@@ -3617,7 +3620,7 @@ function renderSugCard(sug: SugerenciaItem): string {
       <p class="text-xs text-slate-500 leading-relaxed">${escapeHtml(sug.razon)}</p>
       <div class="flex items-center gap-1.5 flex-wrap">
         ${capPills}
-        <span class="text-slate-300">|</span>
+        ${sep}
         ${areaPills}
       </div>
       <div class="flex items-center gap-4 flex-wrap text-[11px] text-slate-600 mt-1">
@@ -3648,13 +3651,18 @@ function renderSugCard(sug: SugerenciaItem): string {
           ${sugProgressBar(sug.mercadoPct, "bg-blue-400")}
         </div>
       </div>
+      ${sug.benchmark ? `
       <div class="mt-1">
         <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Benchmark</p>
         <p class="text-[11px] text-slate-600 leading-relaxed">${escapeHtml(sug.benchmark)}</p>
-      </div>
+      </div>` : ""}
     </div>`;
 
   // Column 3: Actions
+  const disabledAttr = sugActionsBusy ? "disabled" : "";
+  const busyCls = sugActionsBusy ? "opacity-60 cursor-not-allowed" : "";
+  const btnAttrs = (estado: SugerenciaEstado): string =>
+    `data-action="sug-estado" data-id="${sug.sugId}" data-estado="${estado}" ${disabledAttr}`;
   const col3 = `
     <div class="flex flex-col gap-3 items-center justify-start">
       <div class="text-center">
@@ -3662,9 +3670,9 @@ function renderSugCard(sug: SugerenciaItem): string {
         ${sugStarRating(sug.prio)}
       </div>
       <div class="w-full border-t border-slate-200"></div>
-      <button class="${BTN_PRIMARY} !text-[11px] !px-3 !py-1.5 w-full opacity-60 cursor-not-allowed" disabled>Aprobar y programar</button>
-      <button class="${BTN_SECONDARY} !text-[11px] !px-3 !py-1.5 w-full opacity-60 cursor-not-allowed" disabled>Posponer</button>
-      <button class="rounded-md px-3 py-1.5 text-[11px] font-medium text-slate-500 hover:bg-slate-100 transition w-full opacity-60 cursor-not-allowed" disabled>Descartar</button>
+      <button type="button" class="${BTN_PRIMARY} !text-[11px] !px-3 !py-1.5 w-full ${busyCls}" ${btnAttrs("aprobada")}>Aprobar y programar</button>
+      <button type="button" class="${BTN_SECONDARY} !text-[11px] !px-3 !py-1.5 w-full ${busyCls}" ${btnAttrs("pospuesta")}>Posponer</button>
+      <button type="button" class="rounded-md px-3 py-1.5 text-[11px] font-medium text-slate-500 hover:bg-slate-100 transition w-full ${busyCls}" ${btnAttrs("descartada")}>Descartar</button>
     </div>`;
 
   return `
@@ -3675,36 +3683,216 @@ function renderSugCard(sug: SugerenciaItem): string {
   </div>`;
 }
 
-function renderSugerenciasPage(): string {
+/** Estado de mutación en curso; deshabilita acciones de las tarjetas. */
+let sugActionsBusy = false;
+
+interface SugerenciasView {
+  items: SugerenciaResponse[];
+  areas: AreaOption[];
+  loading: boolean;
+  error: string | null;
+  actionError: string | null;
+  generating: boolean;
+  selectedAreaId: string;
+  umbral: string;
+}
+
+function renderSugGenerarControl(v: SugerenciasView): string {
+  const disabled = v.generating || sugActionsBusy;
+  const disAttr = disabled ? "disabled" : "";
+  const opts = [
+    `<option value="">Selecciona área…</option>`,
+    ...v.areas.map(
+      (a) => `<option value="${a.id}"${String(a.id) === v.selectedAreaId ? " selected" : ""}>${escapeHtml(a.label)}</option>`,
+    ),
+  ].join("");
+  return `
+    <div class="flex items-end gap-2 shrink-0 flex-wrap justify-end">
+      <div>
+        <label class="${RH_LISTADO_LABEL}" for="sug-area">Área</label>
+        <div class="grid grid-cols-1">
+          <select id="sug-area" data-action="sug-area-select" class="${RH_LISTADO_SELECT} ${RH_LISTADO_FOCUS_RING} min-w-[12rem]" ${disAttr}>${opts}</select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>
+      <div>
+        <label class="${RH_LISTADO_LABEL}" for="sug-umbral">Umbral %</label>
+        <input id="sug-umbral" data-action="sug-umbral" type="number" min="0" max="100" step="1" value="${escapeHtml(v.umbral)}" class="${FIELD_INPUT} !w-24" ${disAttr} />
+      </div>
+      <button type="button" data-action="sug-generar" class="${RH_LISTADO_BTN_PRIMARY}" ${disAttr}>${v.generating ? "Generando…" : "Generar desde brechas"}</button>
+    </div>`;
+}
+
+function renderSugerenciasPage(v: SugerenciasView): string {
+  const activas = v.items.filter((s) => s.estado === "activa").length;
+  let body: string;
+  if (v.loading) {
+    body = `
+      ${skeletonBlock({ className: "h-24 rounded-xl border border-border bg-white" })}
+      ${skeletonBlock({ className: "h-40 rounded-xl border border-border bg-white" })}
+      ${skeletonBlock({ className: "h-40 rounded-xl border border-border bg-white" })}`;
+  } else if (v.error) {
+    body = errorState({ message: v.error, actionLabel: "Reintentar", actionAttrs: 'data-action="sug-retry"' });
+  } else if (v.items.length === 0) {
+    body = `
+      <div class="rounded-xl border border-border bg-white px-6 py-16 text-center">
+        <p class="text-base font-semibold text-text-primary">Sin sugerencias todavía</p>
+        <p class="mt-1 text-sm text-text-muted">Genera propuestas a partir de las brechas de un área con el control de arriba.</p>
+      </div>`;
+  } else {
+    body = `
+      ${renderSugKpis(v.items)}
+      <div class="flex flex-col gap-4">
+        ${v.items.map((s) => renderSugCard(mapSugerencia(s))).join("")}
+      </div>`;
+  }
+
+  const actionErrorHtml = v.actionError
+    ? `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700" role="alert">${escapeHtml(v.actionError)}</div>`
+    : "";
+
   return `
   <div class="flex flex-col gap-5">
-    <div class="flex items-start justify-between">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Motor de sugerencias &middot; 11 propuestas activas</p>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Motor de sugerencias &middot; ${activas} propuesta${activas === 1 ? "" : "s"} activa${activas === 1 ? "" : "s"}</p>
         <h1 class="mt-1 text-lg font-semibold text-text-primary">Cursos sugeridos por brecha y mercado</h1>
         <p class="mt-1 text-sm text-text-muted max-w-3xl">Recomendaciones generadas a partir de brechas internas detectadas y comparaci&oacute;n contra est&aacute;ndares del sector automotriz / manufactura.</p>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <button class="${BTN_SECONDARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled><svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>Todas las fuentes</button>
-        <button class="${BTN_SECONDARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled><svg class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>Justificaci&oacute;n PDF</button>
-        <button class="${BTN_PRIMARY} !text-xs !px-3 !py-1.5 opacity-60 cursor-not-allowed" disabled>Aprobar selecci&oacute;n</button>
-      </div>
+      ${renderSugGenerarControl(v)}
     </div>
-
-    ${renderSugKpis()}
-
-    <div class="flex flex-col gap-4">
-      ${FAKE_SUGERENCIAS.map(sug => renderSugCard(sug)).join("")}
-    </div>
+    ${actionErrorHtml}
+    ${body}
   </div>`;
 }
 
-export function mountSugerencias(container: HTMLElement): void {
-  mountAppShell(container, {
-    pageTitle: "Sugerencias",
-    activeNav: "sugerencias",
-    mainHtml: renderSugerenciasPage(),
-  });
+export function mountSugerencias(container: HTMLElement, signal?: AbortSignal): void {
+  const view: SugerenciasView = {
+    items: [],
+    areas: [],
+    loading: true,
+    error: null,
+    actionError: null,
+    generating: false,
+    selectedAreaId: "",
+    umbral: "0",
+  };
+
+  const render = (): void => {
+    mountAppShell(container, {
+      pageTitle: "Sugerencias",
+      activeNav: "sugerencias",
+      mainHtml: renderSugerenciasPage(view),
+    });
+  };
+
+  const detail = (e: unknown): string => {
+    if (e && typeof e === "object" && "detail" in e) {
+      const d = (e as { detail?: unknown }).detail;
+      if (typeof d === "string" && d.trim()) return d.trim();
+    }
+    return (e as Error)?.message ?? "Ocurrió un error";
+  };
+
+  const refreshList = async (): Promise<void> => {
+    try {
+      const sugs = await listarSugerencias();
+      if (signal?.aborted) return;
+      view.items = sugs;
+    } catch (e) {
+      view.actionError = detail(e);
+    }
+  };
+
+  const loadAll = async (): Promise<void> => {
+    view.loading = true;
+    view.error = null;
+    render();
+    try {
+      const [sugs, areas] = await Promise.all([listarSugerencias(), getAreasOptions()]);
+      if (signal?.aborted) return;
+      view.items = sugs;
+      view.areas = areas;
+    } catch (e) {
+      view.error = detail(e);
+    }
+    if (signal?.aborted) return;
+    view.loading = false;
+    render();
+  };
+
+  const cambiarEstado = async (id: number, estado: SugerenciaEstado): Promise<void> => {
+    if (sugActionsBusy) return;
+    sugActionsBusy = true;
+    view.actionError = null;
+    render();
+    try {
+      await actualizarSugerencia(id, { estado });
+      await refreshList();
+    } catch (e) {
+      view.actionError = detail(e);
+    }
+    sugActionsBusy = false;
+    if (!signal?.aborted) render();
+  };
+
+  const generar = async (): Promise<void> => {
+    if (view.generating || sugActionsBusy) return;
+    const areaId = Number(view.selectedAreaId);
+    if (!areaId) {
+      view.actionError = "Selecciona un área para generar sugerencias.";
+      render();
+      return;
+    }
+    const umbralNum = Number(view.umbral);
+    view.generating = true;
+    view.actionError = null;
+    render();
+    try {
+      await generarSugerenciasDesdeBrechas({
+        area_id: areaId,
+        umbral_brecha: Number.isFinite(umbralNum) ? umbralNum : 0,
+      });
+      await refreshList();
+    } catch (e) {
+      view.actionError = detail(e);
+    }
+    view.generating = false;
+    if (!signal?.aborted) render();
+  };
+
+  const onClick = (e: Event): void => {
+    const target = e.target as HTMLElement | null;
+    const btn = target?.closest<HTMLElement>("[data-action]");
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === "sug-estado") {
+      const id = Number(btn.dataset.id);
+      const estado = btn.dataset.estado as SugerenciaEstado | undefined;
+      if (id && estado) void cambiarEstado(id, estado);
+    } else if (action === "sug-generar") {
+      void generar();
+    } else if (action === "sug-retry") {
+      void loadAll();
+    }
+  };
+
+  const onChange = (e: Event): void => {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    const action = (target as HTMLElement).dataset?.action;
+    if (action === "sug-area-select") {
+      view.selectedAreaId = (target as HTMLSelectElement).value;
+    } else if (action === "sug-umbral") {
+      view.umbral = (target as HTMLInputElement).value;
+    }
+  };
+
+  const listenerOpts = signal ? { signal } : undefined;
+  container.addEventListener("click", onClick, listenerOpts);
+  container.addEventListener("change", onChange, listenerOpts);
+
+  void loadAll();
 }
 
 // ── Encuestas: helpers de render (datos reales del dashboard) ────────────────
