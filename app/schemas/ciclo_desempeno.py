@@ -69,6 +69,7 @@ class CicloDesempenoCreate(BaseModel):
     eval360_campana_id: Optional[int] = None
     peso_metas: Decimal = Field(default=Decimal("60"), ge=0)
     peso_competencias: Decimal = Field(default=Decimal("40"), ge=0)
+    peso_historial: Decimal = Field(default=Decimal("0"), ge=0)
     umbral_medio: Decimal = Field(default=Decimal("50"), gt=0, lt=100)
     umbral_alto: Decimal = Field(default=Decimal("75"), gt=0, lt=100)
     config: Optional[dict] = None
@@ -81,8 +82,8 @@ class CicloDesempenoCreate(BaseModel):
 
     @model_validator(mode="after")
     def _check_pesos(self) -> "CicloDesempenoCreate":
-        if (self.peso_metas + self.peso_competencias) <= 0:
-            raise ValueError("peso_metas + peso_competencias debe ser > 0")
+        if (self.peso_metas + self.peso_competencias + self.peso_historial) <= 0:
+            raise ValueError("peso_metas + peso_competencias + peso_historial debe ser > 0")
         return self
 
     @model_validator(mode="after")
@@ -107,6 +108,7 @@ class CicloDesempenoUpdate(BaseModel):
     eval360_campana_id: Optional[int] = None
     peso_metas: Optional[Decimal] = Field(None, ge=0)
     peso_competencias: Optional[Decimal] = Field(None, ge=0)
+    peso_historial: Optional[Decimal] = Field(None, ge=0)
     umbral_medio: Optional[Decimal] = Field(None, gt=0, lt=100)
     umbral_alto: Optional[Decimal] = Field(None, gt=0, lt=100)
     config: Optional[dict] = None
@@ -120,8 +122,11 @@ class CicloDesempenoUpdate(BaseModel):
     @model_validator(mode="after")
     def _check_pesos(self) -> "CicloDesempenoUpdate":
         if self.peso_metas is not None and self.peso_competencias is not None:
-            if (self.peso_metas + self.peso_competencias) <= 0:
-                raise ValueError("peso_metas + peso_competencias debe ser > 0")
+            historial = self.peso_historial if self.peso_historial is not None else Decimal(0)
+            if (self.peso_metas + self.peso_competencias + historial) <= 0:
+                raise ValueError(
+                    "peso_metas + peso_competencias + peso_historial debe ser > 0"
+                )
         return self
 
     @model_validator(mode="after")
@@ -147,6 +152,7 @@ class CicloDesempenoResponse(BaseModel):
     eval360_campana_id: Optional[int] = None
     peso_metas: Decimal
     peso_competencias: Decimal
+    peso_historial: Decimal
     umbral_medio: Decimal
     umbral_alto: Decimal
     config: Optional[dict] = None
@@ -188,6 +194,8 @@ class CicloDesempenoResultadoResponse(BaseModel):
     calificacion_desempeno: Optional[Decimal] = None
     peso_metas_efectivo: Optional[Decimal] = None
     peso_competencias_efectivo: Optional[Decimal] = None
+    indice_historial: Optional[Decimal] = None
+    peso_historial_efectivo: Optional[Decimal] = None
     potencial: Optional[Decimal] = None
     banda_desempeno: Optional[str] = None
     banda_potencial: Optional[str] = None

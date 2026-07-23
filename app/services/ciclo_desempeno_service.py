@@ -39,7 +39,7 @@ parametro `forzar` de `cerrar_ciclo` -- NO se lee de `CicloDesempeno.config`.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional, Union
 
@@ -71,6 +71,7 @@ from app.schemas.ciclo_desempeno import (
     PotencialUpdateItem,
 )
 from app.services.evaluacion360_service import Evaluacion360Service
+from app.services.historial_objetivo_service import HistorialObjetivoService
 from app.services.metas_service import MetasService
 
 Numero = Union[Decimal, int, float]
@@ -225,6 +226,7 @@ class CicloDesempenoService:
             eval360_campana_id=data.eval360_campana_id,
             peso_metas=data.peso_metas,
             peso_competencias=data.peso_competencias,
+            peso_historial=data.peso_historial,
             umbral_medio=data.umbral_medio,
             umbral_alto=data.umbral_alto,
             config=data.config,
@@ -266,9 +268,10 @@ class CicloDesempenoService:
             raise DomainValidationError(
                 "fecha_fin debe ser >= fecha_inicio", field="fecha_fin"
             )
-        if (ciclo.peso_metas + ciclo.peso_competencias) <= 0:
+        if (ciclo.peso_metas + ciclo.peso_competencias + ciclo.peso_historial) <= 0:
             raise DomainValidationError(
-                "peso_metas + peso_competencias debe ser > 0", field="peso_metas"
+                "peso_metas + peso_competencias + peso_historial debe ser > 0",
+                field="peso_metas",
             )
         if not (0 < ciclo.umbral_medio < ciclo.umbral_alto < 100):
             raise DomainValidationError(
@@ -293,9 +296,10 @@ class CicloDesempenoService:
                 "El ciclo requiere fecha_inicio y fecha_fin para activarse",
                 field="fecha_inicio",
             )
-        if (ciclo.peso_metas + ciclo.peso_competencias) <= 0:
+        if (ciclo.peso_metas + ciclo.peso_competencias + ciclo.peso_historial) <= 0:
             raise DomainValidationError(
-                "peso_metas + peso_competencias debe ser > 0", field="peso_metas"
+                "peso_metas + peso_competencias + peso_historial debe ser > 0",
+                field="peso_metas",
             )
         if ciclo.meta_ciclo_id is None and ciclo.eval360_campana_id is None:
             raise DomainValidationError(
@@ -354,10 +358,14 @@ class CicloDesempenoService:
                     )
 
         campana, participante_by_empleado, escala = await self._contexto_senales(ciclo)
+        indices_hist = await self._indices_historial_ciclo(
+            ciclo, [r.empleado_id for r in ciclo.resultados]
+        )
         ahora = datetime.now(timezone.utc)
         for resultado in ciclo.resultados:
             datos = await self._calcular_resultado_vivo(
-                ciclo, resultado.empleado_id, participante_by_empleado, escala
+                ciclo, resultado.empleado_id, participante_by_empleado, escala,
+                indice_historial=indices_hist.get(resultado.empleado_id),
             )
             banda_potencial = (
                 banda(resultado.potencial, ciclo.umbral_medio, ciclo.umbral_alto)
@@ -381,6 +389,8 @@ class CicloDesempenoService:
                 calificacion_desempeno=_dec(datos["calificacion_desempeno"]),
                 peso_metas_efectivo=_dec(datos["peso_metas_efectivo"]),
                 peso_competencias_efectivo=_dec(datos["peso_competencias_efectivo"]),
+                indice_historial=_dec(datos["indice_historial"]),
+                peso_historial_efectivo=_dec(datos["peso_historial_efectivo"]),
                 banda_desempeno=banda_efe,
                 banda_potencial=banda_potencial,
                 segmento_9box=segmento,
@@ -567,10 +577,14 @@ class CicloDesempenoService:
             return out
 
         campana, participante_by_empleado, escala = await self._contexto_senales(ciclo)
+        indices_hist = await self._indices_historial_ciclo(
+            ciclo, [r.empleado_id for r in resultados]
+        )
         out = []
         for r in resultados:
             datos = await self._calcular_resultado_vivo(
-                ciclo, r.empleado_id, participante_by_empleado, escala
+                ciclo, r.empleado_id, participante_by_empleado, escala,
+                indice_historial=indices_hist.get(r.empleado_id),
             )
             banda_potencial = (
                 banda(r.potencial, ciclo.umbral_medio, ciclo.umbral_alto)
@@ -597,6 +611,8 @@ class CicloDesempenoService:
                     calificacion_desempeno=_dec(datos["calificacion_desempeno"]),
                     peso_metas_efectivo=_dec(datos["peso_metas_efectivo"]),
                     peso_competencias_efectivo=_dec(datos["peso_competencias_efectivo"]),
+                    indice_historial=_dec(datos["indice_historial"]),
+                    peso_historial_efectivo=_dec(datos["peso_historial_efectivo"]),
                     potencial=r.potencial,
                     banda_desempeno=datos["banda_desempeno"],
                     banda_potencial=banda_potencial,
@@ -707,6 +723,24 @@ class CicloDesempenoService:
             if config.escala_id is not None:
                 escala = await self.eval360_repo.get_escala(config.escala_id)
         return campana, participante_by_empleado, escala
+
+    async def _indices_historial_ciclo(
+        self, ciclo: CicloDesempeno, empleado_ids: list[int]
+    ) -> dict[int, float | None]:
+        """Pre-carga los indices de historial objetivo del conjunto de empleados
+        con UNA sola apertura de engine de bono, SOLO si el ciclo pondera el
+        historial (`peso_historial > 0`). Si el peso es 0, devuelve {} sin abrir
+        el engine (no-regresion de costo). Periodo = fechas del ciclo; si faltan,
+        ultimos 365 dias."""
+        if ciclo.peso_historial is None or float(ciclo.peso_historial) <= 0 or not empleado_ids:
+            return {}
+        fi = ciclo.fecha_inicio
+        ff = ciclo.fecha_fin
+        if fi is None or ff is None:
+            hoy = date.today()
+            fi, ff = hoy - timedelta(days=365), hoy
+        historial_svc = HistorialObjetivoService(self.db)
+        return await historial_svc.indices_historial_por_empleado(empleado_ids, fi, ff)
 
     async def _cumplimiento_metas_o_none(
         self, ciclo: CicloDesempeno, empleado_id: int
