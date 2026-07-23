@@ -224,6 +224,7 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "mis-encuestas",
   "mis-encuestas-rh",
   "mis-firmas",
+  "mis-aprobaciones-opl",
   "mis-metas",
   "metas",
   "mi-desempeno",
