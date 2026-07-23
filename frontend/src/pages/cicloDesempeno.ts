@@ -119,6 +119,7 @@ interface CicloForm {
   eval360CampanaId: string;
   pesoMetas: string;
   pesoCompetencias: string;
+  pesoHistorial: string;
   umbralMedio: string;
   umbralAlto: string;
 }
@@ -133,6 +134,7 @@ function emptyCicloForm(): CicloForm {
     eval360CampanaId: "",
     pesoMetas: "60",
     pesoCompetencias: "40",
+    pesoHistorial: "0",
     umbralMedio: "50",
     umbralAlto: "75",
   };
@@ -148,6 +150,7 @@ function cicloFormFromResponse(c: CicloDesempenoResponse): CicloForm {
     eval360CampanaId: c.eval360_campana_id != null ? String(c.eval360_campana_id) : "",
     pesoMetas: String(c.peso_metas),
     pesoCompetencias: String(c.peso_competencias),
+    pesoHistorial: String(c.peso_historial),
     umbralMedio: String(c.umbral_medio),
     umbralAlto: String(c.umbral_alto),
   };
@@ -488,6 +491,11 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
           <input id="cd-${prefix}-peso-competencias" data-cd-field="pesoCompetencias" data-cd-prefix="${prefix}" type="number" min="0" step="any" value="${escapeHtml(f.pesoCompetencias)}" class="${FIELD_INPUT}" />
         </div>
       </div>
+      <div>
+        <label class="${FORM_LABEL}" for="cd-${prefix}-peso-historial">Peso historial (%)</label>
+        <input id="cd-${prefix}-peso-historial" data-cd-field="pesoHistorial" data-cd-prefix="${prefix}" type="number" min="0" step="any" value="${escapeHtml(f.pesoHistorial)}" class="${FIELD_INPUT}" />
+        <p class="mt-1 text-xs text-text-muted">0 = el historial no cuenta en el score</p>
+      </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="${FORM_LABEL}" for="cd-${prefix}-umbral-medio">Umbral banda media (%)</label>
@@ -629,6 +637,11 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
       </td>
       <td class="px-3 py-3 align-middle text-sm tabular-nums text-text-secondary">${fmtScore(r.cumplimiento_metas)}</td>
       <td class="px-3 py-3 align-middle text-sm tabular-nums text-text-secondary">${fmtScore(r.calificacion_360_norm)}</td>
+      <td class="px-3 py-3 align-middle text-sm tabular-nums text-text-secondary">${fmtScore(r.indice_historial)}${
+        r.peso_historial_efectivo != null && r.peso_historial_efectivo > 0
+          ? ` <span class="text-xs text-text-muted">(${fmtScore(r.peso_historial_efectivo)}%)</span>`
+          : ""
+      }</td>
       <td class="px-3 py-3 align-middle text-sm font-semibold tabular-nums text-text-primary">${fmtScore(r.calificacion_desempeno)}</td>
       <td class="px-3 py-3 align-middle">${bandaBadge(r.banda_desempeno)}</td>
       <td class="px-3 py-3 align-middle">
@@ -658,12 +671,13 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     }
     return `
     <section class="${RH_LISTADO_SURFACE} overflow-x-auto">
-      <table class="min-w-[900px] w-full text-left">
+      <table class="min-w-[1000px] w-full text-left">
         <thead class="${RH_TABLE_HEAD}">
           <tr>
             <th class="px-3 py-2.5">Empleado</th>
             <th class="px-3 py-2.5">Cumplimiento metas</th>
             <th class="px-3 py-2.5">360° (norm.)</th>
+            <th class="px-3 py-2.5">Índice objetivo</th>
             <th class="px-3 py-2.5">Calificación desempeño</th>
             <th class="px-3 py-2.5">Banda desempeño</th>
             <th class="px-3 py-2.5">Potencial</th>
@@ -901,14 +915,16 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     eval360_campana_id: number | null;
     peso_metas: number;
     peso_competencias: number;
+    peso_historial: number;
     umbral_medio: number;
     umbral_alto: number;
   } | null {
     const pesoMetas = Number(f.pesoMetas);
     const pesoCompetencias = Number(f.pesoCompetencias);
+    const pesoHistorial = Number(f.pesoHistorial);
     const umbralMedio = Number(f.umbralMedio);
     const umbralAlto = Number(f.umbralAlto);
-    if (![pesoMetas, pesoCompetencias, umbralMedio, umbralAlto].every(Number.isFinite)) return null;
+    if (![pesoMetas, pesoCompetencias, pesoHistorial, umbralMedio, umbralAlto].every(Number.isFinite)) return null;
     return {
       nombre: f.nombre.trim(),
       descripcion: f.descripcion.trim() || null,
@@ -918,6 +934,7 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
       eval360_campana_id: f.eval360CampanaId ? Number(f.eval360CampanaId) : null,
       peso_metas: pesoMetas,
       peso_competencias: pesoCompetencias,
+      peso_historial: pesoHistorial,
       umbral_medio: umbralMedio,
       umbral_alto: umbralAlto,
     };

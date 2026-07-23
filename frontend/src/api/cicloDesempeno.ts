@@ -41,6 +41,7 @@ export interface CicloDesempenoCreate {
   eval360_campana_id?: number | null;
   peso_metas?: number;
   peso_competencias?: number;
+  peso_historial?: number;
   umbral_medio?: number;
   umbral_alto?: number;
   config?: Record<string, unknown> | null;
@@ -55,6 +56,7 @@ export interface CicloDesempenoUpdate {
   eval360_campana_id?: number | null;
   peso_metas?: number;
   peso_competencias?: number;
+  peso_historial?: number;
   umbral_medio?: number;
   umbral_alto?: number;
   config?: Record<string, unknown> | null;
@@ -71,6 +73,7 @@ export interface CicloDesempenoResponse {
   eval360_campana_id: number | null;
   peso_metas: number;
   peso_competencias: number;
+  peso_historial: number;
   umbral_medio: number;
   umbral_alto: number;
   config: Record<string, unknown> | null;
@@ -93,6 +96,8 @@ export interface CicloDesempenoResultadoResponse {
   escala_min: number | null;
   escala_max: number | null;
   calificacion_desempeno: number | null;
+  indice_historial: number | null;
+  peso_historial_efectivo: number | null;
   peso_metas_efectivo: number | null;
   peso_competencias_efectivo: number | null;
   potencial: number | null;
