@@ -11,7 +11,9 @@ from app.schemas.level_up import (
     FirmarRequest,
 )
 from app.services.evidencia_capacitacion_service import EvidenciaCapacitacionService
-from tests.conftest import make_empleado
+from tests.conftest import auth_headers, make_empleado
+
+API_BASE = "/api/v1/level-up/evidencias"
 
 
 def test_derivar_sin_firmas_es_pendiente():
@@ -148,3 +150,82 @@ async def test_mis_firmas_pendientes_solo_del_token(db):
     ajenas = await svc.mis_firmas_pendientes(emp.empleado_id)
     assert len(mias) == 1
     assert len(ajenas) == 0
+
+
+# ── API: gestion (RH) + self-service (firma) ─────────────────────────────────
+
+
+async def _crear_evidencia_api(client, headers, empleado_id, firmante_id):
+    resp = await client.post(
+        API_BASE,
+        json={
+            "tipo": "documento",
+            "archivo_url": "http://x/y.pdf",
+            "empleado_id": empleado_id,
+            "firmantes": [{"firmante_id": firmante_id, "rol_firma": "jefe"}],
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_api_listar_rh_200(client, db):
+    rh = await make_empleado(db, rol="rh", email="ev_api_list@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+    resp = await client.get(API_BASE, headers=headers_rh)
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_api_gestion_sin_modulo_403(client, db):
+    sin_modulo = await make_empleado(db, rol="empleado", email="ev_api_403@leoni.test")
+    headers = await auth_headers(client, sin_modulo)
+    resp = await client.get(API_BASE, headers=headers)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_api_mis_firmas_self_service(client, db):
+    rh = await make_empleado(db, rol="rh", email="ev_api_ss_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ev_api_ss_emp@leoni.test")
+    firmante = await make_empleado(db, rol="empleado", email="ev_api_ss_firm@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+    ev = await _crear_evidencia_api(client, headers_rh, emp.empleado_id, firmante.empleado_id)
+    firma_id = ev["firmas"][0]["id"]
+
+    headers_firmante = await auth_headers(client, firmante)
+    resp_mis = await client.get(f"{API_BASE}/mis-firmas", headers=headers_firmante)
+    assert resp_mis.status_code == 200
+    items = resp_mis.json()
+    assert len(items) == 1
+    assert items[0]["id"] == ev["id"]
+
+    resp_firmar = await client.post(
+        f"{API_BASE}/firmas/{firma_id}/firmar",
+        json={"estado": "firmada"},
+        headers=headers_firmante,
+    )
+    assert resp_firmar.status_code == 200, resp_firmar.text
+    assert resp_firmar.json()["estado"] == "validada"
+
+
+@pytest.mark.asyncio
+async def test_api_firmar_ajena_403(client, db):
+    rh = await make_empleado(db, rol="rh", email="ev_api_aj_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ev_api_aj_emp@leoni.test")
+    firmante = await make_empleado(db, rol="empleado", email="ev_api_aj_firm@leoni.test")
+    otro = await make_empleado(db, rol="empleado", email="ev_api_aj_otro@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+    ev = await _crear_evidencia_api(client, headers_rh, emp.empleado_id, firmante.empleado_id)
+    firma_id = ev["firmas"][0]["id"]
+
+    headers_otro = await auth_headers(client, otro)
+    resp = await client.post(
+        f"{API_BASE}/firmas/{firma_id}/firmar",
+        json={"estado": "firmada"},
+        headers=headers_otro,
+    )
+    assert resp.status_code == 403
