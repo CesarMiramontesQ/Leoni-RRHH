@@ -397,6 +397,56 @@ class EvidenciaFirmaResponse(BaseModel):
     comentario: Optional[str] = None
 
 
+class EvidenciaFirmaItem(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    firmante_id: int
+    firmante_nombre: Optional[str] = None
+    rol_firma: str
+    estado: str
+    fecha_firma: Optional[datetime] = None
+    comentario: Optional[str] = None
+
+
+class EvidenciaConFirmasResponse(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    tipo: str
+    archivo_url: str
+    capacitacion_id: Optional[int] = None
+    capacitacion_nombre: Optional[str] = None
+    empleado_id: int
+    empleado_nombre: Optional[str] = None
+    estado: str
+    fecha_subida: datetime
+    notas: Optional[str] = None
+    firmas: list[EvidenciaFirmaItem] = Field(default_factory=list)
+    firmas_total: int = 0
+    firmas_firmadas: int = 0
+
+
+class FirmanteAsignar(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    firmante_id: int
+    rol_firma: str = Field(..., min_length=1, max_length=100)
+
+
+class EvidenciaCrearRequest(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    tipo: Literal["foto", "documento", "video", "firma"]
+    archivo_url: str = Field(..., min_length=1, max_length=500)
+    capacitacion_id: Optional[int] = None
+    empleado_id: int
+    notas: Optional[str] = None
+    firmantes: list[FirmanteAsignar] = Field(default_factory=list)
+
+
+class FirmarRequest(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    estado: Literal["firmada", "rechazada"]
+    comentario: Optional[str] = None
+
+
 # ── EncuestaPostCurso ────────────────────────────────────────────────────────
 # Los schemas del flujo de encuestas post curso viven en
 # app/schemas/level_up_encuestas.py (habilitación por sesión + respuestas).
