@@ -1359,6 +1359,21 @@ Grupo de avatares superpuestos para personal impactado.
 </div>
 ```
 
+### 14.10 Barra de distribución con marcador de objetivo
+
+Compara la distribución **actual** de una banda contra su **objetivo** (p. ej. calibración de desempeño, pestaña Resultados y 9-Box). Variante de la 14.2 con relleno semántico por banda: reutiliza los tonos del dot de las badges (`bandaBadge` / `uiTokens`) — `alto` → `emerald` (positivo), `medio` → `amber` (neutro), `bajo` → `red` (negativo). Track `slate-100`, relleno = pct actual (clamp 0–100), marcador de objetivo `slate-500/70`. No introducir hex ni fuentes nuevas.
+
+```html
+<div class="relative h-2 w-full rounded-full bg-slate-100">
+  <!-- Actual (banda: alto=bg-emerald-500, medio=bg-amber-400, bajo=bg-red-400) -->
+  <div class="absolute inset-y-0 left-0 rounded-full {bandaBarClass}"
+    style="width: {clamp(pctActual, 0, 100)}%"></div>
+  <!-- Objetivo -->
+  <div class="absolute inset-y-[-3px] w-px bg-slate-500/70"
+    style="left: {clamp(objetivo, 0, 100)}%" title="Objetivo {objetivo}%"></div>
+</div>
+```
+
 ---
 
 ## 15. Level Up — Navigation Structure

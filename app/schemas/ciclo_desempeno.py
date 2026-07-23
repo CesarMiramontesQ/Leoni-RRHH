@@ -192,11 +192,16 @@ class CicloDesempenoResultadoResponse(BaseModel):
     banda_desempeno: Optional[str] = None
     banda_potencial: Optional[str] = None
     segmento_9box: Optional[str] = None
+    banda_desempeno_ajustada: Optional[str] = None
+    banda_desempeno_efectiva: Optional[str] = None
+    banda_ajuste_motivo: Optional[str] = None
+    banda_ajustada_por_id: Optional[int] = None
+    banda_ajustada_at: Optional[datetime] = None
     potencial_capturado_por_id: Optional[int] = None
     potencial_capturado_at: Optional[datetime] = None
     snapshot_at: Optional[datetime] = None
 
-    @field_validator("banda_desempeno", "banda_potencial")
+    @field_validator("banda_desempeno", "banda_potencial", "banda_desempeno_ajustada", "banda_desempeno_efectiva")
     @classmethod
     def _banda_valida(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
@@ -264,3 +269,38 @@ class MisResultadoResponse(BaseModel):
         if v is None:
             return v
         return _validar_pertenece(v, CICLO_DESEMPENO_BANDAS, "banda_desempeno")
+
+
+# ── Calibracion ──────────────────────────────────────────────────────────
+
+
+class BandaAjusteItem(BaseModel):
+    empleado_id: int
+    banda_ajustada: Optional[str] = None
+    motivo: Optional[str] = None
+
+    @field_validator("banda_ajustada")
+    @classmethod
+    def _banda_ajustada_valida(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return _validar_pertenece(v, CICLO_DESEMPENO_BANDAS, "banda_ajustada")
+
+
+class CalibracionRequest(BaseModel):
+    items: list[BandaAjusteItem] = Field(..., min_length=1)
+
+
+class DistribucionBanda(BaseModel):
+    bajo: int = 0
+    medio: int = 0
+    alto: int = 0
+    total: int = 0
+    pct: dict[str, float] = Field(default_factory=dict)
+
+
+class DistribucionResponse(BaseModel):
+    ciclo_id: int
+    actual: DistribucionBanda
+    objetivo: dict[str, float] = Field(default_factory=dict)
+    desviacion: dict[str, float] = Field(default_factory=dict)

@@ -99,6 +99,11 @@ export interface CicloDesempenoResultadoResponse {
   banda_desempeno: CicloDesempenoBanda | null;
   banda_potencial: CicloDesempenoBanda | null;
   segmento_9box: string | null;
+  banda_desempeno_ajustada: CicloDesempenoBanda | null;
+  banda_desempeno_efectiva: CicloDesempenoBanda | null;
+  banda_ajuste_motivo: string | null;
+  banda_ajustada_por_id: number | null;
+  banda_ajustada_at: string | null;
   potencial_capturado_por_id: number | null;
   potencial_capturado_at: string | null;
   snapshot_at: string | null;
@@ -135,6 +140,29 @@ export interface NueveBoxResponse {
   ciclo_id: number;
   celdas: CeldaResponse[];
   resumen: Record<string, unknown> | null;
+}
+
+// ── Tipos: calibración (ajuste directo de banda + distribución) ───────────
+
+export interface BandaAjusteItem {
+  empleado_id: number;
+  banda_ajustada: CicloDesempenoBanda | null;
+  motivo: string | null;
+}
+
+export interface DistribucionBanda {
+  bajo: number;
+  medio: number;
+  alto: number;
+  total: number;
+  pct: Record<string, number>;
+}
+
+export interface DistribucionResponse {
+  ciclo_id: number;
+  actual: DistribucionBanda;
+  objetivo: Record<string, number>;
+  desviacion: Record<string, number>;
 }
 
 // ── Tipos: self-service (empleado) ────────────────────────────────────────
@@ -245,6 +273,27 @@ export async function setPotencialCiclo(
   });
   if (!res.ok) await parseError(res, "No se pudo guardar el potencial");
   return res.json() as Promise<CicloDesempenoResultadoResponse[]>;
+}
+
+// ── Calibración — ajuste de banda + distribución (solo RH global) ─────────
+
+export async function calibrarCiclo(
+  cicloId: number,
+  items: BandaAjusteItem[],
+): Promise<CicloDesempenoResultadoResponse[]> {
+  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/calibracion`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) await parseError(res, "No se pudo guardar la calibración");
+  return res.json() as Promise<CicloDesempenoResultadoResponse[]>;
+}
+
+export async function getDistribucionCiclo(cicloId: number): Promise<DistribucionResponse> {
+  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/distribucion`);
+  if (!res.ok) await parseError(res, "No se pudo cargar la distribución");
+  return res.json() as Promise<DistribucionResponse>;
 }
 
 // ── Self-service — mis resultados ─────────────────────────────────────────
