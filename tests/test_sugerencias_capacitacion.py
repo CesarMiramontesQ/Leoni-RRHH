@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.models.level_up import SugerenciaCapacitacion
+from app.models.level_up import Curso, SugerenciaCapacitacion
 from app.schemas.level_up import (
     GenerarDesdeBrechasRequest,
     SugerenciaCapacitacionCreate,
@@ -237,6 +237,97 @@ async def test_api_sin_modulo_403(client, db):
     sin_modulo = await make_empleado(db, rol="empleado", email="sug_api_403@leoni.test")
     headers_sin_modulo = await auth_headers(client, sin_modulo)
     resp = await client.get(BASE, headers=headers_sin_modulo)
+    assert resp.status_code == 403
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Tarea 7: cierre de huecos de cobertura
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_generar_umbral_exacto_incluye_igual_excluye_menor(db):
+    """gap == umbral SI se crea (comparacion >=); gap por debajo se ignora."""
+    svc = SugerenciaCapacitacionService(db)
+    # Soldadura justo en el umbral (30 == 30); Calidad apenas por debajo (29 < 30).
+    fake = _brechas(("Soldadura", 30.0, 5), ("Calidad", 29.0, 2))
+    with patch(
+        "app.services.sugerencia_capacitacion_service.CompetenciaService.obtener_brechas",
+        new=AsyncMock(return_value=fake),
+    ):
+        creadas = await svc.generar_desde_brechas(area_id=1, umbral_brecha=30)
+    assert len(creadas) == 1
+    assert creadas[0].titulo == "Capacitacion: Soldadura"
+    assert creadas[0].brecha_pct == 30.0
+    # gap 30 cae en la banda 1-30 -> prioridad 3.
+    assert creadas[0].prioridad == 3
+
+
+@pytest.mark.asyncio
+async def test_actualizar_asigna_curso_id_expone_nombre(db):
+    """Asignar curso_id valido rellena curso_nombre en el Response."""
+    svc = SugerenciaCapacitacionService(db)
+    curso = Curso(nombre="Soldadura TIG Avanzada")
+    db.add(curso)
+    await db.flush()
+    await db.refresh(curso)
+
+    s = await svc.crear(SugerenciaCapacitacionCreate(titulo="AA sug"))
+    assert s.curso_id is None
+    assert s.curso_nombre is None
+
+    upd = await svc.actualizar(
+        s.id, SugerenciaCapacitacionUpdate(curso_id=curso.id)
+    )
+    assert upd.curso_id == curso.id
+    assert upd.curso_nombre == "Soldadura TIG Avanzada"
+
+
+@pytest.mark.asyncio
+async def test_actualizar_parcial_preserva_campos_no_enviados(db):
+    """Un update de solo 'estado' no toca titulo/prioridad/justificacion (exclude_unset)."""
+    svc = SugerenciaCapacitacionService(db)
+    creada = await svc.crear(
+        SugerenciaCapacitacionCreate(
+            titulo="Curso preservado",
+            prioridad=5,
+            justificacion="Justificacion original",
+        )
+    )
+    upd = await svc.actualizar(
+        creada.id, SugerenciaCapacitacionUpdate(estado="aprobada")
+    )
+    assert upd.estado == "aprobada"
+    assert upd.titulo == "Curso preservado"
+    assert upd.prioridad == 5
+    assert upd.justificacion == "Justificacion original"
+
+
+@pytest.mark.asyncio
+async def test_listar_ordena_por_prioridad_desc(db):
+    """listar() devuelve prioridad descendente como criterio principal."""
+    svc = SugerenciaCapacitacionService(db)
+    await svc.crear(SugerenciaCapacitacionCreate(titulo="Media", prioridad=2))
+    await svc.crear(SugerenciaCapacitacionCreate(titulo="Alta", prioridad=5))
+    await svc.crear(SugerenciaCapacitacionCreate(titulo="Intermedia", prioridad=4))
+    todas = await svc.listar()
+    prioridades = [s.prioridad for s in todas]
+    assert prioridades == sorted(prioridades, reverse=True)
+    assert prioridades[:3] == [5, 4, 2]
+
+
+@pytest.mark.asyncio
+async def test_api_generar_desde_brechas_sin_modulo_403(client, db):
+    """El endpoint generar-desde-brechas tambien exige el modulo 'sugerencias'."""
+    sin_modulo = await make_empleado(
+        db, rol="empleado", email="sug_api_gen403@leoni.test"
+    )
+    headers = await auth_headers(client, sin_modulo)
+    resp = await client.post(
+        f"{BASE}/generar-desde-brechas",
+        json={"area_id": 1, "umbral_brecha": 30},
+        headers=headers,
+    )
     assert resp.status_code == 403
 
 
