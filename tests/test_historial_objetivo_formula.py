@@ -9,9 +9,13 @@ from __future__ import annotations
 import pytest
 
 from app.services.historial_objetivo.constants import (
+    FUENTE_PROGRESIVO,
+    PESO_PROGRESIVO_DEFAULT,
     PESOS_ACTAS,
     PESOS_FALTAS,
     PESOS_INCIDENCIAS,
+    PESOS_POR_FUENTE,
+    TIPO_PROGRESIVO_PIERDE_BONO,
     semaforo,
 )
 from app.services.historial_objetivo.formula import calcular_indice
@@ -143,3 +147,21 @@ def test_pesos_incidencias_coincide_con_tipos_calidad_y_seguridad():
         TIPO_INCIDENCIA_CALIDAD,
         TIPO_INCIDENCIA_SEGURIDAD,
     }
+
+
+def test_pesos_progresivo_no_vacio():
+    assert PESOS_POR_FUENTE[FUENTE_PROGRESIVO] == {
+        TIPO_PROGRESIVO_PIERDE_BONO: PESO_PROGRESIVO_DEFAULT
+    }
+
+
+def test_calcular_indice_progresivo_penaliza():
+    # 2 semanas sin bono * peso 6 = 12 de penalizacion -> 88
+    conteos = ConteosHistorial(
+        actas=ConteosFuente(),
+        faltas=ConteosFuente(),
+        incidencias=ConteosFuente(),
+        progresivo=ConteosFuente(conteos={TIPO_PROGRESIVO_PIERDE_BONO: 2}),
+    )
+    resultado = calcular_indice(conteos)
+    assert resultado.indice == 88.0

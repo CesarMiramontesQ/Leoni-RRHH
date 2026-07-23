@@ -82,20 +82,20 @@ PESOS_INCIDENCIAS: dict[str, float] = {
     TIPO_INCIDENCIA_SEGURIDAD: 6,
 }
 
-# Progresivo / bono-productividad: v1 NO tiene agregador de conteos todavia
-# (existe el modulo `app/api/v1/bono_productividad` pero resuelve otra cosa,
-# el sync de bonos/incidencias -- no hay una fuente de "conteo de eventos
-# progresivo" lista para este indice). El service (Tarea 4) siempre pasa un
-# `ConteosFuente` vacio para esta fuente; el peso default queda documentado
-# para cuando exista el agregador real (no hay tipos definidos aun, por eso
-# `PESOS_POR_FUENTE[FUENTE_PROGRESIVO]` es `{}`).
+# Progresivo / bono-productividad: se cuenta el numero de semanas en que el
+# empleado perdio su bono de productividad (`pierde_bono = 1` en
+# `incidencias_progresivo` / `incidencias_progresivo_historico`). Es la senal
+# propia del progresivo (un resultado), NO se re-cuentan las causas del resumen
+# semanal (faltas/suspensiones/actas), que ya penalizan via las otras fuentes
+# -- evita el doble conteo. Peso en un solo lugar (`PESO_PROGRESIVO_DEFAULT`).
+TIPO_PROGRESIVO_PIERDE_BONO = "pierde_bono"
 PESO_PROGRESIVO_DEFAULT: float = 6
 
 PESOS_POR_FUENTE: dict[str, dict[str, float]] = {
     FUENTE_ACTAS: PESOS_ACTAS,
     FUENTE_FALTAS: PESOS_FALTAS,
     FUENTE_INCIDENCIAS: PESOS_INCIDENCIAS,
-    FUENTE_PROGRESIVO: {},
+    FUENTE_PROGRESIVO: {TIPO_PROGRESIVO_PIERDE_BONO: PESO_PROGRESIVO_DEFAULT},
 }
 
 # ══════════════════════════════════════════════════════════════════════════
