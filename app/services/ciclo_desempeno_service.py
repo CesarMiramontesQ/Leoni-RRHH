@@ -57,11 +57,14 @@ from app.repositories.ciclo_desempeno_repository import CicloDesempenoRepository
 from app.repositories.evaluacion360_repository import Evaluacion360Repository
 from app.repositories.metas_repository import MetasRepository
 from app.schemas.ciclo_desempeno import (
+    BandaAjusteItem,
     CeldaResponse,
     CicloDesempenoCreate,
     CicloDesempenoResponse,
     CicloDesempenoResultadoResponse,
     CicloDesempenoUpdate,
+    DistribucionBanda,
+    DistribucionResponse,
     MisResultadoResponse,
     NueveBoxEmpleadoItem,
     NueveBoxResponse,
@@ -358,9 +361,10 @@ class CicloDesempenoService:
                 if resultado.potencial is not None
                 else None
             )
+            banda_efe = banda_efectiva(datos["banda_desempeno"], resultado.banda_desempeno_ajustada)
             segmento = (
-                f"{datos['banda_desempeno']}_{banda_potencial}"
-                if datos["banda_desempeno"] is not None and banda_potencial is not None
+                f"{banda_efe}_{banda_potencial}"
+                if banda_efe is not None and banda_potencial is not None
                 else None
             )
             await self.repo.upsert_resultado(
@@ -374,7 +378,7 @@ class CicloDesempenoService:
                 calificacion_desempeno=_dec(datos["calificacion_desempeno"]),
                 peso_metas_efectivo=_dec(datos["peso_metas_efectivo"]),
                 peso_competencias_efectivo=_dec(datos["peso_competencias_efectivo"]),
-                banda_desempeno=datos["banda_desempeno"],
+                banda_desempeno=banda_efe,
                 banda_potencial=banda_potencial,
                 segmento_9box=segmento,
                 snapshot_at=ahora,
@@ -440,6 +444,99 @@ class CicloDesempenoService:
         return await self.resultados_ciclo(ciclo_id, set(empleados_afectados))
 
     # ══════════════════════════════════════════════════════════════════════
+    # Calibracion (ajuste directo de banda, solo RH global, ciclo activo)
+    # ══════════════════════════════════════════════════════════════════════
+    async def ajustar_banda(
+        self,
+        ciclo_id: int,
+        items: list[BandaAjusteItem],
+        current_user_id: int,
+    ) -> list[CicloDesempenoResultadoResponse]:
+        """Aplica overrides de banda de desempeno. Exige ciclo `activo`
+        (`ConflictError` 409 si no). Por item: `banda_ajustada=None` limpia el
+        override (reversion, pone las 4 columnas de auditoria a None);
+        `banda_ajustada` in bandas requiere `motivo` no vacio
+        (`DomainValidationError` 422 si vacio) y setea override + auditoria.
+        `banda_ajustada` fuera de las bandas => 422. Empleado sin resultado en
+        el ciclo => `NotFoundError` 404. Recompone `segmento_9box` con la banda
+        efectiva. El score numerico `calificacion_desempeno` NO se toca."""
+        ciclo = await self._get_ciclo_o_404(ciclo_id)
+        if ciclo.estado != "activo":
+            raise ConflictError("Solo se puede calibrar un ciclo activo")
+
+        ahora = datetime.now(timezone.utc)
+        afectados: list[int] = []
+        for item in items:
+            resultado = await self.repo.get_resultado(ciclo_id, item.empleado_id)
+            if resultado is None:
+                raise NotFoundError("CicloDesempenoResultado", item.empleado_id)
+
+            if item.banda_ajustada is None:
+                # Reversion: limpia el override y su auditoria.
+                banda_efe = banda_efectiva(resultado.banda_desempeno, None)
+                campos = dict(
+                    banda_desempeno_ajustada=None,
+                    banda_ajuste_motivo=None,
+                    banda_ajustada_por_id=None,
+                    banda_ajustada_at=None,
+                )
+            else:
+                # banda_ajustada invalida ya la rechaza el schema BandaAjusteItem
+                # al construirse (field_validator, autoridad unica); este chequeo
+                # aqui seria codigo muerto.
+                if item.motivo is None or not item.motivo.strip():
+                    raise DomainValidationError(
+                        "El motivo del ajuste es obligatorio", field="motivo"
+                    )
+                nueva_ajustada = item.banda_ajustada
+                banda_efe = banda_efectiva(resultado.banda_desempeno, nueva_ajustada)
+                campos = dict(
+                    banda_desempeno_ajustada=nueva_ajustada,
+                    banda_ajuste_motivo=item.motivo.strip(),
+                    banda_ajustada_por_id=current_user_id,
+                    banda_ajustada_at=ahora,
+                )
+
+            # Recompone el segmento con la banda efectiva (banda_potencial no cambia).
+            segmento = (
+                f"{banda_efe}_{resultado.banda_potencial}"
+                if banda_efe is not None and resultado.banda_potencial is not None
+                else None
+            )
+            await self.repo.upsert_resultado(
+                ciclo_id, item.empleado_id, segmento_9box=segmento, **campos
+            )
+            afectados.append(item.empleado_id)
+
+        return await self.resultados_ciclo(ciclo_id, set(afectados))
+
+    async def distribucion_ciclo(
+        self, ciclo_id: int, empleado_ids_scope: Optional[set[int]] = None
+    ) -> DistribucionResponse:
+        """Distribucion de bandas EFECTIVAS del ciclo (scope aplicado) vs. la
+        distribucion objetivo (config del ciclo o default). `desviacion` =
+        pct actual - objetivo por banda."""
+        resultados = await self.resultados_ciclo(ciclo_id, empleado_ids_scope)
+        bandas = [r.banda_desempeno_efectiva for r in resultados]
+        dist = distribucion_bandas(bandas)
+        actual = DistribucionBanda(**dist)
+
+        ciclo = await self._get_ciclo_o_404(ciclo_id)
+        objetivo = DISTRIBUCION_OBJETIVO_DEFAULT
+        if ciclo.config and isinstance(ciclo.config, dict):
+            cfg = ciclo.config.get("distribucion_objetivo")
+            if isinstance(cfg, dict):
+                objetivo = {k: float(cfg.get(k, 0.0)) for k in ("bajo", "medio", "alto")}
+
+        desviacion = {
+            k: round(actual.pct.get(k, 0.0) - objetivo.get(k, 0.0), 2)
+            for k in ("bajo", "medio", "alto")
+        }
+        return DistribucionResponse(
+            ciclo_id=ciclo_id, actual=actual, objetivo=objetivo, desviacion=desviacion
+        )
+
+    # ══════════════════════════════════════════════════════════════════════
     # Resultados / 9-Box
     # ══════════════════════════════════════════════════════════════════════
     async def resultados_ciclo(
@@ -460,6 +557,9 @@ class CicloDesempenoService:
             for r in resultados:
                 data = CicloDesempenoResultadoResponse.model_validate(r)
                 data.empleado_nombre = nombres.get(r.empleado_id)
+                data.banda_desempeno_efectiva = banda_efectiva(
+                    data.banda_desempeno, data.banda_desempeno_ajustada
+                )
                 out.append(data)
             return out
 
@@ -474,9 +574,10 @@ class CicloDesempenoService:
                 if r.potencial is not None
                 else None
             )
+            banda_efe = banda_efectiva(datos["banda_desempeno"], r.banda_desempeno_ajustada)
             segmento = (
-                f"{datos['banda_desempeno']}_{banda_potencial}"
-                if datos["banda_desempeno"] is not None and banda_potencial is not None
+                f"{banda_efe}_{banda_potencial}"
+                if banda_efe is not None and banda_potencial is not None
                 else None
             )
             out.append(
@@ -497,6 +598,11 @@ class CicloDesempenoService:
                     banda_desempeno=datos["banda_desempeno"],
                     banda_potencial=banda_potencial,
                     segmento_9box=segmento,
+                    banda_desempeno_ajustada=r.banda_desempeno_ajustada,
+                    banda_desempeno_efectiva=banda_efe,
+                    banda_ajuste_motivo=r.banda_ajuste_motivo,
+                    banda_ajustada_por_id=r.banda_ajustada_por_id,
+                    banda_ajustada_at=r.banda_ajustada_at,
                     potencial_capturado_por_id=r.potencial_capturado_por_id,
                     potencial_capturado_at=r.potencial_capturado_at,
                     snapshot_at=r.snapshot_at,
@@ -514,9 +620,10 @@ class CicloDesempenoService:
         resultados = await self.resultados_ciclo(ciclo_id, empleado_ids_scope)
         por_celda: dict[tuple[str, str], list[NueveBoxEmpleadoItem]] = {}
         for r in resultados:
-            if r.banda_desempeno is None or r.banda_potencial is None:
+            bd_efe = r.banda_desempeno_efectiva
+            if bd_efe is None or r.banda_potencial is None:
                 continue
-            clave = (r.banda_desempeno, r.banda_potencial)
+            clave = (bd_efe, r.banda_potencial)
             por_celda.setdefault(clave, []).append(
                 NueveBoxEmpleadoItem(
                     empleado_id=r.empleado_id,
