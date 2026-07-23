@@ -428,6 +428,14 @@ class SugerenciaCapacitacionUpdate(BaseModel):
     curso_id: Optional[int] = None
     prioridad: Optional[int] = Field(None, ge=1, le=5)
     estado: Optional[Literal["activa", "aprobada", "pospuesta", "descartada"]] = None
+    brecha_pct: Optional[float] = Field(None, ge=0, le=100)
+    adopcion_sector_pct: Optional[float] = Field(None, ge=0, le=100)
+    capacidades_afectadas: Optional[list] = None
+    areas_afectadas: Optional[list] = None
+    personas_alcanzables: Optional[int] = Field(None, ge=0)
+    duracion_sugerida: Optional[str] = None
+    inversion_estimada: Optional[float] = Field(None, ge=0)
+    proveedor_sugerido: Optional[str] = None
 
 
 class SugerenciaCapacitacionResponse(BaseModel):
