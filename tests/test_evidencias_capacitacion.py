@@ -10,6 +10,7 @@ from app.schemas.level_up import (
     FirmanteAsignar,
     FirmarRequest,
 )
+from app.models.level_up import EvidenciaFirma
 from app.services.evidencia_capacitacion_service import EvidenciaCapacitacionService
 from tests.conftest import auth_headers, make_empleado
 
@@ -160,6 +161,79 @@ async def test_mis_firmas_pendientes_solo_del_token(db):
     ajenas = await svc.mis_firmas_pendientes(emp.empleado_id)
     assert len(mias) == 1
     assert len(ajenas) == 0
+
+
+@pytest.mark.asyncio
+async def test_quitar_firma_rechazada_revalida(db):
+    # Hueco 1: 1 firmada + 1 rechazada => devuelta; quitar la rechazada => validada.
+    emp = await make_empleado(db); f1 = await make_empleado(db); f2 = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[
+            FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="instructor"),
+            FirmanteAsignar(firmante_id=f2.empleado_id, rol_firma="jefe"),
+        ],
+    ))
+    firma_f1 = next(f for f in ev.firmas if f.firmante_id == f1.empleado_id)
+    firma_f2 = next(f for f in ev.firmas if f.firmante_id == f2.empleado_id)
+    await svc.firmar(firma_f1.id, f1.empleado_id, FirmarRequest(estado="firmada"))
+    devuelta = await svc.firmar(firma_f2.id, f2.empleado_id, FirmarRequest(estado="rechazada", comentario="mal"))
+    assert devuelta.estado == "devuelta"
+    revalida = await svc.quitar_firmante(firma_f2.id)
+    assert revalida.firmas_total == 1
+    assert revalida.estado == "validada"
+
+
+@pytest.mark.asyncio
+async def test_agregar_firmante_duplicado_409(db):
+    # Hueco 2: mismo (firmante, rol) ya asignado => ConflictError.
+    emp = await make_empleado(db); f1 = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe")],
+    ))
+    with pytest.raises(ConflictError):
+        await svc.agregar_firmante(ev.id, FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe"))
+
+
+@pytest.mark.asyncio
+async def test_firmar_firma_inexistente_404(db):
+    # Hueco 3: firmar una firma que no existe => NotFoundError.
+    emp = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    with pytest.raises(NotFoundError):
+        await svc.firmar(999999, emp.empleado_id, FirmarRequest(estado="firmada"))
+
+
+@pytest.mark.asyncio
+async def test_eliminar_evidencia_borra_firmas_cascade(db):
+    # Hueco 4: al eliminar la evidencia, sus firmas dejan de existir.
+    emp = await make_empleado(db); f1 = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe")],
+    ))
+    firma_id = ev.firmas[0].id
+    assert await db.get(EvidenciaFirma, firma_id) is not None
+    await svc.eliminar(ev.id)
+    assert await db.get(EvidenciaFirma, firma_id) is None
+
+
+@pytest.mark.asyncio
+async def test_mis_firmas_pendientes_excluye_ya_firmadas(db):
+    # Hueco 5: un firmante que ya firmo no ve esa evidencia en pendientes.
+    emp = await make_empleado(db); f1 = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe")],
+    ))
+    assert len(await svc.mis_firmas_pendientes(f1.empleado_id)) == 1
+    await svc.firmar(ev.firmas[0].id, f1.empleado_id, FirmarRequest(estado="firmada"))
+    assert len(await svc.mis_firmas_pendientes(f1.empleado_id)) == 0
 
 
 # ── API: gestion (RH) + self-service (firma) ─────────────────────────────────
