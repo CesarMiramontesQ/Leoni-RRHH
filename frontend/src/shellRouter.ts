@@ -43,7 +43,6 @@ import { canAccessOrganigramaPage } from "./auth/jwt.ts";
 import {
   mountLevelUpDashboard,
   mountCursos,
-  mountOPLs,
   mountSugerencias,
   mountEncuestas,
 } from "./pages/levelUp.ts";
@@ -342,7 +341,9 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
     if (h.startsWith("#/opls")) {
-      mountOPLs(container);
+      void import("./pages/opls.ts").then(({ mountOpls }) => {
+        mountOpls(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "opls", "Manejo de OPLs", err));
       return;
     }
     if (h.startsWith("#/evidencias")) {
