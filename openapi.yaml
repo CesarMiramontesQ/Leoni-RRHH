@@ -6148,6 +6148,7 @@ components:
       type: object
       properties:
         estado: { type: string, enum: [pendiente, validada, devuelta], nullable: true }
+        archivo_url: { type: string, minLength: 1, maxLength: 500, nullable: true }
         notas: { type: string, nullable: true }
     FirmarRequest:
       type: object

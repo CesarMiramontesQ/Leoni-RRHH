@@ -88,6 +88,16 @@ async def test_actualizar_no_cambia_estado_a_mano(db):
 
 
 @pytest.mark.asyncio
+async def test_actualizar_cambia_archivo_url_sin_tocar_estado(db):
+    emp = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(tipo="documento", archivo_url="http://viejo/x.pdf", empleado_id=emp.empleado_id))
+    ev2 = await svc.actualizar(ev.id, EvidenciaCapacitacionUpdate(archivo_url="http://nuevo/x.pdf"))
+    assert ev2.archivo_url == "http://nuevo/x.pdf"
+    assert ev2.estado == "pendiente"  # el estado sigue siendo derivado, no cambia
+
+
+@pytest.mark.asyncio
 async def test_firmar_todas_valida_evidencia(db):
     emp = await make_empleado(db); f1 = await make_empleado(db)
     svc = EvidenciaCapacitacionService(db)

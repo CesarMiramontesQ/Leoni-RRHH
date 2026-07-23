@@ -354,7 +354,9 @@ class EvidenciaCapacitacionCreate(BaseModel):
 
 class EvidenciaCapacitacionUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
+    # `estado` es derivado de las firmas: el service lo descarta al actualizar.
     estado: Optional[Literal["pendiente", "validada", "devuelta"]] = None
+    archivo_url: Optional[str] = Field(None, min_length=1, max_length=500)
     notas: Optional[str] = None
 
 
