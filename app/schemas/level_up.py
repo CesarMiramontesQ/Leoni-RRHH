@@ -340,6 +340,39 @@ class OPLVersionResponse(BaseModel):
     creado_por_id: Optional[int] = None
 
 
+class OPLVersionItem(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    version_num: int
+    archivo_url: str
+    cambios_descripcion: Optional[str] = None
+    fecha: datetime
+    creado_por_id: Optional[int] = None
+    creado_por_nombre: Optional[str] = None
+
+
+class OPLConVersionesResponse(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    codigo: str
+    titulo: str
+    proceso: Optional[str] = None
+    maquina: Optional[str] = None
+    aprobador_id: Optional[int] = None
+    aprobador_nombre: Optional[str] = None
+    estado_aprobacion: str
+    created_at: datetime
+    versiones: list[OPLVersionItem] = Field(default_factory=list)
+    version_actual: Optional[OPLVersionItem] = None
+    total_versiones: int = 0
+
+
+class OPLVersionAgregar(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    archivo_url: str = Field(..., min_length=1, max_length=500)
+    cambios_descripcion: Optional[str] = None
+
+
 # ── EvidenciaCapacitacion ────────────────────────────────────────────────────
 
 
