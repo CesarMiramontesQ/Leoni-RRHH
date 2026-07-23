@@ -154,3 +154,50 @@ class OPLService:
 
     async def listar_versiones(self, opl_id: int) -> list[OPLVersionItem]:
         return (await self._to_response(await self._get_o_404(opl_id))).versiones
+
+    async def enviar_a_revision(self, opl_id: int) -> OPLConVersionesResponse:
+        opl = await self._get_o_404(opl_id)
+        estado = opl.estado_aprobacion.value if hasattr(opl.estado_aprobacion, "value") else str(opl.estado_aprobacion)
+        if estado != "borrador":
+            raise ConflictError("Solo se puede enviar a revision una OPL en borrador")
+        if not opl.versiones:
+            raise DomainValidationError("La OPL necesita al menos una version")
+        if opl.aprobador_id is None:
+            raise DomainValidationError("La OPL necesita un aprobador designado")
+        opl.estado_aprobacion = "revision"
+        await self.db.flush()
+        await self.db.refresh(opl, attribute_names=["versiones"])
+        return await self._to_response(opl)
+
+    async def _resolver_revision(self, opl_id: int, aprobador_id: int) -> OPL:
+        opl = await self._get_o_404(opl_id)
+        if opl.aprobador_id != aprobador_id:
+            raise ForbiddenError("Solo el aprobador designado puede resolver esta OPL")
+        estado = opl.estado_aprobacion.value if hasattr(opl.estado_aprobacion, "value") else str(opl.estado_aprobacion)
+        if estado != "revision":
+            raise ConflictError("La OPL no esta en revision")
+        return opl
+
+    async def aprobar(self, opl_id: int, aprobador_id: int) -> OPLConVersionesResponse:
+        opl = await self._resolver_revision(opl_id, aprobador_id)
+        opl.estado_aprobacion = "aprobada"
+        await self.db.flush()
+        await self.db.refresh(opl, attribute_names=["versiones"])
+        return await self._to_response(opl)
+
+    async def regresar_a_borrador(self, opl_id: int, aprobador_id: int) -> OPLConVersionesResponse:
+        opl = await self._resolver_revision(opl_id, aprobador_id)
+        opl.estado_aprobacion = "borrador"
+        await self.db.flush()
+        await self.db.refresh(opl, attribute_names=["versiones"])
+        return await self._to_response(opl)
+
+    async def mis_aprobaciones_pendientes(self, aprobador_id: int):
+        stmt = (
+            select(OPL)
+            .where(OPL.aprobador_id == aprobador_id, OPL.estado_aprobacion == "revision")
+            .options(selectinload(OPL.versiones))
+            .order_by(OPL.created_at.desc())
+        )
+        opls = (await self.db.execute(stmt)).scalars().all()
+        return [await self._to_response(o) for o in opls]

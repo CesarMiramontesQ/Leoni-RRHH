@@ -76,3 +76,62 @@ async def test_eliminar(db):
     await svc.eliminar(opl.id)
     with pytest.raises(NotFoundError):
         await svc.obtener(opl.id)
+
+
+from app.core.exceptions import ForbiddenError, DomainValidationError
+
+
+async def _opl_en_revision(db, aprobador_id):
+    svc = OPLService(db)
+    opl = await svc.crear(OPLCreate(codigo=f"OPL-{aprobador_id}-R", titulo="Aa", aprobador_id=aprobador_id))
+    autor = await make_empleado(db)
+    await svc.agregar_version(opl.id, OPLVersionAgregar(archivo_url="http://x/1.pdf"), autor.empleado_id)
+    await svc.enviar_a_revision(opl.id)
+    return svc, opl.id
+
+
+@pytest.mark.asyncio
+async def test_enviar_a_revision_exige_version_y_aprobador(db):
+    svc = OPLService(db)
+    opl = await svc.crear(OPLCreate(codigo="OPL-NR", titulo="Aa"))  # sin aprobador ni version
+    with pytest.raises(DomainValidationError):
+        await svc.enviar_a_revision(opl.id)
+
+
+@pytest.mark.asyncio
+async def test_aprobar_solo_el_aprobador(db):
+    aprob = await make_empleado(db)
+    svc, opl_id = await _opl_en_revision(db, aprob.empleado_id)
+    otro = await make_empleado(db)
+    with pytest.raises(ForbiddenError):
+        await svc.aprobar(opl_id, otro.empleado_id)
+    out = await svc.aprobar(opl_id, aprob.empleado_id)
+    assert out.estado_aprobacion == "aprobada"
+
+
+@pytest.mark.asyncio
+async def test_regresar_a_borrador(db):
+    aprob = await make_empleado(db)
+    svc, opl_id = await _opl_en_revision(db, aprob.empleado_id)
+    out = await svc.regresar_a_borrador(opl_id, aprob.empleado_id)
+    assert out.estado_aprobacion == "borrador"
+
+
+@pytest.mark.asyncio
+async def test_aprobar_no_en_revision_409(db):
+    from app.core.exceptions import ConflictError
+    svc = OPLService(db)
+    aprob = await make_empleado(db)
+    opl = await svc.crear(OPLCreate(codigo="OPL-B", titulo="Aa", aprobador_id=aprob.empleado_id))
+    with pytest.raises(ConflictError):
+        await svc.aprobar(opl.id, aprob.empleado_id)  # esta en borrador, no revision
+
+
+@pytest.mark.asyncio
+async def test_mis_aprobaciones_pendientes(db):
+    aprob = await make_empleado(db)
+    svc, _ = await _opl_en_revision(db, aprob.empleado_id)
+    mias = await svc.mis_aprobaciones_pendientes(aprob.empleado_id)
+    ajenas = await svc.mis_aprobaciones_pendientes((await make_empleado(db)).empleado_id)
+    assert len(mias) == 1
+    assert len(ajenas) == 0
