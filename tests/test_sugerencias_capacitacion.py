@@ -1,4 +1,6 @@
 """Tests del Motor de Sugerencias de Capacitacion."""
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from app.core.exceptions import NotFoundError
@@ -9,10 +11,24 @@ from app.schemas.level_up import (
     SugerenciaCapacitacionResponse,
     SugerenciaCapacitacionUpdate,
 )
+from app.schemas.talento import BrechaItem, BrechasResponse
 from app.services.sugerencia_capacitacion_service import (
     SugerenciaCapacitacionService,
     prioridad_desde_brecha,
 )
+
+
+def _brechas(*items):
+    return BrechasResponse(
+        area_id=1, area_nombre="Produccion",
+        brechas=[
+            BrechaItem(
+                competencia_id=i + 1, competencia_nombre=n, categoria="tecnica",
+                nivel_requerido_promedio=3.0, gap_porcentaje=g, empleados_afectados=e,
+            )
+            for i, (n, g, e) in enumerate(items)
+        ],
+    )
 
 
 def test_modelo_tiene_curso_id():
@@ -91,3 +107,44 @@ async def test_actualizar_inexistente_404(db):
     svc = SugerenciaCapacitacionService(db)
     with pytest.raises(NotFoundError):
         await svc.actualizar(999999, SugerenciaCapacitacionUpdate(estado="aprobada"))
+
+
+@pytest.mark.asyncio
+async def test_generar_desde_brechas_crea_sobre_umbral(db):
+    svc = SugerenciaCapacitacionService(db)
+    fake = _brechas(("Soldadura", 60.0, 8), ("Calidad", 10.0, 2))
+    with patch(
+        "app.services.sugerencia_capacitacion_service.CompetenciaService.obtener_brechas",
+        new=AsyncMock(return_value=fake),
+    ):
+        creadas = await svc.generar_desde_brechas(area_id=1, umbral_brecha=30)
+    # Solo Soldadura (60 >= 30); Calidad (10 < 30) se ignora.
+    assert len(creadas) == 1
+    s = creadas[0]
+    assert s.titulo == "Capacitacion: Soldadura"
+    assert s.brecha_pct == 60.0
+    assert s.personas_alcanzables == 8
+    assert s.capacidades_afectadas == ["Soldadura"]
+    assert s.areas_afectadas == ["Produccion"]
+    assert s.prioridad == 5  # >50
+    # No inventa datos manuales:
+    assert s.duracion_sugerida is None
+    assert s.inversion_estimada is None
+    assert s.proveedor_sugerido is None
+    assert s.adopcion_sector_pct is None
+    assert s.curso_id is None
+    assert s.estado == "activa"
+
+
+@pytest.mark.asyncio
+async def test_generar_desde_brechas_deduplica(db):
+    svc = SugerenciaCapacitacionService(db)
+    fake = _brechas(("Soldadura", 60.0, 8))
+    with patch(
+        "app.services.sugerencia_capacitacion_service.CompetenciaService.obtener_brechas",
+        new=AsyncMock(return_value=fake),
+    ):
+        primera = await svc.generar_desde_brechas(area_id=1, umbral_brecha=0)
+        segunda = await svc.generar_desde_brechas(area_id=1, umbral_brecha=0)
+    assert len(primera) == 1
+    assert len(segunda) == 0  # ya existe una activa con ese titulo

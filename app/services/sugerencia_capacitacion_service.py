@@ -13,6 +13,7 @@ from app.schemas.level_up import (
     SugerenciaCapacitacionResponse,
     SugerenciaCapacitacionUpdate,
 )
+from app.services.competencia_service import CompetenciaService
 
 
 def prioridad_desde_brecha(gap_porcentaje: float) -> int:
@@ -97,3 +98,46 @@ class SugerenciaCapacitacionService:
         s = await self._get_o_404(sugerencia_id)
         await self.db.delete(s)
         await self.db.flush()
+
+    async def generar_desde_brechas(
+        self, area_id: int, umbral_brecha: float, current_user_id: Optional[int] = None
+    ) -> list[SugerenciaCapacitacionResponse]:
+        """Crea sugerencias BORRADOR (estado 'activa') desde las brechas del area
+        con gap_porcentaje >= umbral_brecha. Deduplica por titulo canonico contra
+        las sugerencias ya 'activa'. No inventa datos manuales. Devuelve solo las
+        creadas."""
+        brechas_resp = await CompetenciaService(self.db).obtener_brechas(area_id)
+        area_nombre = brechas_resp.area_nombre
+
+        # Titulos ya activos, para deduplicar.
+        activos_stmt = select(SugerenciaCapacitacion.titulo).where(
+            SugerenciaCapacitacion.estado == "activa"
+        )
+        titulos_activos = set((await self.db.execute(activos_stmt)).scalars().all())
+
+        creadas: list[SugerenciaCapacitacionResponse] = []
+        for b in brechas_resp.brechas:
+            if float(b.gap_porcentaje) < float(umbral_brecha):
+                continue
+            titulo = f"Capacitacion: {b.competencia_nombre}"
+            if titulo in titulos_activos:
+                continue
+            justificacion = (
+                f"Brecha de {b.gap_porcentaje}% en {area_nombre or 'el area'}: "
+                f"{b.empleados_afectados} persona(s) por debajo del nivel requerido."
+            )
+            s = SugerenciaCapacitacion(
+                titulo=titulo,
+                justificacion=justificacion,
+                brecha_pct=float(b.gap_porcentaje),
+                capacidades_afectadas=[b.competencia_nombre],
+                areas_afectadas=[area_nombre] if area_nombre else [],
+                personas_alcanzables=b.empleados_afectados,
+                prioridad=prioridad_desde_brecha(b.gap_porcentaje),
+            )
+            self.db.add(s)
+            await self.db.flush()
+            await self.db.refresh(s)
+            titulos_activos.add(titulo)
+            creadas.append(await self._to_response(s))
+        return creadas
