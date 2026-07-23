@@ -438,7 +438,7 @@ const HO_FUENTE_LABELS: Record<string, string> = {
   actas: "Actas",
   faltas: "Faltas y retardos",
   incidencias: "Incidencias",
-  progresivo: "Progresivo (bono)",
+  progresivo: "Progresivo (semanas sin bono)",
 };
 
 function renderHistorialObjetivoPanelPlaceholder(): string {

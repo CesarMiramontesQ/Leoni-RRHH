@@ -19,6 +19,7 @@ import pytest
 
 from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError
 from app.models.actas import ActaAdministrativa
+from app.services.historial_objetivo.constants import TIPO_PROGRESIVO_PIERDE_BONO
 from app.services.historial_objetivo_service import HistorialObjetivoService
 from app.services.incidencia_fuentes.constants import TIPO_INCIDENCIA_CALIDAD
 from tests.conftest import make_empleado
@@ -43,12 +44,16 @@ def _mock_bono_repos(
     *,
     incidencias_raw: list | None = None,
     faltas_raw: list | None = None,
+    progresivo_raw: dict | None = None,
     engine_configurado: bool = True,
     incidencias_side_effect=None,
     faltas_side_effect=None,
 ):
-    """Patchea `create_read_engine` + ambos repos de bono en el namespace del
-    service (igual patrón que `tests/test_faltas_retardos.py`)."""
+    """Patchea `create_read_engine` + los tres repos de bono (incidencias,
+    faltas y progresivo) en el namespace del service (igual patrón que
+    `tests/test_faltas_retardos.py`). `progresivo_raw` es el dict
+    `{empleado_id: semanas_sin_bono}` que devuelve
+    `BonoProgresivoRepository.aggregate_semanas_sin_bono_por_empleado`."""
     mock_engine = MagicMock()
     mock_engine.dispose = AsyncMock()
 
@@ -68,6 +73,11 @@ def _mock_bono_repos(
             return_value=faltas_raw if faltas_raw is not None else []
         )
 
+    prog_mock = AsyncMock()
+    prog_mock.aggregate_semanas_sin_bono_por_empleado = AsyncMock(
+        return_value=progresivo_raw if progresivo_raw is not None else {}
+    )
+
     with (
         patch(
             "app.services.historial_objetivo_service.BonoProductividadReadClient.create_read_engine",
@@ -80,6 +90,10 @@ def _mock_bono_repos(
         patch(
             "app.services.historial_objetivo_service.BonoFaltasRetardosRepository",
             return_value=falt_mock,
+        ),
+        patch(
+            "app.services.historial_objetivo_service.BonoProgresivoRepository",
+            return_value=prog_mock,
         ),
     ):
         yield mock_engine, inc_mock, falt_mock
@@ -173,7 +187,12 @@ async def test_bono_no_configurado_degrada_a_solo_actas(db):
 
 
 @pytest.mark.asyncio
-async def test_progresivo_nunca_penaliza_v1(db):
+async def test_progresivo_sin_semanas_no_penaliza(db):
+    """Sin semanas sin bono (progresivo_raw vacio, el default del mock) la
+    fuente progresivo penaliza 0 y el indice queda en 100. Antes se llamaba
+    `_v1` por la fase en que progresivo nunca penalizaba; hoy progresivo SI
+    penaliza cuando hay semanas (ver `test_progresivo_penaliza_indice_empleado`)
+    -- este test blinda el caso complementario: sin semanas, no toca el indice."""
     rh = await make_empleado(db, rol="rh", email="ho_svc_rh5@leoni.test")
     emp = await make_empleado(db, rol="empleado", email="ho_svc_emp5@leoni.test")
 
@@ -576,3 +595,185 @@ async def test_indices_bulk_error_bono_degrada_a_none(db):
 async def test_indices_bulk_lista_vacia(db):
     service = HistorialObjetivoService(db)
     assert await service.indices_historial_por_empleado([], None, None) == {}
+
+
+# ── Progresivo (semanas sin bono) integrado en el indice ─────────────────────
+
+
+@pytest.mark.asyncio
+async def test_progresivo_penaliza_indice_empleado(db):
+    """Empleado con 2 semanas sin bono, resto de fuentes limpias -> el indice
+    baja por progresivo. Peso PESO_PROGRESIVO_DEFAULT=6 * 2 = 12 -> indice 88."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_prog_rh1@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ho_svc_prog_emp1@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={emp.empleado_id: 2}):
+        resultado = await service.indice_empleado(rh, emp.empleado_id, None, None)
+
+    assert resultado.bono_disponible is True
+    assert resultado.resultado.penalizacion_total == 12.0
+    assert resultado.resultado.indice == 88.0
+    por_fuente = {d.fuente: d for d in resultado.resultado.desglose}
+    assert por_fuente["progresivo"].penalizacion == 12.0
+
+
+@pytest.mark.asyncio
+async def test_progresivo_un_solo_engine_y_dispose(db):
+    """El repo de progresivo se instancia sobre el MISMO engine de bono: una
+    sola apertura (`create_read_engine`) y un solo `dispose`, y la agregacion
+    de progresivo se consulta una vez."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_prog_rh2@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ho_svc_prog_emp2@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={emp.empleado_id: 1}) as (mock_engine, _inc, _falt):
+        with patch(
+            "app.services.historial_objetivo_service.BonoProductividadReadClient.create_read_engine",
+            return_value=mock_engine,
+        ) as create_engine_mock:
+            with patch(
+                "app.services.historial_objetivo_service.BonoProgresivoRepository"
+            ) as prog_cls:
+                prog_inst = prog_cls.return_value
+                prog_inst.aggregate_semanas_sin_bono_por_empleado = AsyncMock(
+                    return_value={emp.empleado_id: 1}
+                )
+                await service.indice_empleado(rh, emp.empleado_id, None, None)
+
+    create_engine_mock.assert_called_once()
+    mock_engine.dispose.assert_awaited_once()
+    # El repo de progresivo se construyo sobre el mismo engine ya abierto.
+    prog_cls.assert_called_once_with(mock_engine)
+    prog_inst.aggregate_semanas_sin_bono_por_empleado.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_progresivo_bono_no_disponible_no_penaliza(db):
+    """Bono no configurado (engine None) -> progresivo 0, sin crash y sin
+    penalizar por progresivo."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_prog_rh3@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ho_svc_prog_emp3@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(engine_configurado=False, progresivo_raw={emp.empleado_id: 5}):
+        resultado = await service.indice_empleado(rh, emp.empleado_id, None, None)
+
+    assert resultado.bono_disponible is False
+    assert resultado.resultado.indice == 100.0
+    por_fuente = {d.fuente: d for d in resultado.resultado.desglose}
+    assert por_fuente["progresivo"].penalizacion == 0.0
+
+
+@pytest.mark.asyncio
+async def test_progresivo_en_bulk_fase2(db):
+    """`indices_historial_por_empleado` incorpora la penalizacion de progresivo:
+    emp1 con 1 semana sin bono -> indice 94; emp2 sin semanas -> indice 100."""
+    emp1 = await make_empleado(db, rol="empleado", email="ho_svc_prog_bulk1@leoni.test")
+    emp2 = await make_empleado(db, rol="empleado", email="ho_svc_prog_bulk2@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={emp1.empleado_id: 1}):
+        out = await service.indices_historial_por_empleado(
+            [emp1.empleado_id, emp2.empleado_id], None, None
+        )
+
+    assert out[emp1.empleado_id] == 94.0
+    assert out[emp2.empleado_id] == 100.0
+
+
+@pytest.mark.asyncio
+async def test_progresivo_penaliza_indice_en_ranking_de_equipo(db):
+    """Hueco #1: un empleado del equipo con semanas sin bono aparece en el
+    ranking de equipo con el indice penalizado por progresivo. El companero
+    sin semanas conserva su indice 100 y el peor (con progresivo) queda
+    primero. Peso PESO_PROGRESIVO_DEFAULT=6 * 3 semanas = 18 -> indice 82."""
+    jefe = await make_empleado(db, rol="supervisor", email="ho_svc_prog_eq_jefe@leoni.test")
+    con_prog = await make_empleado(
+        db, rol="empleado", email="ho_svc_prog_eq_con@leoni.test", lider_id=jefe.empleado_id
+    )
+    sin_prog = await make_empleado(
+        db, rol="empleado", email="ho_svc_prog_eq_sin@leoni.test", lider_id=jefe.empleado_id
+    )
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={con_prog.empleado_id: 3}):
+        resultado = await service.indice_equipo(jefe, None, None)
+
+    por_id = {item.empleado_id: item for item in resultado.items}
+    # El empleado del equipo con semanas sin bono aparece penalizado.
+    assert con_prog.empleado_id in por_id
+    assert por_id[con_prog.empleado_id].resultado.indice == 82.0
+    desglose_con = {d.fuente: d for d in por_id[con_prog.empleado_id].resultado.desglose}
+    assert desglose_con["progresivo"].penalizacion == 18.0
+    # El companero sin semanas no se penaliza por progresivo.
+    assert por_id[sin_prog.empleado_id].resultado.indice == 100.0
+    desglose_sin = {d.fuente: d for d in por_id[sin_prog.empleado_id].resultado.desglose}
+    assert desglose_sin["progresivo"].penalizacion == 0.0
+    # Peor indice primero: el de progresivo encabeza el ranking.
+    assert resultado.items[0].empleado_id == con_prog.empleado_id
+
+
+@pytest.mark.asyncio
+async def test_progresivo_incluye_empleado_en_ranking_universo_rh(db):
+    """Bug de revision: en el universo de RH (`scope_ids is None`) un
+    empleado cuya UNICA senal negativa son semanas sin bono (progresivo) --
+    sin actas, faltas ni incidencias -- debe aparecer en el ranking global
+    con su indice penalizado. Antes `ids_universo` solo unia actas + faltas
+    + incidencias y dejaba fuera a este empleado (peso 6 * 3 semanas = 18 ->
+    indice 82)."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_prog_universo_rh@leoni.test")
+    solo_prog = await make_empleado(
+        db, rol="empleado", email="ho_svc_prog_universo_emp@leoni.test"
+    )
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={solo_prog.empleado_id: 3}):
+        resultado = await service.indice_equipo(rh, date(2026, 1, 1), date(2026, 6, 30))
+
+    por_id = {item.empleado_id: item for item in resultado.items}
+    assert solo_prog.empleado_id in por_id
+    assert por_id[solo_prog.empleado_id].resultado.indice == 82.0
+    desglose = {d.fuente: d for d in por_id[solo_prog.empleado_id].resultado.desglose}
+    assert desglose["progresivo"].penalizacion == 18.0
+
+
+@pytest.mark.asyncio
+async def test_progresivo_no_hace_doble_conteo_con_faltas_actas_e_incidencias(db):
+    """Hueco #3: un empleado con acta + falta + incidencia Y semanas sin bono
+    penaliza por CADA fuente de forma independiente (progresivo no altera el
+    conteo de faltas/incidencias/actas ni viceversa). A mano: acta signed=15,
+    incidencia calidad=6, retardo RE=3, progresivo 6*2=12 -> total 36 ->
+    indice 64. Cada fuente conserva su penalizacion aislada."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_dbl_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ho_svc_dbl_emp@leoni.test")
+    await _crear_acta(db, empleado_id=emp.empleado_id, generado_por=rh.empleado_id, estado="signed")
+
+    incidencias_raw = [
+        (emp.empleado_id, str(emp.no_empleado), emp.nombre, 1, {TIPO_INCIDENCIA_CALIDAD: 1})
+    ]
+    faltas_raw = [(emp.empleado_id, str(emp.no_empleado), emp.nombre, 1, {"RE": 1})]
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(
+        incidencias_raw=incidencias_raw,
+        faltas_raw=faltas_raw,
+        progresivo_raw={emp.empleado_id: 2},
+    ):
+        resultado = await service.indice_empleado(rh, emp.empleado_id, None, None)
+
+    assert resultado.resultado.penalizacion_total == 36.0
+    assert resultado.resultado.indice == 64.0
+    por_fuente = {d.fuente: d for d in resultado.resultado.desglose}
+    # Cada fuente penaliza exactamente su valor aislado -- ninguna se contamina
+    # con el conteo de otra (sin doble conteo entre progresivo y las demas).
+    assert por_fuente["actas"].penalizacion == 15.0
+    assert por_fuente["incidencias"].penalizacion == 6.0
+    assert por_fuente["faltas"].penalizacion == 3.0
+    assert por_fuente["progresivo"].penalizacion == 12.0
+    # El conteo de faltas es exactamente 1 retardo (progresivo no lo inflo) y el
+    # de progresivo exactamente 2 semanas (las faltas no lo inflaron).
+    tipos_faltas = {t.tipo: t.conteo for t in por_fuente["faltas"].tipos}
+    assert tipos_faltas == {"retardo": 1}
+    tipos_prog = {t.tipo: t.conteo for t in por_fuente["progresivo"].tipos}
+    assert tipos_prog == {TIPO_PROGRESIVO_PIERDE_BONO: 2}

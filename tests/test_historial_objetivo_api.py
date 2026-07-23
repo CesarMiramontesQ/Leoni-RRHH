@@ -48,11 +48,13 @@ def _mock_bono_repos(
     *,
     incidencias_raw: list | None = None,
     faltas_raw: list | None = None,
+    progresivo_raw: dict | None = None,
     engine_configurado: bool = True,
 ):
-    """Patchea `create_read_engine` + ambos repos de bono en el namespace del
-    service (mismo patron que `tests/test_historial_objetivo_service.py`) --
-    nunca toca la BD externa real."""
+    """Patchea `create_read_engine` + los tres repos de bono (incidencias,
+    faltas y progresivo) en el namespace del service (mismo patron que
+    `tests/test_historial_objetivo_service.py`) -- nunca toca la BD externa
+    real."""
     mock_engine = MagicMock()
     mock_engine.dispose = AsyncMock()
 
@@ -64,6 +66,11 @@ def _mock_bono_repos(
     falt_mock = AsyncMock()
     falt_mock.aggregate_empleados_top_por_tipo = AsyncMock(
         return_value=faltas_raw if faltas_raw is not None else []
+    )
+
+    prog_mock = AsyncMock()
+    prog_mock.aggregate_semanas_sin_bono_por_empleado = AsyncMock(
+        return_value=progresivo_raw if progresivo_raw is not None else {}
     )
 
     with (
@@ -78,6 +85,10 @@ def _mock_bono_repos(
         patch(
             "app.services.historial_objetivo_service.BonoFaltasRetardosRepository",
             return_value=falt_mock,
+        ),
+        patch(
+            "app.services.historial_objetivo_service.BonoProgresivoRepository",
+            return_value=prog_mock,
         ),
     ):
         yield mock_engine, inc_mock, falt_mock
