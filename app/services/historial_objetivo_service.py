@@ -40,13 +40,16 @@ from app.repositories.bono_faltas_retardos_repository import BonoFaltasRetardosR
 from app.repositories.bono_historico_incidencias_repository import (
     BonoHistoricoIncidenciasRepository,
 )
+from app.repositories.bono_progresivo_repository import BonoProgresivoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.services.faltas_retardos.constants import CODIGO_PONDERACION_A_TIPO
 from app.services.historial_objetivo.constants import (
     FUENTE_ACTAS,
     FUENTE_FALTAS,
     FUENTE_INCIDENCIAS,
+    FUENTE_PROGRESIVO,
     PESOS_POR_FUENTE,
+    TIPO_PROGRESIVO_PIERDE_BONO,
 )
 from app.services.historial_objetivo.formula import calcular_indice
 from app.services.historial_objetivo.types import (
@@ -103,6 +106,7 @@ class _BonoAgregado:
     disponible: bool
     faltas_por_empleado: dict[int, ConteosFuente]
     incidencias_por_empleado: dict[int, ConteosFuente]
+    progresivo_por_empleado: dict[int, ConteosFuente]
     info_por_empleado: dict[int, tuple[str | None, str | None]]
 
 
@@ -208,11 +212,13 @@ class HistorialObjetivoService:
                 disponible=False,
                 faltas_por_empleado={},
                 incidencias_por_empleado={},
+                progresivo_por_empleado={},
                 info_por_empleado={},
             )
 
         incidencias_repo = BonoHistoricoIncidenciasRepository(engine)
         faltas_repo = BonoFaltasRetardosRepository(engine)
+        progresivo_repo = BonoProgresivoRepository(engine)
         try:
             incidencia_filters = IncidenciaFuenteFilters(
                 empleado_id=empleado_id,
@@ -233,6 +239,12 @@ class HistorialObjetivoService:
                 area=None,
                 empleado_ids_scope=empleado_ids_scope,
             )
+            progresivo_raw = await progresivo_repo.aggregate_semanas_sin_bono_por_empleado(
+                empleado_id=empleado_id,
+                empleado_ids_scope=empleado_ids_scope,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+            )
         except SQLAlchemyError as exc:
             raise ServiceUnavailableError(
                 f"Error al consultar fuentes de bono para historial objetivo: "
@@ -251,6 +263,12 @@ class HistorialObjetivoService:
             )
             for eid, _no, _nombre, _cnt, por_codigo in faltas_raw
         }
+        progresivo_por_empleado = {
+            eid: self._conteos_fuente_filtrados(
+                FUENTE_PROGRESIVO, {TIPO_PROGRESIVO_PIERDE_BONO: semanas}
+            )
+            for eid, semanas in progresivo_raw.items()
+        }
         info_por_empleado: dict[int, tuple[str | None, str | None]] = {}
         for eid, no, nombre, _cnt, _por_tipo in incidencias_raw:
             info_por_empleado[eid] = (no, nombre)
@@ -261,6 +279,7 @@ class HistorialObjetivoService:
             disponible=True,
             faltas_por_empleado=faltas_por_empleado,
             incidencias_por_empleado=incidencias_por_empleado,
+            progresivo_por_empleado=progresivo_por_empleado,
             info_por_empleado=info_por_empleado,
         )
 
@@ -289,9 +308,7 @@ class HistorialObjetivoService:
             actas=actas_fuente,
             faltas=bono.faltas_por_empleado.get(empleado_id, ConteosFuente()),
             incidencias=bono.incidencias_por_empleado.get(empleado_id, ConteosFuente()),
-            # Progresivo (bono-productividad): v1 sin agregador -- siempre vacío
-            # (ver `app.services.historial_objetivo.constants.PESO_PROGRESIVO_DEFAULT`).
-            progresivo=ConteosFuente(),
+            progresivo=bono.progresivo_por_empleado.get(empleado_id, ConteosFuente()),
         )
         return calcular_indice(conteos), bono.disponible
 
@@ -394,7 +411,7 @@ class HistorialObjetivoService:
                 actas=self._conteos_fuente_filtrados(FUENTE_ACTAS, actas_counts.get(eid, {})),
                 faltas=bono.faltas_por_empleado.get(eid, ConteosFuente()),
                 incidencias=bono.incidencias_por_empleado.get(eid, ConteosFuente()),
-                progresivo=ConteosFuente(),
+                progresivo=bono.progresivo_por_empleado.get(eid, ConteosFuente()),
             )
             resultado = calcular_indice(conteos)
             if eid in bono.info_por_empleado:
@@ -454,7 +471,7 @@ class HistorialObjetivoService:
                 actas=self._conteos_fuente_filtrados(FUENTE_ACTAS, actas_counts.get(eid, {})),
                 faltas=bono.faltas_por_empleado.get(eid, ConteosFuente()),
                 incidencias=bono.incidencias_por_empleado.get(eid, ConteosFuente()),
-                progresivo=ConteosFuente(),
+                progresivo=bono.progresivo_por_empleado.get(eid, ConteosFuente()),
             )
             out[eid] = calcular_indice(conteos).indice
         return out

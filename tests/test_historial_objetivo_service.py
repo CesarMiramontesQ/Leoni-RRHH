@@ -43,12 +43,16 @@ def _mock_bono_repos(
     *,
     incidencias_raw: list | None = None,
     faltas_raw: list | None = None,
+    progresivo_raw: dict | None = None,
     engine_configurado: bool = True,
     incidencias_side_effect=None,
     faltas_side_effect=None,
 ):
-    """Patchea `create_read_engine` + ambos repos de bono en el namespace del
-    service (igual patrón que `tests/test_faltas_retardos.py`)."""
+    """Patchea `create_read_engine` + los tres repos de bono (incidencias,
+    faltas y progresivo) en el namespace del service (igual patrón que
+    `tests/test_faltas_retardos.py`). `progresivo_raw` es el dict
+    `{empleado_id: semanas_sin_bono}` que devuelve
+    `BonoProgresivoRepository.aggregate_semanas_sin_bono_por_empleado`."""
     mock_engine = MagicMock()
     mock_engine.dispose = AsyncMock()
 
@@ -68,6 +72,11 @@ def _mock_bono_repos(
             return_value=faltas_raw if faltas_raw is not None else []
         )
 
+    prog_mock = AsyncMock()
+    prog_mock.aggregate_semanas_sin_bono_por_empleado = AsyncMock(
+        return_value=progresivo_raw if progresivo_raw is not None else {}
+    )
+
     with (
         patch(
             "app.services.historial_objetivo_service.BonoProductividadReadClient.create_read_engine",
@@ -80,6 +89,10 @@ def _mock_bono_repos(
         patch(
             "app.services.historial_objetivo_service.BonoFaltasRetardosRepository",
             return_value=falt_mock,
+        ),
+        patch(
+            "app.services.historial_objetivo_service.BonoProgresivoRepository",
+            return_value=prog_mock,
         ),
     ):
         yield mock_engine, inc_mock, falt_mock
@@ -576,3 +589,88 @@ async def test_indices_bulk_error_bono_degrada_a_none(db):
 async def test_indices_bulk_lista_vacia(db):
     service = HistorialObjetivoService(db)
     assert await service.indices_historial_por_empleado([], None, None) == {}
+
+
+# ── Progresivo (semanas sin bono) integrado en el indice ─────────────────────
+
+
+@pytest.mark.asyncio
+async def test_progresivo_penaliza_indice_empleado(db):
+    """Empleado con 2 semanas sin bono, resto de fuentes limpias -> el indice
+    baja por progresivo. Peso PESO_PROGRESIVO_DEFAULT=6 * 2 = 12 -> indice 88."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_prog_rh1@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ho_svc_prog_emp1@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={emp.empleado_id: 2}):
+        resultado = await service.indice_empleado(rh, emp.empleado_id, None, None)
+
+    assert resultado.bono_disponible is True
+    assert resultado.resultado.penalizacion_total == 12.0
+    assert resultado.resultado.indice == 88.0
+    por_fuente = {d.fuente: d for d in resultado.resultado.desglose}
+    assert por_fuente["progresivo"].penalizacion == 12.0
+
+
+@pytest.mark.asyncio
+async def test_progresivo_un_solo_engine_y_dispose(db):
+    """El repo de progresivo se instancia sobre el MISMO engine de bono: una
+    sola apertura (`create_read_engine`) y un solo `dispose`, y la agregacion
+    de progresivo se consulta una vez."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_prog_rh2@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ho_svc_prog_emp2@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={emp.empleado_id: 1}) as (mock_engine, _inc, _falt):
+        with patch(
+            "app.services.historial_objetivo_service.BonoProductividadReadClient.create_read_engine",
+            return_value=mock_engine,
+        ) as create_engine_mock:
+            with patch(
+                "app.services.historial_objetivo_service.BonoProgresivoRepository"
+            ) as prog_cls:
+                prog_inst = prog_cls.return_value
+                prog_inst.aggregate_semanas_sin_bono_por_empleado = AsyncMock(
+                    return_value={emp.empleado_id: 1}
+                )
+                await service.indice_empleado(rh, emp.empleado_id, None, None)
+
+    create_engine_mock.assert_called_once()
+    mock_engine.dispose.assert_awaited_once()
+    # El repo de progresivo se construyo sobre el mismo engine ya abierto.
+    prog_cls.assert_called_once_with(mock_engine)
+    prog_inst.aggregate_semanas_sin_bono_por_empleado.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_progresivo_bono_no_disponible_no_penaliza(db):
+    """Bono no configurado (engine None) -> progresivo 0, sin crash y sin
+    penalizar por progresivo."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_prog_rh3@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="ho_svc_prog_emp3@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(engine_configurado=False, progresivo_raw={emp.empleado_id: 5}):
+        resultado = await service.indice_empleado(rh, emp.empleado_id, None, None)
+
+    assert resultado.bono_disponible is False
+    assert resultado.resultado.indice == 100.0
+    por_fuente = {d.fuente: d for d in resultado.resultado.desglose}
+    assert por_fuente["progresivo"].penalizacion == 0.0
+
+
+@pytest.mark.asyncio
+async def test_progresivo_en_bulk_fase2(db):
+    """`indices_historial_por_empleado` incorpora la penalizacion de progresivo:
+    emp1 con 1 semana sin bono -> indice 94; emp2 sin semanas -> indice 100."""
+    emp1 = await make_empleado(db, rol="empleado", email="ho_svc_prog_bulk1@leoni.test")
+    emp2 = await make_empleado(db, rol="empleado", email="ho_svc_prog_bulk2@leoni.test")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={emp1.empleado_id: 1}):
+        out = await service.indices_historial_por_empleado(
+            [emp1.empleado_id, emp2.empleado_id], None, None
+        )
+
+    assert out[emp1.empleado_id] == 94.0
+    assert out[emp2.empleado_id] == 100.0
