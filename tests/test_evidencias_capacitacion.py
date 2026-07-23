@@ -1,7 +1,7 @@
 """Tests del Motor de Evidencias de Capacitacion."""
 import pytest
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.services.evidencia_capacitacion.estado import derivar_estado_evidencia
 from app.schemas.level_up import (
     EvidenciaCapacitacionUpdate,
@@ -83,3 +83,68 @@ async def test_actualizar_no_cambia_estado_a_mano(db):
     ev2 = await svc.actualizar(ev.id, EvidenciaCapacitacionUpdate(estado="validada", notas="corregido"))
     assert ev2.notas == "corregido"
     assert ev2.estado == "pendiente"  # el estado es derivado, no se setea a mano
+
+
+@pytest.mark.asyncio
+async def test_firmar_todas_valida_evidencia(db):
+    emp = await make_empleado(db); f1 = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe")],
+    ))
+    firma_id = ev.firmas[0].id
+    out = await svc.firmar(firma_id, f1.empleado_id, FirmarRequest(estado="firmada"))
+    assert out.estado == "validada"
+    assert out.firmas_firmadas == 1
+
+
+@pytest.mark.asyncio
+async def test_firmar_rechazo_devuelve_evidencia(db):
+    emp = await make_empleado(db); f1 = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe")],
+    ))
+    out = await svc.firmar(ev.firmas[0].id, f1.empleado_id, FirmarRequest(estado="rechazada", comentario="ilegible"))
+    assert out.estado == "devuelta"
+
+
+@pytest.mark.asyncio
+async def test_firmar_firma_ajena_403(db):
+    emp = await make_empleado(db); f1 = await make_empleado(db); otro = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe")],
+    ))
+    with pytest.raises(ForbiddenError):
+        await svc.firmar(ev.firmas[0].id, otro.empleado_id, FirmarRequest(estado="firmada"))
+
+
+@pytest.mark.asyncio
+async def test_firmar_ya_firmada_409(db):
+    emp = await make_empleado(db); f1 = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    ev = await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe")],
+    ))
+    await svc.firmar(ev.firmas[0].id, f1.empleado_id, FirmarRequest(estado="firmada"))
+    with pytest.raises(ConflictError):
+        await svc.firmar(ev.firmas[0].id, f1.empleado_id, FirmarRequest(estado="firmada"))
+
+
+@pytest.mark.asyncio
+async def test_mis_firmas_pendientes_solo_del_token(db):
+    emp = await make_empleado(db); f1 = await make_empleado(db)
+    svc = EvidenciaCapacitacionService(db)
+    await svc.crear(EvidenciaCrearRequest(
+        tipo="foto", archivo_url="http://x", empleado_id=emp.empleado_id,
+        firmantes=[FirmanteAsignar(firmante_id=f1.empleado_id, rol_firma="jefe")],
+    ))
+    mias = await svc.mis_firmas_pendientes(f1.empleado_id)
+    ajenas = await svc.mis_firmas_pendientes(emp.empleado_id)
+    assert len(mias) == 1
+    assert len(ajenas) == 0

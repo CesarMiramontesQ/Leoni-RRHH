@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
-from app.models.empleados import Empleado
 from app.models.level_up import EvidenciaCapacitacion, EvidenciaFirma
 from app.models.talento import Capacitacion
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -152,6 +151,37 @@ class EvidenciaCapacitacionService:
         await self.db.delete(firma)
         await self.db.flush()
         ev = await self._get_o_404(evidencia_id)
+        await self._recalcular_estado(ev)
+        await self.db.flush()
+        return await self._to_response(ev)
+
+    # ── firma (self-service) ──
+    async def mis_firmas_pendientes(self, firmante_id: int):
+        stmt = (
+            select(EvidenciaCapacitacion)
+            .join(EvidenciaFirma, EvidenciaFirma.evidencia_id == EvidenciaCapacitacion.id)
+            .where(EvidenciaFirma.firmante_id == firmante_id, EvidenciaFirma.estado == "pendiente")
+            .options(selectinload(EvidenciaCapacitacion.firmas))
+            .distinct()
+            .order_by(EvidenciaCapacitacion.fecha_subida.desc())
+        )
+        evs = (await self.db.execute(stmt)).scalars().all()
+        return [await self._to_response(ev) for ev in evs]
+
+    async def firmar(self, firma_id: int, firmante_id: int, data: FirmarRequest):
+        firma = await self.db.get(EvidenciaFirma, firma_id)
+        if firma is None:
+            raise NotFoundError("EvidenciaFirma", firma_id)
+        if firma.firmante_id != firmante_id:
+            raise ForbiddenError("No puedes firmar una fila que no es tuya")
+        estado_actual = firma.estado.value if hasattr(firma.estado, "value") else str(firma.estado)
+        if estado_actual != "pendiente":
+            raise ConflictError("Esta firma ya fue resuelta")
+        firma.estado = data.estado
+        firma.fecha_firma = datetime.now(timezone.utc)
+        firma.comentario = data.comentario
+        await self.db.flush()
+        ev = await self._get_o_404(firma.evidencia_id)
         await self._recalcular_estado(ev)
         await self.db.flush()
         return await self._to_response(ev)
