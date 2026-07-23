@@ -88,9 +88,14 @@ function firmaEstadoBadge(estado: FirmaEstado): string {
   return badgePending(label);
 }
 
-/** Solo tratamos como enlace navegable las URLs http(s) o rutas absolutas. */
+/**
+ * Solo tratamos como enlace navegable las URLs http(s) o rutas absolutas del
+ * mismo sitio. Rechazamos las protocolo-relativas (`//host`) para que un valor
+ * externo no se convierta en un link off-site que evada el guard.
+ */
 function safeHref(url: string): string | null {
   const t = url.trim();
+  if (t.startsWith("//")) return null;
   if (/^https?:\/\//i.test(t) || t.startsWith("/")) return t;
   return null;
 }
