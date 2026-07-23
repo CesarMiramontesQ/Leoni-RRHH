@@ -39,7 +39,7 @@ parametro `forzar` de `cerrar_ciclo` -- NO se lee de `CicloDesempeno.config`.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional, Union
 
@@ -71,6 +71,7 @@ from app.schemas.ciclo_desempeno import (
     PotencialUpdateItem,
 )
 from app.services.evaluacion360_service import Evaluacion360Service
+from app.services.historial_objetivo_service import HistorialObjetivoService
 from app.services.metas_service import MetasService
 
 Numero = Union[Decimal, int, float]
@@ -104,48 +105,51 @@ def normalizar_360(
 def combinar_score(
     cumplimiento_metas: Optional[Numero],
     calificacion_360_norm: Optional[Numero],
+    indice_historial: Optional[Numero],
     peso_metas: Numero,
     peso_competencias: Numero,
-) -> tuple[Optional[float], Optional[float], Optional[float]]:
-    """Combina cumplimiento de metas (0-100) + calificacion 360 normalizada
-    (0-100) ponderados por `peso_metas`/`peso_competencias` del ciclo.
+    peso_historial: Numero,
+) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+    """Combina hasta tres senales (metas, 360 normalizada, historial objetivo),
+    todas 0-100 y en la misma direccion (mayor = mejor), ponderadas por sus
+    pesos configurados. `None` en una senal = AUSENTE (distinto de un `0` real,
+    que si cuenta).
 
-    `None` en `cumplimiento_metas` o `calificacion_360_norm` significa
-    "senal AUSENTE" (distinto de un valor real de `0`, que SI cuenta en la
-    ponderacion -- ver `MetasService.cumplimiento_empleado`/nota del
-    servicio sobre "metas ausente" vs "metas=0 real"):
+    Una senal CUENTA si su valor no es None y su peso configurado es > 0.
+      - score = suma(peso_i * valor_i) / suma(peso_i) sobre las que cuentan.
+      - peso efectivo: si TODAS las senales con peso configurado > 0 estan
+        presentes, cada efectivo es su peso configurado tal cual; si falta
+        alguna, los pesos de las presentes se re-escalan proporcionalmente para
+        sumar 100 (reproduce el comportamiento anterior de 2 senales: una sola
+        presente -> 100). Una senal que no cuenta -> efectivo 0.
+      - ninguna cuenta -> (None, None, None, None).
 
-      - Ambas presentes: `score = (pm*cumpl + pc*norm) / (pm+pc)`,
-        efectivos = `(pm, pc)` (los pesos configurados, tal cual).
-      - Solo una presente: `score` = esa senal, efectivos = `(100, 0)` si
-        es metas, `(0, 100)` si es 360 (la presente absorbe el 100% del
-        peso efectivo).
-      - Ninguna presente: `(None, None, None)` (sin banda, excluido del
-        9-box).
-
-    Devuelve `(score, peso_metas_efectivo, peso_competencias_efectivo)`.
+    Con `peso_historial=0` el resultado (score, pm_ef, pc_ef) es identico a la
+    version anterior de dos senales y ph_ef = 0.
     """
-    tiene_metas = cumplimiento_metas is not None
-    tiene_360 = calificacion_360_norm is not None
+    senales = [
+        (cumplimiento_metas, float(peso_metas)),
+        (calificacion_360_norm, float(peso_competencias)),
+        (indice_historial, float(peso_historial)),
+    ]
+    cuentan = [(v, p) for (v, p) in senales if v is not None and p > 0]
+    if not cuentan:
+        return None, None, None, None
 
-    if not tiene_metas and not tiene_360:
-        return None, None, None
+    suma_pesos = sum(p for _v, p in cuentan)
+    score = round(sum(p * float(v) for v, p in cuentan) / suma_pesos, 2)
 
-    if tiene_metas and tiene_360:
-        pm = float(peso_metas)
-        pc = float(peso_competencias)
-        total = pm + pc
-        if total <= 0:
-            # No deberia ocurrir (el ciclo exige peso_metas+peso_competencias
-            # > 0 para activarse), pero se guarda como borde defensivo.
-            return None, None, None
-        score = (pm * float(cumplimiento_metas) + pc * float(calificacion_360_norm)) / total
-        return round(score, 2), pm, pc
+    # Todas las senales configuradas (peso > 0) presentes?
+    configuradas = [(v, p) for (v, p) in senales if p > 0]
+    todas_presentes = all(v is not None for v, _p in configuradas)
 
-    if tiene_metas:
-        return round(float(cumplimiento_metas), 2), 100.0, 0.0
-
-    return round(float(calificacion_360_norm), 2), 0.0, 100.0
+    efectivos: list[float] = []
+    for (v, p) in senales:
+        if v is not None and p > 0:
+            efectivos.append(p if todas_presentes else round(p * 100.0 / suma_pesos, 2))
+        else:
+            efectivos.append(0.0)
+    return score, efectivos[0], efectivos[1], efectivos[2]
 
 
 def banda(valor: Numero, umbral_medio: Numero, umbral_alto: Numero) -> str:
@@ -222,6 +226,7 @@ class CicloDesempenoService:
             eval360_campana_id=data.eval360_campana_id,
             peso_metas=data.peso_metas,
             peso_competencias=data.peso_competencias,
+            peso_historial=data.peso_historial,
             umbral_medio=data.umbral_medio,
             umbral_alto=data.umbral_alto,
             config=data.config,
@@ -263,9 +268,10 @@ class CicloDesempenoService:
             raise DomainValidationError(
                 "fecha_fin debe ser >= fecha_inicio", field="fecha_fin"
             )
-        if (ciclo.peso_metas + ciclo.peso_competencias) <= 0:
+        if (ciclo.peso_metas + ciclo.peso_competencias + ciclo.peso_historial) <= 0:
             raise DomainValidationError(
-                "peso_metas + peso_competencias debe ser > 0", field="peso_metas"
+                "peso_metas + peso_competencias + peso_historial debe ser > 0",
+                field="peso_metas",
             )
         if not (0 < ciclo.umbral_medio < ciclo.umbral_alto < 100):
             raise DomainValidationError(
@@ -290,9 +296,10 @@ class CicloDesempenoService:
                 "El ciclo requiere fecha_inicio y fecha_fin para activarse",
                 field="fecha_inicio",
             )
-        if (ciclo.peso_metas + ciclo.peso_competencias) <= 0:
+        if (ciclo.peso_metas + ciclo.peso_competencias + ciclo.peso_historial) <= 0:
             raise DomainValidationError(
-                "peso_metas + peso_competencias debe ser > 0", field="peso_metas"
+                "peso_metas + peso_competencias + peso_historial debe ser > 0",
+                field="peso_metas",
             )
         if ciclo.meta_ciclo_id is None and ciclo.eval360_campana_id is None:
             raise DomainValidationError(
@@ -351,10 +358,14 @@ class CicloDesempenoService:
                     )
 
         campana, participante_by_empleado, escala = await self._contexto_senales(ciclo)
+        indices_hist = await self._indices_historial_ciclo(
+            ciclo, [r.empleado_id for r in ciclo.resultados]
+        )
         ahora = datetime.now(timezone.utc)
         for resultado in ciclo.resultados:
             datos = await self._calcular_resultado_vivo(
-                ciclo, resultado.empleado_id, participante_by_empleado, escala
+                ciclo, resultado.empleado_id, participante_by_empleado, escala,
+                indice_historial=indices_hist.get(resultado.empleado_id),
             )
             banda_potencial = (
                 banda(resultado.potencial, ciclo.umbral_medio, ciclo.umbral_alto)
@@ -378,6 +389,8 @@ class CicloDesempenoService:
                 calificacion_desempeno=_dec(datos["calificacion_desempeno"]),
                 peso_metas_efectivo=_dec(datos["peso_metas_efectivo"]),
                 peso_competencias_efectivo=_dec(datos["peso_competencias_efectivo"]),
+                indice_historial=_dec(datos["indice_historial"]),
+                peso_historial_efectivo=_dec(datos["peso_historial_efectivo"]),
                 banda_desempeno=banda_efe,
                 banda_potencial=banda_potencial,
                 segmento_9box=segmento,
@@ -564,10 +577,14 @@ class CicloDesempenoService:
             return out
 
         campana, participante_by_empleado, escala = await self._contexto_senales(ciclo)
+        indices_hist = await self._indices_historial_ciclo(
+            ciclo, [r.empleado_id for r in resultados]
+        )
         out = []
         for r in resultados:
             datos = await self._calcular_resultado_vivo(
-                ciclo, r.empleado_id, participante_by_empleado, escala
+                ciclo, r.empleado_id, participante_by_empleado, escala,
+                indice_historial=indices_hist.get(r.empleado_id),
             )
             banda_potencial = (
                 banda(r.potencial, ciclo.umbral_medio, ciclo.umbral_alto)
@@ -594,6 +611,8 @@ class CicloDesempenoService:
                     calificacion_desempeno=_dec(datos["calificacion_desempeno"]),
                     peso_metas_efectivo=_dec(datos["peso_metas_efectivo"]),
                     peso_competencias_efectivo=_dec(datos["peso_competencias_efectivo"]),
+                    indice_historial=_dec(datos["indice_historial"]),
+                    peso_historial_efectivo=_dec(datos["peso_historial_efectivo"]),
                     potencial=r.potencial,
                     banda_desempeno=datos["banda_desempeno"],
                     banda_potencial=banda_potencial,
@@ -705,6 +724,24 @@ class CicloDesempenoService:
                 escala = await self.eval360_repo.get_escala(config.escala_id)
         return campana, participante_by_empleado, escala
 
+    async def _indices_historial_ciclo(
+        self, ciclo: CicloDesempeno, empleado_ids: list[int]
+    ) -> dict[int, float | None]:
+        """Pre-carga los indices de historial objetivo del conjunto de empleados
+        con UNA sola apertura de engine de bono, SOLO si el ciclo pondera el
+        historial (`peso_historial > 0`). Si el peso es 0, devuelve {} sin abrir
+        el engine (no-regresion de costo). Periodo = fechas del ciclo; si faltan,
+        ultimos 365 dias."""
+        if ciclo.peso_historial is None or float(ciclo.peso_historial) <= 0 or not empleado_ids:
+            return {}
+        fi = ciclo.fecha_inicio
+        ff = ciclo.fecha_fin
+        if fi is None or ff is None:
+            hoy = date.today()
+            fi, ff = hoy - timedelta(days=365), hoy
+        historial_svc = HistorialObjetivoService(self.db)
+        return await historial_svc.indices_historial_por_empleado(empleado_ids, fi, ff)
+
     async def _cumplimiento_metas_o_none(
         self, ciclo: CicloDesempeno, empleado_id: int
     ) -> Optional[float]:
@@ -759,13 +796,15 @@ class CicloDesempenoService:
         empleado_id: int,
         participante_by_empleado: dict[int, int],
         escala: Optional[Eval360Escala],
+        indice_historial: Optional[float] = None,
     ) -> dict:
         cumplimiento = await self._cumplimiento_metas_o_none(ciclo, empleado_id)
         raw360, norm360, vmin, vmax = await self._calificacion_360_o_none(
             empleado_id, participante_by_empleado, escala
         )
-        score, pm_ef, pc_ef = combinar_score(
-            cumplimiento, norm360, ciclo.peso_metas, ciclo.peso_competencias
+        score, pm_ef, pc_ef, ph_ef = combinar_score(
+            cumplimiento, norm360, indice_historial,
+            ciclo.peso_metas, ciclo.peso_competencias, ciclo.peso_historial,
         )
         banda_desempeno = (
             banda(score, ciclo.umbral_medio, ciclo.umbral_alto) if score is not None else None
@@ -779,5 +818,7 @@ class CicloDesempenoService:
             "calificacion_desempeno": score,
             "peso_metas_efectivo": pm_ef,
             "peso_competencias_efectivo": pc_ef,
+            "indice_historial": indice_historial,
+            "peso_historial_efectivo": ph_ef,
             "banda_desempeno": banda_desempeno,
         }

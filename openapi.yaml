@@ -132,6 +132,8 @@ components:
         calificacion_desempeno: { type: [number, "null"] }
         peso_metas_efectivo: { type: [number, "null"] }
         peso_competencias_efectivo: { type: [number, "null"] }
+        indice_historial: { type: [number, "null"] }
+        peso_historial_efectivo: { type: [number, "null"] }
         potencial: { type: [number, "null"] }
         banda_desempeno: { type: [string, "null"], enum: [bajo, medio, alto, null] }
         banda_potencial: { type: [string, "null"], enum: [bajo, medio, alto, null] }

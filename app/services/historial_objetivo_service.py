@@ -416,6 +416,49 @@ class HistorialObjetivoService:
 
     # ── Firmas-espejo fase 2 (consumo futuro desde Ciclo de Desempeño) ───────
 
+    async def indices_historial_por_empleado(
+        self,
+        empleado_ids: list[int],
+        fecha_inicio: date | None,
+        fecha_fin: date | None,
+    ) -> dict[int, float | None]:
+        """Indice objetivo por empleado para el conjunto dado, con UN solo engine
+        de bono (reusa `_agregar_bono`, que hace `dispose()` en `finally`).
+        Pensado para consumo interno servicio-a-servicio (Ciclo de Desempeno),
+        sin resolver scope de `current_user`. Si el bono no esta disponible o
+        falla la consulta, degrada devolviendo `None` para todos (senal ausente,
+        no crash). Lista vacia -> dict vacio."""
+        if not empleado_ids:
+            return {}
+        self._validar_rango_fechas(fecha_inicio, fecha_fin)
+        try:
+            actas_counts = await self.acta_repo.count_por_empleado_por_estado(
+                empleado_ids, fecha_inicio, fecha_fin
+            )
+            bono = await self._agregar_bono(
+                empleado_id=None,
+                empleado_ids_scope=list(empleado_ids),
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                limit=len(empleado_ids) or 1,
+            )
+        except LeoniException:
+            return {eid: None for eid in empleado_ids}
+
+        out: dict[int, float | None] = {}
+        for eid in empleado_ids:
+            if not bono.disponible:
+                out[eid] = None
+                continue
+            conteos = ConteosHistorial(
+                actas=self._conteos_fuente_filtrados(FUENTE_ACTAS, actas_counts.get(eid, {})),
+                faltas=bono.faltas_por_empleado.get(eid, ConteosFuente()),
+                incidencias=bono.incidencias_por_empleado.get(eid, ConteosFuente()),
+                progresivo=ConteosFuente(),
+            )
+            out[eid] = calcular_indice(conteos).indice
+        return out
+
     async def indice_historial_empleado(
         self,
         empleado_id: int,

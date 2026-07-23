@@ -512,3 +512,67 @@ async def test_indice_historial_empleado_o_none_degrada_si_no_existe(db):
     with _mock_bono_repos():
         resultado = await service.indice_historial_empleado_o_none(999_999_999, None, None)
     assert resultado is None
+
+
+# ── Bulk fase 2: indices_historial_por_empleado ──────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_indices_bulk_un_solo_engine_y_dispose(db):
+    """Un solo engine de bono por llamada (no uno por empleado) + dispose, y el
+    dict resultante cubre todos los ids con un indice float cada uno."""
+    emp1 = await make_empleado(db, rol="empleado", email="ho_svc_bulk_eng1@leoni.test")
+    emp2 = await make_empleado(db, rol="empleado", email="ho_svc_bulk_eng2@leoni.test")
+    await _crear_acta(db, empleado_id=emp1.empleado_id, generado_por=emp1.empleado_id, estado="signed")
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos() as (mock_engine, inc_mock, falt_mock):
+        with patch(
+            "app.services.historial_objetivo_service.BonoProductividadReadClient.create_read_engine",
+            return_value=mock_engine,
+        ) as create_engine_mock:
+            out = await service.indices_historial_por_empleado(
+                [emp1.empleado_id, emp2.empleado_id], None, None
+            )
+
+    # UN solo engine para toda la llamada, con dispose; ambos repos consultados 1 vez.
+    create_engine_mock.assert_called_once()
+    mock_engine.dispose.assert_awaited_once()
+    inc_mock.aggregate_empleados_top_por_tipo.assert_awaited_once()
+    falt_mock.aggregate_empleados_top_por_tipo.assert_awaited_once()
+
+    assert set(out.keys()) == {emp1.empleado_id, emp2.empleado_id}
+    assert all(isinstance(v, float) for v in out.values())
+    # emp1 tiene 1 acta signed (15) -> indice 85; emp2 sin eventos -> 100.
+    assert out[emp1.empleado_id] == 85.0
+    assert out[emp2.empleado_id] == 100.0
+
+
+@pytest.mark.asyncio
+async def test_indices_bulk_bono_no_disponible_devuelve_none(db):
+    """Bono no configurado (engine None) -> senal ausente para TODOS."""
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(engine_configurado=False):
+        out = await service.indices_historial_por_empleado([10, 20], None, None)
+    assert out == {10: None, 20: None}
+
+
+@pytest.mark.asyncio
+async def test_indices_bulk_error_bono_degrada_a_none(db):
+    """Si la consulta de bono falla (SQLAlchemyError -> ServiceUnavailableError),
+    se captura y degrada a None para todos, sin crash y con dispose."""
+    from sqlalchemy.exc import SQLAlchemyError
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(
+        incidencias_side_effect=SQLAlchemyError("boom")
+    ) as (mock_engine, _inc_mock, _falt_mock):
+        out = await service.indices_historial_por_empleado([10, 20], None, None)
+    assert out == {10: None, 20: None}
+    mock_engine.dispose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_indices_bulk_lista_vacia(db):
+    service = HistorialObjetivoService(db)
+    assert await service.indices_historial_por_empleado([], None, None) == {}
