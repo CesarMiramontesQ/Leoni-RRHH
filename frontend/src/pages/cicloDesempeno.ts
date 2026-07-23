@@ -833,7 +833,11 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
             </div>`
           : ""
       }
-      ${state.esGestionRh ? `<div class="mt-2 border-t border-slate-200/70 pt-4">${renderCalibracion()}</div>` : ""}
+      ${(() => {
+        if (!state.esGestionRh) return "";
+        const calibracionHtml = renderCalibracion();
+        return calibracionHtml ? `<div class="mt-2 border-t border-slate-200/70 pt-4">${calibracionHtml}</div>` : "";
+      })()}
     </div>`;
   }
 
