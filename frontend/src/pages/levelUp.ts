@@ -3705,7 +3705,7 @@ function renderSugCard(sug: SugerenciaItem): string {
 /** Estado de mutación en curso; deshabilita acciones de las tarjetas. */
 let sugActionsBusy = false;
 
-/** Elementos enfocables dentro de un panel de modal, para el focus-trap básico (Tab/Shift+Tab). */
+/** Elementos enfocables dentro de un panel de modal, para el focus-trap basico (Tab/Shift+Tab). */
 const SUG_FOCUSABLE_SELECTOR = [
   "button:not([disabled])",
   "input:not([disabled])",
