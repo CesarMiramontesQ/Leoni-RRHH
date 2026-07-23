@@ -19,8 +19,8 @@ import {
   SELECT_CHEVRON,
   alertError,
   badgeApproved,
-  badgeCancelled,
   badgeChangesRequested,
+  badgePending,
   errorState,
   pageHeading,
   skeletonBlock,
@@ -71,7 +71,7 @@ function safeHref(raw: string | null | undefined): string | null {
 function estadoBadge(estado: string): string {
   if (estado === "aprobada") return badgeApproved(ESTADO_LABELS.aprobada);
   if (estado === "revision") return badgeChangesRequested(ESTADO_LABELS.revision);
-  return badgeCancelled(ESTADO_LABELS.borrador);
+  return badgePending(ESTADO_LABELS.borrador);
 }
 
 function detailMsg(e: unknown): string {
