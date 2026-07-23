@@ -80,6 +80,10 @@ class CicloDesempeno(Base):
         Numeric(5, 2), nullable=False, default=Decimal("40"),
         comment="Peso (%) de la calificacion 360 en la calificacion final",
     )
+    peso_historial: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), nullable=False, default=Decimal("0"),
+        comment="Peso del indice de historial objetivo en el score (0 = no cuenta)",
+    )
     umbral_medio: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), nullable=False, default=Decimal("50"),
         comment="Calificacion minima (%) para banda 'medio'",
@@ -139,6 +143,8 @@ class CicloDesempenoResultado(Base):
     calificacion_desempeno: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2), nullable=True)
     peso_metas_efectivo: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     peso_competencias_efectivo: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    indice_historial: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2), nullable=True)
+    peso_historial_efectivo: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     potencial: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2), nullable=True)
     banda_desempeno: Mapped[Optional[str]] = mapped_column(
         String(10), nullable=True, comment="bajo|medio|alto",
