@@ -678,6 +678,9 @@ class SugerenciaCapacitacion(Base):
     duracion_sugerida: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     inversion_estimada: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     proveedor_sugerido: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    curso_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_cursos.id", ondelete="SET NULL"), nullable=True
+    )
     prioridad: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     estado: Mapped[EstadoSugerencia] = mapped_column(
         Enum(EstadoSugerencia, name="estado_sugerencia_enum"),
@@ -690,6 +693,8 @@ class SugerenciaCapacitacion(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    curso: Mapped[Optional["Curso"]] = relationship("Curso", foreign_keys=[curso_id])
 
 
 class PlanDesarrollo(Base):
