@@ -396,6 +396,7 @@ class HistorialObjetivoService:
                 set(actas_counts)
                 | set(bono.faltas_por_empleado)
                 | set(bono.incidencias_por_empleado)
+                | set(bono.progresivo_por_empleado)
             )
 
         # Empleados que solo aparecen en actas (sin eventos de bono en el

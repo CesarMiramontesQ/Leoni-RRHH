@@ -715,6 +715,30 @@ async def test_progresivo_penaliza_indice_en_ranking_de_equipo(db):
 
 
 @pytest.mark.asyncio
+async def test_progresivo_incluye_empleado_en_ranking_universo_rh(db):
+    """Bug de revision: en el universo de RH (`scope_ids is None`) un
+    empleado cuya UNICA senal negativa son semanas sin bono (progresivo) --
+    sin actas, faltas ni incidencias -- debe aparecer en el ranking global
+    con su indice penalizado. Antes `ids_universo` solo unia actas + faltas
+    + incidencias y dejaba fuera a este empleado (peso 6 * 3 semanas = 18 ->
+    indice 82)."""
+    rh = await make_empleado(db, rol="rh", email="ho_svc_prog_universo_rh@leoni.test")
+    solo_prog = await make_empleado(
+        db, rol="empleado", email="ho_svc_prog_universo_emp@leoni.test"
+    )
+
+    service = HistorialObjetivoService(db)
+    with _mock_bono_repos(progresivo_raw={solo_prog.empleado_id: 3}):
+        resultado = await service.indice_equipo(rh, date(2026, 1, 1), date(2026, 6, 30))
+
+    por_id = {item.empleado_id: item for item in resultado.items}
+    assert solo_prog.empleado_id in por_id
+    assert por_id[solo_prog.empleado_id].resultado.indice == 82.0
+    desglose = {d.fuente: d for d in por_id[solo_prog.empleado_id].resultado.desglose}
+    assert desglose["progresivo"].penalizacion == 18.0
+
+
+@pytest.mark.asyncio
 async def test_progresivo_no_hace_doble_conteo_con_faltas_actas_e_incidencias(db):
     """Hueco #3: un empleado con acta + falta + incidencia Y semanas sin bono
     penaliza por CADA fuente de forma independiente (progresivo no altera el
