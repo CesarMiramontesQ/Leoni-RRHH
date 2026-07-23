@@ -4,6 +4,7 @@ import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
 import {
   BTN_PRIMARY,
   BTN_SECONDARY,
+  BTN_DANGER,
   FIELD_FOCUS,
   FILTER_FIELD_WRAP,
   RH_LISTADO_BTN_GHOST,
@@ -14,6 +15,12 @@ import {
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
   FIELD_INPUT,
+  FIELD_TEXTAREA,
+  FORM_LABEL,
+  FORM_SELECT,
+  MODAL_OVERLAY,
+  MODAL_PANEL,
+  alertError,
   pageHeading,
   errorState,
   skeletonBlock,
@@ -34,10 +41,17 @@ import type { UsuarioListItem } from "../api/usuarios.ts";
 import { getEncuestasDashboard, getCursoEncuestasResumen } from "../api/encuestas.ts";
 import {
   listarSugerencias,
+  crearSugerencia,
   actualizarSugerencia,
+  eliminarSugerencia,
   generarSugerenciasDesdeBrechas,
 } from "../api/sugerencias.ts";
-import type { SugerenciaResponse, SugerenciaEstado } from "../api/sugerencias.ts";
+import type {
+  SugerenciaResponse,
+  SugerenciaEstado,
+  SugerenciaCreatePayload,
+  SugerenciaUpdatePayload,
+} from "../api/sugerencias.ts";
 import { getAreasOptions } from "../api/puestos.ts";
 import type { AreaOption } from "../api/puestos.ts";
 import type {
@@ -3673,6 +3687,11 @@ function renderSugCard(sug: SugerenciaItem): string {
       <button type="button" class="${BTN_PRIMARY} !text-[11px] !px-3 !py-1.5 w-full ${busyCls}" ${btnAttrs("aprobada")}>Aprobar y programar</button>
       <button type="button" class="${BTN_SECONDARY} !text-[11px] !px-3 !py-1.5 w-full ${busyCls}" ${btnAttrs("pospuesta")}>Posponer</button>
       <button type="button" class="rounded-md px-3 py-1.5 text-[11px] font-medium text-slate-500 hover:bg-slate-100 transition w-full ${busyCls}" ${btnAttrs("descartada")}>Descartar</button>
+      <div class="w-full border-t border-slate-200"></div>
+      <div class="flex w-full gap-2">
+        <button type="button" class="${BTN_SECONDARY} !text-[11px] !px-3 !py-1.5 flex-1 ${busyCls}" data-action="sug-editar" data-id="${sug.sugId}" ${disabledAttr}>Editar</button>
+        <button type="button" class="${BTN_DANGER} !text-[11px] !px-3 !py-1.5 flex-1 ${busyCls}" data-action="sug-eliminar" data-id="${sug.sugId}" ${disabledAttr}>Eliminar</button>
+      </div>
     </div>`;
 
   return `
@@ -3686,6 +3705,49 @@ function renderSugCard(sug: SugerenciaItem): string {
 /** Estado de mutación en curso; deshabilita acciones de las tarjetas. */
 let sugActionsBusy = false;
 
+/** Elementos enfocables dentro de un panel de modal, para el focus-trap básico (Tab/Shift+Tab). */
+const SUG_FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+interface SugForm {
+  titulo: string;
+  justificacion: string;
+  prioridad: string;
+  estado: string;
+  cursoId: string;
+  brechaPct: string;
+  adopcionPct: string;
+  personas: string;
+  duracion: string;
+  inversion: string;
+  proveedor: string;
+  capacidades: string;
+  areas: string;
+}
+
+function sugEmptyForm(): SugForm {
+  return {
+    titulo: "",
+    justificacion: "",
+    prioridad: "3",
+    estado: "activa",
+    cursoId: "",
+    brechaPct: "",
+    adopcionPct: "",
+    personas: "",
+    duracion: "",
+    inversion: "",
+    proveedor: "",
+    capacidades: "",
+    areas: "",
+  };
+}
+
 interface SugerenciasView {
   items: SugerenciaResponse[];
   areas: AreaOption[];
@@ -3695,6 +3757,13 @@ interface SugerenciasView {
   generating: boolean;
   selectedAreaId: string;
   umbral: string;
+  modalOpen: boolean;
+  modalMode: "crear" | "editar";
+  editId: number | null;
+  saving: boolean;
+  modalError: string | null;
+  cursos: { id: number; nombre: string }[];
+  form: SugForm;
 }
 
 function renderSugGenerarControl(v: SugerenciasView): string {
@@ -3720,6 +3789,101 @@ function renderSugGenerarControl(v: SugerenciasView): string {
         <input id="sug-umbral" data-action="sug-umbral" type="number" min="0" max="100" step="1" value="${escapeHtml(v.umbral)}" class="${FIELD_INPUT} !w-24" ${disAttr} />
       </div>
       <button type="button" data-action="sug-generar" class="${RH_LISTADO_BTN_PRIMARY}" ${disAttr}>${v.generating ? "Generando…" : "Generar desde brechas"}</button>
+    </div>`;
+}
+
+function renderSugField(
+  label: string,
+  campo: keyof SugForm,
+  value: string,
+  opts: { type?: string; min?: string; max?: string; step?: string; placeholder?: string } = {},
+): string {
+  const attrs = [
+    `type="${opts.type ?? "text"}"`,
+    opts.min != null ? `min="${opts.min}"` : "",
+    opts.max != null ? `max="${opts.max}"` : "",
+    opts.step != null ? `step="${opts.step}"` : "",
+    opts.placeholder ? `placeholder="${escapeHtml(opts.placeholder)}"` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return `
+    <div>
+      <label class="${FORM_LABEL}" for="sug-form-${campo}">${escapeHtml(label)}</label>
+      <input id="sug-form-${campo}" data-form="${campo}" ${attrs} value="${escapeHtml(value)}" class="${FIELD_INPUT}" />
+    </div>`;
+}
+
+function renderSugerenciaModal(v: SugerenciasView): string {
+  if (!v.modalOpen) return "";
+  const f = v.form;
+  const titulo = v.modalMode === "crear" ? "Nueva sugerencia" : "Editar sugerencia";
+  const cursoOpts = [
+    `<option value=""${f.cursoId === "" ? " selected" : ""}>— sin curso —</option>`,
+    ...v.cursos.map(
+      (c) => `<option value="${c.id}"${String(c.id) === f.cursoId ? " selected" : ""}>${escapeHtml(c.nombre)}</option>`,
+    ),
+  ].join("");
+  const estadoOpts = (Object.keys(SUG_ESTADO_LABELS) as SugerenciaEstado[])
+    .map(
+      (e) => `<option value="${e}"${e === f.estado ? " selected" : ""}>${escapeHtml(SUG_ESTADO_LABELS[e])}</option>`,
+    )
+    .join("");
+  const estadoField =
+    v.modalMode === "editar"
+      ? `
+      <div>
+        <label class="${FORM_LABEL}" for="sug-form-estado">Estado</label>
+        <div class="relative grid grid-cols-1">
+          <select id="sug-form-estado" data-form="estado" class="${FORM_SELECT}">${estadoOpts}</select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>`
+      : "";
+  return `
+    <div class="${MODAL_OVERLAY}" data-modal="sug-modal">
+      <div class="${MODAL_PANEL} max-w-2xl" role="dialog" aria-modal="true" aria-labelledby="sug-modal-titulo">
+        <header class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h2 id="sug-modal-titulo" class="text-base font-bold text-text-primary">${escapeHtml(titulo)}</h2>
+          <button type="button" data-action="sug-modal-cerrar" class="text-text-muted hover:text-text-primary" aria-label="Cerrar">✕</button>
+        </header>
+        <div class="max-h-[70vh] overflow-y-auto px-5 py-4">
+          ${v.modalError ? `<div class="mb-3">${alertError(v.modalError)}</div>` : ""}
+          <div class="flex flex-col gap-3">
+            <div>
+              <label class="${FORM_LABEL}" for="sug-form-titulo">Título</label>
+              <input id="sug-form-titulo" data-form="titulo" type="text" value="${escapeHtml(f.titulo)}" class="${FIELD_INPUT}" />
+            </div>
+            <div>
+              <label class="${FORM_LABEL}" for="sug-form-justificacion">Justificación</label>
+              <textarea id="sug-form-justificacion" data-form="justificacion" rows="3" class="${FIELD_TEXTAREA}">${escapeHtml(f.justificacion)}</textarea>
+            </div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label class="${FORM_LABEL}" for="sug-form-cursoId">Curso asignado</label>
+                <div class="relative grid grid-cols-1">
+                  <select id="sug-form-cursoId" data-form="cursoId" class="${FORM_SELECT}">${cursoOpts}</select>
+                  ${SELECT_CHEVRON}
+                </div>
+              </div>
+              ${renderSugField("Prioridad (1-5)", "prioridad", f.prioridad, { type: "number", min: "1", max: "5", step: "1" })}
+              ${estadoField}
+              ${renderSugField("Brecha interna (%)", "brechaPct", f.brechaPct, { type: "number", min: "0", max: "100", step: "any" })}
+              ${renderSugField("Adopción del sector (%)", "adopcionPct", f.adopcionPct, { type: "number", min: "0", max: "100", step: "any" })}
+              ${renderSugField("Personas alcanzables", "personas", f.personas, { type: "number", min: "0", step: "1" })}
+              ${renderSugField("Duración sugerida", "duracion", f.duracion, { placeholder: "Ej. 16 horas" })}
+              ${renderSugField("Inversión estimada", "inversion", f.inversion, { type: "number", min: "0", step: "any" })}
+              ${renderSugField("Proveedor sugerido", "proveedor", f.proveedor)}
+            </div>
+            ${renderSugField("Capacidades afectadas (separadas por coma)", "capacidades", f.capacidades)}
+            ${renderSugField("Áreas afectadas (separadas por coma)", "areas", f.areas)}
+          </div>
+        </div>
+        <footer class="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          <button type="button" data-action="sug-modal-cerrar" class="${BTN_SECONDARY}">Cancelar</button>
+          <button type="button" data-action="sug-modal-guardar" class="${BTN_PRIMARY}" ${v.saving ? "disabled" : ""}>${v.saving ? "Guardando…" : "Guardar"}</button>
+        </footer>
+      </div>
     </div>`;
 }
 
@@ -3759,11 +3923,15 @@ function renderSugerenciasPage(v: SugerenciasView): string {
         <h1 class="mt-1 text-lg font-semibold text-text-primary">Cursos sugeridos por brecha y mercado</h1>
         <p class="mt-1 text-sm text-text-muted max-w-3xl">Recomendaciones generadas a partir de brechas internas detectadas y comparaci&oacute;n contra est&aacute;ndares del sector automotriz / manufactura.</p>
       </div>
-      ${renderSugGenerarControl(v)}
+      <div class="flex items-end gap-2 flex-wrap justify-end">
+        <button type="button" data-action="sug-nueva" class="${BTN_PRIMARY}"${sugActionsBusy ? " disabled" : ""}>Nueva sugerencia</button>
+        ${renderSugGenerarControl(v)}
+      </div>
     </div>
     ${actionErrorHtml}
     ${body}
-  </div>`;
+  </div>
+  ${renderSugerenciaModal(v)}`;
 }
 
 export function mountSugerencias(container: HTMLElement, signal?: AbortSignal): void {
@@ -3776,6 +3944,13 @@ export function mountSugerencias(container: HTMLElement, signal?: AbortSignal): 
     generating: false,
     selectedAreaId: "",
     umbral: "0",
+    modalOpen: false,
+    modalMode: "crear",
+    editId: null,
+    saving: false,
+    modalError: null,
+    cursos: [],
+    form: sugEmptyForm(),
   };
 
   const render = (): void => {
@@ -3809,10 +3984,15 @@ export function mountSugerencias(container: HTMLElement, signal?: AbortSignal): 
     view.error = null;
     render();
     try {
-      const [sugs, areas] = await Promise.all([listarSugerencias(), getAreasOptions()]);
+      const [sugs, areas, cursosResp] = await Promise.all([
+        listarSugerencias(),
+        getAreasOptions(),
+        getCursos({ page_size: 500 }),
+      ]);
       if (signal?.aborted) return;
       view.items = sugs;
       view.areas = areas;
+      view.cursos = cursosResp.items.map((c) => ({ id: c.id, nombre: c.nombre }));
     } catch (e) {
       view.error = detail(e);
     }
@@ -3861,6 +4041,133 @@ export function mountSugerencias(container: HTMLElement, signal?: AbortSignal): 
     if (!signal?.aborted) render();
   };
 
+  // ── Modal crear/editar ────────────────────────────────────────────────────
+  const focusTopModal = (): void => {
+    window.requestAnimationFrame(() => {
+      const dialogs = container.querySelectorAll<HTMLElement>('[data-modal] [role="dialog"]');
+      const panel = dialogs[dialogs.length - 1];
+      const t = panel?.querySelector<HTMLElement>(SUG_FOCUSABLE_SELECTOR);
+      t?.focus();
+    });
+  };
+
+  const abrirModalCrear = (): void => {
+    view.modalMode = "crear";
+    view.editId = null;
+    view.form = sugEmptyForm();
+    view.modalError = null;
+    view.modalOpen = true;
+    render();
+    focusTopModal();
+  };
+
+  const abrirModalEditar = (id: number): void => {
+    const r = view.items.find((s) => s.id === id);
+    if (!r) return;
+    view.modalMode = "editar";
+    view.editId = id;
+    view.form = {
+      titulo: r.titulo ?? "",
+      justificacion: r.justificacion ?? "",
+      prioridad: r.prioridad != null ? String(r.prioridad) : "",
+      estado: r.estado,
+      cursoId: r.curso_id != null ? String(r.curso_id) : "",
+      brechaPct: r.brecha_pct != null ? String(r.brecha_pct) : "",
+      adopcionPct: r.adopcion_sector_pct != null ? String(r.adopcion_sector_pct) : "",
+      personas: r.personas_alcanzables != null ? String(r.personas_alcanzables) : "",
+      duracion: r.duracion_sugerida ?? "",
+      inversion: r.inversion_estimada != null ? String(r.inversion_estimada) : "",
+      proveedor: r.proveedor_sugerido ?? "",
+      capacidades: (r.capacidades_afectadas ?? []).join(", "),
+      areas: (r.areas_afectadas ?? []).join(", "),
+    };
+    view.modalError = null;
+    view.modalOpen = true;
+    render();
+    focusTopModal();
+  };
+
+  const parseNum = (s: string): number | null => {
+    const t = s.trim();
+    if (!t) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  };
+  const parseCsv = (s: string): string[] | null => {
+    const arr = s
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    return arr.length ? arr : null;
+  };
+
+  const guardarModal = async (): Promise<void> => {
+    if (view.saving) return;
+    const titulo = view.form.titulo.trim();
+    if (!titulo) {
+      view.modalError = "El título es obligatorio.";
+      render();
+      focusTopModal();
+      return;
+    }
+    view.saving = true;
+    view.modalError = null;
+    render();
+    const f = view.form;
+    const base = {
+      titulo,
+      justificacion: f.justificacion.trim() || null,
+      curso_id: parseNum(f.cursoId),
+      prioridad: parseNum(f.prioridad) ?? undefined,
+      brecha_pct: parseNum(f.brechaPct),
+      adopcion_sector_pct: parseNum(f.adopcionPct),
+      capacidades_afectadas: parseCsv(f.capacidades),
+      areas_afectadas: parseCsv(f.areas),
+      personas_alcanzables: parseNum(f.personas),
+      duracion_sugerida: f.duracion.trim() || null,
+      inversion_estimada: parseNum(f.inversion),
+      proveedor_sugerido: f.proveedor.trim() || null,
+    };
+    try {
+      if (view.modalMode === "crear") {
+        const payload: SugerenciaCreatePayload = { ...base };
+        await crearSugerencia(payload);
+      } else if (view.editId != null) {
+        const payload: SugerenciaUpdatePayload = { ...base, estado: f.estado as SugerenciaEstado };
+        await actualizarSugerencia(view.editId, payload);
+      }
+      if (signal?.aborted) return;
+      view.modalOpen = false;
+      await refreshList();
+    } catch (e) {
+      view.modalError = detail(e);
+    }
+    view.saving = false;
+    if (!signal?.aborted) render();
+  };
+
+  const eliminarSug = async (id: number): Promise<void> => {
+    if (!confirm("¿Eliminar esta sugerencia?")) return;
+    if (sugActionsBusy) return;
+    sugActionsBusy = true;
+    view.actionError = null;
+    render();
+    try {
+      await eliminarSugerencia(id);
+      await refreshList();
+    } catch (e) {
+      view.actionError = detail(e);
+    }
+    sugActionsBusy = false;
+    if (!signal?.aborted) render();
+  };
+
+  const syncFormField = (target: HTMLElement): void => {
+    const campo = (target as HTMLElement).dataset?.form as keyof SugForm | undefined;
+    if (!campo) return;
+    view.form[campo] = (target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value;
+  };
+
   const onClick = (e: Event): void => {
     const target = e.target as HTMLElement | null;
     const btn = target?.closest<HTMLElement>("[data-action]");
@@ -3874,12 +4181,29 @@ export function mountSugerencias(container: HTMLElement, signal?: AbortSignal): 
       void generar();
     } else if (action === "sug-retry") {
       void loadAll();
+    } else if (action === "sug-nueva") {
+      abrirModalCrear();
+    } else if (action === "sug-editar") {
+      const id = Number(btn.dataset.id);
+      if (id) abrirModalEditar(id);
+    } else if (action === "sug-eliminar") {
+      const id = Number(btn.dataset.id);
+      if (id) void eliminarSug(id);
+    } else if (action === "sug-modal-cerrar") {
+      view.modalOpen = false;
+      render();
+    } else if (action === "sug-modal-guardar") {
+      void guardarModal();
     }
   };
 
   const onChange = (e: Event): void => {
     const target = e.target as HTMLElement | null;
     if (!target) return;
+    if (target.dataset?.form) {
+      syncFormField(target);
+      return;
+    }
     const action = (target as HTMLElement).dataset?.action;
     if (action === "sug-area-select") {
       view.selectedAreaId = (target as HTMLSelectElement).value;
@@ -3888,9 +4212,42 @@ export function mountSugerencias(container: HTMLElement, signal?: AbortSignal): 
     }
   };
 
+  const onInput = (e: Event): void => {
+    const target = e.target as HTMLElement | null;
+    if (target?.dataset?.form) syncFormField(target);
+  };
+
+  const handleKeydown = (e: KeyboardEvent): void => {
+    if (!view.modalOpen) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      view.modalOpen = false;
+      render();
+      return;
+    }
+    if (e.key === "Tab") {
+      const dialogs = container.querySelectorAll<HTMLElement>('[data-modal] [role="dialog"]');
+      const panel = dialogs[dialogs.length - 1];
+      if (!panel) return;
+      const focusables = panel.querySelectorAll<HTMLElement>(SUG_FOCUSABLE_SELECTOR);
+      if (focusables.length === 0) return;
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    }
+  };
+
   const listenerOpts = signal ? { signal } : undefined;
   container.addEventListener("click", onClick, listenerOpts);
   container.addEventListener("change", onChange, listenerOpts);
+  container.addEventListener("input", onInput, listenerOpts);
+  container.addEventListener("keydown", handleKeydown, listenerOpts);
 
   void loadAll();
 }
