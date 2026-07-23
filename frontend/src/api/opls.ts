@@ -139,3 +139,30 @@ export async function enviarARevision(id: number): Promise<OPLResponse> {
   if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
   return res.json();
 }
+
+// ── Self-service: mis aprobaciones ───────────────────────────────────────────
+
+/** OPLs en revisión que el usuario autenticado debe aprobar. */
+export async function getMisAprobaciones(): Promise<OPLResponse[]> {
+  const res = await fetchWithAuth(`${BASE}/mis-aprobaciones`);
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+  return res.json();
+}
+
+/** Aprueba la OPL (revisión → aprobada). El aprobador se toma del token. */
+export async function aprobarOpl(id: number): Promise<OPLResponse> {
+  const res = await fetchWithAuth(`${BASE}/aprobaciones/${id}/aprobar`, {
+    method: "POST",
+  });
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+  return res.json();
+}
+
+/** Regresa la OPL a borrador (revisión → borrador). */
+export async function regresarOpl(id: number): Promise<OPLResponse> {
+  const res = await fetchWithAuth(`${BASE}/aprobaciones/${id}/regresar`, {
+    method: "POST",
+  });
+  if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
+  return res.json();
+}

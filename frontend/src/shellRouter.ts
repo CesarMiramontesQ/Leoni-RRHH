@@ -360,6 +360,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       }).catch((err) => renderLazyPageImportError(container, "mis-firmas", "Mis firmas", err));
       return;
     }
+    if (h.startsWith("#/mis-aprobaciones-opl")) {
+      void import("./pages/misAprobaciones.ts").then(({ mountMisAprobaciones }) => {
+        mountMisAprobaciones(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "mis-aprobaciones-opl", "Mis aprobaciones", err));
+      return;
+    }
     if (h.startsWith("#/mis-encuestas")) {
       mountMisEncuestas(container, signal);
       return;
