@@ -325,7 +325,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
         group="Cumplimiento",
         nav_item_ids=("evidencias",),
         hash_prefixes=("#/evidencias",),
-        api_prefixes=(),
+        api_prefixes=("/api/v1/level-up/evidencias",),
     ),
     "sugerencias": RhModuleDef(
         key="sugerencias",
@@ -445,6 +445,10 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/ciclo-desempeno/mis-resultados",
     # Historial Objetivo: consultar el propio indice es self-service.
     "/api/v1/historial-objetivo/mi-historial",
+    # Evidencias de Capacitacion: firmar las propias filas es self-service
+    # (gana sobre el api_prefix de gestion "/api/v1/level-up/evidencias").
+    "/api/v1/level-up/evidencias/mis-firmas",
+    "/api/v1/level-up/evidencias/firmas",
 )
 
 

@@ -44,10 +44,10 @@ import {
   mountLevelUpDashboard,
   mountCursos,
   mountOPLs,
-  mountEvidencias,
   mountSugerencias,
   mountEncuestas,
 } from "./pages/levelUp.ts";
+import { mountEvidencias } from "./pages/evidencias.ts";
 import { mountLevelUpHub } from "./pages/levelUpHub.ts";
 import { mountLaboralesHub } from "./pages/laboralesHub.ts";
 import { mountComedorHub } from "./pages/comedorHub.ts";
@@ -346,11 +346,17 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
     if (h.startsWith("#/evidencias")) {
-      mountEvidencias(container);
+      mountEvidencias(container, signal);
       return;
     }
     if (h.startsWith("#/sugerencias")) {
       mountSugerencias(container, signal);
+      return;
+    }
+    if (h.startsWith("#/mis-firmas")) {
+      void import("./pages/misFirmas.ts").then(({ mountMisFirmas }) => {
+        mountMisFirmas(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "mis-firmas", "Mis firmas", err));
       return;
     }
     if (h.startsWith("#/mis-encuestas")) {

@@ -6125,6 +6125,65 @@ components:
       properties:
         area_id: { type: integer }
         umbral_brecha: { type: number, format: float, minimum: 0, maximum: 100, default: 0 }
+    FirmanteAsignar:
+      type: object
+      required: [firmante_id, rol_firma]
+      properties:
+        firmante_id: { type: integer }
+        rol_firma: { type: string, minLength: 1, maxLength: 100 }
+    EvidenciaCrearRequest:
+      type: object
+      required: [tipo, archivo_url, empleado_id]
+      properties:
+        tipo: { type: string, enum: [foto, documento, video, firma] }
+        archivo_url: { type: string, minLength: 1, maxLength: 500 }
+        capacitacion_id: { type: integer, nullable: true }
+        empleado_id: { type: integer }
+        notas: { type: string, nullable: true }
+        firmantes:
+          type: array
+          items: { $ref: "#/components/schemas/FirmanteAsignar" }
+          default: []
+    EvidenciaCapacitacionUpdate:
+      type: object
+      properties:
+        estado: { type: string, enum: [pendiente, validada, devuelta], nullable: true }
+        archivo_url: { type: string, minLength: 1, maxLength: 500, nullable: true }
+        notas: { type: string, nullable: true }
+    FirmarRequest:
+      type: object
+      required: [estado]
+      properties:
+        estado: { type: string, enum: [firmada, rechazada] }
+        comentario: { type: string, nullable: true }
+    EvidenciaFirmaItem:
+      type: object
+      properties:
+        id: { type: integer }
+        firmante_id: { type: integer }
+        firmante_nombre: { type: string, nullable: true }
+        rol_firma: { type: string }
+        estado: { type: string }
+        fecha_firma: { type: string, format: date-time, nullable: true }
+        comentario: { type: string, nullable: true }
+    EvidenciaConFirmasResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        tipo: { type: string }
+        archivo_url: { type: string }
+        capacitacion_id: { type: integer, nullable: true }
+        capacitacion_nombre: { type: string, nullable: true }
+        empleado_id: { type: integer }
+        empleado_nombre: { type: string, nullable: true }
+        estado: { type: string }
+        fecha_subida: { type: string, format: date-time }
+        notas: { type: string, nullable: true }
+        firmas:
+          type: array
+          items: { $ref: "#/components/schemas/EvidenciaFirmaItem" }
+        firmas_total: { type: integer, default: 0 }
+        firmas_firmadas: { type: integer, default: 0 }
 
 paths:
   # ── Root ────────────────────────────────────────────
@@ -13159,6 +13218,229 @@ paths:
                   $ref: "#/components/schemas/SugerenciaCapacitacionResponse"
         "403":
           description: Requiere el módulo 'sugerencias'
+
+  # ── Motor de Evidencias de Capacitación (Level Up) ──────────────────────────
+  /api/v1/level-up/evidencias/mis-firmas:
+    get:
+      tags: [Level Up - Evidencias]
+      summary: Listar mis firmas pendientes (self-service, del token)
+      operationId: evidencias_mis_firmas
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Evidencias con firmas pendientes del firmante autenticado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EvidenciaConFirmasResponse"
+  /api/v1/level-up/evidencias/firmas/{firma_id}/firmar:
+    post:
+      tags: [Level Up - Evidencias]
+      summary: Firmar o rechazar una firma propia (self-service, del token)
+      operationId: evidencias_firmar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: firma_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FirmarRequest"
+      responses:
+        "200":
+          description: Evidencia con estado recalculado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenciaConFirmasResponse"
+        "403":
+          description: No puedes firmar una fila que no es tuya
+        "404":
+          description: Firma inexistente
+        "409":
+          description: La firma ya fue resuelta
+  /api/v1/level-up/evidencias:
+    get:
+      tags: [Level Up - Evidencias]
+      summary: Listar evidencias (módulo 'evidencias')
+      operationId: listar_evidencias
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: empleado_id
+          in: query
+          schema: { type: integer }
+        - name: capacitacion_id
+          in: query
+          schema: { type: integer }
+        - name: estado
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Lista de evidencias con sus firmas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EvidenciaConFirmasResponse"
+        "403":
+          description: Requiere el módulo 'evidencias'
+    post:
+      tags: [Level Up - Evidencias]
+      summary: Crear evidencia (opcionalmente con firmantes)
+      operationId: crear_evidencia
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvidenciaCrearRequest"
+      responses:
+        "201":
+          description: Evidencia creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenciaConFirmasResponse"
+        "403":
+          description: Requiere el módulo 'evidencias'
+        "404":
+          description: Empleado o capacitación inexistente
+  /api/v1/level-up/evidencias/{evidencia_id}:
+    get:
+      tags: [Level Up - Evidencias]
+      summary: Obtener evidencia por id
+      operationId: obtener_evidencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: evidencia_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Evidencia con firmas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenciaConFirmasResponse"
+        "403":
+          description: Requiere el módulo 'evidencias'
+        "404":
+          description: Evidencia inexistente
+    put:
+      tags: [Level Up - Evidencias]
+      summary: Actualizar evidencia (el estado es derivado, no editable)
+      operationId: actualizar_evidencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: evidencia_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvidenciaCapacitacionUpdate"
+      responses:
+        "200":
+          description: Evidencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenciaConFirmasResponse"
+        "403":
+          description: Requiere el módulo 'evidencias'
+        "404":
+          description: Evidencia inexistente
+    delete:
+      tags: [Level Up - Evidencias]
+      summary: Eliminar evidencia
+      operationId: eliminar_evidencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: evidencia_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Evidencia eliminada
+        "403":
+          description: Requiere el módulo 'evidencias'
+        "404":
+          description: Evidencia inexistente
+  /api/v1/level-up/evidencias/{evidencia_id}/firmantes:
+    post:
+      tags: [Level Up - Evidencias]
+      summary: Agregar un firmante a la evidencia
+      operationId: agregar_firmante_evidencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: evidencia_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FirmanteAsignar"
+      responses:
+        "200":
+          description: Evidencia con el nuevo firmante
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenciaConFirmasResponse"
+        "403":
+          description: Requiere el módulo 'evidencias'
+        "404":
+          description: Evidencia o empleado inexistente
+        "409":
+          description: Ese firmante ya está asignado con ese rol
+  /api/v1/level-up/evidencias/firmantes/{firma_id}:
+    delete:
+      tags: [Level Up - Evidencias]
+      summary: Quitar un firmante de la evidencia
+      operationId: quitar_firmante_evidencia
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: firma_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Evidencia con el firmante removido y estado recalculado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenciaConFirmasResponse"
+        "403":
+          description: Requiere el módulo 'evidencias'
+        "404":
+          description: Firma inexistente
 
   # ── Evaluación 360 (Level Up) ────────────────────────────────────────────────
   /api/v1/evaluacion-360/dashboard:
