@@ -168,6 +168,7 @@ def _base_ciclo_response_kwargs(**overrides):
         estado="borrador",
         peso_metas=Decimal("60"),
         peso_competencias=Decimal("40"),
+        peso_historial=Decimal("0"),
         umbral_medio=Decimal("50"),
         umbral_alto=Decimal("75"),
         created_at=datetime(2026, 1, 1),
