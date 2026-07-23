@@ -201,34 +201,32 @@ def test_normalizar_360_clamp_fuera_de_rango():
 
 
 def test_combinar_score_ambas_senales_60_40():
-    # (60*80 + 40*60) / 100 = 72.0
-    score, pm_ef, pc_ef = combinar_score(80, 60, 60, 40)
+    score, pm_ef, pc_ef, ph_ef = combinar_score(80, 60, None, 60, 40, 0)
     assert score == 72.0
-    assert (pm_ef, pc_ef) == (60.0, 40.0)
+    assert (pm_ef, pc_ef, ph_ef) == (60.0, 40.0, 0.0)
 
 
 def test_combinar_score_solo_metas_presente():
-    score, pm_ef, pc_ef = combinar_score(80, None, 60, 40)
+    score, pm_ef, pc_ef, ph_ef = combinar_score(80, None, None, 60, 40, 0)
     assert score == 80.0
-    assert (pm_ef, pc_ef) == (100.0, 0.0)
+    assert (pm_ef, pc_ef, ph_ef) == (100.0, 0.0, 0.0)
 
 
 def test_combinar_score_solo_360_presente():
-    score, pm_ef, pc_ef = combinar_score(None, 60, 60, 40)
+    score, pm_ef, pc_ef, ph_ef = combinar_score(None, 60, None, 60, 40, 0)
     assert score == 60.0
-    assert (pm_ef, pc_ef) == (0.0, 100.0)
+    assert (pm_ef, pc_ef, ph_ef) == (0.0, 100.0, 0.0)
 
 
 def test_combinar_score_ninguna_senal_presente_es_none():
-    score, pm_ef, pc_ef = combinar_score(None, None, 60, 40)
-    assert (score, pm_ef, pc_ef) == (None, None, None)
+    assert combinar_score(None, None, None, 60, 40, 0) == (None, None, None, None)
 
 
 def test_combinar_score_metas_en_cero_real_cuenta_distinto_de_ausente():
     """Distingue "metas ausente" (None, se renormaliza a solo-360) de
     "metas=0 real" (cuenta como 0 en la ponderacion, no se descarta)."""
-    solo_360, _, _ = combinar_score(None, 60, 60, 40)
-    con_cero_real, pm_ef, pc_ef = combinar_score(0, 60, 60, 40)
+    solo_360, _, _, _ = combinar_score(None, 60, None, 60, 40, 0)
+    con_cero_real, pm_ef, pc_ef, _ = combinar_score(0, 60, None, 60, 40, 0)
     assert solo_360 == 60.0
     # (60*0 + 40*60)/100 = 24.0 -- muy distinto de tratar el 0 como ausente.
     assert con_cero_real == 24.0
@@ -242,9 +240,9 @@ def test_combinar_score_pesos_configurables_70_30():
     """Blinda la formula ante un cambio de los pesos default (60/40): con
     peso_metas=70/peso_competencias=30, (70*80 + 30*60)/100 = 74.0 (verificado
     a mano)."""
-    score, pm_ef, pc_ef = combinar_score(80, 60, 70, 30)
+    score, pm_ef, pc_ef, ph_ef = combinar_score(80, 60, None, 70, 30, 0)
     assert score == 74.0
-    assert (pm_ef, pc_ef) == (70.0, 30.0)
+    assert (pm_ef, pc_ef, ph_ef) == (70.0, 30.0, 0.0)
 
 
 def test_combinar_score_pesos_100_0_con_ambas_senales_presentes():
@@ -253,9 +251,40 @@ def test_combinar_score_pesos_100_0_con_ambas_senales_presentes():
     80.0 (verificado a mano) -- pero llega por la rama "ambas presentes", no
     por la rama "solo metas presente" (aunque los efectivos resultantes
     coincidan en (100, 0) en los dos casos)."""
-    score, pm_ef, pc_ef = combinar_score(80, 60, 100, 0)
+    score, pm_ef, pc_ef, ph_ef = combinar_score(80, 60, None, 100, 0, 0)
     assert score == 80.0
-    assert (pm_ef, pc_ef) == (100.0, 0.0)
+    assert (pm_ef, pc_ef, ph_ef) == (100.0, 0.0, 0.0)
+
+
+# ── Fase 2: tercera senal (historial objetivo) ─────────────────────────────
+
+
+def test_combinar_score_tres_senales_presentes():
+    # 60/30/10 sobre 80/60/90 -> (60*80+30*60+10*90)/100 = (4800+1800+900)/100 = 75
+    score, pm_ef, pc_ef, ph_ef = combinar_score(80, 60, 90, 60, 30, 10)
+    assert score == 75.0
+    assert (pm_ef, pc_ef, ph_ef) == (60.0, 30.0, 10.0)
+
+
+def test_combinar_score_historial_ausente_redistribuye():
+    # historial None con peso 10: cuentan metas(60) y 360(30); score=(60*80+30*60)/90=73.33
+    score, pm_ef, pc_ef, ph_ef = combinar_score(80, 60, None, 60, 30, 10)
+    assert score == 73.33
+    assert ph_ef == 0.0
+    # metas y 360 re-escalan a sumar 100 (falta el historial): 60*100/90, 30*100/90
+    assert pm_ef == 66.67
+    assert pc_ef == 33.33
+
+
+def test_combinar_score_peso_historial_cero_identico_a_dos_senales():
+    con_hist_cero = combinar_score(80, 60, 90, 60, 40, 0)
+    assert con_hist_cero == (72.0, 60.0, 40.0, 0.0)  # el indice 90 se ignora por peso 0
+
+
+def test_combinar_score_solo_historial_presente():
+    score, pm_ef, pc_ef, ph_ef = combinar_score(None, None, 90, 60, 40, 20)
+    assert score == 90.0
+    assert (pm_ef, pc_ef, ph_ef) == (0.0, 0.0, 100.0)
 
 
 # ══════════════════════════════════════════════════════════════════════════

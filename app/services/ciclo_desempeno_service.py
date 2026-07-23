@@ -104,48 +104,51 @@ def normalizar_360(
 def combinar_score(
     cumplimiento_metas: Optional[Numero],
     calificacion_360_norm: Optional[Numero],
+    indice_historial: Optional[Numero],
     peso_metas: Numero,
     peso_competencias: Numero,
-) -> tuple[Optional[float], Optional[float], Optional[float]]:
-    """Combina cumplimiento de metas (0-100) + calificacion 360 normalizada
-    (0-100) ponderados por `peso_metas`/`peso_competencias` del ciclo.
+    peso_historial: Numero,
+) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
+    """Combina hasta tres senales (metas, 360 normalizada, historial objetivo),
+    todas 0-100 y en la misma direccion (mayor = mejor), ponderadas por sus
+    pesos configurados. `None` en una senal = AUSENTE (distinto de un `0` real,
+    que si cuenta).
 
-    `None` en `cumplimiento_metas` o `calificacion_360_norm` significa
-    "senal AUSENTE" (distinto de un valor real de `0`, que SI cuenta en la
-    ponderacion -- ver `MetasService.cumplimiento_empleado`/nota del
-    servicio sobre "metas ausente" vs "metas=0 real"):
+    Una senal CUENTA si su valor no es None y su peso configurado es > 0.
+      - score = suma(peso_i * valor_i) / suma(peso_i) sobre las que cuentan.
+      - peso efectivo: si TODAS las senales con peso configurado > 0 estan
+        presentes, cada efectivo es su peso configurado tal cual; si falta
+        alguna, los pesos de las presentes se re-escalan proporcionalmente para
+        sumar 100 (reproduce el comportamiento anterior de 2 senales: una sola
+        presente -> 100). Una senal que no cuenta -> efectivo 0.
+      - ninguna cuenta -> (None, None, None, None).
 
-      - Ambas presentes: `score = (pm*cumpl + pc*norm) / (pm+pc)`,
-        efectivos = `(pm, pc)` (los pesos configurados, tal cual).
-      - Solo una presente: `score` = esa senal, efectivos = `(100, 0)` si
-        es metas, `(0, 100)` si es 360 (la presente absorbe el 100% del
-        peso efectivo).
-      - Ninguna presente: `(None, None, None)` (sin banda, excluido del
-        9-box).
-
-    Devuelve `(score, peso_metas_efectivo, peso_competencias_efectivo)`.
+    Con `peso_historial=0` el resultado (score, pm_ef, pc_ef) es identico a la
+    version anterior de dos senales y ph_ef = 0.
     """
-    tiene_metas = cumplimiento_metas is not None
-    tiene_360 = calificacion_360_norm is not None
+    senales = [
+        (cumplimiento_metas, float(peso_metas)),
+        (calificacion_360_norm, float(peso_competencias)),
+        (indice_historial, float(peso_historial)),
+    ]
+    cuentan = [(v, p) for (v, p) in senales if v is not None and p > 0]
+    if not cuentan:
+        return None, None, None, None
 
-    if not tiene_metas and not tiene_360:
-        return None, None, None
+    suma_pesos = sum(p for _v, p in cuentan)
+    score = round(sum(p * float(v) for v, p in cuentan) / suma_pesos, 2)
 
-    if tiene_metas and tiene_360:
-        pm = float(peso_metas)
-        pc = float(peso_competencias)
-        total = pm + pc
-        if total <= 0:
-            # No deberia ocurrir (el ciclo exige peso_metas+peso_competencias
-            # > 0 para activarse), pero se guarda como borde defensivo.
-            return None, None, None
-        score = (pm * float(cumplimiento_metas) + pc * float(calificacion_360_norm)) / total
-        return round(score, 2), pm, pc
+    # Todas las senales configuradas (peso > 0) presentes?
+    configuradas = [(v, p) for (v, p) in senales if p > 0]
+    todas_presentes = all(v is not None for v, _p in configuradas)
 
-    if tiene_metas:
-        return round(float(cumplimiento_metas), 2), 100.0, 0.0
-
-    return round(float(calificacion_360_norm), 2), 0.0, 100.0
+    efectivos: list[float] = []
+    for (v, p) in senales:
+        if v is not None and p > 0:
+            efectivos.append(p if todas_presentes else round(p * 100.0 / suma_pesos, 2))
+        else:
+            efectivos.append(0.0)
+    return score, efectivos[0], efectivos[1], efectivos[2]
 
 
 def banda(valor: Numero, umbral_medio: Numero, umbral_alto: Numero) -> str:
@@ -759,13 +762,15 @@ class CicloDesempenoService:
         empleado_id: int,
         participante_by_empleado: dict[int, int],
         escala: Optional[Eval360Escala],
+        indice_historial: Optional[float] = None,
     ) -> dict:
         cumplimiento = await self._cumplimiento_metas_o_none(ciclo, empleado_id)
         raw360, norm360, vmin, vmax = await self._calificacion_360_o_none(
             empleado_id, participante_by_empleado, escala
         )
-        score, pm_ef, pc_ef = combinar_score(
-            cumplimiento, norm360, ciclo.peso_metas, ciclo.peso_competencias
+        score, pm_ef, pc_ef, ph_ef = combinar_score(
+            cumplimiento, norm360, indice_historial,
+            ciclo.peso_metas, ciclo.peso_competencias, ciclo.peso_historial,
         )
         banda_desempeno = (
             banda(score, ciclo.umbral_medio, ciclo.umbral_alto) if score is not None else None
@@ -779,5 +784,7 @@ class CicloDesempenoService:
             "calificacion_desempeno": score,
             "peso_metas_efectivo": pm_ef,
             "peso_competencias_efectivo": pc_ef,
+            "indice_historial": indice_historial,
+            "peso_historial_efectivo": ph_ef,
             "banda_desempeno": banda_desempeno,
         }
