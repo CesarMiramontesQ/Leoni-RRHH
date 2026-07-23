@@ -156,6 +156,18 @@ class CicloDesempenoResultado(Base):
     )
     snapshot_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # ── Calibracion: override de banda de desempeno (auditado, reversible) ──
+    banda_desempeno_ajustada: Mapped[Optional[str]] = mapped_column(
+        String(10), nullable=True, comment="Override RH de banda: bajo|medio|alto",
+    )
+    banda_ajuste_motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    banda_ajustada_por_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.empleado_id"), nullable=True
+    )
+    banda_ajustada_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     ciclo: Mapped["CicloDesempeno"] = relationship("CicloDesempeno", back_populates="resultados")
 
     def __repr__(self) -> str:
