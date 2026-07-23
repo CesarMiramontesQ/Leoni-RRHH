@@ -333,7 +333,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
         group="Cumplimiento",
         nav_item_ids=("sugerencias",),
         hash_prefixes=("#/sugerencias",),
-        api_prefixes=(),
+        api_prefixes=("/api/v1/level-up/sugerencias",),
     ),
     "pdi-gestion": RhModuleDef(
         key="pdi-gestion",

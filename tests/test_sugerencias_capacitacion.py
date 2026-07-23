@@ -16,6 +16,9 @@ from app.services.sugerencia_capacitacion_service import (
     SugerenciaCapacitacionService,
     prioridad_desde_brecha,
 )
+from tests.conftest import auth_headers, make_empleado
+
+BASE = "/api/v1/level-up/sugerencias"
 
 
 def _brechas(*items):
@@ -148,3 +151,104 @@ async def test_generar_desde_brechas_deduplica(db):
         segunda = await svc.generar_desde_brechas(area_id=1, umbral_brecha=0)
     assert len(primera) == 1
     assert len(segunda) == 0  # ya existe una activa con ese titulo
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Tests de API (router + gating por modulo 'sugerencias')
+# ══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_api_listar_rh_200(client, db):
+    rh = await make_empleado(db, rol="rh", email="sug_api_list@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+    resp = await client.get(BASE, headers=headers_rh)
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_api_crear_rh_200(client, db):
+    rh = await make_empleado(db, rol="rh", email="sug_api_crear@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+    resp = await client.post(
+        BASE,
+        json={"titulo": "Curso X", "prioridad": 4},
+        headers=headers_rh,
+    )
+    assert resp.status_code in (200, 201)
+    body = resp.json()
+    assert body["titulo"] == "Curso X"
+    assert body["prioridad"] == 4
+    assert body["estado"] == "activa"
+
+
+@pytest.mark.asyncio
+async def test_api_actualizar_rh_200(client, db):
+    rh = await make_empleado(db, rol="rh", email="sug_api_upd@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+    creada = await client.post(
+        BASE, json={"titulo": "Curso Upd"}, headers=headers_rh
+    )
+    sug_id = creada.json()["id"]
+    resp = await client.put(
+        f"{BASE}/{sug_id}",
+        json={"estado": "aprobada"},
+        headers=headers_rh,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["estado"] == "aprobada"
+
+
+@pytest.mark.asyncio
+async def test_api_eliminar_rh_204(client, db):
+    rh = await make_empleado(db, rol="rh", email="sug_api_del@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+    creada = await client.post(
+        BASE, json={"titulo": "Curso Del"}, headers=headers_rh
+    )
+    sug_id = creada.json()["id"]
+    resp = await client.delete(f"{BASE}/{sug_id}", headers=headers_rh)
+    assert resp.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_api_generar_desde_brechas_rh_200(client, db):
+    rh = await make_empleado(db, rol="rh", email="sug_api_gen@leoni.test")
+    headers_rh = await auth_headers(client, rh)
+    fake = _brechas(("Soldadura", 60.0, 8), ("Calidad", 10.0, 2))
+    with patch(
+        "app.services.sugerencia_capacitacion_service.CompetenciaService.obtener_brechas",
+        new=AsyncMock(return_value=fake),
+    ):
+        resp = await client.post(
+            f"{BASE}/generar-desde-brechas",
+            json={"area_id": 1, "umbral_brecha": 30},
+            headers=headers_rh,
+        )
+    assert resp.status_code == 200
+    creadas = resp.json()
+    assert len(creadas) == 1
+    assert creadas[0]["titulo"] == "Capacitacion: Soldadura"
+
+
+@pytest.mark.asyncio
+async def test_api_sin_modulo_403(client, db):
+    sin_modulo = await make_empleado(db, rol="empleado", email="sug_api_403@leoni.test")
+    headers_sin_modulo = await auth_headers(client, sin_modulo)
+    resp = await client.get(BASE, headers=headers_sin_modulo)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_api_con_modulo_otorgado_200(client, db):
+    grantee = await make_empleado(
+        db,
+        rol="empleado",
+        email="sug_api_grantee@leoni.test",
+        modulos_rh={"sugerencias": True},
+        inscrito_modulos_rh=True,
+    )
+    headers = await auth_headers(client, grantee)
+    resp = await client.get(BASE, headers=headers)
+    assert resp.status_code == 200
