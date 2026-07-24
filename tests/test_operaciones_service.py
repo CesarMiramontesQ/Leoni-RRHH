@@ -3,12 +3,55 @@
 Los seams `_puestos_con_area` y `CompetenciaService.obtener_multihabilidades`
 se mockean para probar agregacion y scope sin sembrar el grafo de
 competencias (puestos, requisitos, grados).
+
+Los tests de scope explicito/polivalencia por empleado (`_area_con_dos_
+empleados`) si siembran el grafo real via los factories de talento: ahi lo
+que se prueba es el filtrado por scope y el dedup por empleado, no la
+agregacion de `obtener_multihabilidades` (ya cubierta arriba con mocks).
 """
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.services.operaciones_service import OperacionesService, PuestoArea
+
+
+async def _area_con_dos_empleados(db) -> dict:
+    """Area con 1 puesto, 1 competencia requisito y 2 empleados asignados.
+
+    Escenario base (datos reales, sin mocks) para los tests de
+    `listar_areas_con_scope` y `polivalencia_empleados_area`."""
+    from tests.conftest import make_empleado
+    from tests.conftest_talento import (
+        make_area,
+        make_competencia,
+        make_competencia_requisito,
+        make_perfil_funciones,
+        make_puesto_perfil,
+    )
+
+    area = await make_area(db, descripcion="Ensamble Test")
+    puesto = await make_puesto_perfil(db, nombre="Crimpado", area_id=area.area_id)
+    competencia = await make_competencia(
+        db, nombre="Crimpado manual", categoria="tecnica"
+    )
+    await make_competencia_requisito(
+        db, competencia_id=competencia.id, puesto_perfil_id=puesto.id, nivel_requerido=3
+    )
+    empleado_a = await make_empleado(db, nombre="Ana")
+    empleado_b = await make_empleado(db, nombre="Beto")
+    await make_perfil_funciones(
+        db, puesto_perfil_id=puesto.id, empleado_id=empleado_a.empleado_id
+    )
+    await make_perfil_funciones(
+        db, puesto_perfil_id=puesto.id, empleado_id=empleado_b.empleado_id
+    )
+    return {
+        "area": area,
+        "puesto": puesto,
+        "empleado_a": empleado_a,
+        "empleado_b": empleado_b,
+    }
 
 
 def _multihab(puesto_id, puesto_nombre, competencias, empleados):
@@ -161,3 +204,49 @@ async def test_export_area_genera_xlsx(db, monkeypatch):
     ws = wb["Cross-training"]
     valores = [c.value for fila in ws.iter_rows() for c in fila]
     assert "Ana Garcia" in valores
+
+
+@pytest.mark.asyncio
+async def test_listar_areas_con_scope_filtra_sin_tocar_current_user(db):
+    """`listar_areas_con_scope` recibe los ids ya resueltos: no consulta rol ni
+    modulo. Es el punto de entrada que usa el Dashboard de Talento."""
+    from app.services.operaciones_service import OperacionesService
+
+    datos = await _area_con_dos_empleados(db)  # helper existente del archivo
+    svc = OperacionesService(db)
+
+    todos = await svc.listar_areas_con_scope(None)
+    assert todos and todos[0].n_empleados == 2
+
+    uno = await svc.listar_areas_con_scope([datos["empleado_a"].empleado_id])
+    assert uno[0].n_empleados == 1
+
+
+@pytest.mark.asyncio
+async def test_polivalencia_empleados_area_devuelve_indice_por_persona(db):
+    from app.services.operaciones_service import OperacionesService
+
+    datos = await _area_con_dos_empleados(db)
+    svc = OperacionesService(db)
+
+    filas = await svc.polivalencia_empleados_area(datos["area"].area_id, None)
+    por_id = {f.empleado_id: f for f in filas}
+    assert set(por_id) == {
+        datos["empleado_a"].empleado_id,
+        datos["empleado_b"].empleado_id,
+    }
+    assert all(f.pol_pct is None or 0.0 <= f.pol_pct <= 100.0 for f in filas)
+    assert all(f.nombre for f in filas)
+
+
+@pytest.mark.asyncio
+async def test_polivalencia_empleados_area_respeta_scope(db):
+    from app.services.operaciones_service import OperacionesService
+
+    datos = await _area_con_dos_empleados(db)
+    svc = OperacionesService(db)
+
+    filas = await svc.polivalencia_empleados_area(
+        datos["area"].area_id, [datos["empleado_a"].empleado_id]
+    )
+    assert [f.empleado_id for f in filas] == [datos["empleado_a"].empleado_id]
