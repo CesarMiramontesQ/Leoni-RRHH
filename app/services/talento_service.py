@@ -12,6 +12,7 @@ misma fila saldrian calculadas sobre poblaciones distintas.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -213,7 +214,7 @@ class TalentoService:
         if not cerrados:
             return None
         return sorted(
-            cerrados, key=lambda c: (c.fecha_fin is None, c.fecha_fin, c.id), reverse=True
+            cerrados, key=lambda c: (c.fecha_fin or date.min, c.id), reverse=True
         )[0]
 
     # ── Bloque: polivalencia ─────────────────────────────────────────────
