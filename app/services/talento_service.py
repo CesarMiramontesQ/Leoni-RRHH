@@ -128,10 +128,19 @@ class BloqueCapacitacion:
 
 @dataclass
 class AreaPdi:
+    """`total` incluye TODAS las filas (tambien las canceladas).
+
+    `cumplimiento_pct` y `n_activos` excluyen los PDI cancelados: un PDI
+    cancelado no cuenta como activo ni castiga el cumplimiento. `cancelados`
+    expone el conteo excluido para que quien consuma el dato pueda reconciliar
+    `total` con el denominador efectivo (`total - cancelados`) usado en el pct.
+    """
+
     area_id: int | None
     area_nombre: str
     total: int
     completados: int
+    cancelados: int
     cumplimiento_pct: float | None
     n_vencidos: int
     n_activos: int
@@ -140,8 +149,11 @@ class AreaPdi:
 
 @dataclass
 class OrgPdi:
+    """Mismo criterio que `AreaPdi`: cancelados excluidos de pct y activos."""
+
     total: int
     completados: int
+    cancelados: int
     cumplimiento_pct: float | None
     n_vencidos: int
     n_activos: int
@@ -385,6 +397,11 @@ class TalentoService:
 
     # ── Bloque: PDI ──────────────────────────────────────────────────────
     async def bloque_pdi(self, current_user: Empleado, rh_ui_mode: str | None) -> BloquePdi:
+        """Un PDI cancelado deja de existir para el dashboard: ni suma a
+        activos, ni castiga el cumplimiento. `n_activos` se calcula desde
+        en_proceso + pendientes (nunca resta cancelados de `total`, que
+        cuenta de mas: en_proceso + pendientes + cancelados). `cumplimiento_pct`
+        usa `total - cancelados` como denominador."""
         scope = await self.scope(current_user, rh_ui_mode)
         filas = await self.pdi_repo.equipo_pdi_aggregates(empleado_ids=scope)
         if not filas:
@@ -393,26 +410,31 @@ class TalentoService:
         area_por_emp = await self.areas_de_empleados([f.empleado_id for f in filas])
         nombres = await self.nombres_de_areas(list({a for a in area_por_emp.values()}))
 
-        acc: dict[int | None, list[int]] = {}  # area -> [total, completados, vencidos]
+        # area -> [total, completados, en_proceso, pendientes, vencidos, cancelados]
+        acc: dict[int | None, list[int]] = {}
         for f in filas:
             area_id = area_por_emp.get(f.empleado_id)
-            a = acc.setdefault(area_id, [0, 0, 0])
+            a = acc.setdefault(area_id, [0, 0, 0, 0, 0, 0])
             a[0] += f.total
             a[1] += f.completadas
-            a[2] += f.vencidas
+            a[2] += f.en_proceso
+            a[3] += f.pendientes
+            a[4] += f.vencidas
+            a[5] += f.cancelados
 
         areas: list[AreaPdi] = []
-        for area_id, (total, completados, vencidos) in acc.items():
-            pct = self._pct(completados, total)
+        for area_id, (total, completados, en_proceso, pendientes, vencidos, cancelados) in acc.items():
+            pct = self._pct(completados, total - cancelados)
             areas.append(
                 AreaPdi(
                     area_id=area_id,
                     area_nombre=nombres.get(area_id, "Sin area") if area_id else "Sin area",
                     total=total,
                     completados=completados,
+                    cancelados=cancelados,
                     cumplimiento_pct=pct,
                     n_vencidos=vencidos,
-                    n_activos=max(total - completados - vencidos, 0),
+                    n_activos=max(en_proceso + pendientes - vencidos, 0),
                     semaforo=calculo.semaforo_pct(pct),
                 )
             )
@@ -420,10 +442,12 @@ class TalentoService:
 
         total = sum(a.total for a in areas)
         completados = sum(a.completados for a in areas)
-        pct_org = self._pct(completados, total)
+        cancelados = sum(a.cancelados for a in areas)
+        pct_org = self._pct(completados, total - cancelados)
         org = OrgPdi(
             total=total,
             completados=completados,
+            cancelados=cancelados,
             cumplimiento_pct=pct_org,
             n_vencidos=sum(a.n_vencidos for a in areas),
             n_activos=sum(a.n_activos for a in areas),

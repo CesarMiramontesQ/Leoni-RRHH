@@ -54,3 +54,26 @@ async def test_equipo_pdi_aggregates_lista_vacia_devuelve_nada(db):
 
     repo = PDIRepository(db)
     assert await repo.equipo_pdi_aggregates(empleado_ids=[]) == []
+
+
+@pytest.mark.asyncio
+async def test_equipo_pdi_aggregates_cuenta_cancelados(db):
+    """El agregado expone `cancelados` por separado: el Dashboard de Talento
+    lo necesita para no tratar un PDI cancelado como activo ni dejar que
+    castigue el cumplimiento."""
+    comp = await make_competencia(db)
+    a = await make_empleado(db, email="pdi_scope_d@leoni.test")
+    await _pdi(db, a.empleado_id, comp.id, "completado")
+    await _pdi(db, a.empleado_id, comp.id, "cancelado")
+    await _pdi(db, a.empleado_id, comp.id, "cancelado")
+    await _pdi(db, a.empleado_id, comp.id, "pendiente")
+
+    repo = PDIRepository(db)
+    filas = await repo.equipo_pdi_aggregates(empleado_ids=[a.empleado_id])
+
+    assert len(filas) == 1
+    fila = filas[0]
+    assert fila.total == 4
+    assert fila.completadas == 1
+    assert fila.pendientes == 1
+    assert fila.cancelados == 2

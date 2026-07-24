@@ -65,8 +65,14 @@ async def test_bloque_pdi_agrega_y_cuenta_vencidos(db):
     )
     svc = TalentoService(db)
     filas = [
-        SimpleNamespace(empleado_id=1, total=4, completadas=2, en_proceso=1, pendientes=1, vencidas=1),
-        SimpleNamespace(empleado_id=2, total=2, completadas=2, en_proceso=0, pendientes=0, vencidas=0),
+        SimpleNamespace(
+            empleado_id=1, total=4, completadas=2, en_proceso=1, pendientes=1,
+            vencidas=1, cancelados=0,
+        ),
+        SimpleNamespace(
+            empleado_id=2, total=2, completadas=2, en_proceso=0, pendientes=0,
+            vencidas=0, cancelados=0,
+        ),
     ]
     with patch(
         "app.services.talento_service.PDIRepository.equipo_pdi_aggregates",
@@ -81,7 +87,46 @@ async def test_bloque_pdi_agrega_y_cuenta_vencidos(db):
     area = bloque.areas[0]
     assert area.cumplimiento_pct == 66.7  # 4 completadas de 6
     assert area.n_vencidos == 1
-    assert area.n_activos == 1  # 6 - 4 completadas - 1 vencida
+    assert area.n_activos == 1  # 1 en_proceso + 1 pendiente - 1 vencida
+
+
+@pytest.mark.asyncio
+async def test_bloque_pdi_cancelado_no_cuenta_activo_ni_castiga_cumplimiento(db):
+    """Un PDI cancelado deja de existir para el dashboard: ni suma a activos,
+    ni castiga el cumplimiento. Antes del fix, `n_activos` se calculaba como
+    `total - completados - vencidos`, lo que contaba el cancelado como activo
+    (en_proceso + pendientes + cancelados - vencidos), y `cumplimiento_pct`
+    dividia entre `total` incluyendo el cancelado en el denominador."""
+    rh = await make_empleado(
+        db, rol="rh", email="tal_pdi_cancel@leoni.test",
+        modulos_rh={"dashboard-talento": True}, inscrito_modulos_rh=True,
+    )
+    svc = TalentoService(db)
+    filas = [
+        SimpleNamespace(
+            empleado_id=1, total=4, completadas=2, en_proceso=0, pendientes=0,
+            vencidas=0, cancelados=2,
+        ),
+    ]
+    with patch(
+        "app.services.talento_service.PDIRepository.equipo_pdi_aggregates",
+        AsyncMock(return_value=filas),
+    ), patch.object(
+        TalentoService, "areas_de_empleados", AsyncMock(return_value={1: 7})
+    ), patch.object(
+        TalentoService, "nombres_de_areas", AsyncMock(return_value={7: "Arneses A"})
+    ):
+        bloque = await svc.bloque_pdi(rh, None)
+
+    area = bloque.areas[0]
+    # Sin el fix: n_activos = max(4 - 2 - 0, 0) = 2 (contaba los cancelados).
+    assert area.n_activos == 0
+    # Sin el fix: cumplimiento_pct = 2 / 4 = 50.0 (el denominador incluia
+    # los 2 cancelados). Con el fix, el denominador efectivo es 4 - 2 = 2.
+    assert area.cumplimiento_pct == 100.0
+    assert area.cancelados == 2
+    assert bloque.org.n_activos == 0
+    assert bloque.org.cumplimiento_pct == 100.0
 
 
 @pytest.mark.asyncio

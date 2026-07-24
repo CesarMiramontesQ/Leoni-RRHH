@@ -245,6 +245,7 @@ class PDIRepository:
                         PlanDesarrolloIndividual.estado.notin_(["completado", "cancelado"]),
                     )
                 ).label("vencidas"),
+                func.count().filter(PlanDesarrolloIndividual.estado == "cancelado").label("cancelados"),
                 func.max(PlanDesarrolloIndividual.updated_at).label("ultima_actualizacion"),
             )
             .join(PlanDesarrolloIndividual.empleado)
