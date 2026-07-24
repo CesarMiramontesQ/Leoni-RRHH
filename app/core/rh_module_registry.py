@@ -399,6 +399,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/talento/ciclo-desempeno",),
         api_prefixes=("/api/v1/ciclo-desempeno",),
     ),
+    "operaciones": RhModuleDef(
+        key="operaciones",
+        label="Cobertura y polivalencia",
+        group="Level Up",
+        nav_item_ids=("operaciones",),
+        hash_prefixes=("#/operaciones",),
+        api_prefixes=("/api/v1/operaciones",),
+    ),
 }
 
 RH_MODULE_GROUP_ORDER: tuple[str, ...] = (

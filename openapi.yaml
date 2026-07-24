@@ -6243,6 +6243,74 @@ components:
             - $ref: "#/components/schemas/OPLVersionItem"
           nullable: true
         total_versiones: { type: integer, default: 0 }
+    AreaResumenSchema:
+      type: object
+      properties:
+        area_id: { type: integer }
+        area_nombre: { type: string }
+        pol_area_pct: { type: number, format: float }
+        resiliencia_pct: { type: number, format: float }
+        n_criticas: { type: integer }
+        n_empleados: { type: integer }
+    CompetenciaCoberturaSchema:
+      type: object
+      properties:
+        competencia_id: { type: integer }
+        competencia_nombre: { type: string }
+        tipo_nombre: { type: string }
+        requieren: { type: integer }
+        cubren: { type: integer }
+        en_entrenamiento: { type: integer }
+        cobertura_pct: { type: number, format: float }
+        semaforo: { type: string, enum: [verde, ambar, rojo] }
+        severidad: { type: string, enum: [ok, punto_unico, hueco] }
+    PuestoCoberturaSchema:
+      type: object
+      properties:
+        puesto_perfil_id: { type: integer }
+        puesto_nombre: { type: string }
+        competencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetenciaCoberturaSchema"
+    CandidatoCrossTrainSchema:
+      type: object
+      properties:
+        empleado_id: { type: integer }
+        no_empleado:
+          oneOf:
+            - { type: integer }
+            - { type: string }
+        nombre: { type: string }
+        nivel_actual: { type: integer }
+        nivel_requerido: { type: integer }
+    CriticaSchema:
+      type: object
+      properties:
+        competencia_id: { type: integer }
+        competencia_nombre: { type: string }
+        severidad: { type: string, enum: [punto_unico, hueco] }
+        candidatos:
+          type: array
+          items:
+            $ref: "#/components/schemas/CandidatoCrossTrainSchema"
+    CoberturaAreaResponse:
+      type: object
+      properties:
+        resumen:
+          $ref: "#/components/schemas/AreaResumenSchema"
+        competencias:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompetenciaCoberturaSchema"
+        puestos:
+          type: array
+          items:
+            $ref: "#/components/schemas/PuestoCoberturaSchema"
+        criticas:
+          type: array
+          items:
+            $ref: "#/components/schemas/CriticaSchema"
 
 paths:
   # ── Root ────────────────────────────────────────────
@@ -15366,4 +15434,59 @@ paths:
           description: Sólo se puede enviar a revisión una OPL en borrador
         "422":
           description: Falta una versión o un aprobador designado
+
+  # ── Operaciones (cobertura y polivalencia) ─────────────
+  /api/v1/operaciones/areas:
+    get:
+      tags: [operaciones]
+      summary: Listar areas con indice de polivalencia y resiliencia (RH con modulo 'operaciones' global, o jefe con scoping de equipo)
+      operationId: operaciones_list_areas
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200":
+          description: Areas con personal en el scope del usuario
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AreaResumenSchema"
+        "403":
+          description: Requiere el modulo 'operaciones' o ser jefe (supervisor/gerente)
+  /api/v1/operaciones/areas/{area_id}/cobertura:
+    get:
+      tags: [operaciones]
+      summary: Detalle de cobertura por competencia, puestos y candidatos de cross-training de un area
+      operationId: operaciones_cobertura_area
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: area_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Cobertura del area
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoberturaAreaResponse"
+        "403":
+          description: Area fuera del alcance del jefe, o requiere el modulo 'operaciones'
+        "404":
+          description: Area inexistente o sin puestos con competencias requisito
+  /api/v1/operaciones/areas/{area_id}/export:
+    get:
+      tags: [operaciones]
+      summary: Exportar la cobertura del area a Excel (hojas Resumen, Cobertura por competencia y Cross-training)
+      operationId: operaciones_export_area
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: area_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Archivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {}
+        "403":
+          description: Area fuera del alcance del jefe, o requiere el modulo 'operaciones'
+        "404":
+          description: Area inexistente o sin puestos con competencias requisito
 

@@ -163,6 +163,7 @@ export type AppShellNavItemId =
   | "tareas-catalogo"
   | "competencias"
   | "capacidades"
+  | "operaciones"
   | "cursos"
   | "cursos-seguimiento"
   | "cursos-ajustes"

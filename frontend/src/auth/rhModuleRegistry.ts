@@ -21,6 +21,7 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "puestos", prefix: "#/puestos" },
   { key: "tareas-catalogo", prefix: "#/tareas-catalogo" },
   { key: "capacidades", prefix: "#/capacidades" },
+  { key: "operaciones", prefix: "#/operaciones" },
   { key: "competencias", prefix: "#/competencias" },
   { key: "evaluaciones", prefix: "#/evaluaciones" },
   { key: "pdi-gestion", prefix: "#/pdi-gestion" },
