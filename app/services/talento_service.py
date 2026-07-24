@@ -20,7 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.data_scope import empleado_ids_scope_por_modulo
 from app.models.empleados import Empleado
 from app.repositories.empleado_repository import EmpleadoRepository
+from app.repositories.pdi_repository import PDIRepository
 from app.services.ciclo_desempeno_service import CicloDesempenoService
+from app.services.level_up_cursos_dashboard import LevelUpCursosDashboardService
 from app.services.operaciones_service import OperacionesService
 from app.services.talento import calculo
 
@@ -95,6 +97,64 @@ class BloqueDesempeno:
     motivo: str | None = None
 
 
+@dataclass
+class AreaCapacitacion:
+    area_id: int | None
+    area_nombre: str
+    total_pares: int
+    completados: int
+    cumplimiento_pct: float | None
+    n_obligatorio_pendiente: int
+    semaforo: str | None
+
+
+@dataclass
+class OrgCapacitacion:
+    total_pares: int
+    completados: int
+    cumplimiento_pct: float | None
+    n_obligatorio_pendiente: int
+    semaforo: str | None
+
+
+@dataclass
+class BloqueCapacitacion:
+    disponible: bool
+    org: OrgCapacitacion | None = None
+    areas: list[AreaCapacitacion] = field(default_factory=list)
+    motivo: str | None = None
+
+
+@dataclass
+class AreaPdi:
+    area_id: int | None
+    area_nombre: str
+    total: int
+    completados: int
+    cumplimiento_pct: float | None
+    n_vencidos: int
+    n_activos: int
+    semaforo: str | None
+
+
+@dataclass
+class OrgPdi:
+    total: int
+    completados: int
+    cumplimiento_pct: float | None
+    n_vencidos: int
+    n_activos: int
+    semaforo: str | None
+
+
+@dataclass
+class BloquePdi:
+    disponible: bool
+    org: OrgPdi | None = None
+    areas: list[AreaPdi] = field(default_factory=list)
+    motivo: str | None = None
+
+
 def _f(valor: Decimal | float | None) -> float | None:
     return None if valor is None else float(valor)
 
@@ -105,6 +165,8 @@ class TalentoService:
         self.empleado_repo = EmpleadoRepository(db)
         self.oper_svc = OperacionesService(db)
         self.ciclo_svc = CicloDesempenoService(db)
+        self.cursos_svc = LevelUpCursosDashboardService(db)
+        self.pdi_repo = PDIRepository(db)
 
     # ── Scope y catalogos ────────────────────────────────────────────────
     async def scope(self, current_user: Empleado, rh_ui_mode: str | None) -> list[int] | None:
@@ -274,3 +336,96 @@ class TalentoService:
         if valor >= float(ciclo.umbral_medio):
             return "ambar"
         return "rojo"
+
+    @staticmethod
+    def _pct(parte: int, total: int) -> float | None:
+        """Porcentaje a 1 decimal. Total 0 -> None (n/d), nunca 0.0."""
+        if total <= 0:
+            return None
+        return round(parte / total * 100, 1)
+
+    # ── Bloque: capacitacion ─────────────────────────────────────────────
+    async def bloque_capacitacion(
+        self, current_user: Empleado, rh_ui_mode: str | None
+    ) -> BloqueCapacitacion:
+        scope = await self.scope(current_user, rh_ui_mode)
+        resumen = await self.cursos_svc.resumen_por_area(scope)
+        if not resumen:
+            return BloqueCapacitacion(disponible=True, org=None, areas=[], motivo="sin_datos")
+
+        nombres = await self.nombres_de_areas([a for a in resumen if a is not None])
+        areas: list[AreaCapacitacion] = []
+        for area_id, agg in resumen.items():
+            pct = self._pct(agg.completados, agg.total_pares)
+            areas.append(
+                AreaCapacitacion(
+                    area_id=area_id,
+                    area_nombre=nombres.get(area_id, "Sin area") if area_id else "Sin area",
+                    total_pares=agg.total_pares,
+                    completados=agg.completados,
+                    cumplimiento_pct=pct,
+                    n_obligatorio_pendiente=len(agg.empleados_obligatorio_pendiente),
+                    semaforo=calculo.semaforo_pct(pct),
+                )
+            )
+        areas.sort(key=lambda a: (a.cumplimiento_pct is None, a.cumplimiento_pct or 0.0))
+
+        total = sum(a.total_pares for a in areas)
+        completados = sum(a.completados for a in areas)
+        pct_org = self._pct(completados, total)
+        org = OrgCapacitacion(
+            total_pares=total,
+            completados=completados,
+            cumplimiento_pct=pct_org,
+            n_obligatorio_pendiente=sum(a.n_obligatorio_pendiente for a in areas),
+            semaforo=calculo.semaforo_pct(pct_org),
+        )
+        return BloqueCapacitacion(disponible=True, org=org, areas=areas)
+
+    # ── Bloque: PDI ──────────────────────────────────────────────────────
+    async def bloque_pdi(self, current_user: Empleado, rh_ui_mode: str | None) -> BloquePdi:
+        scope = await self.scope(current_user, rh_ui_mode)
+        filas = await self.pdi_repo.equipo_pdi_aggregates(empleado_ids=scope)
+        if not filas:
+            return BloquePdi(disponible=True, org=None, areas=[], motivo="sin_datos")
+
+        area_por_emp = await self.areas_de_empleados([f.empleado_id for f in filas])
+        nombres = await self.nombres_de_areas(list({a for a in area_por_emp.values()}))
+
+        acc: dict[int | None, list[int]] = {}  # area -> [total, completados, vencidos]
+        for f in filas:
+            area_id = area_por_emp.get(f.empleado_id)
+            a = acc.setdefault(area_id, [0, 0, 0])
+            a[0] += f.total
+            a[1] += f.completadas
+            a[2] += f.vencidas
+
+        areas: list[AreaPdi] = []
+        for area_id, (total, completados, vencidos) in acc.items():
+            pct = self._pct(completados, total)
+            areas.append(
+                AreaPdi(
+                    area_id=area_id,
+                    area_nombre=nombres.get(area_id, "Sin area") if area_id else "Sin area",
+                    total=total,
+                    completados=completados,
+                    cumplimiento_pct=pct,
+                    n_vencidos=vencidos,
+                    n_activos=max(total - completados - vencidos, 0),
+                    semaforo=calculo.semaforo_pct(pct),
+                )
+            )
+        areas.sort(key=lambda a: (a.cumplimiento_pct is None, a.cumplimiento_pct or 0.0))
+
+        total = sum(a.total for a in areas)
+        completados = sum(a.completados for a in areas)
+        pct_org = self._pct(completados, total)
+        org = OrgPdi(
+            total=total,
+            completados=completados,
+            cumplimiento_pct=pct_org,
+            n_vencidos=sum(a.n_vencidos for a in areas),
+            n_activos=sum(a.n_activos for a in areas),
+            semaforo=calculo.semaforo_pct(pct_org),
+        )
+        return BloquePdi(disponible=True, org=org, areas=areas)
