@@ -6185,6 +6185,65 @@ components:
         firmas_total: { type: integer, default: 0 }
         firmas_firmadas: { type: integer, default: 0 }
 
+    OPLCreate:
+      type: object
+      required: [codigo, titulo]
+      properties:
+        codigo: { type: string, minLength: 1, maxLength: 50 }
+        titulo: { type: string, minLength: 2, maxLength: 255 }
+        proceso: { type: string, nullable: true }
+        maquina: { type: string, nullable: true }
+        aprobador_id: { type: integer, nullable: true }
+    OPLUpdate:
+      type: object
+      properties:
+        titulo: { type: string, minLength: 2, maxLength: 255, nullable: true }
+        proceso: { type: string, nullable: true }
+        maquina: { type: string, nullable: true }
+        aprobador_id: { type: integer, nullable: true }
+        estado_aprobacion:
+          type: string
+          enum: [borrador, revision, aprobada]
+          nullable: true
+          description: Ignorado por el service; el estado se mueve por el workflow.
+    OPLVersionAgregar:
+      type: object
+      required: [archivo_url]
+      properties:
+        archivo_url: { type: string, minLength: 1, maxLength: 500 }
+        cambios_descripcion: { type: string, nullable: true }
+    OPLVersionItem:
+      type: object
+      properties:
+        id: { type: integer }
+        version_num: { type: integer }
+        archivo_url: { type: string }
+        cambios_descripcion: { type: string, nullable: true }
+        fecha: { type: string, format: date-time }
+        creado_por_id: { type: integer, nullable: true }
+        creado_por_nombre: { type: string, nullable: true }
+    OPLConVersionesResponse:
+      type: object
+      properties:
+        id: { type: integer }
+        codigo: { type: string }
+        titulo: { type: string }
+        proceso: { type: string, nullable: true }
+        maquina: { type: string, nullable: true }
+        aprobador_id: { type: integer, nullable: true }
+        aprobador_nombre: { type: string, nullable: true }
+        estado_aprobacion: { type: string, enum: [borrador, revision, aprobada] }
+        created_at: { type: string, format: date-time }
+        versiones:
+          type: array
+          items:
+            $ref: "#/components/schemas/OPLVersionItem"
+        version_actual:
+          allOf:
+            - $ref: "#/components/schemas/OPLVersionItem"
+          nullable: true
+        total_versiones: { type: integer, default: 0 }
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -15050,3 +15109,261 @@ paths:
       responses:
         "204": { description: Registro eliminado }
         "404": { description: Registro no encontrado }
+  # OPLs (Level Up) - versionado y aprobacion self-service
+  /api/v1/level-up/opls:
+    get:
+      tags: [Level Up - OPLs]
+      summary: Listar OPLs (módulo 'opls')
+      operationId: listar_opls
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: codigo
+          in: query
+          schema: { type: string }
+        - name: estado
+          in: query
+          schema: { type: string, enum: [borrador, revision, aprobada] }
+        - name: proceso
+          in: query
+          schema: { type: string }
+        - name: maquina
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Lista de OPLs con sus versiones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OPLConVersionesResponse"
+        "403":
+          description: Requiere el módulo 'opls'
+    post:
+      tags: [Level Up - OPLs]
+      summary: Crear OPL (queda en borrador)
+      operationId: crear_opl
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OPLCreate"
+      responses:
+        "201":
+          description: OPL creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OPLConVersionesResponse"
+        "403":
+          description: Requiere el módulo 'opls'
+        "404":
+          description: Aprobador designado inexistente
+        "409":
+          description: Ya existe una OPL con ese código
+  /api/v1/level-up/opls/mis-aprobaciones:
+    get:
+      tags: [Level Up - OPLs]
+      summary: OPLs en revisión asignadas al usuario actual (self-service)
+      description: >-
+        Self-service del aprobador designado. Usa el empleado_id del token; no
+        requiere el módulo 'opls'.
+      operationId: opls_mis_aprobaciones
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Pendientes de aprobación del usuario actual
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OPLConVersionesResponse"
+  /api/v1/level-up/opls/aprobaciones/{opl_id}/aprobar:
+    post:
+      tags: [Level Up - OPLs]
+      summary: Aprobar una OPL en revisión (solo el aprobador designado)
+      description: >-
+        Self-service. El aprobador se resuelve del token; sólo el aprobador
+        designado puede resolver la revisión.
+      operationId: opls_aprobar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: opl_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OPL aprobada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OPLConVersionesResponse"
+        "403":
+          description: Sólo el aprobador designado puede resolver esta OPL
+        "404":
+          description: OPL inexistente
+        "409":
+          description: La OPL no está en revisión
+  /api/v1/level-up/opls/aprobaciones/{opl_id}/regresar:
+    post:
+      tags: [Level Up - OPLs]
+      summary: Regresar a borrador una OPL en revisión (solo el aprobador designado)
+      description: >-
+        Self-service. El aprobador se resuelve del token; sólo el aprobador
+        designado puede resolver la revisión.
+      operationId: opls_regresar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: opl_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OPL regresada a borrador
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OPLConVersionesResponse"
+        "403":
+          description: Sólo el aprobador designado puede resolver esta OPL
+        "404":
+          description: OPL inexistente
+        "409":
+          description: La OPL no está en revisión
+  /api/v1/level-up/opls/{opl_id}:
+    get:
+      tags: [Level Up - OPLs]
+      summary: Obtener una OPL con sus versiones
+      operationId: obtener_opl
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: opl_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OPL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OPLConVersionesResponse"
+        "403":
+          description: Requiere el módulo 'opls'
+        "404":
+          description: OPL inexistente
+    put:
+      tags: [Level Up - OPLs]
+      summary: Actualizar metadatos de una OPL (el estado no se toca a mano)
+      operationId: actualizar_opl
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: opl_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OPLUpdate"
+      responses:
+        "200":
+          description: OPL actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OPLConVersionesResponse"
+        "403":
+          description: Requiere el módulo 'opls'
+        "404":
+          description: OPL o aprobador inexistente
+    delete:
+      tags: [Level Up - OPLs]
+      summary: Eliminar una OPL
+      operationId: eliminar_opl
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: opl_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: OPL eliminada
+        "403":
+          description: Requiere el módulo 'opls'
+        "404":
+          description: OPL inexistente
+  /api/v1/level-up/opls/{opl_id}/versiones:
+    post:
+      tags: [Level Up - OPLs]
+      summary: Agregar una versión a la OPL (autoincrementa y regresa a borrador)
+      operationId: agregar_version_opl
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: opl_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OPLVersionAgregar"
+      responses:
+        "200":
+          description: OPL con la nueva versión
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OPLConVersionesResponse"
+        "403":
+          description: Requiere el módulo 'opls'
+        "404":
+          description: OPL inexistente
+  /api/v1/level-up/opls/{opl_id}/enviar-a-revision:
+    post:
+      tags: [Level Up - OPLs]
+      summary: Enviar la OPL a revisión (exige versión y aprobador designado)
+      operationId: enviar_opl_a_revision
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: opl_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OPL en revisión
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OPLConVersionesResponse"
+        "403":
+          description: Requiere el módulo 'opls'
+        "404":
+          description: OPL inexistente
+        "409":
+          description: Sólo se puede enviar a revisión una OPL en borrador
+        "422":
+          description: Falta una versión o un aprobador designado
+

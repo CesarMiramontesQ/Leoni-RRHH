@@ -182,6 +182,7 @@ export type AppShellNavItemId =
   | "mis-encuestas"
   | "mis-encuestas-rh"
   | "mis-firmas"
+  | "mis-aprobaciones-opl"
   | "mis-metas"
   | "mi-desempeno"
   | "mis-evaluaciones"
@@ -200,6 +201,7 @@ const EMPLEADO_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "mis-encuestas",
   "mis-encuestas-rh",
   "mis-firmas",
+  "mis-aprobaciones-opl",
   "mis-metas",
   "mi-desempeno",
   "mis-evaluaciones",
@@ -222,6 +224,7 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "mis-encuestas",
   "mis-encuestas-rh",
   "mis-firmas",
+  "mis-aprobaciones-opl",
   "mis-metas",
   "metas",
   "mi-desempeno",
@@ -375,6 +378,7 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/solicitudes")) return true;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/mis-firmas")) return true;
+  if (h.startsWith("#/mis-aprobaciones-opl")) return true;
   if (h.startsWith("#/mis-encuestas")) return true;
   if (h.startsWith("#/talento/mis-encuestas")) return true;
   if (h.startsWith("#/talento/mis-metas")) return true;
