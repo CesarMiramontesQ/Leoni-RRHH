@@ -92,11 +92,17 @@ bloque. Para lograrlo se extrae, en cada building block que hoy resuelve scope s
 una variante interna que recibe `scope: list[int] | None`:
 
 - `OperacionesService.listar_areas(current_user, rh_ui_mode)` →
-  delega en `listar_areas_con_scope(scope)`. Firma pública **sin cambios**.
+  delega en `listar_areas_con_scope(scope)`. Firma pública **sin cambios**. Se agrega
+  además `polivalencia_empleados_area(area_id, scope)`, que expone el índice de
+  polivalencia **por empleado** (ya lo calcula `indice_polivalencia_empleado`, pero hoy
+  solo se usa promediado); lo necesita la señal `polivalencia_baja` de empleados en foco.
 - `HistorialObjetivoService.indice_equipo(...)` → delega en una variante con scope
   explícito. Firma pública **sin cambios**.
-- `PDIService.equipo_resumen(...)` → variante que acepta `empleado_ids` explícitos,
-  además del filtro por área que ya tiene.
+- `PDIRepository.equipo_pdi_aggregates(area_ids, area_id)` → se le agrega el parámetro
+  opcional `empleado_ids`. Se usa **el repositorio, no `PDIService.equipo_resumen`**:
+  el repo ya devuelve exactamente lo que el dashboard necesita por empleado (`total`,
+  `completadas`, `en_proceso`, `pendientes`, `vencidas`), mientras que `equipo_resumen`
+  además carga competencias, requisitos y evaluaciones que aquí no se usan.
 - `LevelUpCursosDashboardService` → método público **nuevo**
   `resumen_por_area(empleado_ids_scope)`, construido sobre `_build_pares()` y el
   `_estado_par()` existente (no duplica la lógica de estado de curso).
@@ -173,7 +179,7 @@ De `resumen_por_area(scope)`, sobre los pares (empleado, curso) activos:
 
 ### 4. PDI (`/talento/pdi`)
 
-De la variante con scope de `equipo_resumen`, agrupando por `Empleado.area_id`:
+De `equipo_pdi_aggregates` con `empleado_ids` del scope, agrupando por `Empleado.area_id`:
 
 - `cumplimiento_pct` = PDIs en estado `completado` / PDIs totales × 100.
 - `n_vencidos` = PDIs con fecha de fin anterior a hoy y estado ≠ `completado`.
@@ -188,7 +194,8 @@ Un área sin ningún PDI registrado devuelve `cumplimiento_pct: null` (`n/d`), n
 De la variante con scope de `indice_equipo(fecha_inicio, fecha_fin)`, promediando el
 índice por área. Rango por defecto: **últimos 12 meses** (lo aplica la API, nunca el
 service, que sigue exigiendo rango explícito para no agregar el universo sin acotar).
-Escala 0–10, como en su módulo. Acepta `?area_id=` para el detalle de un área.
+Escala **0–100** (`ResultadoIndiceObjetivo.indice`, 2 decimales), la misma que usa su
+módulo. Acepta `?area_id=` para el detalle de un área.
 
 **No confundir con `indice_historial`** del resultado del ciclo: ese es el índice que el
 ciclo ya pondera dentro de la calificación de desempeño, calculado sobre el rango del
