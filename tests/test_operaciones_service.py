@@ -129,19 +129,35 @@ async def test_listar_areas_ordena_por_criticas(db):
 
 @pytest.mark.asyncio
 async def test_export_area_genera_xlsx(db, monkeypatch):
+    from io import BytesIO
+    from openpyxl import load_workbook
     from app.services.operaciones_service import (
-        AreaResumen, CoberturaArea, OperacionesService, PuestoCobertura,
+        AreaResumen, CoberturaArea, Critica, OperacionesService, PuestoCobertura,
     )
-    from app.services.operaciones.types import CoberturaCompetencia
+    from app.services.operaciones.types import CandidatoCrossTrain, CoberturaCompetencia
 
     svc = OperacionesService(db)
+    candidato = CandidatoCrossTrain(
+        empleado_id=100, no_empleado=100, nombre="Ana Garcia",
+        nivel_actual=1, nivel_requerido=3
+    )
+    critica = Critica(
+        competencia_id=20, competencia_nombre="LOTO",
+        severidad="punto_unico", candidatos=[candidato]
+    )
     fake = CoberturaArea(
         resumen=AreaResumen(5, "Ensamble", 75.0, 50.0, 1, 2),
         competencias=[CoberturaCompetencia(10, "Crimpado", "Op", 2, 1, 1, 50.0, "ambar", "punto_unico")],
         puestos=[PuestoCobertura(1, "Crimpado", [])],
-        criticas=[],
+        criticas=[critica],
     )
     monkeypatch.setattr(svc, "cobertura_area", AsyncMock(return_value=fake))
     out = await svc.exportar_area_excel(current_user=object(), area_id=5, rh_ui_mode=None)
     data = out.getvalue()
     assert data[:2] == b"PK" and len(data) > 100  # xlsx = zip, no vacio
+
+    # Verificar que el candidato aparece en la hoja Cross-training
+    wb = load_workbook(BytesIO(data))
+    ws = wb["Cross-training"]
+    valores = [c.value for fila in ws.iter_rows() for c in fila]
+    assert "Ana Garcia" in valores
