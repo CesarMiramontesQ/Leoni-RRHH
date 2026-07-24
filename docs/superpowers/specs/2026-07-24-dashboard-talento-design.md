@@ -98,8 +98,9 @@ una variante interna que recibe `scope: list[int] | None`:
   solo se usa promediado); lo necesita la señal `polivalencia_baja` de empleados en foco.
 - `HistorialObjetivoService.indice_equipo(...)` → delega en una variante con scope
   explícito. Firma pública **sin cambios**.
-- `PDIRepository.equipo_pdi_aggregates(area_ids, area_id)` → se le agrega el parámetro
-  opcional `empleado_ids`. Se usa **el repositorio, no `PDIService.equipo_resumen`**:
+- `PDIRepository.equipo_pdi_aggregates(area_ids, area_id)` → se le agregan el parámetro
+  opcional `empleado_ids` y un conteo de `cancelados` (aditivo, sin tocar las columnas
+  existentes). Se usa **el repositorio, no `PDIService.equipo_resumen`**:
   el repo ya devuelve exactamente lo que el dashboard necesita por empleado (`total`,
   `completadas`, `en_proceso`, `pendientes`, `vencidas`), mientras que `equipo_resumen`
   además carga competencias, requisitos y evaluaciones que aquí no se usan.
@@ -181,13 +182,20 @@ De `resumen_por_area(scope)`, sobre los pares (empleado, curso) activos:
 
 De `equipo_pdi_aggregates` con `empleado_ids` del scope, agrupando por `Empleado.area_id`:
 
-- `cumplimiento_pct` = PDIs en estado `completado` / PDIs totales × 100.
-- `n_vencidos` = PDIs con fecha de fin anterior a hoy y estado ≠ `completado`.
-- `n_activos` = PDIs en estado distinto de `completado` y no vencidos.
+**Los PDI cancelados no existen para el dashboard:** no cuentan como activos ni entran en
+el denominador del cumplimiento. Cancelar un plan no es incumplirlo, y `cancelado` es un
+estado alcanzable por el flujo normal (`pendiente→cancelado`, `en_proceso→cancelado`).
+
+- `cumplimiento_pct` = PDIs `completado` / (PDIs totales − `cancelado`) × 100.
+- `n_vencidos` = PDIs con fecha de fin anterior a hoy y estado ∉ {`completado`, `cancelado`}.
+- `n_activos` = `en_proceso` + `pendiente` − vencidos. **No** se calcula como
+  `total − completados − vencidos`: `total` incluye los cancelados y `vencidos` ya los
+  excluye, así que esa resta reporta cada plan cancelado como activo.
 - Semáforo sobre `cumplimiento_pct`: verde ≥ 80, ámbar ≥ 50, rojo < 50.
 
 Un área sin ningún PDI registrado devuelve `cumplimiento_pct: null` (`n/d`), no 0 % —
-"no hay planes" y "los planes van mal" son cosas distintas.
+"no hay planes" y "los planes van mal" son cosas distintas. Lo mismo si todos sus planes
+están cancelados: el denominador queda en 0 y el valor es `null`.
 
 ### 5. Historial objetivo (`/talento/objetivo`) — diferido
 
