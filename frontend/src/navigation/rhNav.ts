@@ -34,6 +34,7 @@ export type RhNavKey =
   | "evaluaciones"
   | "pdi-gestion"
   | "capacidades"
+  | "operaciones"
   | "cursos"
   | "cursos-seguimiento"
   | "cursos-ajustes"

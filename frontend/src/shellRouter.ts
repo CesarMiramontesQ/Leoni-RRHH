@@ -312,6 +312,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       mountCapacidades(container, signal);
       return;
     }
+    if (h.startsWith("#/operaciones")) {
+      void import("./pages/operaciones.ts").then(({ mountOperaciones }) => {
+        mountOperaciones(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "operaciones", "Cobertura y polivalencia", err));
+      return;
+    }
     if (h === "#/cursos/ajustes") {
       mountCursosAjustes(container, signal);
       return;
