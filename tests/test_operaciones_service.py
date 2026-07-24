@@ -125,3 +125,23 @@ async def test_listar_areas_ordena_por_criticas(db):
         areas = await svc.listar_areas(current_user=object(), rh_ui_mode=None)
     assert [a.area_id for a in areas] == [5, 6]  # A (1 critica) antes que B (0)
     assert areas[0].n_criticas == 1 and areas[1].n_criticas == 0
+
+
+@pytest.mark.asyncio
+async def test_export_area_genera_xlsx(db, monkeypatch):
+    from app.services.operaciones_service import (
+        AreaResumen, CoberturaArea, OperacionesService, PuestoCobertura,
+    )
+    from app.services.operaciones.types import CoberturaCompetencia
+
+    svc = OperacionesService(db)
+    fake = CoberturaArea(
+        resumen=AreaResumen(5, "Ensamble", 75.0, 50.0, 1, 2),
+        competencias=[CoberturaCompetencia(10, "Crimpado", "Op", 2, 1, 1, 50.0, "ambar", "punto_unico")],
+        puestos=[PuestoCobertura(1, "Crimpado", [])],
+        criticas=[],
+    )
+    monkeypatch.setattr(svc, "cobertura_area", AsyncMock(return_value=fake))
+    out = await svc.exportar_area_excel(current_user=object(), area_id=5, rh_ui_mode=None)
+    data = out.getvalue()
+    assert data[:2] == b"PK" and len(data) > 100  # xlsx = zip, no vacio

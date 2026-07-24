@@ -7,6 +7,7 @@ via `empleado_ids_scope_por_modulo`. Sin tabla nueva.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import BytesIO
 
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -205,3 +206,55 @@ class OperacionesService:
             puestos=puestos_cob,
             criticas=criticas,
         )
+
+    async def exportar_area_excel(self, current_user, area_id: int, rh_ui_mode) -> BytesIO:
+        """xlsx con 3 hojas: Resumen, Cobertura por competencia, Cross-training."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        cob = await self.cobertura_area(current_user, area_id, rh_ui_mode)
+        r = cob.resumen
+        wb = Workbook()
+
+        ws = wb.active
+        ws.title = "Resumen"
+        ws.cell(row=1, column=1, value=f"Cobertura — {r.area_nombre}").font = Font(bold=True, size=14)
+        filas = [
+            ("Indice de polivalencia (%)", r.pol_area_pct),
+            ("Resiliencia (% sin punto unico) ", r.resiliencia_pct),
+            ("Competencias criticas", r.n_criticas),
+            ("Empleados", r.n_empleados),
+        ]
+        for i, (etq, val) in enumerate(filas, start=3):
+            ws.cell(row=i, column=1, value=etq).font = Font(bold=True)
+            ws.cell(row=i, column=2, value=val)
+
+        ws2 = wb.create_sheet("Cobertura por competencia")
+        headers = ["Competencia", "Tipo", "Requieren", "Cubren", "En entrenamiento", "Cobertura %", "Semaforo", "Severidad"]
+        for col, h in enumerate(headers, 1):
+            ws2.cell(row=1, column=col, value=h).font = Font(bold=True)
+        for row, c in enumerate(cob.competencias, start=2):
+            for col, val in enumerate(
+                [c.competencia_nombre, c.tipo_nombre, c.requieren, c.cubren,
+                 c.en_entrenamiento, c.cobertura_pct, c.semaforo, c.severidad], 1
+            ):
+                ws2.cell(row=row, column=col, value=val)
+
+        ws3 = wb.create_sheet("Cross-training")
+        h3 = ["Competencia", "Severidad", "Candidato", "No. empleado", "Nivel actual", "Nivel requerido"]
+        for col, h in enumerate(h3, 1):
+            ws3.cell(row=1, column=col, value=h).font = Font(bold=True)
+        row = 2
+        for crit in cob.criticas:
+            for cand in crit.candidatos:
+                for col, val in enumerate(
+                    [crit.competencia_nombre, crit.severidad, cand.nombre,
+                     cand.no_empleado, cand.nivel_actual, cand.nivel_requerido], 1
+                ):
+                    ws3.cell(row=row, column=col, value=val)
+                row += 1
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
