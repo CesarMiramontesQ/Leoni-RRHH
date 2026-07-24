@@ -229,6 +229,7 @@ class PDIRepository:
         self,
         area_ids: list[int] | None = None,
         area_id: int | None = None,
+        empleado_ids: list[int] | None = None,
     ) -> list:
         today = date.today()
         stmt = (
@@ -253,6 +254,10 @@ class PDIRepository:
             stmt = stmt.where(Empleado.area_id.in_(area_ids))
         if area_id is not None:
             stmt = stmt.where(Empleado.area_id == area_id)
+        if empleado_ids is not None:
+            # Lista vacia = scope que no ve a nadie. `in_([])` devuelve 0 filas,
+            # que es exactamente lo correcto: NO equivale a "sin filtro".
+            stmt = stmt.where(PlanDesarrolloIndividual.empleado_id.in_(empleado_ids))
         result = await self.db.execute(stmt)
         return list(result.all())
 
