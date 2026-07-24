@@ -33,17 +33,30 @@ def cobertura_por_competencia(
 ) -> list[CoberturaCompetencia]:
     """Agrega, por competencia requerida, cuantos empleados la requieren, la
     cubren (cumplen requisito) y estan en entrenamiento (0 < actual < requerido).
-    Ordena peor cobertura primero."""
-    agg: dict[int, list[int]] = {}  # comp_id -> [requieren, cubren, en_entrenamiento]
+    Ordena peor cobertura primero.
+
+    Dedup por empleado_id dentro de cada competencia: un empleado asignado a
+    varios puestos de la misma area puede aparecer en varias entradas
+    `EmpleadoCompetencias` (mismo empleado_id, distinto puesto_perfil_id). Cada
+    empleado distinto cuenta a lo mas una vez por competencia: cubre si CUALQUIERA
+    de sus entradas cumple el requisito; si no cubre, esta en entrenamiento si
+    CUALQUIERA de sus entradas tiene 0 < actual < requerido."""
+    por_comp: dict[int, dict[int, list[tuple[int, int]]]] = {}  # comp_id -> empleado_id -> [(actual, requerido), ...]
     for e in empleados:
         for comp_id, (actual, requerido) in e.competencias.items():
             if requerido < 1:
                 continue
-            r = agg.setdefault(comp_id, [0, 0, 0])
+            por_emp = por_comp.setdefault(comp_id, {})
+            por_emp.setdefault(e.empleado_id, []).append((actual, requerido))
+
+    agg: dict[int, list[int]] = {}  # comp_id -> [requieren, cubren, en_entrenamiento]
+    for comp_id, por_emp in por_comp.items():
+        r = agg.setdefault(comp_id, [0, 0, 0])
+        for pares in por_emp.values():
             r[0] += 1
-            if actual >= requerido:
+            if any(actual >= requerido for actual, requerido in pares):
                 r[1] += 1
-            elif actual >= 1:
+            elif any(actual >= 1 for actual, requerido in pares):
                 r[2] += 1
     out: list[CoberturaCompetencia] = []
     for comp_id, (requieren, cubren, entren) in agg.items():

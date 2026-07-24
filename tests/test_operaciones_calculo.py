@@ -70,6 +70,24 @@ def test_resiliencia_area():
     assert calculo.resiliencia_area(cobs) == 50.0
 
 
+def test_cobertura_dedup_empleado_multi_puesto_misma_area():
+    # Emp1 asignado a dos puestos de la misma area: aparece 2 veces con el
+    # mismo empleado_id pero distinto puesto_perfil_id. Cubre en un puesto y
+    # no en el otro -> debe contar UNA sola vez como "cubre" (no 2 veces).
+    empleados = [
+        _emp(1, {10: (3, 3)}, puesto_id=1, puesto_nombre="Crimpado"),
+        _emp(1, {10: (0, 3)}, puesto_id=2, puesto_nombre="Ensamble"),
+        # Emp2 en dos puestos, NO cubre en ninguno -> cuenta una vez como
+        # en_entrenamiento (tiene nivel iniciado en al menos una entrada).
+        _emp(2, {10: (1, 3)}, puesto_id=1, puesto_nombre="Crimpado"),
+        _emp(2, {10: (0, 3)}, puesto_id=3, puesto_nombre="Soldadura"),
+    ]
+    cob = calculo.cobertura_por_competencia(empleados, META)[0]
+    assert cob.requieren == 2
+    assert cob.cubren == 1
+    assert cob.en_entrenamiento == 1
+
+
 def test_candidatos_crosstrain_orden_y_limite():
     empleados = [
         _emp(1, {10: (3, 3)}),  # ya cubre -> excluido
