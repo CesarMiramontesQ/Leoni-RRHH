@@ -160,7 +160,11 @@ class TalentoService:
         ]
         if not areas:
             return BloquePolivalencia(disponible=True, org=None, areas=[], motivo="sin_datos")
-        pol_org = calculo.promedio_ponderado([(a.pol_pct or 0.0, a.n_empleados) for a in areas])
+        # Las areas sin polivalencia calculable se excluyen del ponderado (no
+        # entran como 0): si no, un area en n/d hundiria el indicador del org.
+        pol_org = calculo.promedio_ponderado(
+            [(a.pol_pct, a.n_empleados) for a in areas if a.pol_pct is not None]
+        )
         res_org = calculo.promedio_ponderado(
             [(a.resiliencia_pct or 0.0, a.n_empleados) for a in areas]
         )

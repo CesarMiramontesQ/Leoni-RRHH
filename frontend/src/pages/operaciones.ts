@@ -127,7 +127,11 @@ export function mountOperaciones(container: HTMLElement, signal?: AbortSignal): 
   function renderResumen(cob: CoberturaArea): string {
     const r = cob.resumen;
     return `<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      ${statCard("Polivalencia", `${r.pol_area_pct.toFixed(0)}%`, "Promedio del personal")}
+      ${statCard(
+        "Polivalencia",
+        r.pol_area_pct === null ? "n/d" : `${r.pol_area_pct.toFixed(0)}%`,
+        r.pol_area_pct === null ? "Sin requisitos evaluables" : "Promedio del personal",
+      )}
       ${statCard("Resiliencia", `${r.resiliencia_pct.toFixed(0)}%`, "Sin punto único de falla")}
       ${statCard("Críticas", String(r.n_criticas), "Huecos + puntos únicos")}
       ${statCard("Empleados", String(r.n_empleados), "En tu alcance")}

@@ -60,6 +60,13 @@ def test_indice_polivalencia_area_excluye_sin_requisitos():
     assert calculo.indice_polivalencia_area(empleados) == 50.0
 
 
+def test_indice_polivalencia_area_sin_evaluables_es_none():
+    """Sin dato != 0 %: si ningun empleado del area tiene requisitos evaluables
+    la polivalencia no se puede calcular, y devolver 0.0 la pintaria en rojo."""
+    assert calculo.indice_polivalencia_area([]) is None
+    assert calculo.indice_polivalencia_area([_emp(1, {10: (0, 0)}), _emp(2, {})]) is None
+
+
 def test_resiliencia_area():
     empleados = [
         _emp(1, {10: (3, 3), 20: (3, 3)}),
