@@ -43,6 +43,12 @@ docker-compose exec backend python -m app.utils.seed  # crear roles + admin inic
 # Simulación accesos comedor (solo empleados activos existentes; no crea empleados)
 docker-compose exec backend python -m app.utils.seed_comedor_accesos_demo
 docker-compose exec backend python -m app.utils.seed_comedor_accesos_demo --cleanup --execute  # borrar demo previo
+
+# Datos demo de la suite de Talento (perfiles, competencias, asignaciones, evaluaciones,
+# cursos, PDI, metas, 360, ciclos y actas). Reutiliza empleados/áreas reales; no los crea.
+docker-compose exec backend python -m app.utils.seed_talento_demo
+docker-compose exec backend python -m app.utils.seed_talento_demo --cleanup            # dry-run
+docker-compose exec backend python -m app.utils.seed_talento_demo --cleanup --execute  # borrar
 ```
 
 ### Frontend (build, lint)
