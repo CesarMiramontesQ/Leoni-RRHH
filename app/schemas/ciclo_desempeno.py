@@ -186,6 +186,10 @@ class CicloDesempenoResultadoResponse(BaseModel):
     ciclo_id: int
     empleado_id: int
     empleado_nombre: Optional[str] = None
+    # Area del empleado: la pinta la tabla y con ella la pantalla arma las
+    # opciones de su filtro por area, sin pedir un catalogo de otro modulo.
+    area_id: Optional[int] = None
+    area_nombre: Optional[str] = None
     cumplimiento_metas: Optional[Decimal] = None
     calificacion_360_raw: Optional[Decimal] = None
     calificacion_360_norm: Optional[Decimal] = None

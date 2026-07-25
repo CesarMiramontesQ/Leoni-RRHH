@@ -15,6 +15,8 @@
  *    solo pestaña "Resultados y 9-Box" de su equipo, con captura de
  *    potencial. Sin CRUD de ciclos (el backend lo rechazaría con 403).
  */
+import { mezclarAreasOpciones } from "../cicloDesempeno/areasOpciones.ts";
+import { hashParamNumero } from "../utils/hashQuery.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import {
@@ -189,6 +191,15 @@ interface State {
   resultadosLoading: boolean;
   resultadosError: string | null;
 
+  /** Filtro por área (`null` = todas). Recorta resultados, 9-Box y distribución. */
+  areaFiltroId: number | null;
+  /**
+   * Opciones del selector de área. Se congelan en la primera carga SIN filtro:
+   * si se recalcularan con los resultados ya filtrados, elegir un área dejaría
+   * esa única opción y no habría forma de volver.
+   */
+  areasOpciones: { id: number; nombre: string }[];
+
   nueveBox: NueveBoxResponse | null;
   nueveBoxLoading: boolean;
 
@@ -264,6 +275,11 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     resultados: null,
     resultadosLoading: false,
     resultadosError: null,
+    // Deep-link `#/talento/ciclo-desempeno?area_id=N` (enlaces cruzados del
+    // Dashboard de Talento). Si el área no aparece en los resultados del
+    // scope, el selector la ignora y `sanearAreaFiltro` la limpia.
+    areaFiltroId: hashParamNumero("area_id"),
+    areasOpciones: [],
 
     nueveBox: null,
     nueveBoxLoading: false,
@@ -315,12 +331,14 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     if (state.esGestionRh) state.distribucionLoading = true;
     render();
     try {
+      const areaId = state.areaFiltroId ?? undefined;
       const [resultados, nueveBox, distribucion] = await Promise.all([
-        getResultadosCiclo(cicloId),
-        get9BoxCiclo(cicloId),
-        state.esGestionRh ? getDistribucionCiclo(cicloId) : Promise.resolve(null),
+        getResultadosCiclo(cicloId, areaId),
+        get9BoxCiclo(cicloId, areaId),
+        state.esGestionRh ? getDistribucionCiclo(cicloId, areaId) : Promise.resolve(null),
       ]);
       state.resultados = resultados;
+      state.areasOpciones = mezclarAreasOpciones(state.areasOpciones, resultados);
       state.nueveBox = nueveBox;
       state.distribucion = distribucion;
       state.resultadosError = null;
@@ -568,6 +586,29 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
       <div class="relative">
         <select id="cd-ciclo-selector" data-action="ciclo-selector" class="${FORM_SELECT}">
           ${ciclos.map((c) => `<option value="${c.id}"${state.cicloSeleccionadoId === c.id ? " selected" : ""}>${escapeHtml(c.nombre)} (${CICLO_ESTADO_LABELS[c.estado]})</option>`).join("")}
+        </select>
+        ${SELECT_CHEVRON}
+      </div>
+    </div>`;
+  }
+
+  /**
+   * Selector de área. Solo se pinta si hay algo que elegir: con una sola área
+   * en el scope no aporta, salvo que ya venga un filtro puesto por deep-link
+   * (ahí hace falta para poder quitarlo).
+   */
+  function renderAreaSelector(): string {
+    if (state.areasOpciones.length < 2 && state.areaFiltroId === null) return "";
+    const opciones = state.areasOpciones
+      .map((a) => `<option value="${a.id}"${state.areaFiltroId === a.id ? " selected" : ""}>${escapeHtml(a.nombre)}</option>`)
+      .join("");
+    return `
+    <div class="min-w-[14rem]">
+      <label class="${FORM_LABEL}" for="cd-area-selector">Área</label>
+      <div class="relative">
+        <select id="cd-area-selector" data-action="area-filtro" class="${FORM_SELECT}">
+          <option value=""${state.areaFiltroId === null ? " selected" : ""}>Todas las áreas</option>
+          ${opciones}
         </select>
         ${SELECT_CHEVRON}
       </div>
@@ -830,6 +871,7 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     <div class="flex flex-col gap-4">
       <div class="flex flex-wrap items-end justify-between gap-3">
         ${renderCicloSelector()}
+        ${renderAreaSelector()}
         ${state.cicloSeleccionadoId != null ? `<button type="button" data-action="ciclo-exportar" data-id="${state.cicloSeleccionadoId}" class="${BTN_SECONDARY}">Exportar Excel</button>` : ""}
       </div>
       ${cicloActual?.estado === "cerrado" ? alertInfo("Este ciclo está cerrado: la calificación quedó congelada al momento del cierre.") : ""}
@@ -1035,7 +1077,11 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
 
   async function onExportarCiclo(id: number): Promise<void> {
     try {
-      const ok = await descargarCicloDesempenoExcel(id, `ciclo_desempeno_${id}.xlsx`);
+      const ok = await descargarCicloDesempenoExcel(
+        id,
+        `ciclo_desempeno_${id}.xlsx`,
+        state.areaFiltroId ?? undefined,
+      );
       if (!ok) {
         state.cicloActionError = "No se pudo descargar el export";
         render();
@@ -1242,6 +1288,12 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
       state.cicloSeleccionadoId = Number(t.value) || null;
       render();
       if (state.tab === "resultados") void loadResultadosYBox();
+      return;
+    }
+    if (t instanceof HTMLSelectElement && t.dataset.action === "area-filtro") {
+      state.areaFiltroId = t.value ? Number(t.value) : null;
+      render();
+      void loadResultadosYBox();
       return;
     }
     if (t instanceof HTMLSelectElement && t.dataset.action === "cd-meta-ciclo") {

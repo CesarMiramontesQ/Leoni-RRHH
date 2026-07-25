@@ -29,6 +29,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.catalogos import Area
 from app.models.ciclo_desempeno import CicloDesempeno, CicloDesempenoResultado
 from app.models.empleados import Empleado
 
@@ -176,3 +177,22 @@ class CicloDesempenoRepository:
             )
         )
         return {eid: nombre for eid, nombre in result.all()}
+
+    async def get_areas_empleados(
+        self, empleado_ids: Sequence[int]
+    ) -> dict[int, tuple[int | None, str | None]]:
+        """Mapa `empleado_id` -> `(area_id, descripcion)`. Alimenta la columna
+        de area del resultado y, con ella, el selector de area de la pantalla:
+        sin esto haria falta un endpoint de catalogo aparte, y pedirlo al de
+        otro modulo daria 403 a quien solo tiene 'ciclo-desempeno'.
+
+        Solo lectura sobre `empleados` / `areas` (Bono). `outerjoin` para no
+        perder al empleado sin area asignada."""
+        if not empleado_ids:
+            return {}
+        result = await self.db.execute(
+            select(Empleado.empleado_id, Empleado.area_id, Area.descripcion)
+            .outerjoin(Area, Area.area_id == Empleado.area_id)
+            .where(Empleado.empleado_id.in_(empleado_ids))
+        )
+        return {eid: (area_id, descripcion) for eid, area_id, descripcion in result.all()}

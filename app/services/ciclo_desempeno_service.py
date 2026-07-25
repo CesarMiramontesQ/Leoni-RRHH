@@ -564,12 +564,16 @@ class CicloDesempenoService:
         nombres = await self.repo.get_nombres_empleados(
             [r.empleado_id for r in resultados]
         )
+        # El area es del empleado HOY, no del cierre del ciclo: es un filtro de
+        # navegacion ("ver el ciclo de esta area"), no parte del snapshot.
+        areas = await self.repo.get_areas_empleados([r.empleado_id for r in resultados])
 
         if ciclo.estado == "cerrado":
             out = []
             for r in resultados:
                 data = CicloDesempenoResultadoResponse.model_validate(r)
                 data.empleado_nombre = nombres.get(r.empleado_id)
+                data.area_id, data.area_nombre = areas.get(r.empleado_id, (None, None))
                 data.banda_desempeno_efectiva = banda_efectiva(
                     data.banda_desempeno, data.banda_desempeno_ajustada
                 )
@@ -603,6 +607,8 @@ class CicloDesempenoService:
                     ciclo_id=r.ciclo_id,
                     empleado_id=r.empleado_id,
                     empleado_nombre=nombres.get(r.empleado_id),
+                    area_id=areas.get(r.empleado_id, (None, None))[0],
+                    area_nombre=areas.get(r.empleado_id, (None, None))[1],
                     cumplimiento_metas=_dec(datos["cumplimiento_metas"]),
                     calificacion_360_raw=_dec(datos["calificacion_360_raw"]),
                     calificacion_360_norm=_dec(datos["calificacion_360_norm"]),
