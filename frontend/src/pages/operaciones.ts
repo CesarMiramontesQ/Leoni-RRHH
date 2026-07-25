@@ -8,6 +8,7 @@
  */
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+import { hashParamNumero } from "../utils/hashQuery.ts";
 import {
   badgeApproved,
   badgeCancelled,
@@ -289,7 +290,12 @@ export function mountOperaciones(container: HTMLElement, signal?: AbortSignal): 
       if (mountSignal.aborted) return;
       state.areas = areas;
       state.loadingAreas = false;
-      state.areaId = areas.length ? areas[0].area_id : null;
+      // Deep-link `#/operaciones?area_id=N` (enlaces cruzados del Dashboard de
+      // Talento). Solo se respeta si el área está en el alcance del usuario;
+      // si no, se cae al comportamiento normal (la primera).
+      const pedida = hashParamNumero("area_id");
+      const enAlcance = pedida !== null && areas.some((a) => a.area_id === pedida);
+      state.areaId = enAlcance ? pedida : areas.length ? areas[0].area_id : null;
       render();
       if (state.areaId != null) await loadCobertura(state.areaId);
     } catch (e) {

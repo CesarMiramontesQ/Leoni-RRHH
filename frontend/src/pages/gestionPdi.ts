@@ -1,5 +1,6 @@
 import { mountAppShell } from "../layouts/appShell.ts";
 import { fetchWithAuth } from "../api/http.ts";
+import { hashParamNumero } from "../utils/hashQuery.ts";
 import {
   getPDIGestion,
   getPDIResumen,
@@ -140,7 +141,13 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     resumen: { total_acciones: 0, completadas: 0, en_proceso: 0, pendientes: 0, vencidas: 0 },
     data: { items: [], total: 0, page: 1, page_size: PAGE_SIZE },
     areas: [],
-    filters: { area_id: "", estado: "", fecha_inicio: "", fecha_fin: "", search: "" },
+    // `area_id` puede venir del deep-link `#/pdi-gestion?area_id=N` (enlaces
+    // cruzados del Dashboard de Talento). `loadAreas` lo descarta si el área no
+    // está entre las opciones del usuario.
+    filters: {
+      area_id: String(hashParamNumero("area_id") ?? ""),
+      estado: "", fecha_inicio: "", fecha_fin: "", search: "",
+    },
     page: 1,
     loading: true,
     activeKpi: "",
@@ -178,6 +185,12 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
         id: Number(a.id),
         label: a.label,
       }));
+    }
+    // Un `area_id` del deep-link que no esté en las opciones del usuario se
+    // descarta: dejarlo filtraría la consulta por un área que no puede ver y la
+    // pantalla saldría vacía sin que el select mostrara por qué.
+    if (state.filters.area_id && !state.areas.some((a) => a.id === Number(state.filters.area_id))) {
+      state.filters.area_id = "";
     }
   }
 

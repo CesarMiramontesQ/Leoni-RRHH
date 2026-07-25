@@ -31,7 +31,7 @@ import {
   SELECT_CHEVRON,
   skeletonBlock,
 } from "../ui/uiTokens.ts";
-import { canAccessRhAssignedModule } from "../auth/jwt.ts";
+import { canAccessRhAssignedModule, hasRhOperativeViewerContext } from "../auth/jwt.ts";
 import { CICLO_ESTADO_LABELS } from "../cicloDesempeno/shared.ts";
 import type { CicloDesempenoEstado } from "../api/cicloDesempeno.ts";
 import { semaforoBadge } from "./operaciones.ts";
@@ -66,6 +66,8 @@ interface EstadoPagina {
   capacitacion: EstadoBloque<BloqueCapacitacion>;
   pdi: EstadoBloque<BloquePdi>;
   objetivo: EstadoBloque<BloqueObjetivo>;
+  /** Módulos enlazables desde el detalle, resueltos una vez al montar. */
+  accesos: AccesosCruzados;
   /** Ciclos del selector. Vacío = sin selector (no cargaron o no hay ninguno). */
   ciclos: CicloInfo[];
   /** Ciclo elegido a mano; `null` = el que eligió el backend (ver `cicloVigente`). */
@@ -299,7 +301,36 @@ function tilesAgregadosArea(area: DetalleArea): string {
   </div>`;
 }
 
-export function renderDetallePanel(bloque: EstadoBloque<DetalleArea> | null): string {
+/** Módulos a los que el detalle de área puede saltar con el filtro ya puesto. */
+export interface AccesosCruzados {
+  operaciones: boolean;
+  pdi: boolean;
+}
+
+const SIN_ACCESOS: AccesosCruzados = { operaciones: false, pdi: false };
+
+/**
+ * Enlaces del detalle a otros módulos con el área preseleccionada.
+ *
+ * Solo Operaciones y PDI: son los únicos que saben filtrar por área, y mandar a
+ * Cursos o al Ciclo sin filtro prometería un recorte que la página destino no
+ * aplicaría. Se omite el enlace del módulo al que el usuario no puede entrar.
+ */
+export function enlacesCruzadosHtml(areaId: number, accesos: AccesosCruzados): string {
+  const enlaces = [
+    accesos.operaciones ? { href: `#/operaciones?area_id=${areaId}`, texto: "Cobertura en Operaciones" } : null,
+    accesos.pdi ? { href: `#/pdi-gestion?area_id=${areaId}`, texto: "Planes de desarrollo" } : null,
+  ].filter((e): e is { href: string; texto: string } => e !== null);
+  if (!enlaces.length) return "";
+  return `<div class="flex flex-wrap items-center gap-2">
+    ${enlaces.map((e) => `<a href="${e.href}" class="${BTN_GHOST} !px-2 !py-1 !text-xs">${escapeHtml(e.texto)} →</a>`).join("")}
+  </div>`;
+}
+
+export function renderDetallePanel(
+  bloque: EstadoBloque<DetalleArea> | null,
+  accesos: AccesosCruzados = SIN_ACCESOS,
+): string {
   if (bloque === null || bloque.estado === "cargando") {
     return skeletonBlock({ className: "rounded-lg border border-border bg-white p-4", label: "Cargando detalle del área…" });
   }
@@ -323,7 +354,7 @@ export function renderDetallePanel(bloque: EstadoBloque<DetalleArea> | null): st
           <tbody>${foco.map(empleadoFocoRow).join("")}</tbody>
         </table>
       </div>`;
-  return `<div class="space-y-3">${tilesAgregadosArea(area)}${focoHtml}</div>`;
+  return `<div class="space-y-3">${tilesAgregadosArea(area)}${focoHtml}${enlacesCruzadosHtml(area.area_id, accesos)}</div>`;
 }
 
 function filaHtml(fila: FilaArea, estado: EstadoPagina): string {
@@ -340,7 +371,7 @@ function filaHtml(fila: FilaArea, estado: EstadoPagina): string {
   </tr>`;
   if (!abierta) return principal;
   const detalle = `<tr class="border-t border-border bg-surface-container-low">
-    <td colspan="8" class="px-4 py-4">${renderDetallePanel(estado.detalle)}</td>
+    <td colspan="8" class="px-4 py-4">${renderDetallePanel(estado.detalle, estado.accesos)}</td>
   </tr>`;
   return principal + detalle;
 }
@@ -368,7 +399,17 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
     blockDirector: true,
   });
 
+  /**
+   * Enlaces visibles según la misma autoridad que usa el router: en contexto RH
+   * (admin en Modo RH o inscrito) manda el módulo asignado; fuera de él —
+   * supervisor/gerente nativo, o RH en Modo líder/gerente— `#/operaciones` y
+   * `#/pdi-gestion` están permitidos por la política de rol.
+   */
+  const puedeIr = (moduleKey: string): boolean =>
+    hasRhOperativeViewerContext() ? canAccessRhAssignedModule(moduleKey) : true;
+
   const estado: EstadoPagina = {
+    accesos: { operaciones: puedeIr("operaciones"), pdi: puedeIr("pdi-gestion") },
     polivalencia: { estado: "cargando" },
     desempeno: { estado: "cargando" },
     capacitacion: { estado: "cargando" },

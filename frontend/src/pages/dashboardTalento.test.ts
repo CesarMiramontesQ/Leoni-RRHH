@@ -29,6 +29,7 @@ vi.mock("../api/talento.ts", () => ({
 
 vi.mock("../auth/jwt.ts", () => ({
   canAccessRhAssignedModule: vi.fn(() => true),
+  hasRhOperativeViewerContext: vi.fn(() => true),
 }));
 
 vi.mock("../layouts/appShell.ts", () => ({
@@ -38,7 +39,12 @@ vi.mock("../layouts/appShell.ts", () => ({
 }));
 
 import * as api from "../api/talento.ts";
-import { mountDashboardTalento, ordenarFilas, renderDetallePanel } from "./dashboardTalento.ts";
+import {
+  enlacesCruzadosHtml,
+  mountDashboardTalento,
+  ordenarFilas,
+  renderDetallePanel,
+} from "./dashboardTalento.ts";
 
 /**
  * Doble mínimo de `HTMLElement`: solo lo que `mountDashboardTalento` usa del
@@ -302,6 +308,12 @@ describe("renderDetallePanel", () => {
     expect(html).toContain("60.0%"); // pdi
   });
 
+  it("incluye los enlaces cruzados del área cuando hay acceso", () => {
+    const html = renderDetallePanel(detalle, { operaciones: true, pdi: true });
+    expect(html).toContain('href="#/operaciones?area_id=1"');
+    expect(html).toContain('href="#/pdi-gestion?area_id=1"');
+  });
+
   it("un agregado en null se pinta n/d, nunca 0 %", () => {
     const sinDesempeno = { ...detalle, datos: { ...detalle.datos, desempeno: null } };
     const html = renderDetallePanel(sinDesempeno);
@@ -375,5 +387,28 @@ describe("ordenarFilas", () => {
   it("la fila sin dato queda al final también en orden ascendente", () => {
     const resultado = ordenarFilas(filas, makeEstado("desempeno", false));
     expect(resultado.map((f) => f.area_nombre)).toEqual(["Media", "Alta", "SinDato"]);
+  });
+});
+
+/**
+ * Los enlaces cruzados solo apuntan a los módulos que saben filtrar por área
+ * (Operaciones y PDI). El acceso lo decide quien monta la página, no este
+ * helper: aquí solo se prueba que respeta lo que le dicen.
+ */
+describe("enlacesCruzadosHtml", () => {
+  it("enlaza a Operaciones y PDI con el área en el deep-link", () => {
+    const html = enlacesCruzadosHtml(7, { operaciones: true, pdi: true });
+    expect(html).toContain('href="#/operaciones?area_id=7"');
+    expect(html).toContain('href="#/pdi-gestion?area_id=7"');
+  });
+
+  it("omite el enlace del módulo sin acceso", () => {
+    const html = enlacesCruzadosHtml(7, { operaciones: false, pdi: true });
+    expect(html).not.toContain("#/operaciones");
+    expect(html).toContain('href="#/pdi-gestion?area_id=7"');
+  });
+
+  it("sin ningún acceso no pinta nada", () => {
+    expect(enlacesCruzadosHtml(7, { operaciones: false, pdi: false })).toBe("");
   });
 });
