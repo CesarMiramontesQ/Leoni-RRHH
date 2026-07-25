@@ -250,14 +250,64 @@ function celdaCriticas(n: number): string {
   return `<td class="px-3 py-2 text-sm tabular-nums text-text-muted">0</td>`;
 }
 
-function tileHtml(titulo: string, bloque: EstadoBloque<unknown>, valor: string, detalle: string): string {
+/**
+ * Bandas de desempeño en orden ordinal (peor → mejor). El verde usa
+ * `success-text` y no `success`: adyacente al ámbar, el par del semáforo cae a
+ * ΔE 5.7 en protanopía — indistinguible. Con este verde las tres bandas pasan
+ * la validación CVD, y aun así cada una lleva su conteo en texto, porque una
+ * barra de 6 px no puede depender solo del color.
+ */
+const BANDAS_DESEMPENO = [
+  { clave: "bajo", etiqueta: "Bajo", color: "var(--color-danger)" },
+  { clave: "medio", etiqueta: "Medio", color: "var(--color-warning)" },
+  { clave: "alto", etiqueta: "Alto", color: "var(--color-success-text)" },
+] as const;
+
+/**
+ * Micro-visualización de la distribución por banda dentro del tile de
+ * desempeño: barra apilada al 100 % + conteos. Sin personas clasificadas no
+ * pinta nada — una barra vacía no es lo mismo que "sin datos".
+ */
+export function distribucionBandasHtml(distribucion: Record<string, number>): string {
+  const bandas = BANDAS_DESEMPENO.map((b) => ({ ...b, n: distribucion[b.clave] ?? 0 }));
+  const total = bandas.reduce((acc, b) => acc + b.n, 0);
+  if (total <= 0) return "";
+  const conDato = bandas.filter((b) => b.n > 0);
+  // `flex:n 1 0%` en vez de `width:%`: los 2px de separación entre segmentos
+  // (sin ellos dos bandas contiguas se leen como una sola mancha) se descuentan
+  // del espacio a repartir, así que las proporciones salen exactas.
+  const segmentos = conDato
+    .map(
+      (b) =>
+        `<span class="block h-full" style="flex:${b.n} 1 0%;background-color:${b.color}" title="${escapeHtml(b.etiqueta)}: ${b.n}"></span>`,
+    )
+    .join("");
+  const leyenda = conDato
+    .map(
+      (b) =>
+        `<span class="inline-flex items-center gap-1"><span class="size-1.5 shrink-0 rounded-full" style="background-color:${b.color}" aria-hidden="true"></span>${escapeHtml(b.etiqueta)} ${b.n}</span>`,
+    )
+    .join("");
+  return `<div class="mt-2 flex flex-col gap-1">
+    <span class="flex h-1.5 w-full gap-[2px] overflow-hidden rounded-full" role="img" aria-label="Distribución por banda: ${conDato.map((b) => `${b.etiqueta} ${b.n}`).join(", ")}">${segmentos}</span>
+    <span class="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] tabular-nums text-text-secondary">${leyenda}</span>
+  </div>`;
+}
+
+function tileHtml(
+  titulo: string,
+  bloque: EstadoBloque<unknown>,
+  valor: string,
+  detalle: string,
+  extra = "",
+): string {
   if (bloque.estado === "cargando") {
     return `<div class="${RH_LISTADO_SURFACE} p-4"><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(titulo)}</p><div class="mt-2 h-6 w-20 animate-pulse rounded bg-slate-200"></div></div>`;
   }
   if (bloque.estado === "error") {
     return `<div class="${RH_LISTADO_SURFACE} p-4"><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(titulo)}</p><p class="mt-1 text-xl font-semibold text-text-muted" title="${escapeHtml(bloque.mensaje)}">n/d</p></div>`;
   }
-  return `<div class="${RH_LISTADO_SURFACE} p-4"><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(titulo)}</p><p class="mt-1 text-xl font-semibold text-text-primary">${escapeHtml(valor)}</p><p class="text-xs text-text-muted">${escapeHtml(detalle)}</p></div>`;
+  return `<div class="${RH_LISTADO_SURFACE} p-4"><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(titulo)}</p><p class="mt-1 text-xl font-semibold text-text-primary">${escapeHtml(valor)}</p><p class="text-xs text-text-muted">${escapeHtml(detalle)}</p>${extra}</div>`;
 }
 
 function encabezado(label: string, col: OrdenColumna, estado: EstadoPagina): string {
@@ -464,7 +514,13 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
       ${estado.exportError ? alertError(estado.exportError) : ""}
       ${motivoDesempeno ? `<p class="text-sm text-text-muted">${escapeHtml(motivoDesempeno)}</p>` : ""}
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        ${tileHtml("Desempeño", estado.desempeno, pctTexto(orgDesempeno(estado)), "promedio del ciclo")}
+        ${tileHtml(
+          "Desempeño",
+          estado.desempeno,
+          pctTexto(orgDesempeno(estado)),
+          "promedio del ciclo",
+          estado.desempeno.estado === "ok" ? distribucionBandasHtml(estado.desempeno.datos.org?.distribucion ?? {}) : "",
+        )}
         ${tileHtml("Polivalencia", estado.polivalencia, pctTexto(orgPolivalencia(estado)), "índice del personal")}
         ${tileHtml("Capacitación", estado.capacitacion, pctTexto(orgCapacitacion(estado)), "cursos completados")}
         ${tileHtml("PDI", estado.pdi, pctTexto(orgPdi(estado)), "planes completados")}

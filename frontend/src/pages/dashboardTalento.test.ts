@@ -40,6 +40,7 @@ vi.mock("../layouts/appShell.ts", () => ({
 
 import * as api from "../api/talento.ts";
 import {
+  distribucionBandasHtml,
   enlacesCruzadosHtml,
   mountDashboardTalento,
   ordenarFilas,
@@ -410,5 +411,48 @@ describe("enlacesCruzadosHtml", () => {
 
   it("sin ningún acceso no pinta nada", () => {
     expect(enlacesCruzadosHtml(7, { operaciones: false, pdi: false })).toBe("");
+  });
+});
+
+/**
+ * La distribución de bandas es una escala ORDINAL con semántica de estado
+ * (bajo/medio/alto), no series categóricas: usa los colores de estado del
+ * sistema. La pareja verde-ámbar del semáforo falla la separación CVD
+ * (ΔE 5.7 en protanopía), así que el verde baja a `success-text` (#15803D) —
+ * la única combinación de design.md que pasa las seis validaciones — y cada
+ * banda lleva su conteo en texto: la identidad nunca depende solo del color.
+ */
+describe("distribucionBandasHtml", () => {
+  it("reparte el ancho por proporción y rotula cada banda", () => {
+    const html = distribucionBandasHtml({ bajo: 1, medio: 1, alto: 2 });
+    // `flex:n` = la proporción de la banda; los 2px de separación se descuentan
+    // del reparto en vez de desbordar el ancho.
+    expect(html).toContain("flex:1 1 0%");
+    expect(html).toContain("flex:2 1 0%");
+    expect(html).toContain("Bajo 1");
+    expect(html).toContain("Medio 1");
+    expect(html).toContain("Alto 2");
+  });
+
+  it("omite las bandas vacías en la barra pero no miente en el conteo", () => {
+    const html = distribucionBandasHtml({ bajo: 0, medio: 0, alto: 3 });
+    expect(html).toContain("flex:3 1 0%");
+    expect(html).toContain("Alto 3");
+    expect(html).not.toContain("Bajo 0");
+  });
+
+  it("sin personas clasificadas no pinta nada", () => {
+    expect(distribucionBandasHtml({ bajo: 0, medio: 0, alto: 0 })).toBe("");
+    expect(distribucionBandasHtml({})).toBe("");
+  });
+
+  it("ignora bandas desconocidas que llegaran del backend", () => {
+    const html = distribucionBandasHtml({ bajo: 1, alto: 1, sin_banda: 5 });
+    expect(html).not.toContain("sin_banda");
+    // Reparto 1:1 entre las dos bandas conocidas; el conteo desconocido no
+    // entra al total ni al ancho.
+    expect(html).toContain("Bajo 1");
+    expect(html).toContain("Alto 1");
+    expect((html.match(/flex:1 1 0%/g) ?? []).length).toBe(2);
   });
 });

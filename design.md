@@ -1213,6 +1213,26 @@ Gráficas con **varias series o categorías** usan la paleta centralizada en `fr
 
 Mapas por dominio (solicitudes, incidencias, faltas-retardos) deben referenciar `chartColorSlots()` en lugar de tokens vecinos (`--color-info`, `--color-success`, `--color-leoni-blue-light`). Gráficas de **una sola serie** pueden seguir usando `--color-accent`.
 
+### 14.1.2 Micro-visualizacion de distribucion (barra apilada en un tile)
+
+Barra apilada al 100 % dentro de un stat tile, para una escala **ordinal con
+semantica de estado** (p. ej. bandas de desempeno bajo/medio/alto). Implementada en
+`distribucionBandasHtml` (`frontend/src/pages/dashboardTalento.ts`).
+
+| Regla | Por que |
+|---|---|
+| Segmentos con `flex:<n> 1 0%`, no `width:%` | los 2 px de separacion se descuentan del reparto; con `width` la suma desborda |
+| `gap-[2px]` entre segmentos | sin separador, dos bandas contiguas se leen como una sola mancha |
+| `h-1.5 rounded-full overflow-hidden` en el contenedor | extremos redondeados sin redondear cada segmento |
+| Conteo por banda en texto debajo, en `text-text-secondary` + punto de color | la identidad **nunca** depende solo del color; el texto va en tokens de texto, no en el color de la serie |
+| Total 0 → no se pinta nada | una barra vacia no significa lo mismo que "sin datos" |
+
+**Color**: verde = `--color-success-text` (#15803D), **no** `--color-success`. Adyacente
+al ambar, la pareja del semaforo (#22C55E / #F59E0B) cae a ΔE 5.7 en protanopia —
+indistinguible. Con #15803D las tres bandas pasan la validacion CVD. Regla general:
+los colores de **estado** valen para marcas de datos solo si los pares adyacentes
+superan la separacion CVD; si no, hay que bajar un paso el tono, no confiar en el label.
+
 ### 14.2 Progress Bar con Marker (nivel requerido)
 
 Barra de progreso con indicador vertical del nivel requerido.
