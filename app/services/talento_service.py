@@ -12,7 +12,7 @@ misma fila saldrian calculadas sobre poblaciones distintas.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -23,9 +23,15 @@ from app.models.empleados import Empleado
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.pdi_repository import PDIRepository
 from app.services.ciclo_desempeno_service import CicloDesempenoService
+from app.services.historial_objetivo_service import HistorialObjetivoService
 from app.services.level_up_cursos_dashboard import LevelUpCursosDashboardService
 from app.services.operaciones_service import OperacionesService
 from app.services.talento import calculo
+from app.services.talento.constants import (
+    POLIVALENCIA_BAJA_MAX,
+    RANGO_OBJETIVO_MESES_DEFAULT,
+)
+from app.services.talento.types import SenalesEmpleado
 
 MODULE_KEY = "dashboard-talento"
 
@@ -168,6 +174,55 @@ class BloquePdi:
     motivo: str | None = None
 
 
+@dataclass
+class AreaObjetivo:
+    area_id: int | None
+    area_nombre: str
+    n_empleados: int
+    indice_promedio: float | None
+
+
+@dataclass
+class OrgObjetivo:
+    n_empleados: int
+    indice_promedio: float | None
+
+
+@dataclass
+class RangoObjetivo:
+    desde: date
+    hasta: date
+
+
+@dataclass
+class EmpleadoFoco:
+    empleado_id: int
+    no_empleado: int | str | None
+    nombre: str
+    puesto_nombre: str | None
+    senales: list[str]
+
+
+@dataclass
+class BloqueObjetivo:
+    disponible: bool
+    rango: RangoObjetivo | None = None
+    org: OrgObjetivo | None = None
+    areas: list[AreaObjetivo] = field(default_factory=list)
+    motivo: str | None = None
+
+
+@dataclass
+class DetalleArea:
+    area_id: int
+    area_nombre: str
+    desempeno: AreaDesempeno | None
+    polivalencia: AreaPolivalencia | None
+    capacitacion: AreaCapacitacion | None
+    pdi: AreaPdi | None
+    empleados_foco: list[EmpleadoFoco] = field(default_factory=list)
+
+
 def _f(valor: Decimal | float | None) -> float | None:
     return None if valor is None else float(valor)
 
@@ -180,6 +235,7 @@ class TalentoService:
         self.ciclo_svc = CicloDesempenoService(db)
         self.cursos_svc = LevelUpCursosDashboardService(db)
         self.pdi_repo = PDIRepository(db)
+        self.historial_svc = HistorialObjetivoService(db)
 
     # ── Scope y catalogos ────────────────────────────────────────────────
     async def scope(self, current_user: Empleado, rh_ui_mode: str | None) -> list[int] | None:
@@ -454,3 +510,149 @@ class TalentoService:
             semaforo=calculo.semaforo_pct(pct_org),
         )
         return BloquePdi(disponible=True, org=org, areas=areas)
+
+    # ── Bloque: historial objetivo (diferido) ────────────────────────────
+    async def bloque_objetivo(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None,
+        desde: date | None,
+        hasta: date | None,
+        area_id: int | None,
+    ) -> BloqueObjetivo:
+        """Indice objetivo (0-100) promediado por area.
+
+        Se sirve en su propio endpoint porque consulta DATOS_ANALISIS: si esa BD
+        no responde, solo esta columna se cae. NO confundir este indice con el
+        `indice_historial` del resultado del ciclo: aquel ya va ponderado dentro
+        de la calificacion de desempeno y se calcula sobre el rango del ciclo."""
+        if hasta is None:
+            hasta = date.today()
+        if desde is None:
+            desde = hasta - timedelta(days=30 * RANGO_OBJETIVO_MESES_DEFAULT)
+
+        scope = await self.scope(current_user, rh_ui_mode)
+        resp = await self.historial_svc.indice_equipo_con_scope(scope, desde, hasta)
+        rango = RangoObjetivo(desde=desde, hasta=hasta)
+        if not resp.items:
+            return BloqueObjetivo(disponible=True, rango=rango, org=None, areas=[], motivo="sin_datos")
+
+        area_por_emp = await self.areas_de_empleados([i.empleado_id for i in resp.items])
+        nombres = await self.nombres_de_areas(list({a for a in area_por_emp.values()}))
+
+        por_area: dict[int | None, list[float]] = {}
+        for item in resp.items:
+            a = area_por_emp.get(item.empleado_id)
+            if area_id is not None and a != area_id:
+                continue
+            por_area.setdefault(a, []).append(float(item.resultado.indice))
+
+        areas = [
+            AreaObjetivo(
+                area_id=aid,
+                area_nombre=(nombres.get(aid, "Sin area") if aid else "Sin area"),
+                n_empleados=len(indices),
+                indice_promedio=calculo.promedio(indices),
+            )
+            for aid, indices in por_area.items()
+        ]
+        areas.sort(key=lambda a: (a.indice_promedio is None, a.indice_promedio or 0.0))
+        todos = [v for indices in por_area.values() for v in indices]
+        org = OrgObjetivo(n_empleados=len(todos), indice_promedio=calculo.promedio(todos))
+        return BloqueObjetivo(disponible=True, rango=rango, org=org, areas=areas)
+
+    # ── Senales por empleado (detalle de area) ───────────────────────────
+    async def _pdi_vencido_por_empleado(self, empleado_ids: list[int]) -> dict[int, bool]:
+        if not empleado_ids:
+            return {}
+        filas = await self.pdi_repo.equipo_pdi_aggregates(empleado_ids=empleado_ids)
+        return {f.empleado_id: f.vencidas > 0 for f in filas}
+
+    async def _obligatorio_pendiente_por_empleado(
+        self, empleado_ids: list[int]
+    ) -> dict[int, bool]:
+        if not empleado_ids:
+            return {}
+        resumen = await self.cursos_svc.resumen_por_area(empleado_ids)
+        pendientes: set[int] = set()
+        for agg in resumen.values():
+            pendientes |= agg.empleados_obligatorio_pendiente
+        return {eid: eid in pendientes for eid in empleado_ids}
+
+    async def detalle_area(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None,
+        area_id: int,
+        ciclo_id: int | None,
+    ) -> DetalleArea:
+        """Agregados del area + empleados en foco.
+
+        `polivalencia_empleados_area` es quien decide visibilidad: propaga
+        `NotFoundError` (area inexistente) o `ForbiddenError` (fuera de scope),
+        mismo criterio que `cobertura_area` en Operaciones."""
+        scope = await self.scope(current_user, rh_ui_mode)
+        polivalencia = await self.oper_svc.polivalencia_empleados_area(area_id, scope)
+        empleado_ids = [p.empleado_id for p in polivalencia]
+
+        ciclo = await self.ciclo_vigente(ciclo_id)
+        banda_por_emp: dict[int, str | None] = {}
+        area_desempeno: AreaDesempeno | None = None
+        if ciclo is not None:
+            resultados = await self.ciclo_svc.resultados_ciclo(ciclo.id, set(empleado_ids))
+            banda_por_emp = {r.empleado_id: r.banda_desempeno_efectiva for r in resultados}
+            if resultados:
+                nombres_area = await self.nombres_de_areas([area_id])
+                area_desempeno = self._area_desempeno(
+                    area_id, nombres_area.get(area_id), resultados
+                )
+                area_desempeno.semaforo = self._semaforo_desempeno(
+                    area_desempeno.calificacion_promedio, ciclo
+                )
+
+        pdi_vencido = await self._pdi_vencido_por_empleado(empleado_ids)
+        obligatorio = await self._obligatorio_pendiente_por_empleado(empleado_ids)
+
+        senales = [
+            SenalesEmpleado(
+                empleado_id=p.empleado_id,
+                no_empleado=p.no_empleado,
+                nombre=p.nombre,
+                puesto_nombre=p.puesto_nombre,
+                desempeno_bajo=(
+                    None
+                    if p.empleado_id not in banda_por_emp
+                    else banda_por_emp[p.empleado_id] == "bajo"
+                ),
+                polivalencia_baja=(
+                    None if p.pol_pct is None else p.pol_pct < POLIVALENCIA_BAJA_MAX
+                ),
+                capacitacion_pendiente=obligatorio.get(p.empleado_id),
+                pdi_vencido=pdi_vencido.get(p.empleado_id),
+            )
+            for p in polivalencia
+        ]
+        foco = [
+            EmpleadoFoco(
+                empleado_id=s.empleado_id,
+                no_empleado=s.no_empleado,
+                nombre=s.nombre,
+                puesto_nombre=s.puesto_nombre,
+                senales=s.senales_activas,
+            )
+            for s in calculo.empleados_en_foco(senales)
+        ]
+
+        nombres = await self.nombres_de_areas([area_id])
+        bloque_pol = await self.bloque_polivalencia(current_user, rh_ui_mode)
+        bloque_cap = await self.bloque_capacitacion(current_user, rh_ui_mode)
+        bloque_pdi = await self.bloque_pdi(current_user, rh_ui_mode)
+        return DetalleArea(
+            area_id=area_id,
+            area_nombre=nombres.get(area_id, "Sin area"),
+            desempeno=area_desempeno,
+            polivalencia=next((a for a in bloque_pol.areas if a.area_id == area_id), None),
+            capacitacion=next((a for a in bloque_cap.areas if a.area_id == area_id), None),
+            pdi=next((a for a in bloque_pdi.areas if a.area_id == area_id), None),
+            empleados_foco=foco,
+        )
