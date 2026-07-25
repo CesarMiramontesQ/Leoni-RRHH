@@ -25,6 +25,25 @@
   --color-kpi-metric-inactivo-icon: #f87171;
   --color-kpi-metric-inactivo-bg:   rgb(254 202 202 / 0.45);
 
+  /* Tokens semánticos de design.md que faltaban aquí: sin ellos ni las utilidades
+     (text-text-secondary, bg-active-tint, bg-surface-container-low…) ni los
+     var(--color-*) sin fallback generan color. Valores de design.md §1.1. */
+  --color-text-secondary:            #64748B;
+  --color-surface-container-lowest:  #FFFFFF;
+  --color-surface-container-low:     #F5F3F5;
+  --color-surface-container:         #F0EDEF;
+  --color-surface-container-high:    #EAE7E9;
+  --color-active-tint:               #F0F4F8;
+  --color-grid-header-bg:            #F8FAFC;
+  --color-grid-header-text:          #64748B;
+  --color-outline:                   #75777D;
+  --color-success:                   #22C55E;
+  --color-warning:                   #F59E0B;
+  --color-danger:                    #EF4444;
+  /* Alias del primario de marca. design.md §1.2 lo migra a #0A1628 junto con el
+     resto de la paleta (checklist §14, aún pendiente); hasta entonces = leoni-blue. */
+  --color-primary:                   #002147;
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 

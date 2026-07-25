@@ -237,7 +237,7 @@ function senalBadge(senal: string): string {
 function empleadoFocoRow(e: EmpleadoFoco): string {
   const senales = e.senales.length ? e.senales.map(senalBadge).join(" ") : `<span class="text-text-muted">—</span>`;
   const subtitulo = e.no_empleado != null ? `#${e.no_empleado}` : `ID ${e.empleado_id}`;
-  return `<tr class="border-t border-border-subtle">
+  return `<tr class="border-t border-border">
     <td class="px-3 py-2 align-top">
       <p class="text-sm font-medium text-text-primary">${escapeHtml(e.nombre)}</p>
       <p class="text-xs text-text-muted">${escapeHtml(subtitulo)}</p>
@@ -266,7 +266,7 @@ function tilesAgregadosArea(area: DetalleArea): string {
 
 export function renderDetallePanel(bloque: EstadoBloque<DetalleArea> | null): string {
   if (bloque === null || bloque.estado === "cargando") {
-    return skeletonBlock({ className: "rounded-lg border border-border-subtle bg-white p-4", label: "Cargando detalle del área…" });
+    return skeletonBlock({ className: "rounded-lg border border-border bg-white p-4", label: "Cargando detalle del área…" });
   }
   if (bloque.estado === "error") {
     return errorState({ message: bloque.mensaje });
@@ -274,8 +274,8 @@ export function renderDetallePanel(bloque: EstadoBloque<DetalleArea> | null): st
   const area = bloque.datos;
   const foco = area.empleados_foco;
   const focoHtml = !foco.length
-    ? `<p class="rounded-lg border border-border-subtle bg-white px-4 py-3 text-sm text-text-muted">Sin empleados en foco (señales de riesgo) en esta área.</p>`
-    : `<div class="overflow-x-auto rounded-lg border border-border-subtle bg-white">
+    ? `<p class="rounded-lg border border-border bg-white px-4 py-3 text-sm text-text-muted">Sin empleados en foco (señales de riesgo) en esta área.</p>`
+    : `<div class="overflow-x-auto rounded-lg border border-border bg-white">
         <table class="w-full min-w-[560px] text-left">
           <thead class="${RH_TABLE_HEAD}">
             <tr>
@@ -293,7 +293,7 @@ export function renderDetallePanel(bloque: EstadoBloque<DetalleArea> | null): st
 
 function filaHtml(fila: FilaArea, estado: EstadoPagina): string {
   const abierta = estado.areaAbierta === fila.area_id;
-  const principal = `<tr class="cursor-pointer border-t border-border-subtle hover:bg-active-tint" data-area-id="${fila.area_id}" role="button" tabindex="0" aria-expanded="${abierta}">
+  const principal = `<tr class="cursor-pointer border-t border-border hover:bg-active-tint" data-area-id="${fila.area_id}" role="button" tabindex="0" aria-expanded="${abierta}">
     <td class="px-3 py-2 text-sm font-medium text-text-primary">${escapeHtml(fila.area_nombre)}</td>
     <td class="px-3 py-2 text-sm tabular-nums text-text-secondary">${fila.n_empleados}</td>
     ${celdaMetrica(fila.desempeno, fila.desempenoSemaforo)}
@@ -304,7 +304,7 @@ function filaHtml(fila: FilaArea, estado: EstadoPagina): string {
     ${celdaCriticas(fila.n_criticas)}
   </tr>`;
   if (!abierta) return principal;
-  const detalle = `<tr class="border-t border-border-subtle bg-surface-container-low">
+  const detalle = `<tr class="border-t border-border bg-surface-container-low">
     <td colspan="8" class="px-4 py-4">${renderDetallePanel(estado.detalle)}</td>
   </tr>`;
   return principal + detalle;
