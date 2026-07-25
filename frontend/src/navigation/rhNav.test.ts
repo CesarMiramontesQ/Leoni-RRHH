@@ -308,6 +308,24 @@ describe("rhNav sections", () => {
     ]);
   });
 
+  it("expone Talento con Dashboard de Talento cuando se otorga el módulo dashboard-talento", async () => {
+    allowedModules.add("dashboard-talento");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const sections = getVisibleRhNavSections("supervisor");
+    const talentoSection = sections.find((section) => section.id === "talento");
+
+    expect(talentoSection?.title).toBe("Talento");
+    expect(talentoSection?.items).toEqual([
+      expect.objectContaining({
+        id: "dashboard-talento",
+        key: "dashboard-talento",
+        href: "#/talento/dashboard",
+        label: "Dashboard de Talento",
+      }),
+    ]);
+  });
+
   it("expone Talento con Historial Objetivo cuando se otorga el módulo historial-objetivo", async () => {
     allowedModules.add("historial-objetivo");
 
