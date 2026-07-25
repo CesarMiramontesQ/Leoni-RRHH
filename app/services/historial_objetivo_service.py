@@ -344,10 +344,24 @@ class HistorialObjetivoService:
         fecha_fin: date | None,
         rh_ui_mode: str | None = None,
     ) -> HistorialObjetivoEquipoResponse:
-        self._validar_rango_fechas(fecha_inicio, fecha_fin)
         scope_ids = await empleado_ids_scope_por_modulo(
             self.empleado_repo, current_user, MODULE_KEY, rh_ui_mode
         )
+        return await self.indice_equipo_con_scope(scope_ids, fecha_inicio, fecha_fin)
+
+    async def indice_equipo_con_scope(
+        self,
+        scope_ids: list[int] | None,
+        fecha_inicio: date | None,
+        fecha_fin: date | None,
+    ) -> HistorialObjetivoEquipoResponse:
+        """Ranking de equipo con el scope YA resuelto (`None` = universo).
+
+        Lo usa el Dashboard de Talento, que resuelve el scope con SU module_key.
+        Conserva intactas las protecciones de la version publica: se valida el
+        rango y, sin scope, se exige rango explicito para no agregar el universo
+        sin acotar."""
+        self._validar_rango_fechas(fecha_inicio, fecha_fin)
 
         if scope_ids is not None:
             limit = len(scope_ids) or 1

@@ -40,6 +40,19 @@ class _ParCursoEmpleado:
     inscripciones: list[InscripcionEstadoInput] = field(default_factory=list)
 
 
+@dataclass
+class CursosAreaAgg:
+    """Agregado de capacitacion de UN area, para el Dashboard de Talento."""
+
+    total_pares: int = 0
+    completados: int = 0
+    empleados_obligatorio_pendiente: set[int] = field(default_factory=set)
+    empleados: set[int] = field(default_factory=set)
+    """Todos los empleados con al menos un par (empleado, curso) evaluable en
+    esta area, independiente del estado. Es la fuente para saber quien SI fue
+    evaluado en capacitacion (para distinguir 'no aplica' de 'esta bien')."""
+
+
 class LevelUpCursosDashboardService:
     TOP_N = 8
     ESTADOS_CURSO_ACTIVOS: frozenset[str] = frozenset(
@@ -587,3 +600,43 @@ class LevelUpCursosDashboardService:
             cursos=cursos_items,
             sesiones=sesiones_items,
         )
+
+    async def resumen_por_area(
+        self, empleado_ids_scope: list[int] | None
+    ) -> dict[int | None, CursosAreaAgg]:
+        """Agrega el estado de los pares (empleado, curso) por area.
+
+        Punto de entrada del Dashboard de Talento. Reutiliza `_build_pares` y
+        `_estado_par`, de modo que el estado de un curso se decide con LA misma
+        logica que la pantalla de seguimiento -- aqui no se reimplementa.
+
+        `empleado_ids_scope` = None significa universo. La clave `None` del dict
+        agrupa a empleados sin area asignada.
+        """
+        curso_map, pares = await self._build_pares()
+        if empleado_ids_scope is not None:
+            permitidos = set(empleado_ids_scope)
+            pares = {k: v for k, v in pares.items() if v.empleado_id in permitidos}
+        if not pares:
+            return {}
+
+        emp_ids = {p.empleado_id for p in pares.values()}
+        empleados = await self.repo.get_empleados_map(emp_ids)
+
+        out: dict[int | None, CursosAreaAgg] = {}
+        for par in pares.values():
+            estado = self._estado_par(par)
+            if estado is None:
+                continue
+            emp = empleados.get(par.empleado_id)
+            area_id = emp.area_id if emp is not None else None
+            agg = out.setdefault(area_id, CursosAreaAgg())
+            agg.total_pares += 1
+            agg.empleados.add(par.empleado_id)
+            if estado == "completado":
+                agg.completados += 1
+            else:
+                curso = curso_map.get(par.curso_id)
+                if curso is not None and curso.obligatorio:
+                    agg.empleados_obligatorio_pendiente.add(par.empleado_id)
+        return out

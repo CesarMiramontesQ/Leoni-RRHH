@@ -6,7 +6,7 @@
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 
-export type TalentoNavKey = "encuestas-rh" | "metas" | "ciclo-desempeno" | "historial-objetivo";
+export type TalentoNavKey = "dashboard-talento" | "encuestas-rh" | "metas" | "ciclo-desempeno" | "historial-objetivo";
 
 export type TalentoNavItem = {
   id: AppShellNavItemId;
@@ -17,6 +17,13 @@ export type TalentoNavItem = {
 };
 
 export const TALENTO_NAV_ITEMS: readonly TalentoNavItem[] = [
+  {
+    id: "dashboard-talento",
+    key: "dashboard-talento",
+    href: "#/talento/dashboard",
+    label: "Dashboard de Talento",
+    svgPaths: `<path d="M3 13.5h5.25V21H3v-7.5Zm6.75-6h4.5V21h-4.5V7.5ZM16.5 3h4.5v18h-4.5V3Z" stroke-linecap="round" stroke-linejoin="round" />`,
+  },
   {
     id: "encuestas-rh",
     key: "encuestas-rh",
@@ -47,12 +54,18 @@ export const TALENTO_NAV_ITEMS: readonly TalentoNavItem[] = [
   },
 ];
 
+/** Icono original del hub «Talento» (encuestas de clima/pulso): fijo por id,
+ * no por posicion -- `TALENTO_NAV_ITEMS[0]` cambia de icono cada vez que se
+ * reordena la lista (p.ej. al insertar el Dashboard de Talento como primer
+ * item), aunque `TALENTO_SIDEBAR_ITEM` siga apuntando a `encuestas-rh`. */
+const ICONO_ENCUESTAS_RH = TALENTO_NAV_ITEMS.find((item) => item.id === "encuestas-rh")!.svgPaths;
+
 export const TALENTO_SIDEBAR_ITEM = {
   id: "encuestas-rh" as const,
   key: "encuestas-rh" as const,
   href: "#/talento/encuestas",
   label: "Talento",
-  svgPaths: TALENTO_NAV_ITEMS[0]!.svgPaths,
+  svgPaths: ICONO_ENCUESTAS_RH,
 };
 
 export function getVisibleTalentoNavItems(rol: string | null): TalentoNavItem[] {

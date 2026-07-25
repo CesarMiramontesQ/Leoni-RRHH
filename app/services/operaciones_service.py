@@ -48,6 +48,21 @@ class AreaResumen:
 
 
 @dataclass
+class PolivalenciaEmpleado:
+    """Indice de polivalencia de UN empleado dentro de un area.
+
+    Existe para el Dashboard de Talento: `indice_polivalencia_empleado` ya
+    calculaba esto, pero hasta ahora solo se consumia promediado por area.
+    """
+
+    empleado_id: int
+    no_empleado: int | str
+    nombre: str
+    puesto_nombre: str
+    pol_pct: float | None
+
+
+@dataclass
 class PuestoCobertura:
     puesto_perfil_id: int
     puesto_nombre: str
@@ -157,6 +172,15 @@ class OperacionesService:
         scope = await empleado_ids_scope_por_modulo(
             self.empleado_repo, current_user, MODULE_KEY, rh_ui_mode
         )
+        return await self.listar_areas_con_scope(scope)
+
+    async def listar_areas_con_scope(self, scope: list[int] | None) -> list[AreaResumen]:
+        """Resumen por area con el scope YA resuelto (`None` = universo).
+
+        Separado de `listar_areas` para que el Dashboard de Talento pueda pasar
+        el scope que el resolvio con SU module_key, en vez de recalcularlo con
+        el de Operaciones -- si cada bloque resolviera el suyo, dos columnas de
+        la misma fila saldrian sobre poblaciones distintas."""
         puestos = await self._puestos_con_area()
         # Agrupa puestos por area en una sola pasada.
         por_area: dict[int, tuple[str, list[EmpleadoCompetencias], dict[int, CompetenciaMeta]]] = {}
@@ -175,6 +199,42 @@ class OperacionesService:
             resumenes.append(self._resumen(area_id, nombre, emps, coberturas))
         resumenes.sort(key=lambda a: (-a.n_criticas, a.area_nombre))
         return resumenes
+
+    async def polivalencia_empleados_area(
+        self, area_id: int, scope: list[int] | None
+    ) -> list[PolivalenciaEmpleado]:
+        """Indice de polivalencia por empleado del area (scope ya resuelto).
+
+        Dedup por empleado_id: si esta asignado a varios puestos del area, se
+        queda el indice mas alto -- mismo criterio de `candidatos_crosstrain`.
+
+        Visibilidad: mismo criterio que `cobertura_area` (mismas comprobaciones,
+        mismo orden, mismos mensajes) -- un area inexistente da `NotFoundError`
+        y un area fuera del scope da `ForbiddenError`, en vez de devolver un
+        resultado vacio con status 200."""
+        _nombre, puestos_cob, empleados, _meta = await self._cargar_area(area_id, scope)
+        if not puestos_cob:
+            # Area inexistente o sin puestos con competencias requisito: nada que mostrar.
+            raise NotFoundError(entidad="Area", id=area_id)
+        if not empleados:
+            # Existe pero no hay personal visible: fuera de scope (jefe) o sin datos (RH).
+            if scope is not None:
+                raise ForbiddenError(detail="Area fuera de tu alcance")
+            raise NotFoundError(entidad="Area", id=area_id)
+        por_empleado: dict[int, PolivalenciaEmpleado] = {}
+        for e in empleados:
+            pct = calculo.indice_polivalencia_empleado(e)
+            prev = por_empleado.get(e.empleado_id)
+            if prev is not None and (prev.pol_pct or 0.0) >= (pct or 0.0):
+                continue
+            por_empleado[e.empleado_id] = PolivalenciaEmpleado(
+                empleado_id=e.empleado_id,
+                no_empleado=e.no_empleado,
+                nombre=e.nombre,
+                puesto_nombre=e.puesto_nombre,
+                pol_pct=pct,
+            )
+        return sorted(por_empleado.values(), key=lambda p: p.nombre)
 
     async def cobertura_area(self, current_user, area_id: int, rh_ui_mode) -> CoberturaArea:
         scope = await empleado_ids_scope_por_modulo(

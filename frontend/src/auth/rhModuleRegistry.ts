@@ -42,6 +42,7 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "encuestas", prefix: "#/encuestas" },
   { key: "encuestas-rh", prefix: "#/talento/encuestas" },
   { key: "metas", prefix: "#/talento/metas" },
+  { key: "dashboard-talento", prefix: "#/talento/dashboard" },
   { key: "ciclo-desempeno", prefix: "#/talento/ciclo-desempeno" },
   { key: "historial-objetivo", prefix: "#/cumplimiento/historial-objetivo" },
   { key: "nominas-horas-extra", prefix: "#/nominas/horas-extra" },

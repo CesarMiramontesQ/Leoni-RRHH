@@ -293,6 +293,7 @@ from app.api.v1.sugerencias import router as sugerencias_router
 from app.api.v1.evidencias import router as evidencias_router
 from app.api.v1.opls import router as opls_router
 from app.api.v1.operaciones.router import router as operaciones_router
+from app.api.v1.talento.router import router as talento_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -341,6 +342,7 @@ app.include_router(sugerencias_router)
 app.include_router(evidencias_router)
 app.include_router(opls_router)
 app.include_router(operaciones_router)
+app.include_router(talento_router)
 
 
 # ── Root ──────────────────────────────────────────────────────

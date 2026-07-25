@@ -259,6 +259,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       }).catch((err) => renderLazyPageImportError(container, "mi-desempeno", "Mi desempeño", err));
       return;
     }
+    if (h.startsWith("#/talento/dashboard")) {
+      void import("./pages/dashboardTalento.ts").then(({ mountDashboardTalento }) => {
+        mountDashboardTalento(container, signal);
+      }).catch((err) => renderLazyPageImportError(container, "dashboard-talento", "Dashboard de Talento", err));
+      return;
+    }
     if (h.startsWith("#/talento/ciclo-desempeno")) {
       void import("./pages/cicloDesempeno.ts").then(({ mountCicloDesempeno }) => {
         mountCicloDesempeno(container, signal);

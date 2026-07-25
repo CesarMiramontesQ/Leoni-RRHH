@@ -50,6 +50,7 @@ export type RhNavKey =
   | "encuestas"
   | "encuestas-rh"
   | "metas"
+  | "dashboard-talento"
   | "ciclo-desempeno"
   | "historial-objetivo"
   | "empleados"

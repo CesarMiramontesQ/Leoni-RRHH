@@ -48,7 +48,8 @@ interface OperacionesState {
   exporting: boolean;
 }
 
-function semaforoBadge(sem: Semaforo, label: string): string {
+/** Reutilizado por `pages/dashboardTalento.ts` (mismo semáforo conceptual: verde/ámbar/rojo). */
+export function semaforoBadge(sem: Semaforo, label: string): string {
   if (sem === "verde") return badgeApproved(label);
   if (sem === "ambar") return badgePending(label);
   return badgeRejected(label);

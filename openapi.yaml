@@ -6312,6 +6312,228 @@ components:
           items:
             $ref: "#/components/schemas/CriticaSchema"
 
+    # ── Dashboard de Talento (agregador de solo lectura por area) ─────────
+    CicloInfoSchema:
+      type: object
+      properties:
+        id: { type: integer }
+        nombre: { type: string }
+        estado: { type: string }
+    AreaDesempenoSchema:
+      type: object
+      properties:
+        area_id: { type: [integer, "null"] }
+        area_nombre: { type: string }
+        n_empleados: { type: integer }
+        calificacion_promedio: { type: [number, "null"], format: float }
+        cumplimiento_metas_pct: { type: [number, "null"], format: float }
+        con_resultado_pct: { type: [number, "null"], format: float }
+        distribucion:
+          type: object
+          additionalProperties: { type: integer }
+        semaforo: { type: [string, "null"], enum: [verde, ambar, rojo, null] }
+    OrgDesempenoSchema:
+      type: object
+      properties:
+        calificacion_promedio: { type: [number, "null"], format: float }
+        cumplimiento_metas_pct: { type: [number, "null"], format: float }
+        con_resultado_pct: { type: [number, "null"], format: float }
+        distribucion:
+          type: object
+          additionalProperties: { type: integer }
+        nine_box:
+          type: object
+          additionalProperties: { type: integer }
+        semaforo: { type: [string, "null"], enum: [verde, ambar, rojo, null] }
+        n_empleados: { type: integer }
+    BloqueDesempenoResponse:
+      type: object
+      properties:
+        disponible: { type: boolean }
+        motivo: { type: [string, "null"] }
+        ciclo:
+          oneOf:
+            - $ref: "#/components/schemas/CicloInfoSchema"
+            - type: "null"
+        org:
+          oneOf:
+            - $ref: "#/components/schemas/OrgDesempenoSchema"
+            - type: "null"
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaDesempenoSchema"
+    AreaPolivalenciaSchema:
+      type: object
+      properties:
+        area_id: { type: integer }
+        area_nombre: { type: string }
+        n_empleados: { type: integer }
+        pol_pct: { type: [number, "null"], format: float }
+        resiliencia_pct: { type: [number, "null"], format: float }
+        n_criticas: { type: integer }
+        semaforo: { type: [string, "null"], enum: [verde, ambar, rojo, null] }
+    OrgPolivalenciaSchema:
+      type: object
+      properties:
+        pol_pct: { type: [number, "null"], format: float }
+        resiliencia_pct: { type: [number, "null"], format: float }
+        n_criticas: { type: integer }
+        n_empleados: { type: integer }
+        semaforo: { type: [string, "null"], enum: [verde, ambar, rojo, null] }
+    BloquePolivalenciaResponse:
+      type: object
+      properties:
+        disponible: { type: boolean }
+        motivo: { type: [string, "null"] }
+        org:
+          oneOf:
+            - $ref: "#/components/schemas/OrgPolivalenciaSchema"
+            - type: "null"
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaPolivalenciaSchema"
+    AreaCapacitacionSchema:
+      type: object
+      properties:
+        area_id: { type: [integer, "null"] }
+        area_nombre: { type: string }
+        total_pares: { type: integer }
+        completados: { type: integer }
+        cumplimiento_pct: { type: [number, "null"], format: float }
+        n_obligatorio_pendiente: { type: integer }
+        semaforo: { type: [string, "null"], enum: [verde, ambar, rojo, null] }
+    OrgCapacitacionSchema:
+      type: object
+      properties:
+        total_pares: { type: integer }
+        completados: { type: integer }
+        cumplimiento_pct: { type: [number, "null"], format: float }
+        n_obligatorio_pendiente: { type: integer }
+        semaforo: { type: [string, "null"], enum: [verde, ambar, rojo, null] }
+    BloqueCapacitacionResponse:
+      type: object
+      properties:
+        disponible: { type: boolean }
+        motivo: { type: [string, "null"] }
+        org:
+          oneOf:
+            - $ref: "#/components/schemas/OrgCapacitacionSchema"
+            - type: "null"
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaCapacitacionSchema"
+    AreaPdiSchema:
+      type: object
+      properties:
+        area_id: { type: [integer, "null"] }
+        area_nombre: { type: string }
+        total: { type: integer }
+        completados: { type: integer }
+        cancelados: { type: integer }
+        cumplimiento_pct: { type: [number, "null"], format: float }
+        n_vencidos: { type: integer }
+        n_activos: { type: integer }
+        semaforo: { type: [string, "null"], enum: [verde, ambar, rojo, null] }
+    OrgPdiSchema:
+      type: object
+      properties:
+        total: { type: integer }
+        completados: { type: integer }
+        cancelados: { type: integer }
+        cumplimiento_pct: { type: [number, "null"], format: float }
+        n_vencidos: { type: integer }
+        n_activos: { type: integer }
+        semaforo: { type: [string, "null"], enum: [verde, ambar, rojo, null] }
+    BloquePdiResponse:
+      type: object
+      properties:
+        disponible: { type: boolean }
+        motivo: { type: [string, "null"] }
+        org:
+          oneOf:
+            - $ref: "#/components/schemas/OrgPdiSchema"
+            - type: "null"
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaPdiSchema"
+    RangoObjetivoSchema:
+      type: object
+      properties:
+        desde: { type: string, format: date }
+        hasta: { type: string, format: date }
+    AreaObjetivoSchema:
+      type: object
+      properties:
+        area_id: { type: [integer, "null"] }
+        area_nombre: { type: string }
+        n_empleados: { type: integer }
+        indice_promedio: { type: [number, "null"], format: float }
+    OrgObjetivoSchema:
+      type: object
+      properties:
+        n_empleados: { type: integer }
+        indice_promedio: { type: [number, "null"], format: float }
+    BloqueObjetivoResponse:
+      type: object
+      properties:
+        disponible: { type: boolean }
+        motivo: { type: [string, "null"] }
+        rango:
+          oneOf:
+            - $ref: "#/components/schemas/RangoObjetivoSchema"
+            - type: "null"
+        org:
+          oneOf:
+            - $ref: "#/components/schemas/OrgObjetivoSchema"
+            - type: "null"
+        areas:
+          type: array
+          items:
+            $ref: "#/components/schemas/AreaObjetivoSchema"
+    EmpleadoFocoSchema:
+      type: object
+      properties:
+        empleado_id: { type: integer }
+        no_empleado:
+          oneOf:
+            - { type: integer }
+            - { type: string }
+            - { type: "null" }
+        nombre: { type: string }
+        puesto_nombre: { type: [string, "null"] }
+        senales:
+          type: array
+          items: { type: string }
+    DetalleAreaResponse:
+      type: object
+      properties:
+        area_id: { type: integer }
+        area_nombre: { type: string }
+        desempeno:
+          oneOf:
+            - $ref: "#/components/schemas/AreaDesempenoSchema"
+            - type: "null"
+        polivalencia:
+          oneOf:
+            - $ref: "#/components/schemas/AreaPolivalenciaSchema"
+            - type: "null"
+        capacitacion:
+          oneOf:
+            - $ref: "#/components/schemas/AreaCapacitacionSchema"
+            - type: "null"
+        pdi:
+          oneOf:
+            - $ref: "#/components/schemas/AreaPdiSchema"
+            - type: "null"
+        empleados_foco:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmpleadoFocoSchema"
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -15489,4 +15711,122 @@ paths:
           description: Area fuera del alcance del jefe, o requiere el modulo 'operaciones'
         "404":
           description: Area inexistente o sin puestos con competencias requisito
+
+  # ── Dashboard de Talento (agregador de solo lectura, por area) ─────────
+  /api/v1/talento/desempeno:
+    get:
+      tags: [talento]
+      summary: Bloque de desempeno por area (RH con modulo 'dashboard-talento' global, o jefe con scoping de equipo)
+      operationId: talento_bloque_desempeno
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: ciclo_id, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Bloque de desempeno (disponible=false con motivo si no hay ciclo vigente)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloqueDesempenoResponse"
+        "403":
+          description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
+  /api/v1/talento/polivalencia:
+    get:
+      tags: [talento]
+      summary: Bloque de polivalencia y resiliencia por area (mismo calculo que Operaciones)
+      operationId: talento_bloque_polivalencia
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200":
+          description: Bloque de polivalencia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloquePolivalenciaResponse"
+        "403":
+          description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
+  /api/v1/talento/capacitacion:
+    get:
+      tags: [talento]
+      summary: Bloque de cumplimiento de capacitaciones por area
+      operationId: talento_bloque_capacitacion
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200":
+          description: Bloque de capacitacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloqueCapacitacionResponse"
+        "403":
+          description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
+  /api/v1/talento/pdi:
+    get:
+      tags: [talento]
+      summary: Bloque de cumplimiento de PDI por area (cancelados no cuentan como activos ni en el denominador del cumplimiento)
+      operationId: talento_bloque_pdi
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200":
+          description: Bloque de PDI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloquePdiResponse"
+        "403":
+          description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
+  /api/v1/talento/objetivo:
+    get:
+      tags: [talento]
+      summary: Bloque de indice objetivo por area (consulta DATOS_ANALISIS; si esa BD no responde, solo esta llamada falla)
+      operationId: talento_bloque_objetivo
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: desde, in: query, required: false, schema: { type: string, format: date } }
+        - { name: hasta, in: query, required: false, schema: { type: string, format: date } }
+        - { name: area_id, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Bloque de indice objetivo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloqueObjetivoResponse"
+        "403":
+          description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
+  /api/v1/talento/areas/{area_id}/detalle:
+    get:
+      tags: [talento]
+      summary: Detalle de un area (agregados de desempeno/polivalencia/capacitacion/PDI y empleados en foco)
+      operationId: talento_detalle_area
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: area_id, in: path, required: true, schema: { type: integer } }
+        - { name: ciclo_id, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Detalle del area
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DetalleAreaResponse"
+        "403":
+          description: Area fuera del alcance del jefe, o requiere el modulo 'dashboard-talento'
+        "404":
+          description: Area inexistente
+  /api/v1/talento/export:
+    get:
+      tags: [talento]
+      summary: Exportar el dashboard de talento a Excel (hojas Resumen por area y Empleados en foco)
+      operationId: talento_export
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: ciclo_id, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Archivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {}
+        "403":
+          description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
 
