@@ -78,7 +78,7 @@ function coberturaBar(c: CompetenciaCobertura): string {
 }
 
 function statCard(label: string, value: string, hint?: string): string {
-  return `<div class="rounded-lg border border-border-subtle ${RH_LISTADO_SURFACE} p-4">
+  return `<div class="rounded-lg border border-border ${RH_LISTADO_SURFACE} p-4">
     <p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(label)}</p>
     <p class="mt-1 text-2xl font-bold tabular-nums text-text-primary">${escapeHtml(value)}</p>
     ${hint ? `<p class="mt-0.5 text-xs text-text-muted">${escapeHtml(hint)}</p>` : ""}
@@ -135,7 +135,7 @@ export function mountOperaciones(container: HTMLElement, signal?: AbortSignal): 
   }
 
   function renderCompetenciaRow(c: CompetenciaCobertura): string {
-    return `<tr class="border-t border-border-subtle">
+    return `<tr class="border-t border-border">
       <td class="px-3 py-2.5">
         <p class="text-sm font-medium text-text-primary">${escapeHtml(c.competencia_nombre)}</p>
         ${c.tipo_nombre ? `<p class="text-xs text-text-muted">${escapeHtml(c.tipo_nombre)}</p>` : ""}
@@ -152,7 +152,7 @@ export function mountOperaciones(container: HTMLElement, signal?: AbortSignal): 
       return `<p class="text-sm text-text-muted">Esta área no tiene competencias requeridas registradas.</p>`;
     }
     const filas = cob.competencias.map(renderCompetenciaRow).join("");
-    return `<div class="overflow-x-auto rounded-lg border border-border-subtle ${RH_LISTADO_SURFACE}">
+    return `<div class="overflow-x-auto rounded-lg border border-border ${RH_LISTADO_SURFACE}">
       <table class="w-full min-w-[640px] text-left">
         <thead class="${RH_TABLE_HEAD}">
           <tr>
@@ -180,13 +180,13 @@ export function mountOperaciones(container: HTMLElement, signal?: AbortSignal): 
           )
           .join("")
       : `<li class="py-1 text-sm text-text-muted">Sin candidatos cercanos al requisito.</li>`;
-    return `<div class="rounded-lg border border-border-subtle ${RH_LISTADO_SURFACE} p-4">
+    return `<div class="rounded-lg border border-border ${RH_LISTADO_SURFACE} p-4">
       <div class="flex items-center justify-between gap-3">
         <p class="min-w-0 truncate text-sm font-semibold text-text-primary">${escapeHtml(crit.competencia_nombre)}</p>
         ${severidadChip(crit.severidad)}
       </div>
       <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-text-muted">Candidatos a cross-training</p>
-      <ul class="mt-1 divide-y divide-border-subtle">${cands}</ul>
+      <ul class="mt-1 divide-y divide-border">${cands}</ul>
     </div>`;
   }
 
@@ -205,16 +205,16 @@ export function mountOperaciones(container: HTMLElement, signal?: AbortSignal): 
         const filas = p.competencias
           .map(
             (c) =>
-              `<tr class="border-t border-border-subtle">
+              `<tr class="border-t border-border">
                 <td class="px-3 py-2 text-sm text-text-secondary">${escapeHtml(c.competencia_nombre)}</td>
                 <td class="px-3 py-2 text-center tabular-nums text-sm text-text-secondary">${c.cubren}/${c.requieren}</td>
                 <td class="px-3 py-2">${coberturaBar(c)}</td>
               </tr>`,
           )
           .join("");
-        return `<details class="rounded-lg border border-border-subtle ${RH_LISTADO_SURFACE}">
+        return `<details class="rounded-lg border border-border ${RH_LISTADO_SURFACE}">
           <summary class="cursor-pointer px-3 py-2.5 text-sm font-semibold text-text-primary">${escapeHtml(p.puesto_nombre)}</summary>
-          <div class="overflow-x-auto border-t border-border-subtle">
+          <div class="overflow-x-auto border-t border-border">
             <table class="w-full min-w-[480px] text-left">
               <tbody>${filas}</tbody>
             </table>

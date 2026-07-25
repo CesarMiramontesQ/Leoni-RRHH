@@ -192,6 +192,15 @@ El archivo `frontend/src/style.css` debe exponer estos tokens para que las clase
 }
 ```
 
+> **Estado actual del `@theme`**: `style.css` ya expone los tokens *semánticos* de arriba
+> (`text-secondary`, la escala `surface-container-*`, `active-tint`, `grid-header-*`,
+> `outline`, `success`, `warning`, `danger`), pero **conserva los hex de marca Leoni**
+> para `primary`, `surface`, `text-primary`, `text-muted` y `border`: el mapeo de
+> migracion de abajo sigue pendiente (checklist §14). Un token que no esta en `@theme`
+> **no genera CSS**: ni la utilidad (`text-text-secondary`) ni `var(--color-x)` sin
+> fallback pintan nada. Antes de usar un token nuevo, verifica que este en el `@theme`.
+> No existe `border-subtle`: para bordes de cards y tablas usa `border-border`.
+
 **Mapeo de migracion** (tokens actuales → nuevos):
 
 | Actual (`style.css`) | Nuevo | Nota |
