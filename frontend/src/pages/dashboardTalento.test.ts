@@ -16,6 +16,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../api/talento.ts", () => ({
+  getCiclos: vi.fn(),
   getPolivalencia: vi.fn(),
   getDesempeno: vi.fn(),
   getCapacitacion: vi.fn(),
@@ -39,9 +40,14 @@ vi.mock("../layouts/appShell.ts", () => ({
 import * as api from "../api/talento.ts";
 import { mountDashboardTalento, ordenarFilas, renderDetallePanel } from "./dashboardTalento.ts";
 
-/** Doble mínimo de `HTMLElement`: solo lo que `mountDashboardTalento` usa del contenedor. */
+/**
+ * Doble mínimo de `HTMLElement`: solo lo que `mountDashboardTalento` usa del
+ * contenedor. Guarda los listeners y expone `emit` para poder ejercitar la
+ * delegación de eventos (ordenar, abrir área, cambiar ciclo, exportar) sin DOM.
+ */
 class FakeElement {
   private html = "";
+  private listeners: Record<string, ((ev: unknown) => void)[]> = {};
   set innerHTML(value: string) {
     this.html = value;
   }
@@ -51,9 +57,32 @@ class FakeElement {
   get textContent(): string {
     return this.html.replace(/<[^>]*>/g, " ");
   }
-  addEventListener(): void {}
+  addEventListener(type: string, cb: (ev: unknown) => void): void {
+    (this.listeners[type] ??= []).push(cb);
+  }
   removeEventListener(): void {}
+  emit(type: string, ev: unknown): void {
+    for (const cb of this.listeners[type] ?? []) cb(ev);
+  }
 }
+
+/**
+ * Target falso para `emit`: implementa el único método que usa la delegación
+ * (`closest`), devolviendo un nodo con `dataset`/`value` para el selector que
+ * corresponda y `null` para el resto — igual que haría el DOM real.
+ */
+function fakeTarget(nodos: Record<string, { dataset?: Record<string, string>; value?: string }>) {
+  const self = {
+    closest(sel: string) {
+      return nodos[sel] ?? null;
+    },
+  };
+  return self;
+}
+
+const clickEnArea = (id: string) => ({ target: fakeTarget({ "[data-area-id]": { dataset: { areaId: id } } }) });
+const clickEnExportar = () => ({ target: fakeTarget({ "[data-accion]": { dataset: { accion: "exportar" } } }) });
+const cambioDeCiclo = (id: string) => ({ target: fakeTarget({ "[data-accion='ciclo']": { value: id } }) });
 
 const areaPol = {
   area_id: 1, area_nombre: "Arneses A", n_empleados: 40,
@@ -68,6 +97,7 @@ const areaPol = {
  * un bloque caído sería indistinguible en el render de uno exitoso-pero-vacío.
  */
 function stubOk() {
+  vi.mocked(api.getCiclos).mockResolvedValue([]);
   vi.mocked(api.getPolivalencia).mockResolvedValue({
     disponible: true, motivo: null,
     org: { pol_pct: 70, resiliencia_pct: 60, n_criticas: 2, n_empleados: 40, semaforo: "ambar" },
@@ -104,6 +134,11 @@ function stubOk() {
     disponible: true, motivo: null, rango: null, org: null, areas: [],
   });
 }
+
+const detalleVacio = {
+  area_id: 1, area_nombre: "Arneses A",
+  desempeno: null, polivalencia: null, capacitacion: null, pdi: null, empleados_foco: [],
+};
 
 describe("dashboardTalento", () => {
   let container: FakeElement;
@@ -143,6 +178,76 @@ describe("dashboardTalento", () => {
     // (ver dashboardTalento.ts). Un `toContain("n/d")` a secas no sirve de
     // guardián: cualquier celda vacía produce el mismo texto.
     expect(container.innerHTML).toContain('title="DATOS_ANALISIS no responde">n/d<');
+  });
+
+  it("ofrece el selector con el ciclo vigente marcado", async () => {
+    stubOk();
+    vi.mocked(api.getCiclos).mockResolvedValue([
+      { id: 1, nombre: "2026", estado: "activo" },
+      { id: 2, nombre: "2025", estado: "cerrado" },
+    ]);
+    mountDashboardTalento(container as unknown as HTMLElement);
+    await vi.waitFor(() => expect(container.innerHTML).toContain('data-accion="ciclo"'));
+    // El ciclo marcado es el que el backend eligió (`getDesempeno().ciclo.id`),
+    // no el primero de la lista: la fuente de la verdad es la respuesta.
+    expect(container.innerHTML).toContain('<option value="1" selected>2026 (Activo)</option>');
+    expect(container.innerHTML).toContain('<option value="2">2025 (Cerrado)</option>');
+  });
+
+  it("si los ciclos no cargan, la página sigue en pie sin selector", async () => {
+    stubOk();
+    vi.mocked(api.getCiclos).mockRejectedValue(new Error("boom"));
+    mountDashboardTalento(container as unknown as HTMLElement);
+    await vi.waitFor(() => expect(container.textContent).toContain("Arneses A"));
+    expect(container.innerHTML).not.toContain('data-accion="ciclo"');
+  });
+
+  it("el detalle de área se pide con el ciclo vigente", async () => {
+    stubOk();
+    vi.mocked(api.getDetalleArea).mockResolvedValue(detalleVacio);
+    mountDashboardTalento(container as unknown as HTMLElement);
+    await vi.waitFor(() => expect(container.textContent).toContain("Arneses A"));
+    container.emit("click", clickEnArea("1"));
+    await vi.waitFor(() => expect(api.getDetalleArea).toHaveBeenCalledWith(1, 1));
+  });
+
+  it("cambiar de ciclo repide el desempeño y recarga el detalle abierto", async () => {
+    stubOk();
+    vi.mocked(api.getCiclos).mockResolvedValue([
+      { id: 1, nombre: "2026", estado: "activo" },
+      { id: 2, nombre: "2025", estado: "cerrado" },
+    ]);
+    vi.mocked(api.getDetalleArea).mockResolvedValue(detalleVacio);
+    mountDashboardTalento(container as unknown as HTMLElement);
+    await vi.waitFor(() => expect(container.textContent).toContain("Arneses A"));
+    container.emit("click", clickEnArea("1"));
+    await vi.waitFor(() => expect(api.getDetalleArea).toHaveBeenCalledWith(1, 1));
+
+    container.emit("change", cambioDeCiclo("2"));
+    await vi.waitFor(() => expect(api.getDesempeno).toHaveBeenCalledWith(2));
+    // El detalle abierto es del ciclo anterior: hay que repedirlo, no dejarlo
+    // mostrando señales de un ciclo que ya no es el seleccionado.
+    await vi.waitFor(() => expect(api.getDetalleArea).toHaveBeenCalledWith(1, 2));
+    // Los bloques que no dependen del ciclo no se vuelven a pedir.
+    expect(api.getPolivalencia).toHaveBeenCalledTimes(1);
+    expect(api.getCapacitacion).toHaveBeenCalledTimes(1);
+  });
+
+  it("exportar manda el ciclo seleccionado", async () => {
+    stubOk();
+    vi.mocked(api.getCiclos).mockResolvedValue([
+      { id: 1, nombre: "2026", estado: "activo" },
+      { id: 2, nombre: "2025", estado: "cerrado" },
+    ]);
+    vi.mocked(api.descargarDashboardExcel).mockResolvedValue(true);
+    mountDashboardTalento(container as unknown as HTMLElement);
+    await vi.waitFor(() => expect(container.textContent).toContain("Arneses A"));
+    container.emit("change", cambioDeCiclo("2"));
+    await vi.waitFor(() => expect(api.getDesempeno).toHaveBeenCalledWith(2));
+    container.emit("click", clickEnExportar());
+    await vi.waitFor(() =>
+      expect(api.descargarDashboardExcel).toHaveBeenCalledWith("dashboard_talento.xlsx", 2),
+    );
   });
 
   it("muestra el motivo cuando no hay ciclo de desempeño", async () => {

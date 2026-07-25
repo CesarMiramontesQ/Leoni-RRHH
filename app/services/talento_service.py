@@ -140,6 +140,24 @@ class TalentoService:
             cerrados, key=lambda c: (c.fecha_fin or date.min, c.id), reverse=True
         )[0]
 
+    async def ciclos_disponibles(self) -> list[CicloInfo]:
+        """Ciclos que el selector del dashboard puede ofrecer: `activo` y
+        `cerrado`. Un `borrador` no tiene resultados, y `ciclo_vigente` nunca
+        lo elige por defecto, asi que ofrecerlo solo llevaria a un tablero en
+        blanco. El orden replica esa seleccion por defecto: activo primero,
+        despues cerrados por fecha de fin descendente."""
+        ciclos = await self.ciclo_svc.list_ciclos()
+        activos = [c for c in ciclos if c.estado == "activo"]
+        cerrados = sorted(
+            (c for c in ciclos if c.estado == "cerrado"),
+            key=lambda c: (c.fecha_fin or date.min, c.id),
+            reverse=True,
+        )
+        return [
+            CicloInfo(id=c.id, nombre=c.nombre, estado=c.estado)
+            for c in [*activos, *cerrados]
+        ]
+
     # ── Bloque: polivalencia ─────────────────────────────────────────────
     async def bloque_polivalencia(
         self, current_user: Empleado, rh_ui_mode: str | None

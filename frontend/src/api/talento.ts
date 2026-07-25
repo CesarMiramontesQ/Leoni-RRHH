@@ -180,6 +180,15 @@ async function getJson<T>(path: string, fallback: string): Promise<T> {
   return res.json();
 }
 
+/**
+ * Ciclos que alimenta el selector. Se piden a `/talento/ciclos` y NO al router
+ * de ciclo-desempeño: el backend resuelve el módulo exigido por el prefijo de
+ * la ruta, así que quien solo tiene `dashboard-talento` recibiría un 403 allá.
+ */
+export function getCiclos(): Promise<CicloInfo[]> {
+  return getJson("/ciclos", "No se pudieron cargar los ciclos");
+}
+
 export function getDesempeno(cicloId?: number): Promise<BloqueDesempeno> {
   const q = cicloId ? `?ciclo_id=${cicloId}` : "";
   return getJson(`/desempeno${q}`, "No se pudo cargar el desempeño");
@@ -207,8 +216,11 @@ export function getDetalleArea(areaId: number, cicloId?: number): Promise<Detall
 }
 
 /** Descarga el .xlsx del dashboard (mismo patrón que `descargarCoberturaAreaExcel`). */
-export async function descargarDashboardExcel(filenameFallback: string): Promise<boolean> {
-  const res = await fetchWithAuth(`${BASE}/export`);
+export async function descargarDashboardExcel(
+  filenameFallback: string,
+  cicloId?: number,
+): Promise<boolean> {
+  const res = await fetchWithAuth(`${BASE}/export${cicloId ? `?ciclo_id=${cicloId}` : ""}`);
   if (!res.ok) return false;
   const disposition = res.headers.get("Content-Disposition") ?? "";
   const match = /filename=([^;]+)/.exec(disposition);

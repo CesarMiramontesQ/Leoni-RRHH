@@ -23,23 +23,29 @@ import {
   BTN_SECONDARY,
   badgeRejected,
   errorState,
+  FORM_SELECT,
   pageHeading,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
+  SELECT_CHEVRON,
   skeletonBlock,
 } from "../ui/uiTokens.ts";
 import { canAccessRhAssignedModule } from "../auth/jwt.ts";
+import { CICLO_ESTADO_LABELS } from "../cicloDesempeno/shared.ts";
+import type { CicloDesempenoEstado } from "../api/cicloDesempeno.ts";
 import { semaforoBadge } from "./operaciones.ts";
 import {
   descargarDashboardExcel,
   getCapacitacion,
+  getCiclos,
   getDesempeno,
   getDetalleArea,
   getObjetivo,
   getPdi,
   getPolivalencia,
   type AreaPolivalencia,
+  type CicloInfo,
   type BloqueCapacitacion,
   type BloqueDesempeno,
   type BloqueObjetivo,
@@ -60,6 +66,10 @@ interface EstadoPagina {
   capacitacion: EstadoBloque<BloqueCapacitacion>;
   pdi: EstadoBloque<BloquePdi>;
   objetivo: EstadoBloque<BloqueObjetivo>;
+  /** Ciclos del selector. Vacío = sin selector (no cargaron o no hay ninguno). */
+  ciclos: CicloInfo[];
+  /** Ciclo elegido a mano; `null` = el que eligió el backend (ver `cicloVigente`). */
+  cicloId: number | null;
   areaAbierta: number | null;
   detalle: EstadoBloque<DetalleArea> | null;
   ordenPor: OrdenColumna;
@@ -162,6 +172,31 @@ export function ordenarFilas(filas: FilaArea[], estado: EstadoPagina): FilaArea[
 /** `null` -> n/d, nunca 0 %. */
 export function pctTexto(valor: number | null): string {
   return valor === null ? "n/d" : `${valor.toFixed(1)}%`;
+}
+
+/**
+ * Ciclo cuyos datos se están mostrando: el elegido a mano y, mientras no haya
+ * elección, el que resolvió el backend (activo, o el último cerrado). La
+ * respuesta de `/desempeno` es la fuente de la verdad, no el orden de la lista.
+ */
+export function cicloVigente(estado: EstadoPagina): number | null {
+  if (estado.cicloId !== null) return estado.cicloId;
+  return estado.desempeno.estado === "ok" ? (estado.desempeno.datos.ciclo?.id ?? null) : null;
+}
+
+/** Selector de ciclo. Sin ciclos no se pinta: no habría nada que elegir. */
+export function selectorCicloHtml(ciclos: CicloInfo[], seleccionado: number | null): string {
+  if (!ciclos.length) return "";
+  const opciones = ciclos
+    .map((c) => {
+      const etiqueta = CICLO_ESTADO_LABELS[c.estado as CicloDesempenoEstado] ?? c.estado;
+      return `<option value="${c.id}"${c.id === seleccionado ? " selected" : ""}>${escapeHtml(c.nombre)} (${escapeHtml(etiqueta)})</option>`;
+    })
+    .join("");
+  return `<div class="relative min-w-[12rem]">
+    <select data-accion="ciclo" aria-label="Ciclo de desempeño" class="${FORM_SELECT}">${opciones}</select>
+    ${SELECT_CHEVRON}
+  </div>`;
 }
 
 export function orgDesempeno(estado: EstadoPagina): number | null {
@@ -339,6 +374,8 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
     capacitacion: { estado: "cargando" },
     pdi: { estado: "cargando" },
     objetivo: { estado: "cargando" },
+    ciclos: [],
+    cicloId: null,
     areaAbierta: null,
     detalle: null,
     ordenPor: "criticas",
@@ -381,7 +418,7 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
       ${pageHeading(
         esGestionRh ? "Dashboard de Talento" : "Dashboard de Talento de mi equipo",
         "Consolidación por área de desempeño, polivalencia, capacitación, PDI e índice objetivo.",
-        `<button type="button" data-accion="exportar" class="${BTN_SECONDARY}"${estado.exporting ? " disabled" : ""}>${exportLabel}</button>`,
+        `${selectorCicloHtml(estado.ciclos, cicloVigente(estado))}<button type="button" data-accion="exportar" class="${BTN_SECONDARY}"${estado.exporting ? " disabled" : ""}>${exportLabel}</button>`,
       )}
       ${estado.exportError ? alertError(estado.exportError) : ""}
       ${motivoDesempeno ? `<p class="text-sm text-text-muted">${escapeHtml(motivoDesempeno)}</p>` : ""}
@@ -426,15 +463,66 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
     render();
   }
 
-  async function abrirDetalle(areaId: number): Promise<void> {
-    estado.detalle = { estado: "cargando" };
+  /**
+   * Los ciclos van por su cuenta, fuera de `Promise.allSettled`: si el endpoint
+   * falla, la página se queda sin selector pero con todos sus datos, misma
+   * degradación por bloque que el resto.
+   */
+  async function cargarCiclos(): Promise<void> {
+    try {
+      const ciclos = await getCiclos();
+      if (mountSignal.aborted) return;
+      estado.ciclos = ciclos;
+      render();
+    } catch {
+      /* sin selector; el dashboard sigue mostrando el ciclo que eligió el backend */
+    }
+  }
+
+  async function recargarDesempeno(cicloId: number): Promise<void> {
+    estado.desempeno = { estado: "cargando" };
     render();
     try {
-      const datos = await getDetalleArea(areaId);
-      if (mountSignal.aborted || estado.areaAbierta !== areaId) return;
+      const datos = await getDesempeno(cicloId);
+      if (mountSignal.aborted || estado.cicloId !== cicloId) return;
+      estado.desempeno = { estado: "ok", datos };
+    } catch (e) {
+      if (mountSignal.aborted || estado.cicloId !== cicloId) return;
+      estado.desempeno = { estado: "error", mensaje: e instanceof Error ? e.message : "No disponible" };
+    }
+    render();
+  }
+
+  /**
+   * Cambiar de ciclo solo repide lo que depende del ciclo: el bloque de
+   * desempeño y, si hay un área abierta, su detalle (las señales de riesgo del
+   * área salen del ciclo). Polivalencia, capacitación, PDI e índice objetivo no
+   * lo reciben, así que no se vuelven a pedir.
+   */
+  async function cambiarCiclo(cicloId: number): Promise<void> {
+    if (Number.isNaN(cicloId) || cicloId === cicloVigente(estado)) return;
+    estado.cicloId = cicloId;
+    await recargarDesempeno(cicloId);
+    if (mountSignal.aborted || estado.cicloId !== cicloId) return;
+    if (estado.areaAbierta !== null) void abrirDetalle(estado.areaAbierta);
+  }
+
+  async function abrirDetalle(areaId: number): Promise<void> {
+    // `cicloPedido` descarta la respuesta si el usuario cambió de ciclo
+    // mientras cargaba: sin esto, el detalle del ciclo anterior pisaría al del
+    // nuevo. Se compara `estado.cicloId` (la elección explícita) y no
+    // `cicloVigente`, que además cambia solo cuando llega el bloque de
+    // desempeño y descartaría respuestas legítimas de la carga inicial.
+    const cicloPedido = estado.cicloId;
+    estado.detalle = { estado: "cargando" };
+    render();
+    const vigente = () => !mountSignal.aborted && estado.areaAbierta === areaId && estado.cicloId === cicloPedido;
+    try {
+      const datos = await getDetalleArea(areaId, cicloVigente(estado) ?? undefined);
+      if (!vigente()) return;
       estado.detalle = { estado: "ok", datos };
     } catch (e) {
-      if (mountSignal.aborted || estado.areaAbierta !== areaId) return;
+      if (!vigente()) return;
       estado.detalle = { estado: "error", mensaje: e instanceof Error ? e.message : "No se pudo cargar el detalle del área" };
     }
     render();
@@ -445,7 +533,7 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
     estado.exporting = true;
     estado.exportError = null;
     render();
-    const ok = await descargarDashboardExcel("dashboard_talento.xlsx");
+    const ok = await descargarDashboardExcel("dashboard_talento.xlsx", cicloVigente(estado) ?? undefined);
     if (mountSignal.aborted) return;
     estado.exporting = false;
     if (!ok) estado.exportError = "No se pudo exportar el dashboard a Excel.";
@@ -494,6 +582,16 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
   );
 
   container.addEventListener(
+    "change",
+    (ev) => {
+      const select = (ev.target as HTMLElement).closest<HTMLSelectElement>("[data-accion='ciclo']");
+      if (!select) return;
+      void cambiarCiclo(Number(select.value));
+    },
+    { signal: mountSignal },
+  );
+
+  container.addEventListener(
     "keydown",
     (ev) => {
       if (ev.key !== "Enter" && ev.key !== " ") return;
@@ -515,4 +613,5 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
 
   render();
   void cargarBloques();
+  void cargarCiclos();
 }

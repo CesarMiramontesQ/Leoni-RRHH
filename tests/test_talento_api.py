@@ -7,6 +7,7 @@ from app.services.talento_service import (
     AreaPolivalencia,
     BloqueDesempeno,
     BloquePolivalencia,
+    CicloInfo,
     OrgPolivalencia,
 )
 from tests.conftest import auth_headers, make_empleado
@@ -39,6 +40,26 @@ async def test_polivalencia_ok(client, db):
     body = resp.json()
     assert body["org"]["pol_pct"] == 70.0
     assert body["areas"][0]["area_nombre"] == "Arneses A"
+
+
+@pytest.mark.asyncio
+async def test_ciclos_los_sirve_el_router_de_talento(client, db):
+    """El selector de ciclo se alimenta desde `/api/v1/talento/ciclos`, no del
+    router de ciclo-desempeno: este RH tiene SOLO el modulo `dashboard-talento`
+    y `role_checker` resuelve el modulo por la ruta, asi que pedirlos alla le
+    daria 403."""
+    rh = await _rh(db, "tal_api_ciclos@leoni.test")
+    headers = await auth_headers(client, rh)
+    with patch(
+        "app.api.v1.talento.router.TalentoService.ciclos_disponibles",
+        AsyncMock(return_value=[CicloInfo(3, "2025", "activo"), CicloInfo(1, "2024", "cerrado")]),
+    ):
+        resp = await client.get(f"{BASE}/ciclos", headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == [
+        {"id": 3, "nombre": "2025", "estado": "activo"},
+        {"id": 1, "nombre": "2024", "estado": "cerrado"},
+    ]
 
 
 @pytest.mark.asyncio
