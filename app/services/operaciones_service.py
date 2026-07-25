@@ -206,8 +206,21 @@ class OperacionesService:
         """Indice de polivalencia por empleado del area (scope ya resuelto).
 
         Dedup por empleado_id: si esta asignado a varios puestos del area, se
-        queda el indice mas alto -- mismo criterio de `candidatos_crosstrain`."""
-        _nombre, _puestos, empleados, _meta = await self._cargar_area(area_id, scope)
+        queda el indice mas alto -- mismo criterio de `candidatos_crosstrain`.
+
+        Visibilidad: mismo criterio que `cobertura_area` (mismas comprobaciones,
+        mismo orden, mismos mensajes) -- un area inexistente da `NotFoundError`
+        y un area fuera del scope da `ForbiddenError`, en vez de devolver un
+        resultado vacio con status 200."""
+        _nombre, puestos_cob, empleados, _meta = await self._cargar_area(area_id, scope)
+        if not puestos_cob:
+            # Area inexistente o sin puestos con competencias requisito: nada que mostrar.
+            raise NotFoundError(entidad="Area", id=area_id)
+        if not empleados:
+            # Existe pero no hay personal visible: fuera de scope (jefe) o sin datos (RH).
+            if scope is not None:
+                raise ForbiddenError(detail="Area fuera de tu alcance")
+            raise NotFoundError(entidad="Area", id=area_id)
         por_empleado: dict[int, PolivalenciaEmpleado] = {}
         for e in empleados:
             pct = calculo.indice_polivalencia_empleado(e)

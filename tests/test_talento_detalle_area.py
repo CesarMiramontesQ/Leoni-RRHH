@@ -88,29 +88,54 @@ async def test_detalle_area_sin_ciclo_no_inventa_senal_de_desempeno(db):
 
 @pytest.mark.asyncio
 async def test_detalle_area_fuera_de_scope_403(db):
+    """Sin mocks del seam de visibilidad: un area REAL (con puesto, competencia
+    y personal sembrados) cuyo personal cae fuera del scope de un supervisor
+    sin subordinados debe dar `ForbiddenError`. Mockear
+    `polivalencia_empleados_area` con `side_effect=ForbiddenError` solo
+    probaria que la excepcion se propaga, no que el codigo real la genera."""
+    from tests.conftest_talento import (
+        make_area,
+        make_competencia,
+        make_competencia_requisito,
+        make_perfil_funciones,
+        make_puesto_perfil,
+    )
+
+    area = await make_area(db, descripcion="Ensamble Real")
+    puesto = await make_puesto_perfil(db, nombre="Crimpado", area_id=area.area_id)
+    competencia = await make_competencia(
+        db, nombre="Crimpado manual", categoria="tecnica"
+    )
+    await make_competencia_requisito(
+        db, competencia_id=competencia.id, puesto_perfil_id=puesto.id, nivel_requerido=3
+    )
+    empleado = await make_empleado(db, nombre="Ana")
+    await make_perfil_funciones(
+        db, puesto_perfil_id=puesto.id, empleado_id=empleado.empleado_id
+    )
+
+    # Supervisor sin subordinados: su scope es solo el mismo, que no tiene
+    # nada que ver con el personal del area.
     jefe = await make_empleado(db, rol="supervisor", email="tal_jefe2@leoni.test")
     svc = TalentoService(db)
-    with patch(
-        "app.services.talento_service.OperacionesService.polivalencia_empleados_area",
-        AsyncMock(side_effect=ForbiddenError(detail="Area fuera de tu alcance")),
-    ):
-        with pytest.raises(ForbiddenError):
-            await svc.detalle_area(jefe, None, 99, None)
+
+    with pytest.raises(ForbiddenError):
+        await svc.detalle_area(jefe, None, area.area_id, None)
 
 
 @pytest.mark.asyncio
 async def test_detalle_area_inexistente_404(db):
+    """Sin mocks: un area_id que no corresponde a ningun puesto real debe dar
+    `NotFoundError` (nada que mockear -- `_cargar_area` real ya devuelve
+    `puestos_cob` vacio para un area inexistente)."""
     rh = await make_empleado(
         db, rol="rh", email="tal_det404@leoni.test",
         modulos_rh={"dashboard-talento": True}, inscrito_modulos_rh=True,
     )
     svc = TalentoService(db)
-    with patch(
-        "app.services.talento_service.OperacionesService.polivalencia_empleados_area",
-        AsyncMock(side_effect=NotFoundError(entidad="Area", id=99)),
-    ):
-        with pytest.raises(NotFoundError):
-            await svc.detalle_area(rh, None, 99, None)
+
+    with pytest.raises(NotFoundError):
+        await svc.detalle_area(rh, None, 999999, None)
 
 
 @pytest.mark.asyncio
