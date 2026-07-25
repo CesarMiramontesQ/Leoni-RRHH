@@ -37,7 +37,7 @@ vi.mock("../layouts/appShell.ts", () => ({
 }));
 
 import * as api from "../api/talento.ts";
-import { mountDashboardTalento } from "./dashboardTalento.ts";
+import { mountDashboardTalento, ordenarFilas } from "./dashboardTalento.ts";
 
 /** Doble mínimo de `HTMLElement`: solo lo que `mountDashboardTalento` usa del contenedor. */
 class FakeElement {
@@ -121,5 +121,70 @@ describe("dashboardTalento", () => {
     mountDashboardTalento(container as unknown as HTMLElement);
     await vi.waitFor(() => expect(container.textContent).toContain("Arneses A"));
     expect(container.textContent?.toLowerCase()).toContain("ciclo");
+  });
+});
+
+/**
+ * `ordenarFilas` probada directamente como función pura: es la forma más
+ * honesta de cubrir esta lógica. Probarla vía render exigiría construir los
+ * cinco bloques (polivalencia/desempeño/capacitación/pdi/objetivo) con
+ * area_id cruzados solo para inferir el orden de filas del HTML resultante
+ * -- mucho más indirecto que llamar la función exportada con datos mínimos.
+ *
+ * `FilaArea`/`EstadoPagina` no se exportan desde dashboardTalento.ts, así que
+ * los tipos de los fixtures se derivan de la firma de `ordenarFilas` (sin
+ * duplicar ni exportar tipos solo para el test).
+ */
+describe("ordenarFilas", () => {
+  type Fila = Parameters<typeof ordenarFilas>[0][number];
+  type Estado = Parameters<typeof ordenarFilas>[1];
+
+  function makeEstado(ordenPor: Estado["ordenPor"], ordenDesc: boolean): Estado {
+    return {
+      polivalencia: { estado: "cargando" },
+      desempeno: { estado: "cargando" },
+      capacitacion: { estado: "cargando" },
+      pdi: { estado: "cargando" },
+      objetivo: { estado: "cargando" },
+      areaAbierta: null,
+      detalle: null,
+      ordenPor,
+      ordenDesc,
+      exporting: false,
+      exportError: null,
+    };
+  }
+
+  function makeFila(overrides: Partial<Fila> & Pick<Fila, "area_id" | "area_nombre">): Fila {
+    return {
+      n_empleados: 1,
+      desempeno: null,
+      desempenoSemaforo: null,
+      polivalencia: null,
+      polivalenciaSemaforo: null,
+      objetivo: null,
+      capacitacion: null,
+      capacitacionSemaforo: null,
+      pdi: null,
+      pdiSemaforo: null,
+      n_criticas: 0,
+      ...overrides,
+    };
+  }
+
+  const filas: Fila[] = [
+    makeFila({ area_id: 1, area_nombre: "Media", desempeno: 50 }),
+    makeFila({ area_id: 2, area_nombre: "SinDato", desempeno: null }),
+    makeFila({ area_id: 3, area_nombre: "Alta", desempeno: 80 }),
+  ];
+
+  it("la fila sin dato queda al final en orden descendente", () => {
+    const resultado = ordenarFilas(filas, makeEstado("desempeno", true));
+    expect(resultado.map((f) => f.area_nombre)).toEqual(["Alta", "Media", "SinDato"]);
+  });
+
+  it("la fila sin dato queda al final también en orden ascendente", () => {
+    const resultado = ordenarFilas(filas, makeEstado("desempeno", false));
+    expect(resultado.map((f) => f.area_nombre)).toEqual(["Media", "Alta", "SinDato"]);
   });
 });

@@ -131,24 +131,32 @@ export function construirFilas(estado: EstadoPagina): FilaArea[] {
 }
 
 export function ordenarFilas(filas: FilaArea[], estado: EstadoPagina): FilaArea[] {
-  const clave: Record<OrdenColumna, (f: FilaArea) => number | string> = {
+  const clave: Record<OrdenColumna, (f: FilaArea) => number | string | null> = {
     area: (f) => f.area_nombre,
-    desempeno: (f) => f.desempeno ?? -1,
-    polivalencia: (f) => f.polivalencia ?? -1,
-    capacitacion: (f) => f.capacitacion ?? -1,
-    pdi: (f) => f.pdi ?? -1,
+    desempeno: (f) => f.desempeno,
+    polivalencia: (f) => f.polivalencia,
+    capacitacion: (f) => f.capacitacion,
+    pdi: (f) => f.pdi,
     criticas: (f) => f.n_criticas,
   };
   const get = clave[estado.ordenPor];
-  // Los null van siempre al final: "sin dato" no es "lo peor".
-  return [...filas].sort((a, b) => {
-    const va = get(a);
-    const vb = get(b);
+  // Los null van siempre al final, en las dos direcciones: "sin dato" no es
+  // "lo peor". Se particiona en vez de usar un centinela numérico, porque un
+  // centinela solo queda "al final" cuando el orden es descendente.
+  const conDato: FilaArea[] = [];
+  const sinDato: FilaArea[] = [];
+  for (const f of filas) {
+    (get(f) === null ? sinDato : conDato).push(f);
+  }
+  conDato.sort((a, b) => {
+    const va = get(a) as number | string;
+    const vb = get(b) as number | string;
     if (typeof va === "string" || typeof vb === "string") {
       return String(va).localeCompare(String(vb)) * (estado.ordenDesc ? -1 : 1);
     }
     return (va - vb) * (estado.ordenDesc ? -1 : 1);
   });
+  return [...conDato, ...sinDato];
 }
 
 /** `null` -> n/d, nunca 0 %. */
