@@ -38,6 +38,9 @@
   --color-grid-header-text:          #64748B;
   --color-outline:                   #75777D;
   --color-success:                   #22C55E;
+  /* Verde oscuro para marcas de datos: el par verde-ámbar del semáforo falla la
+     separación CVD (ΔE 5.7 en protanopía) cuando se pintan adyacentes. */
+  --color-success-text:              #15803D;
   --color-warning:                   #F59E0B;
   --color-danger:                    #EF4444;
   /* Alias del primario de marca. design.md §1.2 lo migra a #0A1628 junto con el
