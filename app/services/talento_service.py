@@ -15,9 +15,10 @@ from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.data_scope import empleado_ids_scope_por_modulo
 from app.models.empleados import Empleado
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -94,6 +95,21 @@ class TalentoService:
                 Empleado.empleado_id.in_(empleado_ids)
             )
         )
+        return {row[0]: row[1] for row in result.all()}
+
+    async def _poblacion_por_area(self, scope: list[int] | None) -> dict[int | None, int]:
+        """Empleados del `scope` agrupados por area (`Empleado.area_id`): la
+        poblacion real del area, no solo quienes aparecen en tal o cual fuente
+        (p.ej. filas de resultado del ciclo). `scope=None` = universo: cuenta
+        activos, mismo filtro (`ESTADOS_ACTIVOS_IDS`) que usan las ramas
+        acotadas de `empleado_ids_scope_por_modulo`."""
+        query = select(Empleado.area_id, func.count(Empleado.empleado_id))
+        if scope is not None:
+            query = query.where(Empleado.empleado_id.in_(scope))
+        else:
+            query = query.where(Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS))
+        query = query.group_by(Empleado.area_id)
+        result = await self.db.execute(query)
         return {row[0]: row[1] for row in result.all()}
 
     async def nombres_de_areas(self, area_ids: list[int]) -> dict[int, str]:
@@ -179,6 +195,7 @@ class TalentoService:
 
         area_por_emp = await self.areas_de_empleados([r.empleado_id for r in resultados])
         nombres = await self.nombres_de_areas(list({a for a in area_por_emp.values()}))
+        poblacion_area = await self._poblacion_por_area(scope)
 
         por_area: dict[int | None, list] = {}
         for r in resultados:
@@ -186,14 +203,16 @@ class TalentoService:
 
         areas: list[AreaDesempeno] = []
         for area_id, filas in por_area.items():
-            areas.append(self._area_desempeno(area_id, nombres.get(area_id), filas))
+            n_area = poblacion_area.get(area_id, len(filas))
+            areas.append(self._area_desempeno(area_id, nombres.get(area_id), filas, n_area))
         areas.sort(key=lambda a: (a.calificacion_promedio is None, a.calificacion_promedio or 0.0))
 
         nine_box_resp = await self.ciclo_svc.construir_9box(ciclo.id, scope_set)
         nine_box = {
             celda.segmento: len(celda.empleados) for celda in getattr(nine_box_resp, "celdas", [])
         }
-        org_area = self._area_desempeno(None, "org", resultados)
+        n_total = len(scope) if scope is not None else sum(poblacion_area.values())
+        org_area = self._area_desempeno(None, "org", resultados, n_total)
         org = OrgDesempeno(
             calificacion_promedio=org_area.calificacion_promedio,
             cumplimiento_metas_pct=org_area.cumplimiento_metas_pct,
@@ -212,7 +231,11 @@ class TalentoService:
             areas=areas,
         )
 
-    def _area_desempeno(self, area_id, area_nombre, filas) -> AreaDesempeno:
+    def _area_desempeno(self, area_id, area_nombre, filas, n_area: int | None = None) -> AreaDesempeno:
+        """`n_area`: poblacion del area EN SCOPE (no solo quienes tienen fila
+        de resultado en el ciclo) -- es el denominador correcto de
+        `con_resultado_pct`, la metrica que detecta cobertura incompleta del
+        ciclo. Si no se pasa (compatibilidad), cae a `len(filas)`."""
         calificaciones = [
             _f(r.calificacion_desempeno) for r in filas if r.calificacion_desempeno is not None
         ]
@@ -222,13 +245,14 @@ class TalentoService:
             banda = r.banda_desempeno_efectiva
             if banda in distribucion:
                 distribucion[banda] += 1
+        denominador = n_area if n_area is not None else len(filas)
         return AreaDesempeno(
             area_id=area_id,
             area_nombre=area_nombre or "Sin area",
             n_empleados=len(filas),
             calificacion_promedio=calculo.promedio(calificaciones),
             cumplimiento_metas_pct=calculo.promedio(metas),
-            con_resultado_pct=round(len(calificaciones) / len(filas) * 100, 1) if filas else 0.0,
+            con_resultado_pct=self._pct(len(calificaciones), denominador),
             distribucion=distribucion,
             semaforo=None,  # lo llena el caller, que conoce los umbrales del ciclo
         )
@@ -500,7 +524,7 @@ class TalentoService:
             resultados = await self.ciclo_svc.resultados_ciclo(ciclo.id, set(empleado_ids))
             if resultados:
                 area_desempeno = self._area_desempeno(
-                    area_id, nombres.get(area_id), resultados
+                    area_id, nombres.get(area_id), resultados, len(empleado_ids)
                 )
                 area_desempeno.semaforo = self._semaforo_desempeno(
                     area_desempeno.calificacion_promedio, ciclo

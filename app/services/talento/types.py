@@ -80,7 +80,7 @@ class AreaDesempeno:
     n_empleados: int
     calificacion_promedio: float | None
     cumplimiento_metas_pct: float | None
-    con_resultado_pct: float
+    con_resultado_pct: float | None
     distribucion: dict[str, int]
     semaforo: str | None
 
@@ -89,7 +89,7 @@ class AreaDesempeno:
 class OrgDesempeno:
     calificacion_promedio: float | None
     cumplimiento_metas_pct: float | None
-    con_resultado_pct: float
+    con_resultado_pct: float | None
     distribucion: dict[str, int]
     nine_box: dict[str, int]
     semaforo: str | None

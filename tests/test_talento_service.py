@@ -122,6 +122,46 @@ async def test_bloque_desempeno_area_sin_calificaciones_es_none(db):
 
 
 @pytest.mark.asyncio
+async def test_bloque_desempeno_con_resultado_pct_usa_poblacion_del_scope(db):
+    """El denominador de `con_resultado_pct` es la poblacion del area EN
+    SCOPE, no solo quienes tienen fila de resultado en el ciclo -- si no, un
+    area con cobertura incompleta del ciclo puede reportar 100% igual."""
+    jefe = await make_empleado(db, rol="supervisor", email="tal_cr_jefe@leoni.test")
+    emp_a = await make_empleado(db, email="tal_cr_a@leoni.test", lider_id=jefe.empleado_id)
+    emp_b = await make_empleado(db, email="tal_cr_b@leoni.test", lider_id=jefe.empleado_id)
+    emp_c = await make_empleado(db, email="tal_cr_c@leoni.test", lider_id=jefe.empleado_id)
+    emp_a.area_id = 7
+    emp_b.area_id = 7
+    emp_c.area_id = 7
+    await db.flush()
+    svc = TalentoService(db)
+
+    ciclo = _ciclo_stub(ciclo_id=5)
+    # Solo Ana y Beto tienen fila de resultado en el ciclo; Caro (en el area,
+    # en el scope del jefe) no aparece -- el ciclo aun no la evaluo.
+    resultados = [
+        _resultado_stub(emp_a.empleado_id, calificacion=80, banda="alto", metas=90),
+        _resultado_stub(emp_b.empleado_id, calificacion=60, banda="medio", metas=70),
+    ]
+    with patch(
+        "app.services.talento_service.CicloDesempenoService.list_ciclos",
+        AsyncMock(return_value=[ciclo]),
+    ), patch(
+        "app.services.talento_service.CicloDesempenoService.resultados_ciclo",
+        AsyncMock(return_value=resultados),
+    ), patch(
+        "app.services.talento_service.CicloDesempenoService.construir_9box",
+        AsyncMock(return_value=_9box_stub()),
+    ):
+        bloque = await svc.bloque_desempeno(jefe, None, None)
+
+    area = next(a for a in bloque.areas if a.area_id == 7)
+    # Denominador del ciclo (2 filas de resultado): 2/2 = 100%. Denominador
+    # correcto (3 empleados del area en el scope del jefe): 2/3 = 66.7%.
+    assert area.con_resultado_pct == 66.7
+
+
+@pytest.mark.asyncio
 async def test_scope_supervisor_es_su_equipo(db):
     """El scope se resuelve con el module_key del dashboard, no con el de cada bloque."""
     jefe = await make_empleado(db, rol="supervisor", email="tal_jefe@leoni.test")

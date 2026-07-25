@@ -39,7 +39,7 @@ export interface AreaDesempeno {
   n_empleados: number;
   calificacion_promedio: number | null;
   cumplimiento_metas_pct: number | null;
-  con_resultado_pct: number;
+  con_resultado_pct: number | null;
   distribucion: Record<string, number>;
   semaforo: Semaforo | null;
 }
@@ -47,7 +47,7 @@ export interface AreaDesempeno {
 export interface OrgDesempeno {
   calificacion_promedio: number | null;
   cumplimiento_metas_pct: number | null;
-  con_resultado_pct: number;
+  con_resultado_pct: number | null;
   distribucion: Record<string, number>;
   nine_box: Record<string, number>;
   semaforo: Semaforo | null;

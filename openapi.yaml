@@ -6327,7 +6327,7 @@ components:
         n_empleados: { type: integer }
         calificacion_promedio: { type: [number, "null"], format: float }
         cumplimiento_metas_pct: { type: [number, "null"], format: float }
-        con_resultado_pct: { type: number, format: float }
+        con_resultado_pct: { type: [number, "null"], format: float }
         distribucion:
           type: object
           additionalProperties: { type: integer }
@@ -6337,7 +6337,7 @@ components:
       properties:
         calificacion_promedio: { type: [number, "null"], format: float }
         cumplimiento_metas_pct: { type: [number, "null"], format: float }
-        con_resultado_pct: { type: number, format: float }
+        con_resultado_pct: { type: [number, "null"], format: float }
         distribucion:
           type: object
           additionalProperties: { type: integer }
