@@ -250,30 +250,45 @@ function empleadoFocoRow(e: EmpleadoFoco): string {
   </tr>`;
 }
 
-function renderDetallePanel(bloque: EstadoBloque<DetalleArea> | null): string {
+/** Desglose de los 4 agregados del área (desempeño/polivalencia/capacitación/PDI),
+ * reusando `tileHtml` -- mismo patrón visual que la banda superior de tiles.
+ * El wrapper `{ estado: "ok" }` es sintético: aquí no hay estado de carga/error
+ * propio, el bloque completo ya llegó resuelto dentro de `DetalleArea`. */
+function tilesAgregadosArea(area: DetalleArea): string {
+  const ok = { estado: "ok" as const, datos: null };
+  return `<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    ${tileHtml("Desempeño", ok, pctTexto(area.desempeno?.calificacion_promedio ?? null), "promedio del ciclo")}
+    ${tileHtml("Polivalencia", ok, pctTexto(area.polivalencia?.pol_pct ?? null), "índice del personal")}
+    ${tileHtml("Capacitación", ok, pctTexto(area.capacitacion?.cumplimiento_pct ?? null), "cursos completados")}
+    ${tileHtml("PDI", ok, pctTexto(area.pdi?.cumplimiento_pct ?? null), "planes completados")}
+  </div>`;
+}
+
+export function renderDetallePanel(bloque: EstadoBloque<DetalleArea> | null): string {
   if (bloque === null || bloque.estado === "cargando") {
     return skeletonBlock({ className: "rounded-lg border border-border-subtle bg-white p-4", label: "Cargando detalle del área…" });
   }
   if (bloque.estado === "error") {
     return errorState({ message: bloque.mensaje });
   }
-  const foco = bloque.datos.empleados_foco;
-  if (!foco.length) {
-    return `<p class="rounded-lg border border-border-subtle bg-white px-4 py-3 text-sm text-text-muted">Sin empleados en foco (señales de riesgo) en esta área.</p>`;
-  }
-  return `<div class="overflow-x-auto rounded-lg border border-border-subtle bg-white">
-    <table class="w-full min-w-[560px] text-left">
-      <thead class="${RH_TABLE_HEAD}">
-        <tr>
-          <th class="px-3 py-2 text-xs font-semibold">Empleado</th>
-          <th class="px-3 py-2 text-xs font-semibold">Puesto</th>
-          <th class="px-3 py-2 text-xs font-semibold">Señales</th>
-          <th class="px-3 py-2 text-xs font-semibold"></th>
-        </tr>
-      </thead>
-      <tbody>${foco.map(empleadoFocoRow).join("")}</tbody>
-    </table>
-  </div>`;
+  const area = bloque.datos;
+  const foco = area.empleados_foco;
+  const focoHtml = !foco.length
+    ? `<p class="rounded-lg border border-border-subtle bg-white px-4 py-3 text-sm text-text-muted">Sin empleados en foco (señales de riesgo) en esta área.</p>`
+    : `<div class="overflow-x-auto rounded-lg border border-border-subtle bg-white">
+        <table class="w-full min-w-[560px] text-left">
+          <thead class="${RH_TABLE_HEAD}">
+            <tr>
+              <th class="px-3 py-2 text-xs font-semibold">Empleado</th>
+              <th class="px-3 py-2 text-xs font-semibold">Puesto</th>
+              <th class="px-3 py-2 text-xs font-semibold">Señales</th>
+              <th class="px-3 py-2 text-xs font-semibold"></th>
+            </tr>
+          </thead>
+          <tbody>${foco.map(empleadoFocoRow).join("")}</tbody>
+        </table>
+      </div>`;
+  return `<div class="space-y-3">${tilesAgregadosArea(area)}${focoHtml}</div>`;
 }
 
 function filaHtml(fila: FilaArea, estado: EstadoPagina): string {

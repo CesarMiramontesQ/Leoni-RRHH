@@ -37,7 +37,7 @@ vi.mock("../layouts/appShell.ts", () => ({
 }));
 
 import * as api from "../api/talento.ts";
-import { mountDashboardTalento, ordenarFilas } from "./dashboardTalento.ts";
+import { mountDashboardTalento, ordenarFilas, renderDetallePanel } from "./dashboardTalento.ts";
 
 /** Doble mínimo de `HTMLElement`: solo lo que `mountDashboardTalento` usa del contenedor. */
 class FakeElement {
@@ -153,6 +153,58 @@ describe("dashboardTalento", () => {
     mountDashboardTalento(container as unknown as HTMLElement);
     await vi.waitFor(() => expect(container.textContent).toContain("Arneses A"));
     expect(container.textContent?.toLowerCase()).toContain("ciclo");
+  });
+});
+
+/**
+ * El panel de detalle debe pintar los 4 agregados del área (desempeño,
+ * polivalencia, capacitación, PDI) además de la tabla de empleados en foco:
+ * antes se calculaban, se serializaban y nadie los leía en el frontend.
+ */
+describe("renderDetallePanel", () => {
+  const detalle = {
+    estado: "ok" as const,
+    datos: {
+      area_id: 1,
+      area_nombre: "Arneses A",
+      desempeno: {
+        area_id: 1, area_nombre: "Arneses A", n_empleados: 10,
+        calificacion_promedio: 82.3, cumplimiento_metas_pct: 75.0,
+        con_resultado_pct: 90.0, distribucion: {}, semaforo: "verde",
+      },
+      polivalencia: {
+        area_id: 1, area_nombre: "Arneses A", n_empleados: 10,
+        pol_pct: 66.5, resiliencia_pct: 55.0, n_criticas: 1, semaforo: "ambar",
+      },
+      capacitacion: {
+        area_id: 1, area_nombre: "Arneses A", total_pares: 20, completados: 15,
+        cumplimiento_pct: 75.0, n_obligatorio_pendiente: 2, semaforo: "ambar",
+      },
+      pdi: {
+        area_id: 1, area_nombre: "Arneses A", total: 5, completados: 3,
+        cancelados: 0, cumplimiento_pct: 60.0, n_vencidos: 1, n_activos: 2,
+        semaforo: "rojo",
+      },
+      empleados_foco: [],
+    },
+  };
+
+  it("pinta los 4 agregados del área con sus valores reales", () => {
+    const html = renderDetallePanel(detalle);
+    expect(html).toContain("82.3%"); // desempeño
+    expect(html).toContain("66.5%"); // polivalencia
+    expect(html).toContain("75.0%"); // capacitación
+    expect(html).toContain("60.0%"); // pdi
+  });
+
+  it("un agregado en null se pinta n/d, nunca 0 %", () => {
+    const sinDesempeno = { ...detalle, datos: { ...detalle.datos, desempeno: null } };
+    const html = renderDetallePanel(sinDesempeno);
+    // El tile de Desempeño debe quedar en "n/d" -- no en "0.0%" (que además
+    // significaría algo muy distinto: "el ciclo calificó a todos con 0").
+    expect(html).toContain(
+      '>Desempeño</p><p class="mt-1 text-xl font-semibold text-text-primary">n/d</p>',
+    );
   });
 });
 
