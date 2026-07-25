@@ -274,13 +274,13 @@ Todos `GET`, todos bajo `/api/v1/talento`, todos solo lectura.
 | `/talento/capacitacion` | — | `{disponible, org, areas[]}` |
 | `/talento/pdi` | — | `{disponible, org, areas[]}` |
 | `/talento/objetivo` | `desde?`, `hasta?`, `area_id?` | `{disponible, rango, org, areas[]}` |
-| `/talento/areas/{area_id}` | `ciclo_id?` | `{area, desempeno, polivalencia, capacitacion, pdi, empleados_foco[]}` |
+| `/talento/areas/{area_id}/detalle` | `ciclo_id?` | `{area, desempeno, polivalencia, capacitacion, pdi, empleados_foco[]}` |
 | `/talento/export` | `ciclo_id?` | `xlsx` (ver abajo) |
 
 Cada `areas[]` incluye siempre `area_id`, `area_nombre` y `n_empleados`, además de las
 métricas del bloque, para que el front pueda unir por `area_id` sin depender del orden.
 
-`GET /talento/areas/{area_id}` reusa exactamente los mismos agregadores, filtrados a un
+`GET /talento/areas/{area_id}/detalle` reusa exactamente los mismos agregadores, filtrados a un
 área; no hay una segunda implementación del cálculo. Si el área no existe o no tiene
 personal en scope: `404` si es invisible por inexistente, `403` si existe pero está
 fuera de scope — mismo criterio que `cobertura_area` en Operaciones.

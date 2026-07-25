@@ -2403,6 +2403,7 @@ class AreaPdiSchema(BaseModel):
     area_nombre: str
     total: int
     completados: int
+    cancelados: int
     cumplimiento_pct: float | None
     n_vencidos: int
     n_activos: int
@@ -2414,6 +2415,7 @@ class OrgPdiSchema(BaseModel):
 
     total: int
     completados: int
+    cancelados: int
     cumplimiento_pct: float | None
     n_vencidos: int
     n_activos: int
@@ -3003,6 +3005,7 @@ export interface AreaPdi {
   area_nombre: string;
   total: number;
   completados: number;
+  cancelados: number;
   cumplimiento_pct: number | null;
   n_vencidos: number;
   n_activos: number;
@@ -3012,6 +3015,7 @@ export interface AreaPdi {
 export interface OrgPdi {
   total: number;
   completados: number;
+  cancelados: number;
   cumplimiento_pct: number | null;
   n_vencidos: number;
   n_activos: number;
