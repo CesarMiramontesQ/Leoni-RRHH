@@ -602,6 +602,7 @@ class TalentoService:
         scope = await self.scope(current_user, rh_ui_mode)
         polivalencia = await self.oper_svc.polivalencia_empleados_area(area_id, scope)
         empleado_ids = [p.empleado_id for p in polivalencia]
+        nombres = await self.nombres_de_areas([area_id])
 
         ciclo = await self.ciclo_vigente(ciclo_id)
         banda_por_emp: dict[int, str | None] = {}
@@ -610,9 +611,8 @@ class TalentoService:
             resultados = await self.ciclo_svc.resultados_ciclo(ciclo.id, set(empleado_ids))
             banda_por_emp = {r.empleado_id: r.banda_desempeno_efectiva for r in resultados}
             if resultados:
-                nombres_area = await self.nombres_de_areas([area_id])
                 area_desempeno = self._area_desempeno(
-                    area_id, nombres_area.get(area_id), resultados
+                    area_id, nombres.get(area_id), resultados
                 )
                 area_desempeno.semaforo = self._semaforo_desempeno(
                     area_desempeno.calificacion_promedio, ciclo
@@ -651,7 +651,6 @@ class TalentoService:
             for s in calculo.empleados_en_foco(senales)
         ]
 
-        nombres = await self.nombres_de_areas([area_id])
         bloque_pol = await self.bloque_polivalencia(current_user, rh_ui_mode)
         bloque_cap = await self.bloque_capacitacion(current_user, rh_ui_mode)
         bloque_pdi = await self.bloque_pdi(current_user, rh_ui_mode)
