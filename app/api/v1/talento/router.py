@@ -24,7 +24,7 @@ from app.core.dependencies import (
     role_checker,
 )
 from app.models.empleados import Empleado
-from app.schemas.talento import (
+from app.schemas.talento_dashboard import (
     BloqueCapacitacionResponse,
     BloqueDesempenoResponse,
     BloqueObjetivoResponse,
