@@ -60,6 +60,13 @@ const areaPol = {
   pol_pct: 70.0, resiliencia_pct: 60.0, n_criticas: 2, semaforo: "ambar" as const,
 };
 
+/**
+ * `getDesempeno` y `getCapacitacion` traen datos poblados (org + área "Arneses
+ * A", la misma que reporta polivalencia) para que el test de degradación
+ * pueda distinguir "bloque exitoso con datos reales" de "bloque caído en
+ * n/d": si todos los bloques devolvieran `org: null, areas: []` como antes,
+ * un bloque caído sería indistinguible en el render de uno exitoso-pero-vacío.
+ */
 function stubOk() {
   vi.mocked(api.getPolivalencia).mockResolvedValue({
     disponible: true, motivo: null,
@@ -68,10 +75,27 @@ function stubOk() {
   });
   vi.mocked(api.getDesempeno).mockResolvedValue({
     disponible: true, motivo: null, ciclo: { id: 1, nombre: "2026", estado: "activo" },
-    org: null, areas: [],
+    org: {
+      calificacion_promedio: 78.2, cumplimiento_metas_pct: 80.0, con_resultado_pct: 95.0,
+      distribucion: {}, nine_box: {}, semaforo: "verde", n_empleados: 40,
+    },
+    areas: [
+      {
+        area_id: 1, area_nombre: "Arneses A", n_empleados: 40,
+        calificacion_promedio: 85.5, cumplimiento_metas_pct: 88.0, con_resultado_pct: 97.0,
+        distribucion: {}, semaforo: "verde",
+      },
+    ],
   });
   vi.mocked(api.getCapacitacion).mockResolvedValue({
-    disponible: true, motivo: null, org: null, areas: [],
+    disponible: true, motivo: null,
+    org: { total_pares: 100, completados: 91, cumplimiento_pct: 91.0, n_obligatorio_pendiente: 3, semaforo: "verde" },
+    areas: [
+      {
+        area_id: 1, area_nombre: "Arneses A", total_pares: 40, completados: 37,
+        cumplimiento_pct: 92.3, n_obligatorio_pendiente: 1, semaforo: "verde",
+      },
+    ],
   });
   vi.mocked(api.getPdi).mockResolvedValue({
     disponible: true, motivo: null, org: null, areas: [],
@@ -110,7 +134,15 @@ describe("dashboardTalento", () => {
     vi.mocked(api.getObjetivo).mockRejectedValue(new Error("DATOS_ANALISIS no responde"));
     mountDashboardTalento(container as unknown as HTMLElement);
     await vi.waitFor(() => expect(container.textContent).toContain("Arneses A"));
-    expect(container.textContent).toContain("n/d");
+    // Desempeño y capacitación respondieron: sus datos reales (área "Arneses
+    // A") siguen presentes, no se degradan por el fallo de otro bloque.
+    expect(container.textContent).toContain("85.5%");
+    expect(container.textContent).toContain("92.3%");
+    // El índice objetivo sí falló: su tile queda en n/d, anclado al mensaje
+    // de error que `tileHtml` vuelca como `title` solo en el estado "error"
+    // (ver dashboardTalento.ts). Un `toContain("n/d")` a secas no sirve de
+    // guardián: cualquier celda vacía produce el mismo texto.
+    expect(container.innerHTML).toContain('title="DATOS_ANALISIS no responde">n/d<');
   });
 
   it("muestra el motivo cuando no hay ciclo de desempeño", async () => {
