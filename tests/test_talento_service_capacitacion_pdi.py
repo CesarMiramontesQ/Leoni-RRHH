@@ -12,6 +12,11 @@ from tests.conftest import make_empleado
 
 @pytest.mark.asyncio
 async def test_bloque_capacitacion_agrega_por_area(db):
+    """Areas de poblacion DISTINTA (10 vs 30 pares) a proposito: si fueran
+    iguales, `11/20 = 55.0` (pooled) y `(90+20)/2 = 55.0` (promedio de los
+    porcentajes) coincidirian y el test no distinguiria una agregacion
+    incorrecta (promedio de areas) de la correcta (pooled: completados
+    totales / pares totales)."""
     rh = await make_empleado(
         db, rol="rh", email="tal_cap@leoni.test",
         modulos_rh={"dashboard-talento": True}, inscrito_modulos_rh=True,
@@ -19,7 +24,7 @@ async def test_bloque_capacitacion_agrega_por_area(db):
     svc = TalentoService(db)
     resumen = {
         7: CursosAreaAgg(total_pares=10, completados=9, empleados_obligatorio_pendiente={1}),
-        8: CursosAreaAgg(total_pares=10, completados=2, empleados_obligatorio_pendiente={2, 3}),
+        8: CursosAreaAgg(total_pares=30, completados=6, empleados_obligatorio_pendiente={2, 3}),
     }
     with patch(
         "app.services.talento_service.LevelUpCursosDashboardService.resumen_por_area",
@@ -36,7 +41,9 @@ async def test_bloque_capacitacion_agrega_por_area(db):
     assert por_id[8].cumplimiento_pct == 20.0
     assert por_id[8].semaforo == "rojo"
     assert por_id[8].n_obligatorio_pendiente == 2
-    assert bloque.org.cumplimiento_pct == 55.0  # 11 completados de 20 pares
+    # Pooled: 15 completados de 40 pares = 37.5. Un promedio simple de los
+    # porcentajes por area ((90+20)/2 = 55.0) seria incorrecto.
+    assert bloque.org.cumplimiento_pct == 37.5
 
 
 @pytest.mark.asyncio
@@ -127,6 +134,41 @@ async def test_bloque_pdi_cancelado_no_cuenta_activo_ni_castiga_cumplimiento(db)
     assert area.cancelados == 2
     assert bloque.org.n_activos == 0
     assert bloque.org.cumplimiento_pct == 100.0
+
+
+@pytest.mark.asyncio
+async def test_bloque_pdi_area_con_todos_cancelados_es_none(db):
+    """Caso borde de `total == cancelados`: el denominador efectivo
+    (`total - cancelados`) es 0, y `cumplimiento_pct` debe quedar en `None`
+    (n/d), NO en `0.0` -- "todos los PDI se cancelaron" no es "todos
+    fallaron"."""
+    rh = await make_empleado(
+        db, rol="rh", email="tal_pdi_todoscancel@leoni.test",
+        modulos_rh={"dashboard-talento": True}, inscrito_modulos_rh=True,
+    )
+    svc = TalentoService(db)
+    filas = [
+        SimpleNamespace(
+            empleado_id=1, total=3, completadas=0, en_proceso=0, pendientes=0,
+            vencidas=0, cancelados=3,
+        ),
+    ]
+    with patch(
+        "app.services.talento_service.PDIRepository.equipo_pdi_aggregates",
+        AsyncMock(return_value=filas),
+    ), patch.object(
+        TalentoService, "areas_de_empleados", AsyncMock(return_value={1: 7})
+    ), patch.object(
+        TalentoService, "nombres_de_areas", AsyncMock(return_value={7: "Arneses A"})
+    ):
+        bloque = await svc.bloque_pdi(rh, None)
+
+    area = bloque.areas[0]
+    assert area.cancelados == 3
+    assert area.n_activos == 0
+    assert area.cumplimiento_pct is None
+    assert area.semaforo is None
+    assert bloque.org.cumplimiento_pct is None
 
 
 @pytest.mark.asyncio
