@@ -1,6 +1,7 @@
 /**
  * Resolución de rutas hash → módulo RH (alineado con app/core/rh_module_registry.py).
  */
+import { hashSinQuery } from "../utils/hashQuery.ts";
 
 const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "organigrama", prefix: "#/organigrama" },
@@ -51,7 +52,11 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
 ].sort((a, b) => b.prefix.length - a.prefix.length);
 
 export function resolveModuleFromHash(hashValue: string): string | null {
-  const h = (hashValue || "#/").trim();
+  // Sin quitar el query string, un deep-link (`#/operaciones?area_id=3`) no
+  // casaría con ningún prefijo y devolvería `null`, que `modulosMayAccessHash`
+  // interpreta como "ruta sin módulo" y deja pasar: el `?` saltaría la
+  // compuerta de permisos RH.
+  const h = hashSinQuery((hashValue || "#/").trim());
   if (h === "" || h === "#" || h === "#/") return "dashboard";
   for (const rule of HASH_RULES) {
     if (h === rule.prefix || h.startsWith(`${rule.prefix}/`)) {
