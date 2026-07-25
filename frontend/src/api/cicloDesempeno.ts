@@ -90,6 +90,9 @@ export interface CicloDesempenoResultadoResponse {
   ciclo_id: number;
   empleado_id: number;
   empleado_nombre: string | null;
+  /** Área actual del empleado; alimenta la columna y el filtro por área. */
+  area_id: number | null;
+  area_nombre: string | null;
   cumplimiento_metas: number | null;
   calificacion_360_raw: number | null;
   calificacion_360_norm: number | null;
@@ -235,8 +238,12 @@ export async function cerrarCicloDesempeno(cicloId: number, forzar = false): Pro
 }
 
 /** Descarga el export Excel del ciclo (mismo patrón que `descargarCicloExcel` de Metas). */
-export async function descargarCicloDesempenoExcel(cicloId: number, filenameFallback: string): Promise<boolean> {
-  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/export/excel`);
+export async function descargarCicloDesempenoExcel(
+  cicloId: number,
+  filenameFallback: string,
+  areaId?: number,
+): Promise<boolean> {
+  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/export/excel${qArea(areaId)}`);
   if (!res.ok) return false;
   const disposition = res.headers.get("Content-Disposition") ?? "";
   const match = /filename=([^;]+)/.exec(disposition);
@@ -255,14 +262,22 @@ export async function descargarCicloDesempenoExcel(cicloId: number, filenameFall
 
 // ── Gestión — resultados / 9-Box / potencial (scoping de equipo vía backend) ──
 
-export async function getResultadosCiclo(cicloId: number): Promise<CicloDesempenoResultadoResponse[]> {
-  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/resultados`);
+/** `?area_id=` recorta al área; el backend nunca amplía con esto el scope del jefe. */
+function qArea(areaId?: number): string {
+  return areaId ? `?area_id=${areaId}` : "";
+}
+
+export async function getResultadosCiclo(
+  cicloId: number,
+  areaId?: number,
+): Promise<CicloDesempenoResultadoResponse[]> {
+  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/resultados${qArea(areaId)}`);
   if (!res.ok) await parseError(res, "No se pudieron cargar los resultados");
   return res.json() as Promise<CicloDesempenoResultadoResponse[]>;
 }
 
-export async function get9BoxCiclo(cicloId: number): Promise<NueveBoxResponse> {
-  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/9box`);
+export async function get9BoxCiclo(cicloId: number, areaId?: number): Promise<NueveBoxResponse> {
+  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/9box${qArea(areaId)}`);
   if (!res.ok) await parseError(res, "No se pudo cargar la matriz 9-Box");
   return res.json() as Promise<NueveBoxResponse>;
 }
@@ -295,8 +310,11 @@ export async function calibrarCiclo(
   return res.json() as Promise<CicloDesempenoResultadoResponse[]>;
 }
 
-export async function getDistribucionCiclo(cicloId: number): Promise<DistribucionResponse> {
-  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/distribucion`);
+export async function getDistribucionCiclo(
+  cicloId: number,
+  areaId?: number,
+): Promise<DistribucionResponse> {
+  const res = await fetchWithAuth(`${BASE}/ciclos/${cicloId}/distribucion${qArea(areaId)}`);
   if (!res.ok) await parseError(res, "No se pudo cargar la distribución");
   return res.json() as Promise<DistribucionResponse>;
 }

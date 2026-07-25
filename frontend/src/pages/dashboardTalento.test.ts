@@ -310,9 +310,10 @@ describe("renderDetallePanel", () => {
   });
 
   it("incluye los enlaces cruzados del área cuando hay acceso", () => {
-    const html = renderDetallePanel(detalle, { operaciones: true, pdi: true });
+    const html = renderDetallePanel(detalle, { operaciones: true, pdi: true, ciclo: true });
     expect(html).toContain('href="#/operaciones?area_id=1"');
     expect(html).toContain('href="#/pdi-gestion?area_id=1"');
+    expect(html).toContain('href="#/talento/ciclo-desempeno?area_id=1"');
   });
 
   it("un agregado en null se pinta n/d, nunca 0 %", () => {
@@ -398,19 +399,20 @@ describe("ordenarFilas", () => {
  */
 describe("enlacesCruzadosHtml", () => {
   it("enlaza a Operaciones y PDI con el área en el deep-link", () => {
-    const html = enlacesCruzadosHtml(7, { operaciones: true, pdi: true });
+    const html = enlacesCruzadosHtml(7, { operaciones: true, pdi: true, ciclo: true });
     expect(html).toContain('href="#/operaciones?area_id=7"');
     expect(html).toContain('href="#/pdi-gestion?area_id=7"');
+    expect(html).toContain('href="#/talento/ciclo-desempeno?area_id=7"');
   });
 
   it("omite el enlace del módulo sin acceso", () => {
-    const html = enlacesCruzadosHtml(7, { operaciones: false, pdi: true });
+    const html = enlacesCruzadosHtml(7, { operaciones: false, pdi: true, ciclo: false });
     expect(html).not.toContain("#/operaciones");
     expect(html).toContain('href="#/pdi-gestion?area_id=7"');
   });
 
   it("sin ningún acceso no pinta nada", () => {
-    expect(enlacesCruzadosHtml(7, { operaciones: false, pdi: false })).toBe("");
+    expect(enlacesCruzadosHtml(7, { operaciones: false, pdi: false, ciclo: false })).toBe("");
   });
 });
 

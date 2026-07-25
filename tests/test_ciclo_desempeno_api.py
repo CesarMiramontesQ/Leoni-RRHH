@@ -466,3 +466,127 @@ async def test_export_excel_devuelve_xlsx(client, db):
     assert resp_export.headers["content-type"].startswith(
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Filtro por area — recorta el scope, nunca lo amplia
+# ══════════════════════════════════════════════════════════════════════════
+async def _area(db, descripcion="Arneses"):
+    import uuid
+    from app.models.catalogos import Area
+
+    area_id = int(uuid.uuid4().hex[:6], 16) % 900000 + 100000
+    area = Area(area_id=area_id, descripcion=descripcion, estatus_id=1)
+    db.add(area)
+    await db.flush()
+    return area
+
+
+async def test_filtro_por_area_recorta_pero_no_amplia_el_scope_del_jefe(client, db):
+    """`area_id` es un recorte sobre el scope YA resuelto: un jefe que pide un
+    area donde tambien hay gente de otro jefe sigue viendo solo su equipo."""
+    area_a = await _area(db, "Arneses A")
+    area_b = await _area(db, "Arneses B")
+    rh = await _rh(db, email="cdarea_rh@leoni.test")
+    jefe = await _jefe(db, email="cdarea_jefe@leoni.test")
+    mio = await _empleado_de(db, jefe, email="cdarea_mio@leoni.test")
+    ajeno = await make_empleado(db, rol="empleado", email="cdarea_ajeno@leoni.test")
+    otro_area = await _empleado_de(db, jefe, email="cdarea_otra@leoni.test")
+    mio.area_id = area_a.area_id
+    ajeno.area_id = area_a.area_id  # misma area, pero NO reporta al jefe
+    otro_area.area_id = area_b.area_id
+    await db.flush()
+
+    campana = await _crear_campana_360(db, estado="cerrada")
+    for emp in (mio, ajeno, otro_area):
+        await _agregar_participante_360(db, campana.id, emp.empleado_id, calificacion_general=4)
+
+    headers_rh = await auth_headers(client, rh)
+    headers_jefe = await auth_headers(client, jefe)
+    ciclo = await _crear_cd_ciclo(client, headers_rh, eval360_campana_id=campana.id)
+    resp_act = await client.post(f"{BASE}/ciclos/{ciclo['id']}/activar", headers=headers_rh)
+    assert resp_act.status_code == 200, resp_act.text
+
+    url = f"{BASE}/ciclos/{ciclo['id']}/resultados"
+
+    # RH (scope global) filtrando por area A: los dos empleados del area.
+    resp = await client.get(f"{url}?area_id={area_a.area_id}", headers=headers_rh)
+    assert resp.status_code == 200, resp.text
+    assert {r["empleado_id"] for r in resp.json()} == {mio.empleado_id, ajeno.empleado_id}
+
+    # El jefe pide la MISMA area: solo su reporte, el ajeno no se cuela.
+    resp_jefe = await client.get(f"{url}?area_id={area_a.area_id}", headers=headers_jefe)
+    assert resp_jefe.status_code == 200, resp_jefe.text
+    assert {r["empleado_id"] for r in resp_jefe.json()} == {mio.empleado_id}
+
+    # Sin filtro, el jefe ve su equipo completo (las dos areas).
+    resp_sin = await client.get(url, headers=headers_jefe)
+    assert {r["empleado_id"] for r in resp_sin.json()} == {mio.empleado_id, otro_area.empleado_id}
+
+    # Un area sin participantes devuelve vacio, no el universo.
+    area_vacia = await _area(db, "Almacen")
+    resp_vacia = await client.get(f"{url}?area_id={area_vacia.area_id}", headers=headers_rh)
+    assert resp_vacia.json() == []
+
+    # Y para el jefe, un area donde no tiene reportes tampoco abre la puerta.
+    resp_jefe_ajena = await client.get(f"{url}?area_id={area_vacia.area_id}", headers=headers_jefe)
+    assert resp_jefe_ajena.json() == []
+
+
+async def test_filtro_por_area_aplica_a_9box_y_distribucion(client, db):
+    """Los tres bloques de la pestana de resultados leen la misma poblacion:
+    si la tabla se recorta por area, el 9-Box y la distribucion tambien."""
+    area_a = await _area(db, "Arneses A")
+    rh = await _rh(db, email="cdarea2_rh@leoni.test")
+    dentro = await make_empleado(db, rol="empleado", email="cdarea2_in@leoni.test")
+    fuera = await make_empleado(db, rol="empleado", email="cdarea2_out@leoni.test")
+    dentro.area_id = area_a.area_id
+    await db.flush()
+
+    campana = await _crear_campana_360(db, estado="cerrada")
+    for emp in (dentro, fuera):
+        await _agregar_participante_360(db, campana.id, emp.empleado_id, calificacion_general=4)
+
+    headers_rh = await auth_headers(client, rh)
+    ciclo = await _crear_cd_ciclo(client, headers_rh, eval360_campana_id=campana.id)
+    await client.post(f"{BASE}/ciclos/{ciclo['id']}/activar", headers=headers_rh)
+
+    resp_box = await client.get(
+        f"{BASE}/ciclos/{ciclo['id']}/9box?area_id={area_a.area_id}", headers=headers_rh
+    )
+    assert resp_box.status_code == 200, resp_box.text
+    en_box = {e["empleado_id"] for c in resp_box.json()["celdas"] for e in c["empleados"]}
+    assert fuera.empleado_id not in en_box
+
+    resp_dist = await client.get(
+        f"{BASE}/ciclos/{ciclo['id']}/distribucion?area_id={area_a.area_id}", headers=headers_rh
+    )
+    assert resp_dist.status_code == 200, resp_dist.text
+    assert resp_dist.json()["actual"]["total"] == 1
+
+    # Sin filtro, la misma distribucion cuenta a los dos participantes.
+    resp_todos = await client.get(f"{BASE}/ciclos/{ciclo['id']}/distribucion", headers=headers_rh)
+    assert resp_todos.json()["actual"]["total"] == 2
+
+
+async def test_resultados_traen_el_area_del_empleado(client, db):
+    """El area viaja en el resultado: la tabla la muestra y el selector de la
+    pantalla arma sus opciones con ella, sin un endpoint extra de catalogo."""
+    area = await _area(db, "Arneses A")
+    rh = await _rh(db, email="cdarea3_rh@leoni.test")
+    emp = await make_empleado(db, rol="empleado", email="cdarea3_emp@leoni.test")
+    emp.area_id = area.area_id
+    await db.flush()
+
+    campana = await _crear_campana_360(db, estado="cerrada")
+    await _agregar_participante_360(db, campana.id, emp.empleado_id, calificacion_general=4)
+
+    headers_rh = await auth_headers(client, rh)
+    ciclo = await _crear_cd_ciclo(client, headers_rh, eval360_campana_id=campana.id)
+    await client.post(f"{BASE}/ciclos/{ciclo['id']}/activar", headers=headers_rh)
+
+    resp = await client.get(f"{BASE}/ciclos/{ciclo['id']}/resultados", headers=headers_rh)
+    assert resp.status_code == 200, resp.text
+    r = resp.json()[0]
+    assert r["area_id"] == area.area_id
+    assert r["area_nombre"] == "Arneses A"

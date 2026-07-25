@@ -124,6 +124,8 @@ components:
         ciclo_id: { type: integer }
         empleado_id: { type: integer }
         empleado_nombre: { type: [string, "null"] }
+        area_id: { type: [integer, "null"] }
+        area_nombre: { type: [string, "null"] }
         cumplimiento_metas: { type: [number, "null"] }
         calificacion_360_raw: { type: [number, "null"] }
         calificacion_360_norm: { type: [number, "null"] }
@@ -14944,7 +14946,7 @@ paths:
       summary: Resultados del ciclo por empleado (scoping de equipo; en vivo mientras el ciclo no esté cerrado, snapshot si ya cerró)
       operationId: ciclo_desempeno_resultados_ciclo
       security: [ { BearerAuth: [] } ]
-      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } }, { name: area_id, in: query, required: false, schema: { type: integer }, description: "Recorta al área; nunca amplía el scope del jefe" } ]
       responses:
         "200": { description: Resultados (filtrados por el scope del jefe; vacío si ninguno cae en su equipo), content: { application/json: { schema: { type: array, items: { type: object } } } } }
         "404": { description: Ciclo no encontrado }
@@ -14954,7 +14956,7 @@ paths:
       summary: Matriz 9-Box del ciclo (9 celdas banda_desempeno x banda_potencial, scoping de equipo)
       operationId: ciclo_desempeno_nueve_box
       security: [ { BearerAuth: [] } ]
-      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } }, { name: area_id, in: query, required: false, schema: { type: integer }, description: "Recorta al área; nunca amplía el scope del jefe" } ]
       responses:
         "200": { description: Matriz 9-Box, content: { application/json: { schema: { type: object } } } }
         "404": { description: Ciclo no encontrado }
@@ -15026,7 +15028,7 @@ paths:
         banda.
       operationId: ciclo_desempeno_distribucion_ciclo
       security: [ { BearerAuth: [] } ]
-      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } }, { name: area_id, in: query, required: false, schema: { type: integer }, description: "Recorta al área; nunca amplía el scope del jefe" } ]
       responses:
         "200":
           description: Distribución actual, objetivo y desviación
@@ -15040,7 +15042,7 @@ paths:
       summary: Exportar a Excel los resultados del ciclo (mismo scoping de equipo que la gestión)
       operationId: ciclo_desempeno_export_ciclo_excel
       security: [ { BearerAuth: [] } ]
-      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } } ]
+      parameters: [ { name: ciclo_id, in: path, required: true, schema: { type: integer } }, { name: area_id, in: query, required: false, schema: { type: integer }, description: "Recorta al área; nunca amplía el scope del jefe" } ]
       responses:
         "200":
           description: Archivo .xlsx

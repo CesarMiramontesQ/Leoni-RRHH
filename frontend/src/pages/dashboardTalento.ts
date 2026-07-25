@@ -355,21 +355,24 @@ function tilesAgregadosArea(area: DetalleArea): string {
 export interface AccesosCruzados {
   operaciones: boolean;
   pdi: boolean;
+  ciclo: boolean;
 }
 
-const SIN_ACCESOS: AccesosCruzados = { operaciones: false, pdi: false };
+const SIN_ACCESOS: AccesosCruzados = { operaciones: false, pdi: false, ciclo: false };
 
 /**
  * Enlaces del detalle a otros módulos con el área preseleccionada.
  *
- * Solo Operaciones y PDI: son los únicos que saben filtrar por área, y mandar a
- * Cursos o al Ciclo sin filtro prometería un recorte que la página destino no
- * aplicaría. Se omite el enlace del módulo al que el usuario no puede entrar.
+ * Operaciones, PDI y Ciclo de Desempeño: los que saben filtrar por área. Cursos
+ * queda fuera porque no tiene ese filtro, y mandar ahí sin filtrar prometería
+ * un recorte que la página destino no aplicaría. Se omite el enlace del módulo
+ * al que el usuario no puede entrar.
  */
 export function enlacesCruzadosHtml(areaId: number, accesos: AccesosCruzados): string {
   const enlaces = [
     accesos.operaciones ? { href: `#/operaciones?area_id=${areaId}`, texto: "Cobertura en Operaciones" } : null,
     accesos.pdi ? { href: `#/pdi-gestion?area_id=${areaId}`, texto: "Planes de desarrollo" } : null,
+    accesos.ciclo ? { href: `#/talento/ciclo-desempeno?area_id=${areaId}`, texto: "Ciclo de desempeño" } : null,
   ].filter((e): e is { href: string; texto: string } => e !== null);
   if (!enlaces.length) return "";
   return `<div class="flex flex-wrap items-center gap-2">
@@ -459,7 +462,11 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
     hasRhOperativeViewerContext() ? canAccessRhAssignedModule(moduleKey) : true;
 
   const estado: EstadoPagina = {
-    accesos: { operaciones: puedeIr("operaciones"), pdi: puedeIr("pdi-gestion") },
+    accesos: {
+      operaciones: puedeIr("operaciones"),
+      pdi: puedeIr("pdi-gestion"),
+      ciclo: puedeIr("ciclo-desempeno"),
+    },
     polivalencia: { estado: "cargando" },
     desempeno: { estado: "cargando" },
     capacitacion: { estado: "cargando" },

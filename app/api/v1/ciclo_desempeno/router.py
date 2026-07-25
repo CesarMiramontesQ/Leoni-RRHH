@@ -109,6 +109,31 @@ async def _resolve_scope(
     return {e.empleado_id for e in subordinados}
 
 
+async def _con_area(
+    scope: Optional[set[int]], area_id: Optional[int], db: AsyncSession
+) -> Optional[set[int]]:
+    """Interseca el scope ya resuelto con los empleados activos del area.
+
+    El filtro solo puede RECORTAR: para un jefe, pedir un area donde tambien
+    hay gente de otro jefe no le muestra a esa gente. Un area sin nadie del
+    scope devuelve el conjunto vacio (que el repo trata como "cero
+    resultados"), nunca `None`, que significaria universo."""
+    if area_id is None:
+        return scope
+    from sqlalchemy import select
+
+    from app.core.config import settings
+
+    result = await db.execute(
+        select(Empleado.empleado_id).where(
+            Empleado.area_id == area_id,
+            Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+        )
+    )
+    del_area = {row[0] for row in result.all()}
+    return del_area if scope is None else del_area & scope
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Ciclos — administracion (solo RH global con modulo 'ciclo-desempeno')
 # ══════════════════════════════════════════════════════════════════════════
@@ -174,24 +199,26 @@ async def cerrar_ciclo(
 @router.get("/ciclos/{ciclo_id}/resultados", response_model=list[CicloDesempenoResultadoResponse])
 async def resultados_ciclo(
     ciclo_id: int,
+    area_id: Optional[int] = Query(None, description="Recorta los resultados al area (nunca amplia el scope)."),
     current_user: Empleado = Depends(_gestion_or_equipo()),
     rh_ui_mode: Optional[str] = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
     svc: CicloDesempenoService = Depends(_svc),
 ):
-    scope = await _resolve_scope(current_user, rh_ui_mode, db)
+    scope = await _con_area(await _resolve_scope(current_user, rh_ui_mode, db), area_id, db)
     return await svc.resultados_ciclo(ciclo_id, empleado_ids_scope=scope)
 
 
 @router.get("/ciclos/{ciclo_id}/9box", response_model=NueveBoxResponse)
 async def nueve_box(
     ciclo_id: int,
+    area_id: Optional[int] = Query(None, description="Recorta el 9-Box al area (nunca amplia el scope)."),
     current_user: Empleado = Depends(_gestion_or_equipo()),
     rh_ui_mode: Optional[str] = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
     svc: CicloDesempenoService = Depends(_svc),
 ):
-    scope = await _resolve_scope(current_user, rh_ui_mode, db)
+    scope = await _con_area(await _resolve_scope(current_user, rh_ui_mode, db), area_id, db)
     return await svc.construir_9box(ciclo_id, empleado_ids_scope=scope)
 
 
@@ -241,12 +268,13 @@ async def calibrar_ciclo(
 @router.get("/ciclos/{ciclo_id}/distribucion", response_model=DistribucionResponse)
 async def distribucion_ciclo(
     ciclo_id: int,
+    area_id: Optional[int] = Query(None, description="Recorta la distribucion al area (nunca amplia el scope)."),
     current_user: Empleado = Depends(_gestion_or_equipo()),
     rh_ui_mode: Optional[str] = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
     svc: CicloDesempenoService = Depends(_svc),
 ):
-    scope = await _resolve_scope(current_user, rh_ui_mode, db)
+    scope = await _con_area(await _resolve_scope(current_user, rh_ui_mode, db), area_id, db)
     return await svc.distribucion_ciclo(ciclo_id, empleado_ids_scope=scope)
 
 
@@ -259,6 +287,7 @@ async def distribucion_ciclo(
 @router.get("/ciclos/{ciclo_id}/export/excel")
 async def export_ciclo_excel(
     ciclo_id: int,
+    area_id: Optional[int] = Query(None, description="Exporta solo el area (nunca amplia el scope)."),
     current_user: Empleado = Depends(_gestion_or_equipo()),
     rh_ui_mode: Optional[str] = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
@@ -266,7 +295,7 @@ async def export_ciclo_excel(
 ):
     from openpyxl import Workbook
 
-    scope = await _resolve_scope(current_user, rh_ui_mode, db)
+    scope = await _con_area(await _resolve_scope(current_user, rh_ui_mode, db), area_id, db)
     resultados = await svc.resultados_ciclo(ciclo_id, empleado_ids_scope=scope)
 
     wb = Workbook()
