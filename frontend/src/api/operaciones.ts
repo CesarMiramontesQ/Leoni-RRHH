@@ -31,7 +31,8 @@ export type Severidad = "ok" | "punto_unico" | "hueco";
 export interface AreaResumen {
   area_id: number;
   area_nombre: string;
-  pol_area_pct: number;
+  /** `null` = sin empleados con requisitos evaluables en el área (n/d, no 0 %). */
+  pol_area_pct: number | null;
   resiliencia_pct: number;
   n_criticas: number;
   n_empleados: number;

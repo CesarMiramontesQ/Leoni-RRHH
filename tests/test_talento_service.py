@@ -36,6 +36,30 @@ async def test_bloque_polivalencia_agrega_org_ponderado(db):
 
 
 @pytest.mark.asyncio
+async def test_bloque_polivalencia_area_sin_dato_no_arrastra_el_org(db):
+    """Un area sin polivalencia calculable (`None`) sale como n/d y NO entra al
+    promedio del org como 0: si entrara, 50 personas al 80% darian 40%."""
+    rh = await make_empleado(
+        db, rol="rh", email="tal_pol_nd@leoni.test",
+        modulos_rh={"dashboard-talento": True}, inscrito_modulos_rh=True,
+    )
+    svc = TalentoService(db)
+    areas = [
+        AreaResumen(1, "Arneses A", 80.0, 90.0, 0, 50),
+        AreaResumen(2, "Almacen", None, 0.0, 0, 50),
+    ]
+    with patch(
+        "app.services.talento_service.OperacionesService.listar_areas_con_scope",
+        AsyncMock(return_value=areas),
+    ):
+        bloque = await svc.bloque_polivalencia(rh, None)
+
+    assert bloque.org.pol_pct == 80.0
+    assert bloque.areas[1].pol_pct is None
+    assert bloque.areas[1].semaforo is None
+
+
+@pytest.mark.asyncio
 async def test_bloque_desempeno_sin_ciclo_no_disponible(db):
     rh = await make_empleado(
         db, rol="rh", email="tal_sinciclo@leoni.test",

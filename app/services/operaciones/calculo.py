@@ -87,9 +87,11 @@ def indice_polivalencia_empleado(e: EmpleadoCompetencias) -> float | None:
     return round(cumple / len(req) * 100, 1)
 
 
-def indice_polivalencia_area(empleados: list[EmpleadoCompetencias]) -> float:
+def indice_polivalencia_area(empleados: list[EmpleadoCompetencias]) -> float | None:
+    """Promedio de la polivalencia individual. `None` (no 0.0) cuando ningun
+    empleado del area tiene requisitos evaluables: sin dato != 0 %."""
     vals = [v for e in empleados if (v := indice_polivalencia_empleado(e)) is not None]
-    return round(sum(vals) / len(vals), 1) if vals else 0.0
+    return round(sum(vals) / len(vals), 1) if vals else None
 
 
 def resiliencia_area(coberturas: list[CoberturaCompetencia]) -> float:

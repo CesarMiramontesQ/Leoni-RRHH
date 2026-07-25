@@ -9,7 +9,7 @@ class AreaResumenSchema(BaseModel):
 
     area_id: int
     area_nombre: str
-    pol_area_pct: float
+    pol_area_pct: float | None
     resiliencia_pct: float
     n_criticas: int
     n_empleados: int

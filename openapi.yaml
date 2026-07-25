@@ -6248,7 +6248,7 @@ components:
       properties:
         area_id: { type: integer }
         area_nombre: { type: string }
-        pol_area_pct: { type: number, format: float }
+        pol_area_pct: { type: [number, "null"], format: float }
         resiliencia_pct: { type: number, format: float }
         n_criticas: { type: integer }
         n_empleados: { type: integer }
