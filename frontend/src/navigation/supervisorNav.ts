@@ -18,6 +18,7 @@ export type SupervisorNavKey =
   | "mis-metas"
   | "metas"
   | "mi-desempeno"
+  | "dashboard-talento"
   | "ciclo-desempeno"
   | "historial-objetivo"
   | "horas-extra-solicitud"
@@ -129,6 +130,13 @@ export const SUPERVISOR_NAV_SECTIONS: readonly SupervisorNavSection[] = [
         href: "#/talento/mis-metas",
         label: "Mis metas",
         svgPaths: `<path d="M3 3v18M3 8.25c1.75-1 3.75-1 5.5 0s3.75 1 5.5 0 3.75-1 5.5 0V15c-1.75 1-3.75 1-5.5 0s-3.75-1-5.5 0-3.75 1-5.5 0V8.25Z" stroke-linecap="round" stroke-linejoin="round" />`,
+      },
+      {
+        id: "dashboard-talento",
+        key: "dashboard-talento",
+        href: "#/talento/dashboard",
+        label: "Dashboard de Talento",
+        svgPaths: `<path d="M3 13.5h5.25V21H3v-7.5Zm6.75-6h4.5V21h-4.5V7.5ZM16.5 3h4.5v18h-4.5V3Z" stroke-linecap="round" stroke-linejoin="round" />`,
       },
       {
         id: "metas",

@@ -133,6 +133,7 @@ export type ShellNavKey =
   | "encuestas"
   | "encuestas-rh"
   | "metas"
+  | "dashboard-talento"
   | "ciclo-desempeno"
   | "historial-objetivo"
   | "mis-encuestas"
