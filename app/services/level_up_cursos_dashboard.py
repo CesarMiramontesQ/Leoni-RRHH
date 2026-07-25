@@ -11,6 +11,7 @@ from app.models.empleados import Empleado
 from app.models.level_up import Curso, CursoEmpleado, CursoGrupo, CursoPuesto, CursoSesion
 from app.repositories.level_up_cursos_dashboard import LevelUpCursosDashboardRepository
 from app.schemas.level_up_dashboard import (
+    CursosDashboardAreaItem,
     CursosDashboardCursoCompletadoItem,
     CursosDashboardEmpleadoHistorialResponse,
     CursosDashboardEmpleadoResumenItem,
@@ -370,8 +371,18 @@ class LevelUpCursosDashboardService:
             )
         return items
 
-    async def obtener_resumen(self, solo_activos: bool = True) -> CursosDashboardResumenResponse:
+    async def obtener_resumen(
+        self, solo_activos: bool = True, area_id: int | None = None
+    ) -> CursosDashboardResumenResponse:
+        """`area_id` recorta el resumen a un area. Recorta las DOS familias de
+        KPI: los pares (empleado x curso) por el empleado, y las sesiones por
+        tener al menos un inscrito del area — una sesion no es de un area, asi
+        que sin ese segundo recorte medio tablero seguiria siendo global."""
         curso_map, pares = await self._build_pares(solo_activos=solo_activos)
+        emp_area: set[int] | None = None
+        if area_id is not None:
+            emp_area = await self.repo.empleado_ids_de_area(area_id)
+            pares = {k: v for k, v in pares.items() if v.empleado_id in emp_area}
 
         estados_curso: list[str] = []
         pendientes_por_emp: dict[int, int] = {}
@@ -403,16 +414,23 @@ class LevelUpCursosDashboardService:
                         (emp_id, curso_id, str(fin), curso.nombre if curso else None),
                     )
 
+        inscritos = await self.repo.count_inscritos_por_sesion(emp_area)
         if solo_activos:
             sesiones = await self.repo.list_sesiones_activas()
-            cursos_completados_kpi = await self.repo.count_completed_curso_pairs()
+            cursos_completados_kpi = await self.repo.count_completed_curso_pairs(emp_area)
             sesiones_completadas_kpi = 0
         else:
             sesiones = await self.repo.list_sesiones()
             cursos_completados_kpi = estados_curso.count("completado")
             sesiones_completadas_kpi = sum(1 for s in sesiones if s.estado.value == "completada")
 
-        inscritos = await self.repo.count_inscritos_por_sesion()
+        if emp_area is not None:
+            # `inscritos` ya viene contado solo con la gente del area, asi que
+            # sus claves SON las sesiones que tocan al area.
+            sesiones = [s for s in sesiones if s.id in inscritos]
+            sesiones_completadas_kpi = (
+                0 if solo_activos else sum(1 for s in sesiones if s.estado.value == "completada")
+            )
 
         kpis = CursosDashboardKpis(
             cursos_asignados=len(cursos_asignados_ids),
@@ -469,8 +487,10 @@ class LevelUpCursosDashboardService:
             for s in proximas[: self.TOP_N]
         ]
 
+        areas = await self.repo.areas_con_registros()
         return CursosDashboardResumenResponse(
             kpis=kpis,
+            areas=[CursosDashboardAreaItem(id=aid, nombre=nombre) for aid, nombre in areas],
             empleados_cursos_pendientes=self._empleados_resumen_items(pendientes_por_emp, empleados),
             empleados_sesiones_pendientes=self._empleados_resumen_items(sesiones_pend_por_emp, empleados),
             sesiones_proximas=sesiones_proximas,
