@@ -30,6 +30,7 @@ from app.schemas.talento import (
     BloqueObjetivoResponse,
     BloquePdiResponse,
     BloquePolivalenciaResponse,
+    CicloInfoSchema,
     DetalleAreaResponse,
 )
 from app.services.talento_service import TalentoService
@@ -58,6 +59,19 @@ def _gestion_or_equipo():
             return await equipo_dep(current_user=current_user, rh_ui_mode=rh_ui_mode)
 
     return check
+
+
+@router.get("/ciclos", response_model=list[CicloInfoSchema])
+async def ciclos_disponibles(
+    current_user: Empleado = Depends(_gestion_or_equipo()),
+    db: AsyncSession = Depends(get_db),
+):
+    """Ciclos que alimenta el selector del dashboard.
+
+    Vive bajo `/api/v1/talento` a proposito: `role_checker` resuelve el modulo
+    exigido a partir del prefijo de la ruta, asi que pedirlos al router de
+    ciclo-desempeno daria 403 a quien solo tiene `dashboard-talento`."""
+    return await TalentoService(db).ciclos_disponibles()
 
 
 @router.get("/desempeno", response_model=BloqueDesempenoResponse)

@@ -15713,6 +15713,23 @@ paths:
           description: Area inexistente o sin puestos con competencias requisito
 
   # ── Dashboard de Talento (agregador de solo lectura, por area) ─────────
+  /api/v1/talento/ciclos:
+    get:
+      tags: [talento]
+      summary: Ciclos que puede elegir el selector del dashboard (activo y cerrados, activo primero)
+      operationId: talento_ciclos_disponibles
+      security: [ { BearerAuth: [] } ]
+      responses:
+        "200":
+          description: Ciclos disponibles; lista vacia si no hay ninguno
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CicloInfoSchema"
+        "403":
+          description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
   /api/v1/talento/desempeno:
     get:
       tags: [talento]

@@ -1,6 +1,8 @@
 """Tests de orquestacion de TalentoService: que el scope se resuelva UNA vez y
 se pase explicito a cada building block, y que la agregacion por area cuadre."""
+from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -33,6 +35,29 @@ async def test_bloque_polivalencia_agrega_org_ponderado(db):
     assert bloque.org.n_criticas == 3
     assert bloque.org.n_empleados == 100
     assert [a.area_id for a in bloque.areas] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_ciclos_disponibles_filtra_borradores_y_ordena(db):
+    """El selector solo ofrece ciclos con resultados posibles (`activo` /
+    `cerrado`), en el mismo orden en que `ciclo_vigente` elige por defecto:
+    activo primero, luego cerrados por fecha de fin descendente."""
+    svc = TalentoService(db)
+    ciclos = [
+        SimpleNamespace(id=4, nombre="2026 borrador", estado="borrador", fecha_fin=None),
+        SimpleNamespace(id=3, nombre="2025", estado="activo", fecha_fin=date(2025, 12, 31)),
+        SimpleNamespace(id=2, nombre="2023", estado="cerrado", fecha_fin=date(2023, 12, 31)),
+        SimpleNamespace(id=1, nombre="2024", estado="cerrado", fecha_fin=date(2024, 12, 31)),
+    ]
+    with patch(
+        "app.services.talento_service.CicloDesempenoService.list_ciclos",
+        AsyncMock(return_value=ciclos),
+    ):
+        disponibles = await svc.ciclos_disponibles()
+
+    assert [c.id for c in disponibles] == [3, 1, 2]
+    assert [c.nombre for c in disponibles] == ["2025", "2024", "2023"]
+    assert disponibles[0].estado == "activo"
 
 
 @pytest.mark.asyncio
