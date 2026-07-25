@@ -99,20 +99,49 @@ class LevelUpCursosDashboardRepository:
         )
         return {(int(row[0]), int(row[1])) for row in result.all()}
 
-    async def count_completed_curso_pairs(self) -> int:
+    async def count_completed_curso_pairs(self, empleado_ids: set[int] | None = None) -> int:
+        """`empleado_ids` = None cuenta el universo; un set lo recorta a esa
+        poblacion (filtro por area del resumen). Un set vacio cuenta 0, no
+        todo: 'ningun empleado' no es 'todos'."""
+        if empleado_ids is not None and not empleado_ids:
+            return 0
+        interno = select(CursoEmpleado.empleado_id, CursoEmpleado.curso_id).where(
+            CursoEmpleado.sesion_id.isnot(None),
+            CursoEmpleado.asistio.is_(True),
+        )
+        if empleado_ids is not None:
+            interno = interno.where(CursoEmpleado.empleado_id.in_(empleado_ids))
         result = await self.db.execute(
-            select(func.count())
-            .select_from(
-                select(CursoEmpleado.empleado_id, CursoEmpleado.curso_id)
-                .where(
-                    CursoEmpleado.sesion_id.isnot(None),
-                    CursoEmpleado.asistio.is_(True),
-                )
-                .distinct()
-                .subquery()
-            )
+            select(func.count()).select_from(interno.distinct().subquery())
         )
         return int(result.scalar_one())
+
+    async def empleado_ids_de_area(self, area_id: int) -> set[int]:
+        """Empleados activos del area. Solo lectura sobre `empleados` (Bono)."""
+        from app.core.config import settings
+
+        result = await self.db.execute(
+            select(Empleado.empleado_id).where(
+                Empleado.area_id == area_id,
+                Empleado.estado_id.in_(settings.ESTADOS_ACTIVOS_IDS),
+            )
+        )
+        return {int(row[0]) for row in result.all()}
+
+    async def areas_con_registros(self) -> list[tuple[int, str]]:
+        """Areas que tienen al menos un empleado con registro de curso.
+
+        Alimenta el selector de la pantalla y se calcula SIN el filtro
+        aplicado: si se recortara con el, elegir un area dejaria esa unica
+        opcion y no habria forma de volver a otra."""
+        result = await self.db.execute(
+            select(Area.area_id, Area.descripcion)
+            .join(Empleado, Empleado.area_id == Area.area_id)
+            .join(CursoEmpleado, CursoEmpleado.empleado_id == Empleado.empleado_id)
+            .distinct()
+            .order_by(Area.descripcion)
+        )
+        return [(int(row[0]), row[1] or f"Area {row[0]}") for row in result.all()]
 
     async def list_sesiones_activas(self) -> list[CursoSesion]:
         result = await self.db.execute(
@@ -135,12 +164,20 @@ class LevelUpCursosDashboardRepository:
         )
         return list(result.scalars().all())
 
-    async def count_inscritos_por_sesion(self) -> dict[int, int]:
-        result = await self.db.execute(
-            select(CursoEmpleado.sesion_id, func.count())
-            .where(CursoEmpleado.sesion_id.isnot(None))
-            .group_by(CursoEmpleado.sesion_id)
+    async def count_inscritos_por_sesion(
+        self, empleado_ids: set[int] | None = None
+    ) -> dict[int, int]:
+        """Inscritos por sesion. Con `empleado_ids`, cuenta solo a esa
+        poblacion y **omite las sesiones sin ninguno**: el resumen usa esas
+        claves para saber que sesiones tocan al area."""
+        if empleado_ids is not None and not empleado_ids:
+            return {}
+        query = select(CursoEmpleado.sesion_id, func.count()).where(
+            CursoEmpleado.sesion_id.isnot(None)
         )
+        if empleado_ids is not None:
+            query = query.where(CursoEmpleado.empleado_id.in_(empleado_ids))
+        result = await self.db.execute(query.group_by(CursoEmpleado.sesion_id))
         return {row[0]: int(row[1]) for row in result.all()}
 
     async def get_empleados_map(self, empleado_ids: set[int]) -> dict[int, Empleado]:

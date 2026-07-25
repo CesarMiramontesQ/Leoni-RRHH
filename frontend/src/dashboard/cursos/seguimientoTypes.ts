@@ -43,8 +43,15 @@ export interface CursosDashboardCursoCompletadoItem {
   fecha_finalizacion: string | null;
 }
 
+/** Opción del selector de área; llega completa, sin recortar por el filtro. */
+export interface CursosDashboardAreaItem {
+  id: number;
+  nombre: string;
+}
+
 export interface CursosDashboardResumen {
   kpis: CursosDashboardKpis;
+  areas: CursosDashboardAreaItem[];
   empleados_cursos_pendientes: CursosDashboardEmpleadoResumenItem[];
   empleados_sesiones_pendientes: CursosDashboardEmpleadoResumenItem[];
   sesiones_proximas: CursosDashboardSesionProximaItem[];

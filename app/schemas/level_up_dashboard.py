@@ -48,8 +48,17 @@ class CursosDashboardCursoCompletadoItem(BaseModel):
     fecha_finalizacion: str | None = None
 
 
+class CursosDashboardAreaItem(BaseModel):
+    """Opcion del selector de area de la pantalla de seguimiento. Se calcula
+    sin el filtro aplicado, para que elegir un area no vacie la lista."""
+
+    id: int
+    nombre: str
+
+
 class CursosDashboardResumenResponse(BaseModel):
     kpis: CursosDashboardKpis
+    areas: list[CursosDashboardAreaItem] = Field(default_factory=list)
     empleados_cursos_pendientes: list[CursosDashboardEmpleadoResumenItem] = Field(default_factory=list)
     empleados_sesiones_pendientes: list[CursosDashboardEmpleadoResumenItem] = Field(default_factory=list)
     sesiones_proximas: list[CursosDashboardSesionProximaItem] = Field(default_factory=list)

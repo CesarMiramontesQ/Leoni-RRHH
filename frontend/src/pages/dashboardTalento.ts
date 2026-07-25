@@ -356,16 +356,20 @@ export interface AccesosCruzados {
   operaciones: boolean;
   pdi: boolean;
   ciclo: boolean;
+  cursos: boolean;
 }
 
-const SIN_ACCESOS: AccesosCruzados = { operaciones: false, pdi: false, ciclo: false };
+const SIN_ACCESOS: AccesosCruzados = {
+  operaciones: false,
+  pdi: false,
+  ciclo: false,
+  cursos: false,
+};
 
 /**
  * Enlaces del detalle a otros módulos con el área preseleccionada.
  *
- * Operaciones, PDI y Ciclo de Desempeño: los que saben filtrar por área. Cursos
- * queda fuera porque no tiene ese filtro, y mandar ahí sin filtrar prometería
- * un recorte que la página destino no aplicaría. Se omite el enlace del módulo
+ * Los cuatro módulos que saben filtrar por área. Se omite el enlace del módulo
  * al que el usuario no puede entrar.
  */
 export function enlacesCruzadosHtml(areaId: number, accesos: AccesosCruzados): string {
@@ -373,6 +377,7 @@ export function enlacesCruzadosHtml(areaId: number, accesos: AccesosCruzados): s
     accesos.operaciones ? { href: `#/operaciones?area_id=${areaId}`, texto: "Cobertura en Operaciones" } : null,
     accesos.pdi ? { href: `#/pdi-gestion?area_id=${areaId}`, texto: "Planes de desarrollo" } : null,
     accesos.ciclo ? { href: `#/talento/ciclo-desempeno?area_id=${areaId}`, texto: "Ciclo de desempeño" } : null,
+    accesos.cursos ? { href: `#/cursos/seguimiento?area_id=${areaId}`, texto: "Seguimiento de cursos" } : null,
   ].filter((e): e is { href: string; texto: string } => e !== null);
   if (!enlaces.length) return "";
   return `<div class="flex flex-wrap items-center gap-2">
@@ -466,6 +471,7 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
       operaciones: puedeIr("operaciones"),
       pdi: puedeIr("pdi-gestion"),
       ciclo: puedeIr("ciclo-desempeno"),
+      cursos: puedeIr("cursos-seguimiento"),
     },
     polivalencia: { estado: "cargando" },
     desempeno: { estado: "cargando" },

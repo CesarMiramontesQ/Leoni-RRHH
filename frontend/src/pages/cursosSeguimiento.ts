@@ -17,7 +17,9 @@ import type {
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLevelUpBackBar } from "../navigation/levelUpBackLink.ts";
 import { formatNoEmpleadoDisplay } from "../utils/noEmpleadoDisplay.ts";
-import { pageHeading, RH_LISTADO_PAGE_OUTER } from "../ui/uiTokens.ts";
+import { FORM_SELECT, pageHeading, RH_LISTADO_PAGE_OUTER, SELECT_CHEVRON } from "../ui/uiTokens.ts";
+import { escapeHtml } from "../ui/uiUtils.ts";
+import { hashParamNumero } from "../utils/hashQuery.ts";
 
 const EMPLEADO_SEARCH_PAGE_SIZE = 10;
 
@@ -30,6 +32,8 @@ interface State {
   empleadoSearchTotal: number;
   empleadoSearching: boolean;
   selectedEmpleadoId: number | null;
+  /** Filtro por área (`null` = todas). Recorta KPIs y vista rápida. */
+  areaFiltroId: number | null;
   historial: CursosDashboardEmpleadoHistorial | null;
   historialLoading: boolean;
   historialFiltroEstado: string;
@@ -45,6 +49,10 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
     empleadoSearchTotal: 0,
     empleadoSearching: false,
     selectedEmpleadoId: null,
+    // Deep-link `#/cursos/seguimiento?area_id=N` (enlace cruzado del Dashboard
+    // de Talento). El backend devuelve la lista completa de áreas aunque venga
+    // filtrado, así que el selector siempre puede volver a "todas".
+    areaFiltroId: hashParamNumero("area_id"),
     historial: null,
     historialLoading: false,
     historialFiltroEstado: "",
@@ -56,7 +64,10 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
   async function loadResumen(): Promise<void> {
     state.loadingResumen = true;
     try {
-      state.resumen = await getCursosDashboardResumen({ soloActivos: true });
+      state.resumen = await getCursosDashboardResumen({
+        soloActivos: true,
+        areaId: state.areaFiltroId ?? undefined,
+      });
     } catch {
       state.resumen = null;
     }
@@ -132,6 +143,24 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
     container.querySelector<HTMLInputElement>("#seg-empleado-search")?.focus();
   }
 
+  /**
+   * Selector de área. Recorta los KPIs y la vista rápida; la consulta por
+   * empleado de abajo es independiente (se busca por nombre, no por área).
+   */
+  function renderAreaSelector(): string {
+    const areas = state.resumen?.areas ?? [];
+    if (areas.length < 2 && state.areaFiltroId === null) return "";
+    return `<div class="relative min-w-[13rem]">
+      <select data-action="area-filtro" aria-label="Área" class="${FORM_SELECT}">
+        <option value=""${state.areaFiltroId === null ? " selected" : ""}>Todas las áreas</option>
+        ${areas
+          .map((a) => `<option value="${a.id}"${state.areaFiltroId === a.id ? " selected" : ""}>${escapeHtml(a.nombre)}</option>`)
+          .join("")}
+      </select>
+      ${SELECT_CHEVRON}
+    </div>`;
+  }
+
   function renderContent(): string {
     const resumen = state.resumen;
     return `<div class="${RH_LISTADO_PAGE_OUTER} ss-page cs-page">
@@ -139,6 +168,7 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
       ${pageHeading(
         "Seguimiento de capacitaciones",
         "Consulta indicadores, pendientes y el historial de cursos y sesiones por empleado.",
+        renderAreaSelector(),
       )}
       ${renderCursosSeguimientoKpis(resumen?.kpis ?? null, state.loadingResumen)}
       <div class="cs-content-stack flex flex-col gap-4 sm:gap-5">
@@ -247,6 +277,12 @@ export function mountCursosSeguimiento(container: HTMLElement): void {
   render();
   container.addEventListener("click", (e) => void handleClick(e));
   container.addEventListener("input", handleInput);
+  container.addEventListener("change", (e) => {
+    const t = e.target as HTMLElement;
+    if (!(t instanceof HTMLSelectElement) || t.dataset.action !== "area-filtro") return;
+    state.areaFiltroId = t.value ? Number(t.value) : null;
+    void loadResumen();
+  });
 
   void loadResumen();
 }

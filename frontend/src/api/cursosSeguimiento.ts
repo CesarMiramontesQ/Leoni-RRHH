@@ -19,11 +19,12 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 }
 
 export async function getCursosDashboardResumen(
-  opts?: { soloActivos?: boolean },
+  opts?: { soloActivos?: boolean; areaId?: number },
 ): Promise<CursosDashboardResumen> {
   const res = await fetchWithAuth(
     `${BASE}/resumen${buildQuery({
       solo_activos: (opts?.soloActivos ?? true) ? "true" : "false",
+      ...(opts?.areaId ? { area_id: String(opts.areaId) } : {}),
     })}`,
   );
   if (!res.ok) throw new Error("No se pudo cargar el resumen de seguimiento");

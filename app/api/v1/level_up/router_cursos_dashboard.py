@@ -27,11 +27,15 @@ async def dashboard_resumen(
         True,
         description="Si es true, excluye cursos completados y sesiones ya cerradas con asistencia.",
     ),
+    area_id: int | None = Query(
+        None,
+        description="Recorta el resumen a un area: los pares por empleado y las sesiones por tener inscritos de esa area.",
+    ),
     current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
     service = LevelUpCursosDashboardService(db)
-    return await service.obtener_resumen(solo_activos=solo_activos)
+    return await service.obtener_resumen(solo_activos=solo_activos, area_id=area_id)
 
 
 @router.get("/registros", response_model=CursosDashboardRegistrosResponse)
