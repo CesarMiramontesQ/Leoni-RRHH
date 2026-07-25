@@ -14,7 +14,6 @@ from app.services.talento_service import (
     BloqueObjetivo,
     BloquePdi,
     BloquePolivalencia,
-    DetalleArea,
     EmpleadoFoco,
     TalentoService,
 )
@@ -47,25 +46,29 @@ async def test_export_tiene_dos_hojas_y_datos(db):
     )
     svc = TalentoService(db)
     b = _bloques_stub()
-    detalle = DetalleArea(
-        area_id=1, area_nombre="Arneses A", desempeno=None, polivalencia=None,
-        capacitacion=None, pdi=None,
-        empleados_foco=[EmpleadoFoco(5, 500, "Ana", "Crimpado", ["desempeno_bajo", "pdi_vencido"])],
-    )
-    with patch.object(TalentoService, "bloque_polivalencia", AsyncMock(return_value=b["pol"])), \
+    foco = [EmpleadoFoco(5, 500, "Ana", "Crimpado", ["desempeno_bajo", "pdi_vencido"])]
+    bloque_pol_mock = AsyncMock(return_value=b["pol"])
+    foco_mock = AsyncMock(return_value=foco)
+    with patch.object(TalentoService, "bloque_polivalencia", bloque_pol_mock), \
          patch.object(TalentoService, "bloque_capacitacion", AsyncMock(return_value=b["cap"])), \
          patch.object(TalentoService, "bloque_pdi", AsyncMock(return_value=b["pdi"])), \
          patch.object(TalentoService, "bloque_desempeno", AsyncMock(return_value=b["des"])), \
          patch.object(TalentoService, "bloque_objetivo", AsyncMock(return_value=BloqueObjetivo(disponible=True, areas=[]))), \
-         patch.object(TalentoService, "detalle_area", AsyncMock(return_value=detalle)):
+         patch.object(TalentoService, "_empleados_foco_area", foco_mock):
         output = await svc.exportar_excel(rh, None, None)
 
     wb = load_workbook(output)
     assert wb.sheetnames == ["Resumen por area", "Empleados en foco"]
     resumen = wb["Resumen por area"]
     assert resumen.cell(row=2, column=1).value == "Arneses A"
-    foco = wb["Empleados en foco"]
-    assert foco.cell(row=2, column=3).value == "Ana"
+    hoja_foco = wb["Empleados en foco"]
+    assert hoja_foco.cell(row=2, column=3).value == "Ana"
+    # El fix del loop: 1 sola area -> 1 sola llamada al helper de foco (y a
+    # bloque_polivalencia, que solo se pide UNA vez, no una por area). Antes
+    # el loop llamaba a detalle_area por area, que recomputaba los tres
+    # bloques org-wide en cada vuelta.
+    assert foco_mock.call_count == 1
+    assert bloque_pol_mock.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -81,9 +84,7 @@ async def test_export_sobrevive_a_datos_analisis_caido(db):
          patch.object(TalentoService, "bloque_pdi", AsyncMock(return_value=b["pdi"])), \
          patch.object(TalentoService, "bloque_desempeno", AsyncMock(return_value=b["des"])), \
          patch.object(TalentoService, "bloque_objetivo", AsyncMock(side_effect=RuntimeError("caido"))), \
-         patch.object(TalentoService, "detalle_area", AsyncMock(return_value=DetalleArea(
-             area_id=1, area_nombre="Arneses A", desempeno=None, polivalencia=None,
-             capacitacion=None, pdi=None, empleados_foco=[]))):
+         patch.object(TalentoService, "_empleados_foco_area", AsyncMock(return_value=[])):
         output = await svc.exportar_excel(rh, None, None)
 
     wb = load_workbook(output)

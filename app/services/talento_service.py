@@ -426,36 +426,23 @@ class TalentoService:
             for eid in empleado_ids
         }
 
-    async def detalle_area(
-        self,
-        current_user: Empleado,
-        rh_ui_mode: str | None,
-        area_id: int,
-        ciclo_id: int | None,
-    ) -> DetalleArea:
-        """Agregados del area + empleados en foco.
-
-        `polivalencia_empleados_area` es quien decide visibilidad: propaga
-        `NotFoundError` (area inexistente) o `ForbiddenError` (fuera de scope),
-        mismo criterio que `cobertura_area` en Operaciones."""
-        scope = await self.scope(current_user, rh_ui_mode)
+    async def _empleados_foco_area(
+        self, scope: list[int] | None, area_id: int, ciclo
+    ) -> list[EmpleadoFoco]:
+        """Solo las senales de riesgo + empleados en foco de UN area (sin los
+        tres bloques org-wide de polivalencia/capacitacion/pdi que compone
+        `detalle_area`). Extraido para que el export pueda llamarlo por area
+        sin recomputar esos bloques completos en cada iteracion del loop --
+        antes, `exportar_excel` llamaba a `detalle_area` entero por area y
+        solo usaba `empleados_foco`, lo que disparaba miles de queries de mas
+        con varias decenas de areas."""
         polivalencia = await self.oper_svc.polivalencia_empleados_area(area_id, scope)
         empleado_ids = [p.empleado_id for p in polivalencia]
-        nombres = await self.nombres_de_areas([area_id])
 
-        ciclo = await self.ciclo_vigente(ciclo_id)
         banda_por_emp: dict[int, str | None] = {}
-        area_desempeno: AreaDesempeno | None = None
         if ciclo is not None:
             resultados = await self.ciclo_svc.resultados_ciclo(ciclo.id, set(empleado_ids))
             banda_por_emp = {r.empleado_id: r.banda_desempeno_efectiva for r in resultados}
-            if resultados:
-                area_desempeno = self._area_desempeno(
-                    area_id, nombres.get(area_id), resultados
-                )
-                area_desempeno.semaforo = self._semaforo_desempeno(
-                    area_desempeno.calificacion_promedio, ciclo
-                )
 
         pdi_vencido = await self._pdi_vencido_por_empleado(empleado_ids)
         obligatorio = await self._obligatorio_pendiente_por_empleado(empleado_ids)
@@ -479,7 +466,7 @@ class TalentoService:
             )
             for p in polivalencia
         ]
-        foco = [
+        return [
             EmpleadoFoco(
                 empleado_id=s.empleado_id,
                 no_empleado=s.no_empleado,
@@ -489,6 +476,37 @@ class TalentoService:
             )
             for s in calculo.empleados_en_foco(senales)
         ]
+
+    async def detalle_area(
+        self,
+        current_user: Empleado,
+        rh_ui_mode: str | None,
+        area_id: int,
+        ciclo_id: int | None,
+    ) -> DetalleArea:
+        """Agregados del area + empleados en foco.
+
+        `polivalencia_empleados_area` es quien decide visibilidad: propaga
+        `NotFoundError` (area inexistente) o `ForbiddenError` (fuera de scope),
+        mismo criterio que `cobertura_area` en Operaciones."""
+        scope = await self.scope(current_user, rh_ui_mode)
+        polivalencia = await self.oper_svc.polivalencia_empleados_area(area_id, scope)
+        empleado_ids = [p.empleado_id for p in polivalencia]
+        nombres = await self.nombres_de_areas([area_id])
+
+        ciclo = await self.ciclo_vigente(ciclo_id)
+        area_desempeno: AreaDesempeno | None = None
+        if ciclo is not None:
+            resultados = await self.ciclo_svc.resultados_ciclo(ciclo.id, set(empleado_ids))
+            if resultados:
+                area_desempeno = self._area_desempeno(
+                    area_id, nombres.get(area_id), resultados
+                )
+                area_desempeno.semaforo = self._semaforo_desempeno(
+                    area_desempeno.calificacion_promedio, ciclo
+                )
+
+        foco = await self._empleados_foco_area(scope, area_id, ciclo)
 
         bloque_pol = await self.bloque_polivalencia(current_user, rh_ui_mode)
         bloque_cap = await self.bloque_capacitacion(current_user, rh_ui_mode)
@@ -514,10 +532,12 @@ class TalentoService:
         por culpa de la BD externa."""
         from openpyxl import Workbook
 
+        scope = await self.scope(current_user, rh_ui_mode)
         pol = await self.bloque_polivalencia(current_user, rh_ui_mode)
         cap = await self.bloque_capacitacion(current_user, rh_ui_mode)
         pdi = await self.bloque_pdi(current_user, rh_ui_mode)
         des = await self.bloque_desempeno(current_user, rh_ui_mode, ciclo_id)
+        ciclo = await self.ciclo_vigente(ciclo_id)
         try:
             obj = await self.bloque_objetivo(current_user, rh_ui_mode, None, None, None)
             obj_por_area = {a.area_id: a.indice_promedio for a in obj.areas}
@@ -556,8 +576,8 @@ class TalentoService:
         hoja_foco = wb.create_sheet("Empleados en foco")
         hoja_foco.append(["Area", "No. empleado", "Nombre", "Puesto", "Senales"])
         for a in pol.areas:
-            detalle = await self.detalle_area(current_user, rh_ui_mode, a.area_id, ciclo_id)
-            for e in detalle.empleados_foco:
+            foco = await self._empleados_foco_area(scope, a.area_id, ciclo)
+            for e in foco:
                 hoja_foco.append([
                     a.area_nombre, e.no_empleado, e.nombre, e.puesto_nombre,
                     ", ".join(e.senales),
