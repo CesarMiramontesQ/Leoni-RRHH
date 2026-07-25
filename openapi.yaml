@@ -15814,4 +15814,19 @@ paths:
           description: Area fuera del alcance del jefe, o requiere el modulo 'dashboard-talento'
         "404":
           description: Area inexistente
+  /api/v1/talento/export:
+    get:
+      tags: [talento]
+      summary: Exportar el dashboard de talento a Excel (hojas Resumen por area y Empleados en foco)
+      operationId: talento_export
+      security: [ { BearerAuth: [] } ]
+      parameters:
+        - { name: ciclo_id, in: query, required: false, schema: { type: integer } }
+      responses:
+        "200":
+          description: Archivo .xlsx
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {}
+        "403":
+          description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
 

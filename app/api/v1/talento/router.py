@@ -13,6 +13,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -119,3 +120,18 @@ async def detalle_area(
     db: AsyncSession = Depends(get_db),
 ):
     return await TalentoService(db).detalle_area(current_user, rh_ui_mode, area_id, ciclo_id)
+
+
+@router.get("/export")
+async def export_dashboard(
+    ciclo_id: Optional[int] = None,
+    current_user: Empleado = Depends(_gestion_or_equipo()),
+    rh_ui_mode: Optional[str] = Depends(get_rh_ui_mode),
+    db: AsyncSession = Depends(get_db),
+):
+    output = await TalentoService(db).exportar_excel(current_user, rh_ui_mode, ciclo_id)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=dashboard_talento.xlsx"},
+    )

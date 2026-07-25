@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
+from io import BytesIO
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -501,3 +502,68 @@ class TalentoService:
             pdi=next((a for a in bloque_pdi.areas if a.area_id == area_id), None),
             empleados_foco=foco,
         )
+
+    # ── Export xlsx ──────────────────────────────────────────────────────
+    async def exportar_excel(
+        self, current_user: Empleado, rh_ui_mode: str | None, ciclo_id: int | None
+    ) -> BytesIO:
+        """xlsx con 2 hojas: Resumen por area y Empleados en foco.
+
+        El bloque de historial objetivo se intenta, pero si DATOS_ANALISIS no
+        responde su columna queda como "no disponible": el export nunca falla
+        por culpa de la BD externa."""
+        from openpyxl import Workbook
+
+        pol = await self.bloque_polivalencia(current_user, rh_ui_mode)
+        cap = await self.bloque_capacitacion(current_user, rh_ui_mode)
+        pdi = await self.bloque_pdi(current_user, rh_ui_mode)
+        des = await self.bloque_desempeno(current_user, rh_ui_mode, ciclo_id)
+        try:
+            obj = await self.bloque_objetivo(current_user, rh_ui_mode, None, None, None)
+            obj_por_area = {a.area_id: a.indice_promedio for a in obj.areas}
+            obj_disponible = True
+        except Exception:  # noqa: BLE001 - la BD externa no debe tumbar el export
+            obj_por_area = {}
+            obj_disponible = False
+
+        des_por_area = {a.area_id: a for a in des.areas}
+        cap_por_area = {a.area_id: a for a in cap.areas}
+        pdi_por_area = {a.area_id: a for a in pdi.areas}
+
+        wb = Workbook()
+        hoja = wb.active
+        hoja.title = "Resumen por area"
+        hoja.append(
+            ["Area", "Personal", "Desempeno", "Polivalencia", "Resiliencia",
+             "Indice objetivo", "Capacitacion", "PDI", "Competencias criticas"]
+        )
+        for a in pol.areas:
+            d = des_por_area.get(a.area_id)
+            c = cap_por_area.get(a.area_id)
+            p = pdi_por_area.get(a.area_id)
+            hoja.append([
+                a.area_nombre,
+                a.n_empleados,
+                d.calificacion_promedio if d else None,
+                a.pol_pct,
+                a.resiliencia_pct,
+                obj_por_area.get(a.area_id) if obj_disponible else "no disponible",
+                c.cumplimiento_pct if c else None,
+                p.cumplimiento_pct if p else None,
+                a.n_criticas,
+            ])
+
+        hoja_foco = wb.create_sheet("Empleados en foco")
+        hoja_foco.append(["Area", "No. empleado", "Nombre", "Puesto", "Senales"])
+        for a in pol.areas:
+            detalle = await self.detalle_area(current_user, rh_ui_mode, a.area_id, ciclo_id)
+            for e in detalle.empleados_foco:
+                hoja_foco.append([
+                    a.area_nombre, e.no_empleado, e.nombre, e.puesto_nombre,
+                    ", ".join(e.senales),
+                ])
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output
