@@ -570,14 +570,22 @@ class TalentoService:
 
     async def _obligatorio_pendiente_por_empleado(
         self, empleado_ids: list[int]
-    ) -> dict[int, bool]:
+    ) -> dict[int, bool | None]:
+        """`None` = el empleado no aparecio en ningun par (empleado, curso):
+        no es evaluable en capacitacion (no confundir con `False`, que
+        significa 'se evaluo y no tiene obligatorios pendientes')."""
         if not empleado_ids:
             return {}
         resumen = await self.cursos_svc.resumen_por_area(empleado_ids)
+        aparecieron: set[int] = set()
         pendientes: set[int] = set()
         for agg in resumen.values():
+            aparecieron |= agg.empleados
             pendientes |= agg.empleados_obligatorio_pendiente
-        return {eid: eid in pendientes for eid in empleado_ids}
+        return {
+            eid: (eid in pendientes) if eid in aparecieron else None
+            for eid in empleado_ids
+        }
 
     async def detalle_area(
         self,

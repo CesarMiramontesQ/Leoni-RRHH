@@ -47,6 +47,10 @@ class CursosAreaAgg:
     total_pares: int = 0
     completados: int = 0
     empleados_obligatorio_pendiente: set[int] = field(default_factory=set)
+    empleados: set[int] = field(default_factory=set)
+    """Todos los empleados con al menos un par (empleado, curso) evaluable en
+    esta area, independiente del estado. Es la fuente para saber quien SI fue
+    evaluado en capacitacion (para distinguir 'no aplica' de 'esta bien')."""
 
 
 class LevelUpCursosDashboardService:
@@ -628,6 +632,7 @@ class LevelUpCursosDashboardService:
             area_id = emp.area_id if emp is not None else None
             agg = out.setdefault(area_id, CursosAreaAgg())
             agg.total_pares += 1
+            agg.empleados.add(par.empleado_id)
             if estado == "completado":
                 agg.completados += 1
             else:
