@@ -116,6 +116,8 @@ interface State {
   wizardEmpleadoOptions: WizardEmpleadoOption[];
   wizardEmpleadoLoading: boolean;
   wizardEmpleadoQuery: string;
+  wizardCompetenciaQuery: string;
+  competenciasLoading: boolean;
   wizardError: string | null;
   wizardData: WizardData;
   competenciasOptions: { id: number; nombre: string }[];
@@ -227,6 +229,8 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     wizardEmpleadoOptions: [],
     wizardEmpleadoLoading: false,
     wizardEmpleadoQuery: "",
+    wizardCompetenciaQuery: "",
+    competenciasLoading: false,
     wizardError: null,
     wizardData: { tipo: "", fecha_inicio: "", fecha_fin: "", accion: "", prioridad: "media", recursos: "", competencia_id: "", responsable: "" },
     competenciasOptions: [],
@@ -246,6 +250,8 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
   let wizardEmpSearchTimeout: ReturnType<typeof setTimeout> | null = null;
   let restoreWizardEmpSearchFocus = false;
   let wizardEmpSearchCaret = 0;
+  let restoreWizardCompSearchFocus = false;
+  let wizardCompSearchCaret = 0;
 
   function clearWizardDeepLink(): void {
     const next = hashSinParams([
@@ -263,13 +269,32 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
 
   async function ensureCompetenciasOptions(): Promise<void> {
     if (state.competenciasOptions.length > 0) return;
-    const res = await fetchWithAuth("/api/v1/competencias?limit=200");
-    if (!res.ok) return;
-    const data = await res.json();
-    state.competenciasOptions = (data.items ?? data ?? []).map((c: { id: number; nombre: string }) => ({
-      id: c.id,
-      nombre: c.nombre,
-    }));
+    state.competenciasLoading = true;
+    if (state.wizardOpen) restoreWizardCompSearchFocus = true;
+    render();
+    try {
+      const res = await fetchWithAuth("/api/v1/competencias?limit=200");
+      if (!res.ok) return;
+      const data = await res.json();
+      state.competenciasOptions = (data.items ?? data ?? [])
+        .map((c: { id: number; nombre: string }) => ({
+          id: c.id,
+          nombre: c.nombre,
+        }))
+        .sort((a: { nombre: string }, b: { nombre: string }) =>
+          a.nombre.localeCompare(b.nombre, "es"),
+        );
+    } finally {
+      state.competenciasLoading = false;
+    }
+  }
+
+  function filterWizardCompetencias(q: string): { id: number; nombre: string }[] {
+    const t = q.trim().toLowerCase();
+    if (t.length < 2) return [];
+    return state.competenciasOptions
+      .filter((c) => c.nombre.toLowerCase().includes(t))
+      .slice(0, 12);
   }
 
   async function ensureWizardEmpleados(): Promise<void> {
@@ -328,6 +353,7 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     state.wizardEmpleadoId = opts?.empleadoId ?? null;
     state.wizardEmpleadoNombre = opts?.empleadoNombre?.trim() || null;
     state.wizardEmpleadoQuery = "";
+    state.wizardCompetenciaQuery = "";
     state.wizardError = null;
     state.wizardStep = 1;
     state.wizardData = {
@@ -1000,6 +1026,58 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     </div>`;
   }
 
+  function renderWizardCompetenciaField(): string {
+    const selectedId = state.wizardData.competencia_id;
+    if (selectedId) {
+      const found = state.competenciasOptions.find((c) => String(c.id) === selectedId);
+      const label = found?.nombre ?? `Competencia #${selectedId}`;
+      return `<div class="mb-3">
+        <span class="${FORM_LABEL}">Competencia vinculada *</span>
+        <div class="mt-1 flex items-center justify-between gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2.5">
+          <p class="min-w-0 truncate text-sm font-medium text-text-primary">${escapeHtml(label)}</p>
+          <button type="button" data-action="wizard-competencia-clear" class="${BTN_SECONDARY} shrink-0 px-2.5 py-1 text-xs">Cambiar</button>
+        </div>
+      </div>`;
+    }
+
+    const q = state.wizardCompetenciaQuery;
+    const qTrim = q.trim();
+    const minOk = qTrim.length >= 2;
+    const matches = filterWizardCompetencias(q);
+    let resultsHtml = "";
+    if (qTrim.length > 0 && !minOk) {
+      resultsHtml = `<p class="px-2.5 py-2 text-xs text-text-muted">Escribe al menos 2 caracteres…</p>`;
+    } else if (minOk && state.competenciasLoading) {
+      resultsHtml = `<p class="px-2.5 py-2 text-xs text-text-muted">Buscando…</p>`;
+    } else if (minOk && matches.length === 0) {
+      resultsHtml = `<p class="px-2.5 py-2 text-xs text-text-muted">Sin resultados</p>`;
+    } else if (matches.length > 0) {
+      resultsHtml = matches
+        .map(
+          (c) => `
+        <button type="button" data-action="wizard-competencia-pick" data-competencia-id="${c.id}"
+          class="flex w-full items-center rounded-md px-2.5 py-2 text-left transition-colors hover:bg-accent/10">
+          <span class="truncate text-sm font-medium text-text-primary">${escapeHtml(c.nombre)}</span>
+        </button>`,
+        )
+        .join("");
+    }
+
+    const showResults = qTrim.length > 0;
+
+    return `<div class="mb-3">
+      <label for="pdi-wizard-competencia-search" class="${FORM_LABEL}">Competencia vinculada *</label>
+      <input id="pdi-wizard-competencia-search" type="search" data-action="wizard-competencia-search"
+        value="${escapeHtml(q)}" autocomplete="off" placeholder="Buscar competencia por nombre…"
+        class="mt-1 ${FIELD_INPUT}" role="combobox" aria-autocomplete="list" aria-expanded="${showResults ? "true" : "false"}" />
+      ${
+        showResults
+          ? `<div class="mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-white p-1 shadow-md" role="listbox">${resultsHtml}</div>`
+          : `<p class="mt-1 text-xs text-text-muted">Escribe el nombre para buscar; no se lista el catálogo completo.</p>`
+      }
+    </div>`;
+  }
+
   function renderWizardModal(): string {
     if (!state.wizardOpen) return "";
     const { wizardStep: step, wizardData: d } = state;
@@ -1056,12 +1134,7 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
         <label class="mb-3 block"><span class="${FORM_LABEL}">Recursos asignados</span>
           <textarea data-wizard-field="recursos" rows="2" placeholder="Presupuesto, materiales, herramientas…" class="mt-1 ${FIELD_TEXTAREA}">${escapeHtml(d.recursos)}</textarea>
         </label>
-        <label class="mb-3 block"><span class="${FORM_LABEL}">Competencia vinculada *</span>
-          <div class="mt-1 grid"><select data-wizard-field="competencia_id" class="${FORM_SELECT}">
-            <option value="">Seleccionar…</option>
-            ${state.competenciasOptions.map((c) => `<option value="${c.id}" ${d.competencia_id === String(c.id) ? "selected" : ""}>${escapeHtml(c.nombre)}</option>`).join("")}
-          </select>${SELECT_CHEVRON}</div>
-        </label>
+        ${renderWizardCompetenciaField()}
         <label class="block"><span class="${FORM_LABEL}">Responsable *</span>
           <input type="text" data-wizard-field="responsable" value="${escapeHtml(d.responsable)}" placeholder="Nombre o área responsable" class="mt-1 ${FIELD_INPUT}"/>
         </label>`;
@@ -1286,6 +1359,15 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
         el.setSelectionRange(caret, caret);
       }
     }
+    if (restoreWizardCompSearchFocus) {
+      restoreWizardCompSearchFocus = false;
+      const el = root.querySelector<HTMLInputElement>("[data-action='wizard-competencia-search']");
+      if (el) {
+        el.focus();
+        const caret = Math.min(wizardCompSearchCaret, el.value.length);
+        el.setSelectionRange(caret, caret);
+      }
+    }
   }
 
   root.addEventListener(
@@ -1408,6 +1490,24 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
       state.wizardEmpleadoId = null;
       state.wizardEmpleadoNombre = null;
       state.wizardEmpleadoQuery = "";
+      state.wizardError = null;
+      render();
+      return;
+    }
+
+    if (action === "wizard-competencia-pick") {
+      const compId = Number(target.dataset.competenciaId);
+      if (!Number.isFinite(compId)) return;
+      state.wizardData.competencia_id = String(compId);
+      state.wizardCompetenciaQuery = "";
+      state.wizardError = null;
+      render();
+      return;
+    }
+
+    if (action === "wizard-competencia-clear") {
+      state.wizardData.competencia_id = "";
+      state.wizardCompetenciaQuery = "";
       state.wizardError = null;
       render();
       return;
@@ -1599,6 +1699,22 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
             render();
           });
         }, 200);
+      }
+      render();
+      return;
+    }
+    if (target.dataset.action === "wizard-competencia-search" && state.wizardOpen) {
+      const input = target as HTMLInputElement;
+      const value = input.value;
+      wizardCompSearchCaret = input.selectionStart ?? value.length;
+      restoreWizardCompSearchFocus = true;
+      state.wizardCompetenciaQuery = value;
+      if (value.trim().length >= 2 && state.competenciasOptions.length === 0) {
+        void ensureCompetenciasOptions().then(() => {
+          if (!state.wizardOpen) return;
+          restoreWizardCompSearchFocus = true;
+          render();
+        });
       }
       render();
       return;
