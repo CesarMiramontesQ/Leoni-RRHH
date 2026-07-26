@@ -353,10 +353,13 @@ RH_MODULES: dict[str, RhModuleDef] = {
     ),
     "level-up": RhModuleDef(
         key="level-up",
-        label="Resumen operativo",
+        # Antes se llamaba "Resumen operativo" por una pantalla de KPIs que
+        # resulto ser una maqueta con numeros inventados. El modulo es el hub
+        # (#/level-up), que es lo que de verdad hay detras de la clave.
+        label="Menu Level Up",
         group="Level Up",
         nav_item_ids=("level-up",),
-        hash_prefixes=("#/level-up/resumen", "#/level-up"),
+        hash_prefixes=("#/level-up",),
         api_prefixes=("/api/v1/level-up",),
     ),
     "evaluacion-360": RhModuleDef(

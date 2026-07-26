@@ -46,7 +46,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "actas", hash: "#/actas" },
   { itemId: "comedor", hash: "#/comedor" },
   { itemId: "reportes", hash: "#/comedor/reporte" },
-  { itemId: "level-up", hash: "#/level-up/resumen" },
+  { itemId: "level-up", hash: "#/level-up" },
   { itemId: "puestos", hash: "#/puestos" },
   { itemId: "competencias", hash: "#/competencias" },
   { itemId: "tareas-catalogo", hash: "#/tareas-catalogo" },

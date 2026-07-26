@@ -27,7 +27,6 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "evaluaciones", prefix: "#/evaluaciones" },
   { key: "pdi-gestion", prefix: "#/pdi-gestion" },
   { key: "evaluacion-360", prefix: "#/level-up/evaluacion-360" },
-  { key: "level-up", prefix: "#/level-up/resumen" },
   { key: "level-up", prefix: "#/level-up" },
   { key: "cursos-seguimiento", prefix: "#/cursos/seguimiento" },
   { key: "cursos-ajustes", prefix: "#/cursos/ajustes" },
