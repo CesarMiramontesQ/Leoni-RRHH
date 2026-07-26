@@ -9,12 +9,26 @@ from sqlalchemy.orm import selectinload
 
 from app.models.catalogos import Area
 from app.models.empleados import Empleado
-from app.models.talento import PlanDesarrolloIndividual
+from app.models.talento import PlanDesarrolloIndividual, PerfilFunciones
 
 
 class PDIRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    @staticmethod
+    def _apply_puesto_perfil_filter(stmt, puesto_perfil_id: int | None):
+        """Restringe a empleados con asignación activa al perfil de puesto."""
+        if puesto_perfil_id is None:
+            return stmt
+        return stmt.join(
+            PerfilFunciones,
+            and_(
+                PerfilFunciones.empleado_id == Empleado.empleado_id,
+                PerfilFunciones.activo.is_(True),
+                PerfilFunciones.puesto_perfil_id == puesto_perfil_id,
+            ),
+        )
 
     async def get(self, pdi_id: int) -> Optional[PlanDesarrolloIndividual]:
         stmt = (
@@ -79,6 +93,7 @@ class PDIRepository:
         limit: int,
         area_id: int | None = None,
         area_ids: list[int] | None = None,
+        puesto_perfil_id: int | None = None,
         estado: str | None = None,
         fecha_inicio_desde: date | None = None,
         fecha_fin_hasta: date | None = None,
@@ -98,6 +113,9 @@ class PDIRepository:
             .select_from(PlanDesarrolloIndividual)
             .join(PlanDesarrolloIndividual.empleado)
         )
+
+        base = self._apply_puesto_perfil_filter(base, puesto_perfil_id)
+        count_base = self._apply_puesto_perfil_filter(count_base, puesto_perfil_id)
 
         if area_ids is not None:
             base = base.where(Empleado.area_id.in_(area_ids))
@@ -191,6 +209,7 @@ class PDIRepository:
         self,
         area_ids: list[int] | None = None,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
     ) -> list:
         today = date.today()
 
@@ -214,6 +233,7 @@ class PDIRepository:
             .outerjoin(Area, Empleado.area_id == Area.area_id)
             .group_by(PlanDesarrolloIndividual.empleado_id, Empleado.nombre, Area.descripcion)
         )
+        stmt = self._apply_puesto_perfil_filter(stmt, puesto_perfil_id)
 
         if area_ids is not None:
             stmt = stmt.where(Empleado.area_id.in_(area_ids))
@@ -229,6 +249,7 @@ class PDIRepository:
         self,
         area_ids: list[int] | None = None,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
         empleado_ids: list[int] | None = None,
     ) -> list:
         today = date.today()
@@ -251,6 +272,7 @@ class PDIRepository:
             .join(PlanDesarrolloIndividual.empleado)
             .group_by(PlanDesarrolloIndividual.empleado_id)
         )
+        stmt = self._apply_puesto_perfil_filter(stmt, puesto_perfil_id)
         if area_ids is not None:
             stmt = stmt.where(Empleado.area_id.in_(area_ids))
         if area_id is not None:
@@ -266,6 +288,7 @@ class PDIRepository:
         self,
         area_ids: list[int] | None = None,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
         dias_futuro: int = 30,
         dias_pasado: int = 7,
     ) -> list[PlanDesarrolloIndividual]:
@@ -285,6 +308,7 @@ class PDIRepository:
                 PlanDesarrolloIndividual.estado.notin_(["cancelado"]),
             )
         )
+        stmt = self._apply_puesto_perfil_filter(stmt, puesto_perfil_id)
         if area_ids is not None:
             stmt = stmt.where(Empleado.area_id.in_(area_ids))
         if area_id is not None:

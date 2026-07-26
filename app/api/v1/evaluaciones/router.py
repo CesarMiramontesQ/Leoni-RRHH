@@ -47,6 +47,7 @@ from app.schemas.pdi import (
     PDIGestionItem, PDIResumenResponse, PDIEstadoPatch, PDIProgresoEquipoResponse,
     EquipoResumenResponse, HeatmapResponse, TimelineResponse,
     PDIKpisAvanzadosResponse, PDIRecomendacionesResponse, PDINotificarEquipoResponse,
+    PDIFilterOptionsResponse,
 )
 from app.services.evaluacion_service import EvaluacionService
 from app.services.pdi_service import PDIService
@@ -62,6 +63,7 @@ async def listar_pdi_consolidado(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
     area_id: int | None = Query(None),
+    puesto_perfil_id: int | None = Query(None),
     estado: str | None = Query(None),
     fecha_inicio: date | None = Query(None),
     fecha_fin: date | None = Query(None),
@@ -76,12 +78,23 @@ async def listar_pdi_consolidado(
         page=page,
         page_size=page_size,
         area_id=area_id,
+        puesto_perfil_id=puesto_perfil_id,
         estado=estado,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
         search=search,
         solo_vencidas=solo_vencidas,
     )
+
+
+@router.get("/pdi/filter-options", response_model=PDIFilterOptionsResponse)
+async def pdi_filter_options(
+    area_id: int | None = Query(None),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = PDIService(db)
+    return await service.filter_options(current_user=current_user, area_id=area_id)
 
 
 @router.get("/pdi/resumen", response_model=PDIResumenResponse)
@@ -96,51 +109,76 @@ async def resumen_pdi(
 @router.get("/pdi/progreso-equipo", response_model=PDIProgresoEquipoResponse)
 async def progreso_equipo_pdi(
     area_id: int | None = Query(None),
+    puesto_perfil_id: int | None = Query(None),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PDIService(db)
-    return await service.progreso_equipo(current_user=current_user, area_id=area_id)
+    return await service.progreso_equipo(
+        current_user=current_user,
+        area_id=area_id,
+        puesto_perfil_id=puesto_perfil_id,
+    )
 
 
 @router.get("/pdi/equipo-resumen", response_model=EquipoResumenResponse)
 async def equipo_resumen_pdi(
     area_id: int | None = Query(None),
+    puesto_perfil_id: int | None = Query(None),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PDIService(db)
-    return await service.equipo_resumen(current_user=current_user, area_id=area_id)
+    return await service.equipo_resumen(
+        current_user=current_user,
+        area_id=area_id,
+        puesto_perfil_id=puesto_perfil_id,
+    )
 
 
 @router.get("/pdi/heatmap", response_model=HeatmapResponse)
 async def heatmap_pdi(
     area_id: int | None = Query(None),
+    puesto_perfil_id: int | None = Query(None),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PDIService(db)
-    return await service.heatmap(current_user=current_user, area_id=area_id)
+    return await service.heatmap(
+        current_user=current_user,
+        area_id=area_id,
+        puesto_perfil_id=puesto_perfil_id,
+    )
 
 
 @router.get("/pdi/timeline", response_model=TimelineResponse)
 async def timeline_pdi(
     area_id: int | None = Query(None),
+    puesto_perfil_id: int | None = Query(None),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PDIService(db)
-    return await service.timeline(current_user=current_user, area_id=area_id)
+    return await service.timeline(
+        current_user=current_user,
+        area_id=area_id,
+        puesto_perfil_id=puesto_perfil_id,
+    )
 
 
 @router.get("/pdi/kpis-avanzados", response_model=PDIKpisAvanzadosResponse)
 async def kpis_avanzados_pdi(
     area_id: int | None = Query(None),
+    puesto_perfil_id: int | None = Query(None),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PDIService(db)
-    return await service.kpis_avanzados(current_user=current_user, area_id=area_id)
+    return await service.kpis_avanzados(
+        current_user=current_user,
+        area_id=area_id,
+        puesto_perfil_id=puesto_perfil_id,
+    )
 
 
 @router.get("/pdi/empleado/{empleado_id}/recomendaciones", response_model=PDIRecomendacionesResponse)
@@ -157,18 +195,27 @@ async def recomendaciones_pdi(
 async def export_pdi(
     format: str = Query(..., description="pdf o excel"),
     area_id: int | None = Query(None),
+    puesto_perfil_id: int | None = Query(None),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     service = PDIService(db)
     if format == "excel":
-        output = await service.export_excel(current_user=current_user, area_id=area_id)
+        output = await service.export_excel(
+            current_user=current_user,
+            area_id=area_id,
+            puesto_perfil_id=puesto_perfil_id,
+        )
         return StreamingResponse(
             output,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": "attachment; filename=pdi_reporte.xlsx"},
         )
-    output = await service.export_pdf(current_user=current_user, area_id=area_id)
+    output = await service.export_pdf(
+        current_user=current_user,
+        area_id=area_id,
+        puesto_perfil_id=puesto_perfil_id,
+    )
     return StreamingResponse(
         output,
         media_type="application/pdf",

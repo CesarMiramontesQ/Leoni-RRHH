@@ -16,7 +16,13 @@ from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.notificaciones import Notificacion
-from app.models.talento import PlanDesarrolloIndividual, PerfilFunciones, CompetenciaRequisito, EvaluacionCompetencia
+from app.models.talento import (
+    PlanDesarrolloIndividual,
+    PerfilFunciones,
+    CompetenciaRequisito,
+    EvaluacionCompetencia,
+    PuestoPerfil,
+)
 from app.repositories.pdi_repository import PDIRepository
 from app.schemas.pdi import (
     PDICreate, PDIUpdate, PDIResponse, PDIListResponse, PDIGestionListResponse,
@@ -25,7 +31,7 @@ from app.schemas.pdi import (
     EquipoResumenResponse, HeatmapCompetencia, HeatmapEmpleado, HeatmapCell,
     HeatmapResponse, TimelineEvent, TimelineResponse,
     PDIKpisAvanzadosResponse, PDIRecomendacionItem, PDIRecomendacionesResponse,
-    PDINotificarEquipoResponse,
+    PDINotificarEquipoResponse, PDIFilterOptionsResponse, PDIFilterOption,
 )
 
 logger = logging.getLogger(__name__)
@@ -166,6 +172,7 @@ class PDIService:
         page: int = 1,
         page_size: int = 10,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
         estado: str | None = None,
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
@@ -179,14 +186,19 @@ class PDIService:
             limit=page_size,
             area_id=area_id,
             area_ids=area_ids,
+            puesto_perfil_id=puesto_perfil_id,
             estado=estado,
             fecha_inicio_desde=fecha_inicio,
             fecha_fin_hasta=fecha_fin,
             search=search,
             solo_vencidas=solo_vencidas,
         )
+        puesto_map = await self._puesto_nombres_por_empleado([i.empleado_id for i in items])
         return PDIGestionListResponse(
-            items=[self._to_gestion_item(i) for i in items],
+            items=[
+                self._to_gestion_item(i, puesto_nombre=puesto_map.get(i.empleado_id))
+                for i in items
+            ],
             total=total,
             page=page,
             page_size=page_size,
@@ -197,11 +209,60 @@ class PDIService:
         data = await self.repo.resumen(area_ids=area_ids)
         return PDIResumenResponse(**data)
 
-    def _to_gestion_item(self, item: PlanDesarrolloIndividual) -> PDIGestionItem:
+    async def filter_options(
+        self,
+        current_user: Empleado,
+        area_id: int | None = None,
+    ) -> PDIFilterOptionsResponse:
+        """Perfiles de puesto activos para el select de filtros PDI."""
+        area_ids = self._resolve_area_scope(current_user)
+        stmt = (
+            select(PuestoPerfil)
+            .where(PuestoPerfil.activo.is_(True))
+            .order_by(PuestoPerfil.nombre)
+        )
+        if area_id is not None:
+            stmt = stmt.where(PuestoPerfil.area_id == area_id)
+        if area_ids is not None:
+            stmt = stmt.where(
+                or_(PuestoPerfil.area_id.in_(area_ids), PuestoPerfil.area_id.is_(None))
+            )
+        result = await self.db.execute(stmt)
+        perfiles = list(result.scalars().all())
+        return PDIFilterOptionsResponse(
+            puestos_perfil=[
+                PDIFilterOption(id=str(p.id), label=p.nombre) for p in perfiles
+            ]
+        )
+
+    async def _puesto_nombres_por_empleado(
+        self, empleado_ids: list[int]
+    ) -> dict[int, str]:
+        if not empleado_ids:
+            return {}
+        stmt = (
+            select(PerfilFunciones.empleado_id, PuestoPerfil.nombre)
+            .join(PuestoPerfil, PerfilFunciones.puesto_perfil_id == PuestoPerfil.id)
+            .where(
+                PerfilFunciones.empleado_id.in_(empleado_ids),
+                PerfilFunciones.activo.is_(True),
+            )
+        )
+        result = await self.db.execute(stmt)
+        out: dict[int, str] = {}
+        for emp_id, nombre in result.all():
+            # Si hay varias asignaciones activas, conservar la primera.
+            out.setdefault(emp_id, nombre)
+        return out
+
+    def _to_gestion_item(
+        self,
+        item: PlanDesarrolloIndividual,
+        puesto_nombre: str | None = None,
+    ) -> PDIGestionItem:
         emp = item.empleado
         emp_nombre = emp.nombre if emp else "—"
         area_nombre = emp.area.descripcion if emp and emp.area else None
-        puesto_nombre = None
         comp_nombre = item.competencia.nombre if item.competencia else "—"
         today = date.today()
         vencida = item.fecha_fin < today and item.estado not in ("completado", "cancelado")
@@ -256,15 +317,23 @@ class PDIService:
         item.estado = nuevo_estado
         await self.db.flush()
         await self.db.refresh(item, attribute_names=["competencia"])
-        return self._to_gestion_item(item)
+        puesto_map = await self._puesto_nombres_por_empleado([item.empleado_id])
+        return self._to_gestion_item(
+            item, puesto_nombre=puesto_map.get(item.empleado_id)
+        )
 
     async def progreso_equipo(
         self,
         current_user: Empleado,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
     ) -> PDIProgresoEquipoResponse:
         area_ids = self._resolve_area_scope(current_user)
-        rows = await self.repo.progreso_por_empleado(area_ids=area_ids, area_id=area_id)
+        rows = await self.repo.progreso_por_empleado(
+            area_ids=area_ids,
+            area_id=area_id,
+            puesto_perfil_id=puesto_perfil_id,
+        )
         items = []
         for row in rows:
             total = row.total or 0
@@ -287,9 +356,14 @@ class PDIService:
         self,
         current_user: Empleado,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
     ) -> EquipoResumenResponse:
         area_ids = self._resolve_area_scope(current_user)
-        pdi_rows = await self.repo.equipo_pdi_aggregates(area_ids=area_ids, area_id=area_id)
+        pdi_rows = await self.repo.equipo_pdi_aggregates(
+            area_ids=area_ids,
+            area_id=area_id,
+            puesto_perfil_id=puesto_perfil_id,
+        )
         if not pdi_rows:
             return EquipoResumenResponse(items=[], total=0)
 
@@ -434,6 +508,7 @@ class PDIService:
         self,
         current_user: Empleado,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
     ) -> HeatmapResponse:
         area_ids = self._resolve_area_scope(current_user)
 
@@ -450,6 +525,8 @@ class PDIService:
             pf_stmt = pf_stmt.where(Empleado.area_id.in_(area_ids))
         if area_id is not None:
             pf_stmt = pf_stmt.where(Empleado.area_id == area_id)
+        if puesto_perfil_id is not None:
+            pf_stmt = pf_stmt.where(PerfilFunciones.puesto_perfil_id == puesto_perfil_id)
         pf_result = await self.db.execute(pf_stmt)
         perfiles = list(pf_result.scalars().all())
 
@@ -548,9 +625,14 @@ class PDIService:
         self,
         current_user: Empleado,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
     ) -> TimelineResponse:
         area_ids = self._resolve_area_scope(current_user)
-        items = await self.repo.timeline_events(area_ids=area_ids, area_id=area_id)
+        items = await self.repo.timeline_events(
+            area_ids=area_ids,
+            area_id=area_id,
+            puesto_perfil_id=puesto_perfil_id,
+        )
         today = date.today()
 
         eventos = []
@@ -602,12 +684,14 @@ class PDIService:
         self,
         current_user: Empleado,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
     ) -> PDIKpisAvanzadosResponse:
         area_ids = self._resolve_area_scope(current_user)
 
         base_stmt = select(PlanDesarrolloIndividual).join(
             Empleado, PlanDesarrolloIndividual.empleado_id == Empleado.empleado_id
         )
+        base_stmt = PDIRepository._apply_puesto_perfil_filter(base_stmt, puesto_perfil_id)
         if area_ids is not None:
             base_stmt = base_stmt.where(Empleado.area_id.in_(area_ids))
         if area_id is not None:
@@ -789,6 +873,7 @@ class PDIService:
         self,
         current_user: Empleado,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
     ) -> BytesIO:
         from openpyxl import Workbook
         from openpyxl.styles import Font
@@ -802,6 +887,7 @@ class PDIService:
                 selectinload(PlanDesarrolloIndividual.competencia),
             )
         )
+        stmt = PDIRepository._apply_puesto_perfil_filter(stmt, puesto_perfil_id)
         if area_ids is not None:
             stmt = stmt.where(Empleado.area_id.in_(area_ids))
         if area_id is not None:
@@ -846,6 +932,7 @@ class PDIService:
         self,
         current_user: Empleado,
         area_id: int | None = None,
+        puesto_perfil_id: int | None = None,
     ) -> BytesIO:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4, landscape
@@ -861,6 +948,7 @@ class PDIService:
                 selectinload(PlanDesarrolloIndividual.competencia),
             )
         )
+        stmt = PDIRepository._apply_puesto_perfil_filter(stmt, puesto_perfil_id)
         if area_ids is not None:
             stmt = stmt.where(Empleado.area_id.in_(area_ids))
         if area_id is not None:

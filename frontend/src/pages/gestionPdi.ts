@@ -48,6 +48,7 @@ import {
   createPDI,
   getPDIKpisAvanzados,
   getPDIRecomendaciones,
+  getPDIFilterOptions,
   exportPDI,
   notificarEquipoPDI,
   type PDIGestionItem,
@@ -94,7 +95,15 @@ interface State {
   resumen: PDIResumenResponse;
   data: PDIGestionListResponse;
   areas: AreaOption[];
-  filters: { area_id: string; estado: string; fecha_inicio: string; fecha_fin: string; search: string };
+  puestosPerfil: AreaOption[];
+  filters: {
+    area_id: string;
+    puesto_perfil_id: string;
+    estado: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+    search: string;
+  };
   page: number;
   loading: boolean;
   activeKpi: string;
@@ -201,11 +210,13 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     resumen: { total_acciones: 0, completadas: 0, en_proceso: 0, pendientes: 0, vencidas: 0 },
     data: { items: [], total: 0, page: 1, page_size: PAGE_SIZE },
     areas: [],
+    puestosPerfil: [],
     // `area_id` puede venir del deep-link `#/pdi-gestion?area_id=N` (enlaces
     // cruzados del Dashboard de Talento). `loadAreas` lo descarta si el área no
     // está entre las opciones del usuario.
     filters: {
       area_id: String(hashParamNumero("area_id") ?? ""),
+      puesto_perfil_id: "",
       estado: "", fecha_inicio: "", fecha_fin: "", search: "",
     },
     page: 1,
@@ -416,14 +427,38 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     if (state.filters.area_id && !state.areas.some((a) => a.id === Number(state.filters.area_id))) {
       state.filters.area_id = "";
     }
+    await loadPuestosPerfilOptions();
+  }
+
+  async function loadPuestosPerfilOptions(): Promise<void> {
+    const areaId = state.filters.area_id ? Number(state.filters.area_id) : undefined;
+    const data = await getPDIFilterOptions(areaId ? { area_id: areaId } : undefined);
+    state.puestosPerfil = (data.puestos_perfil ?? []).map((p) => ({
+      id: Number(p.id),
+      label: p.label,
+    }));
+    if (
+      state.filters.puesto_perfil_id &&
+      !state.puestosPerfil.some((p) => p.id === Number(state.filters.puesto_perfil_id))
+    ) {
+      state.filters.puesto_perfil_id = "";
+    }
+  }
+
+  function scopeFilterParams(): { area_id?: number; puesto_perfil_id?: number } {
+    const params: { area_id?: number; puesto_perfil_id?: number } = {};
+    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
+    if (state.filters.puesto_perfil_id) {
+      params.puesto_perfil_id = Number(state.filters.puesto_perfil_id);
+    }
+    return params;
   }
 
   async function loadResumen() {
     state.resumenLoading = true;
     render();
     state.resumen = await getPDIResumen();
-    const areaParam = state.filters.area_id ? { area_id: Number(state.filters.area_id) } : undefined;
-    state.kpisAvanzados = await getPDIKpisAvanzados(areaParam);
+    state.kpisAvanzados = await getPDIKpisAvanzados(scopeFilterParams());
     state.resumenLoading = false;
     render();
   }
@@ -434,8 +469,8 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     const params: Parameters<typeof getPDIGestion>[0] = {
       page: state.page,
       page_size: PAGE_SIZE,
+      ...scopeFilterParams(),
     };
-    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
     if (state.filters.estado) params.estado = state.filters.estado;
     if (state.filters.fecha_inicio) params.fecha_inicio = state.filters.fecha_inicio;
     if (state.filters.fecha_fin) params.fecha_fin = state.filters.fecha_fin;
@@ -518,9 +553,9 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
   /** Ancho cómodo para filtros en fila (mismo patrón que listados RH). */
   const FILTER_FIELD_WRAP_LOCAL = "flex min-w-[9rem] flex-1 flex-col sm:max-w-[12rem]";
 
-  /** Filtros de contexto (área) visibles en todas las vistas. */
+  /** Filtros de contexto (área / puesto) visibles en todas las vistas. */
   function renderGlobalFilters(): string {
-    const { areas, filters } = state;
+    const { areas, puestosPerfil, filters } = state;
     return `
       <div class="flex flex-wrap items-end gap-3" data-filters="global">
         ${filterField(
@@ -528,6 +563,13 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
           `<div class="grid w-full"><select data-action="filter-global" data-field="area_id" class="${FORM_SELECT}">
             <option value="">Todas</option>
             ${areas.map((a) => `<option value="${a.id}" ${filters.area_id === String(a.id) ? "selected" : ""}>${escapeHtml(a.label)}</option>`).join("")}
+          </select>${SELECT_CHEVRON}</div>`,
+        )}
+        ${filterField(
+          "Puesto",
+          `<div class="grid w-full"><select data-action="filter-global" data-field="puesto_perfil_id" class="${FORM_SELECT}">
+            <option value="">Todos</option>
+            ${puestosPerfil.map((p) => `<option value="${p.id}" ${filters.puesto_perfil_id === String(p.id) ? "selected" : ""}>${escapeHtml(p.label)}</option>`).join("")}
           </select>${SELECT_CHEVRON}</div>`,
         )}
       </div>`;
@@ -701,9 +743,7 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
   async function loadProgresoEquipo() {
     state.loading = true;
     render();
-    const params: { area_id?: number } = {};
-    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
-    state.progresoEquipo = await getPDIProgresoEquipo(params);
+    state.progresoEquipo = await getPDIProgresoEquipo(scopeFilterParams());
     state.loading = false;
     render();
   }
@@ -713,9 +753,7 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     state.expandedEmployeeId = null;
     state.expandedData = null;
     render();
-    const params: { area_id?: number } = {};
-    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
-    state.equipoResumen = await getPDIEquipoResumen(params);
+    state.equipoResumen = await getPDIEquipoResumen(scopeFilterParams());
     state.loading = false;
     render();
   }
@@ -723,9 +761,7 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
   async function loadHeatmap() {
     state.loading = true;
     render();
-    const params: { area_id?: number } = {};
-    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
-    state.heatmapData = await getPDIHeatmap(params);
+    state.heatmapData = await getPDIHeatmap(scopeFilterParams());
     state.loading = false;
     render();
   }
@@ -733,9 +769,7 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
   async function loadTimeline() {
     state.loading = true;
     render();
-    const params: { area_id?: number } = {};
-    if (state.filters.area_id) params.area_id = Number(state.filters.area_id);
-    state.timelineData = await getPDITimeline(params);
+    state.timelineData = await getPDITimeline(scopeFilterParams());
     state.loading = false;
     render();
   }
@@ -1618,10 +1652,10 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
     }
 
     if (action === "export-pdf") {
-      void exportPDI("pdf");
+      void exportPDI("pdf", scopeFilterParams());
     }
     if (action === "export-excel") {
-      void exportPDI("excel");
+      void exportPDI("excel", scopeFilterParams());
     }
 
     if (action === "notificar-equipo") {
@@ -1649,7 +1683,16 @@ export function mountGestionPdi(container: HTMLElement, signal: AbortSignal): vo
       state.filters[field] = value;
       state.activeKpi = "";
       state.soloVencidas = false;
+      if (field === "area_id") {
+        state.filters.puesto_perfil_id = "";
+        void loadPuestosPerfilOptions().then(() => {
+          reloadCurrentView();
+          void loadResumen();
+        });
+        return;
+      }
       reloadCurrentView();
+      void loadResumen();
       return;
     }
     if (target.dataset.action === "filter") {

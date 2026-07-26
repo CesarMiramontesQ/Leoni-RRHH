@@ -368,6 +368,7 @@ export async function getPDIGestion(params: {
   page?: number;
   page_size?: number;
   area_id?: number;
+  puesto_perfil_id?: number;
   estado?: string;
   fecha_inicio?: string;
   fecha_fin?: string;
@@ -378,6 +379,7 @@ export async function getPDIGestion(params: {
   if (params.page) qs.set("page", String(params.page));
   if (params.page_size) qs.set("page_size", String(params.page_size));
   if (params.area_id) qs.set("area_id", String(params.area_id));
+  if (params.puesto_perfil_id) qs.set("puesto_perfil_id", String(params.puesto_perfil_id));
   if (params.estado) qs.set("estado", params.estado);
   if (params.fecha_inicio) qs.set("fecha_inicio", params.fecha_inicio);
   if (params.fecha_fin) qs.set("fecha_fin", params.fecha_fin);
@@ -386,6 +388,26 @@ export async function getPDIGestion(params: {
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi${suffix}`);
   if (!res.ok) return { items: [], total: 0, page: 1, page_size: 10 };
+  return res.json();
+}
+
+export interface PDIFilterOption {
+  id: string;
+  label: string;
+}
+
+export interface PDIFilterOptionsResponse {
+  puestos_perfil: PDIFilterOption[];
+}
+
+export async function getPDIFilterOptions(params?: {
+  area_id?: number;
+}): Promise<PDIFilterOptionsResponse> {
+  const qs = new URLSearchParams();
+  if (params?.area_id) qs.set("area_id", String(params.area_id));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/filter-options${suffix}`);
+  if (!res.ok) return { puestos_perfil: [] };
   return res.json();
 }
 
@@ -432,9 +454,11 @@ export interface PDIProgresoEquipoResponse {
 
 export async function getPDIProgresoEquipo(params?: {
   area_id?: number;
+  puesto_perfil_id?: number;
 }): Promise<PDIProgresoEquipoResponse> {
   const qs = new URLSearchParams();
   if (params?.area_id) qs.set("area_id", String(params.area_id));
+  if (params?.puesto_perfil_id) qs.set("puesto_perfil_id", String(params.puesto_perfil_id));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/progreso-equipo${suffix}`);
   if (!res.ok) return { items: [], total: 0 };
@@ -472,9 +496,11 @@ export interface EquipoResumenResponse {
 
 export async function getPDIEquipoResumen(params?: {
   area_id?: number;
+  puesto_perfil_id?: number;
 }): Promise<EquipoResumenResponse> {
   const qs = new URLSearchParams();
   if (params?.area_id) qs.set("area_id", String(params.area_id));
+  if (params?.puesto_perfil_id) qs.set("puesto_perfil_id", String(params.puesto_perfil_id));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/equipo-resumen${suffix}`);
   if (!res.ok) return { items: [], total: 0 };
@@ -509,9 +535,11 @@ export interface HeatmapResponse {
 
 export async function getPDIHeatmap(params?: {
   area_id?: number;
+  puesto_perfil_id?: number;
 }): Promise<HeatmapResponse> {
   const qs = new URLSearchParams();
   if (params?.area_id) qs.set("area_id", String(params.area_id));
+  if (params?.puesto_perfil_id) qs.set("puesto_perfil_id", String(params.puesto_perfil_id));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/heatmap${suffix}`);
   if (!res.ok) return { competencias: [], empleados: [], matriz: {} };
@@ -540,9 +568,11 @@ export interface TimelineResponse {
 
 export async function getPDITimeline(params?: {
   area_id?: number;
+  puesto_perfil_id?: number;
 }): Promise<TimelineResponse> {
   const qs = new URLSearchParams();
   if (params?.area_id) qs.set("area_id", String(params.area_id));
+  if (params?.puesto_perfil_id) qs.set("puesto_perfil_id", String(params.puesto_perfil_id));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/timeline${suffix}`);
   if (!res.ok) return { eventos: [], total: 0 };
@@ -612,9 +642,13 @@ export interface PDIRecomendacionesResponse {
   recomendaciones: PDIRecomendacionItem[];
 }
 
-export async function getPDIKpisAvanzados(params?: { area_id?: number }): Promise<PDIKpisAvanzadosResponse> {
+export async function getPDIKpisAvanzados(params?: {
+  area_id?: number;
+  puesto_perfil_id?: number;
+}): Promise<PDIKpisAvanzadosResponse> {
   const qs = new URLSearchParams();
   if (params?.area_id) qs.set("area_id", String(params.area_id));
+  if (params?.puesto_perfil_id) qs.set("puesto_perfil_id", String(params.puesto_perfil_id));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/kpis-avanzados${suffix}`);
   if (!res.ok) return { cumplimiento_plan_pct: 0, horas_training_promedio: 0, promedio_skill_gap: 0, inversion_horas_total: 0 };
@@ -627,8 +661,14 @@ export async function getPDIRecomendaciones(empleadoId: number): Promise<PDIReco
   return res.json();
 }
 
-export async function exportPDI(format: "pdf" | "excel"): Promise<void> {
-  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/export?format=${format}`);
+export async function exportPDI(
+  format: "pdf" | "excel",
+  params?: { area_id?: number; puesto_perfil_id?: number },
+): Promise<void> {
+  const qs = new URLSearchParams({ format });
+  if (params?.area_id) qs.set("area_id", String(params.area_id));
+  if (params?.puesto_perfil_id) qs.set("puesto_perfil_id", String(params.puesto_perfil_id));
+  const res = await fetchWithAuth(`/api/v1/evaluaciones/pdi/export?${qs.toString()}`);
   if (!res.ok) return;
   const blob = await res.blob();
   const ext = format === "excel" ? "xlsx" : "pdf";
