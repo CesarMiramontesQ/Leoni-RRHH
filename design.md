@@ -416,8 +416,10 @@ Elemento flotante? (dropdown, modal, tooltip)
   </div>
 </div>
 
-<!-- Main area -->
-<div class="min-h-full bg-surface lg:pl-72">
+<!-- Main area: lienzo autenticado = degradado azul (`.rh-dashboard-page`).
+     No usar `bg-surface` ni `bg-[#f6f8fb]` en el contenedor de página;
+     esos tokens quedan para surfaces locales (cards, hover, stickies). -->
+<div class="min-h-full rh-dashboard-page lg:pl-72">
   <div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-border bg-white px-4 shadow-xs sm:gap-x-6 sm:px-6 lg:px-8">
     <!-- Topbar -->
   </div>
@@ -428,6 +430,8 @@ Elemento flotante? (dropdown, modal, tooltip)
 ```
 
 `mainClass` default: `py-10`. Para listas admin densas: `py-5 sm:py-6`.
+
+**Fondo de contenido autenticado:** siempre `.rh-dashboard-page` (radial + linear azul definido en `style.css`). El token `RH_LISTADO_PAGE_OUTER` es alias de `RH_LISTADO_PAGE_OUTER_GRADIENT` (layout sin pintar fondo). Login y pantallas sin app shell no usan este lienzo.
 
 ### 7.2 Layout A — Dashboard
 

@@ -1,10 +1,8 @@
 /**
  * Dashboard de Talento (`#/talento/dashboard`): consolidación por área de las
  * señales que ya calculan los módulos de la suite (desempeño, polivalencia,
- * capacitación, PDI, índice objetivo). Solo lectura. Mismo patrón de diseño
- * que `pages/historialObjetivo.ts` / `pages/operaciones.ts` (pageHeading,
- * RH_LISTADO_*, skeletonBlock/errorState, per-mount AbortController, event
- * delegation).
+ * capacitación, PDI, índice objetivo). Solo lectura. Layout A ligero del hub
+ * Talento (`talento/pageKit`: shell dashboard + KPI cards + tabla).
  *
  * Los cinco bloques se piden en PARALELO con `Promise.allSettled`: cada
  * columna se pinta en cuanto llega su bloque y, si uno falla (típicamente el
@@ -25,12 +23,21 @@ import {
   errorState,
   FORM_SELECT,
   pageHeading,
-  RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
   SELECT_CHEVRON,
   skeletonBlock,
 } from "../ui/uiTokens.ts";
+import {
+  TALENTO_KPI_ICONS,
+  talentoDetailPanel,
+  talentoEyebrow,
+  talentoKpiCard,
+  talentoKpiGrid,
+  talentoKpiSkeleton,
+  talentoPageRoot,
+  type TalentoKpiAccent,
+} from "../talento/pageKit.ts";
 import { canAccessRhAssignedModule, hasRhOperativeViewerContext } from "../auth/jwt.ts";
 import { CICLO_ESTADO_LABELS } from "../cicloDesempeno/shared.ts";
 import type { CicloDesempenoEstado } from "../api/cicloDesempeno.ts";
@@ -195,7 +202,7 @@ export function selectorCicloHtml(ciclos: CicloInfo[], seleccionado: number | nu
       return `<option value="${c.id}"${c.id === seleccionado ? " selected" : ""}>${escapeHtml(c.nombre)} (${escapeHtml(etiqueta)})</option>`;
     })
     .join("");
-  return `<div class="relative min-w-[12rem]">
+  return `<div class="grid min-w-[14rem]">
     <select data-accion="ciclo" aria-label="Ciclo de desempeño" class="${FORM_SELECT}">${opciones}</select>
     ${SELECT_CHEVRON}
   </div>`;
@@ -232,22 +239,22 @@ function badgeSemaforo(sem: Semaforo | null): string {
 /** Celda de porcentaje con semáforo. `null` -> n/d, nunca 0 %. */
 export function celdaMetrica(valor: number | null, semaforo: Semaforo | null): string {
   if (valor === null) {
-    return `<td class="px-3 py-2 text-sm text-text-muted" title="Sin datos">n/d</td>`;
+    return `<td class="px-4 py-3.5 text-sm text-text-muted" title="Sin datos">n/d</td>`;
   }
-  return `<td class="px-3 py-2 text-sm"><span class="inline-flex items-center gap-1.5">${badgeSemaforo(semaforo)}<span class="tabular-nums text-text-secondary">${valor.toFixed(1)}%</span></span></td>`;
+  return `<td class="px-4 py-3.5 text-sm"><span class="inline-flex items-center gap-1.5">${badgeSemaforo(semaforo)}<span class="tabular-nums text-text-secondary">${valor.toFixed(1)}%</span></span></td>`;
 }
 
 /** Celda del índice objetivo: no trae semáforo propio. `null` -> n/d, nunca 0 %. */
 function celdaObjetivo(valor: number | null): string {
   if (valor === null) {
-    return `<td class="px-3 py-2 text-sm text-text-muted" title="Sin datos">n/d</td>`;
+    return `<td class="px-4 py-3.5 text-sm text-text-muted" title="Sin datos">n/d</td>`;
   }
-  return `<td class="px-3 py-2 text-sm tabular-nums text-text-secondary">${valor.toFixed(1)}%</td>`;
+  return `<td class="px-4 py-3.5 text-sm tabular-nums text-text-secondary">${valor.toFixed(1)}%</td>`;
 }
 
 function celdaCriticas(n: number): string {
-  if (n > 0) return `<td class="px-3 py-2 text-sm">${badgeRejected(String(n))}</td>`;
-  return `<td class="px-3 py-2 text-sm tabular-nums text-text-muted">0</td>`;
+  if (n > 0) return `<td class="px-4 py-3.5 text-sm">${badgeRejected(String(n))}</td>`;
+  return `<td class="px-4 py-3.5 text-sm tabular-nums text-text-muted">0</td>`;
 }
 
 /**
@@ -299,22 +306,34 @@ function tileHtml(
   bloque: EstadoBloque<unknown>,
   valor: string,
   detalle: string,
-  extra = "",
+  opts: { icon: string; accent: TalentoKpiAccent; extra?: string },
 ): string {
-  if (bloque.estado === "cargando") {
-    return `<div class="${RH_LISTADO_SURFACE} p-4"><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(titulo)}</p><div class="mt-2 h-6 w-20 animate-pulse rounded bg-slate-200"></div></div>`;
-  }
+  if (bloque.estado === "cargando") return talentoKpiSkeleton();
   if (bloque.estado === "error") {
-    return `<div class="${RH_LISTADO_SURFACE} p-4"><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(titulo)}</p><p class="mt-1 text-xl font-semibold text-text-muted" title="${escapeHtml(bloque.mensaje)}">n/d</p></div>`;
+    return talentoKpiCard({
+      label: titulo,
+      value: "n/d",
+      sub: bloque.mensaje,
+      icon: opts.icon,
+      accent: opts.accent,
+      valueClass: "text-text-muted !text-xl",
+    });
   }
-  return `<div class="${RH_LISTADO_SURFACE} p-4"><p class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(titulo)}</p><p class="mt-1 text-xl font-semibold text-text-primary">${escapeHtml(valor)}</p><p class="text-xs text-text-muted">${escapeHtml(detalle)}</p>${extra}</div>`;
+  return talentoKpiCard({
+    label: titulo,
+    value: valor,
+    sub: detalle,
+    icon: opts.icon,
+    accent: opts.accent,
+    extra: opts.extra ?? "",
+  });
 }
 
 function encabezado(label: string, col: OrdenColumna, estado: EstadoPagina): string {
   const activo = estado.ordenPor === col;
   const flecha = activo ? (estado.ordenDesc ? " ▼" : " ▲") : "";
   const ariaSort = activo ? (estado.ordenDesc ? "descending" : "ascending") : "none";
-  return `<th class="cursor-pointer select-none px-3 py-2 text-left text-xs font-semibold" data-orden="${col}" role="columnheader" aria-sort="${ariaSort}" tabindex="0">${escapeHtml(label)}${flecha}</th>`;
+  return `<th scope="col" class="cursor-pointer select-none px-4 py-3.5 text-left text-[13px] font-semibold tracking-tight text-slate-600" data-orden="${col}" role="columnheader" aria-sort="${ariaSort}" tabindex="0">${escapeHtml(label)}${flecha}</th>`;
 }
 
 function senalBadge(senal: string): string {
@@ -324,14 +343,14 @@ function senalBadge(senal: string): string {
 function empleadoFocoRow(e: EmpleadoFoco): string {
   const senales = e.senales.length ? e.senales.map(senalBadge).join(" ") : `<span class="text-text-muted">—</span>`;
   const subtitulo = e.no_empleado != null ? `#${e.no_empleado}` : `ID ${e.empleado_id}`;
-  return `<tr class="border-t border-border">
-    <td class="px-3 py-2 align-top">
+  return `<tr class="hover:bg-active-tint/60">
+    <td class="px-4 py-3.5 align-top">
       <p class="text-sm font-medium text-text-primary">${escapeHtml(e.nombre)}</p>
       <p class="text-xs text-text-muted">${escapeHtml(subtitulo)}</p>
     </td>
-    <td class="px-3 py-2 align-top text-sm text-text-secondary">${escapeHtml(e.puesto_nombre ?? "—")}</td>
-    <td class="px-3 py-2 align-top text-sm"><span class="flex flex-wrap gap-1">${senales}</span></td>
-    <td class="px-3 py-2 align-top text-right">
+    <td class="px-4 py-3.5 align-top text-sm text-text-secondary">${escapeHtml(e.puesto_nombre ?? "—")}</td>
+    <td class="px-4 py-3.5 align-top text-sm"><span class="flex flex-wrap gap-1">${senales}</span></td>
+    <td class="px-4 py-3.5 align-top text-right">
       <a href="#/empleados/${e.empleado_id}" class="${BTN_GHOST} !px-2 !py-1 !text-xs">Ver ficha</a>
     </td>
   </tr>`;
@@ -343,12 +362,27 @@ function empleadoFocoRow(e: EmpleadoFoco): string {
  * propio, el bloque completo ya llegó resuelto dentro de `DetalleArea`. */
 function tilesAgregadosArea(area: DetalleArea): string {
   const ok = { estado: "ok" as const, datos: null };
-  return `<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-    ${tileHtml("Desempeño", ok, pctTexto(area.desempeno?.calificacion_promedio ?? null), "promedio del ciclo")}
-    ${tileHtml("Polivalencia", ok, pctTexto(area.polivalencia?.pol_pct ?? null), "índice del personal")}
-    ${tileHtml("Capacitación", ok, pctTexto(area.capacitacion?.cumplimiento_pct ?? null), "cursos completados")}
-    ${tileHtml("PDI", ok, pctTexto(area.pdi?.cumplimiento_pct ?? null), "planes completados")}
-  </div>`;
+  return talentoKpiGrid(
+    [
+      tileHtml("Desempeño", ok, pctTexto(area.desempeno?.calificacion_promedio ?? null), "promedio del ciclo", {
+        icon: TALENTO_KPI_ICONS.chart,
+        accent: "blue",
+      }),
+      tileHtml("Polivalencia", ok, pctTexto(area.polivalencia?.pol_pct ?? null), "índice del personal", {
+        icon: TALENTO_KPI_ICONS.users,
+        accent: "sky",
+      }),
+      tileHtml("Capacitación", ok, pctTexto(area.capacitacion?.cumplimiento_pct ?? null), "cursos completados", {
+        icon: TALENTO_KPI_ICONS.academic,
+        accent: "violet",
+      }),
+      tileHtml("PDI", ok, pctTexto(area.pdi?.cumplimiento_pct ?? null), "planes completados", {
+        icon: TALENTO_KPI_ICONS.document,
+        accent: "amber",
+      }),
+    ].join(""),
+    { cols: "4", ariaLabel: "Agregados del área" },
+  );
 }
 
 /** Módulos a los que el detalle de área puede saltar con el filtro ya puesto. */
@@ -398,28 +432,32 @@ export function renderDetallePanel(
   const area = bloque.datos;
   const foco = area.empleados_foco;
   const focoHtml = !foco.length
-    ? `<p class="rounded-lg border border-border bg-white px-4 py-3 text-sm text-text-muted">Sin empleados en foco (señales de riesgo) en esta área.</p>`
-    : `<div class="overflow-x-auto rounded-lg border border-border bg-white">
-        <table class="w-full min-w-[560px] text-left">
-          <thead class="${RH_TABLE_HEAD}">
-            <tr>
-              <th class="px-3 py-2 text-xs font-semibold">Empleado</th>
-              <th class="px-3 py-2 text-xs font-semibold">Puesto</th>
-              <th class="px-3 py-2 text-xs font-semibold">Señales</th>
-              <th class="px-3 py-2 text-xs font-semibold"></th>
-            </tr>
-          </thead>
-          <tbody>${foco.map(empleadoFocoRow).join("")}</tbody>
-        </table>
-      </div>`;
-  return `<div class="space-y-3">${tilesAgregadosArea(area)}${focoHtml}${enlacesCruzadosHtml(area.area_id, accesos)}</div>`;
+    ? `<p class="rounded-xl border border-border bg-surface-container-lowest px-4 py-3 text-sm text-text-muted">Sin empleados en foco (señales de riesgo) en esta área.</p>`
+    : `<section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Empleados en foco">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[560px] border-collapse text-left">
+            <thead class="${RH_TABLE_HEAD}">
+              <tr>
+                <th scope="col" class="px-4 py-3.5 text-left text-[13px] font-semibold tracking-tight text-slate-600">Empleado</th>
+                <th scope="col" class="px-4 py-3.5 text-left text-[13px] font-semibold tracking-tight text-slate-600">Puesto</th>
+                <th scope="col" class="px-4 py-3.5 text-left text-[13px] font-semibold tracking-tight text-slate-600">Señales</th>
+                <th scope="col" class="px-4 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100/90 bg-white">${foco.map(empleadoFocoRow).join("")}</tbody>
+          </table>
+        </div>
+      </section>`;
+  return talentoDetailPanel(
+    `<div class="space-y-4">${tilesAgregadosArea(area)}${focoHtml}${enlacesCruzadosHtml(area.area_id, accesos)}</div>`,
+  );
 }
 
 function filaHtml(fila: FilaArea, estado: EstadoPagina): string {
   const abierta = estado.areaAbierta === fila.area_id;
-  const principal = `<tr class="cursor-pointer border-t border-border hover:bg-active-tint" data-area-id="${fila.area_id}" role="button" tabindex="0" aria-expanded="${abierta}">
-    <td class="px-3 py-2 text-sm font-medium text-text-primary">${escapeHtml(fila.area_nombre)}</td>
-    <td class="px-3 py-2 text-sm tabular-nums text-text-secondary">${fila.n_empleados}</td>
+  const principal = `<tr class="cursor-pointer hover:bg-active-tint/70" data-area-id="${fila.area_id}" role="button" tabindex="0" aria-expanded="${abierta}">
+    <td class="px-4 py-3.5 text-sm font-medium text-text-primary">${escapeHtml(fila.area_nombre)}</td>
+    <td class="px-4 py-3.5 text-sm tabular-nums text-text-secondary">${fila.n_empleados}</td>
     ${celdaMetrica(fila.desempeno, fila.desempenoSemaforo)}
     ${celdaMetrica(fila.polivalencia, fila.polivalenciaSemaforo)}
     ${celdaObjetivo(fila.objetivo)}
@@ -428,8 +466,8 @@ function filaHtml(fila: FilaArea, estado: EstadoPagina): string {
     ${celdaCriticas(fila.n_criticas)}
   </tr>`;
   if (!abierta) return principal;
-  const detalle = `<tr class="border-t border-border bg-surface-container-low">
-    <td colspan="8" class="px-4 py-4">${renderDetallePanel(estado.detalle, estado.accesos)}</td>
+  const detalle = `<tr class="bg-active-tint/30">
+    <td colspan="8" class="px-4 py-4 sm:px-5">${renderDetallePanel(estado.detalle, estado.accesos)}</td>
   </tr>`;
   return principal + detalle;
 }
@@ -497,28 +535,61 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
     const exportLabel = estado.exporting ? "Exportando…" : "Exportar Excel";
 
     const tabla = filas.length
-      ? `<div class="${RH_LISTADO_SURFACE} overflow-x-auto">
-          <table class="w-full min-w-[900px] text-left">
-            <thead class="${RH_TABLE_HEAD}">
-              <tr>
-                ${encabezado("Área", "area", estado)}
-                <th class="px-3 py-2 text-left text-xs font-semibold">Personal</th>
-                ${encabezado("Desempeño", "desempeno", estado)}
-                ${encabezado("Polivalencia", "polivalencia", estado)}
-                <th class="px-3 py-2 text-left text-xs font-semibold">Objetivo</th>
-                ${encabezado("Capacitación", "capacitacion", estado)}
-                ${encabezado("PDI", "pdi", estado)}
-                ${encabezado("Críticas", "criticas", estado)}
-              </tr>
-            </thead>
-            <tbody>${filas.map((f) => filaHtml(f, estado)).join("")}</tbody>
-          </table>
-        </div>`
-      : `<p class="${RH_LISTADO_SURFACE} px-5 py-8 text-center text-sm text-text-muted">
-          ${estado.polivalencia.estado === "cargando" ? "Cargando áreas…" : estado.polivalencia.estado === "error" ? "No se pudo cargar la polivalencia por área." : "Sin áreas en tu alcance."}
-        </p>`;
+      ? `<section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Consolidación por área">
+          <div class="overflow-x-auto">
+            <table class="min-w-[900px] w-full border-collapse text-left">
+              <thead class="${RH_TABLE_HEAD}">
+                <tr>
+                  ${encabezado("Área", "area", estado)}
+                  <th scope="col" class="px-4 py-3.5 text-left text-[13px] font-semibold tracking-tight text-slate-600">Personal</th>
+                  ${encabezado("Desempeño", "desempeno", estado)}
+                  ${encabezado("Polivalencia", "polivalencia", estado)}
+                  <th scope="col" class="px-4 py-3.5 text-left text-[13px] font-semibold tracking-tight text-slate-600">Objetivo</th>
+                  ${encabezado("Capacitación", "capacitacion", estado)}
+                  ${encabezado("PDI", "pdi", estado)}
+                  ${encabezado("Críticas", "criticas", estado)}
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100/90 bg-white">${filas.map((f) => filaHtml(f, estado)).join("")}</tbody>
+            </table>
+          </div>
+        </section>`
+      : `<section class="${RH_LISTADO_SURFACE} overflow-hidden px-5 py-10 text-center" aria-label="Consolidación por área">
+          <p class="text-sm text-text-muted">${estado.polivalencia.estado === "cargando" ? "Cargando áreas…" : estado.polivalencia.estado === "error" ? "No se pudo cargar la polivalencia por área." : "Sin áreas en tu alcance."}</p>
+        </section>`;
 
-    return `<div class="${RH_LISTADO_PAGE_OUTER}">
+    const kpis = talentoKpiGrid(
+      [
+        tileHtml("Desempeño", estado.desempeno, pctTexto(orgDesempeno(estado)), "promedio del ciclo", {
+          icon: TALENTO_KPI_ICONS.chart,
+          accent: "blue",
+          extra:
+            estado.desempeno.estado === "ok"
+              ? distribucionBandasHtml(estado.desempeno.datos.org?.distribucion ?? {})
+              : "",
+        }),
+        tileHtml("Polivalencia", estado.polivalencia, pctTexto(orgPolivalencia(estado)), "índice del personal", {
+          icon: TALENTO_KPI_ICONS.users,
+          accent: "sky",
+        }),
+        tileHtml("Capacitación", estado.capacitacion, pctTexto(orgCapacitacion(estado)), "cursos completados", {
+          icon: TALENTO_KPI_ICONS.academic,
+          accent: "violet",
+        }),
+        tileHtml("PDI", estado.pdi, pctTexto(orgPdi(estado)), "planes completados", {
+          icon: TALENTO_KPI_ICONS.document,
+          accent: "amber",
+        }),
+        tileHtml("Índice objetivo", estado.objetivo, pctTexto(orgObjetivo(estado)), "últimos 12 meses", {
+          icon: TALENTO_KPI_ICONS.target,
+          accent: "slate",
+        }),
+      ].join(""),
+      { cols: "5", ariaLabel: "Indicadores de talento" },
+    );
+
+    return talentoPageRoot(
+      `${talentoEyebrow()}
       ${pageHeading(
         esGestionRh ? "Dashboard de Talento" : "Dashboard de Talento de mi equipo",
         "Consolidación por área de desempeño, polivalencia, capacitación, PDI e índice objetivo.",
@@ -526,28 +597,20 @@ export function mountDashboardTalento(container: HTMLElement, signal?: AbortSign
       )}
       ${estado.exportError ? alertError(estado.exportError) : ""}
       ${motivoDesempeno ? `<p class="text-sm text-text-muted">${escapeHtml(motivoDesempeno)}</p>` : ""}
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        ${tileHtml(
-          "Desempeño",
-          estado.desempeno,
-          pctTexto(orgDesempeno(estado)),
-          "promedio del ciclo",
-          estado.desempeno.estado === "ok" ? distribucionBandasHtml(estado.desempeno.datos.org?.distribucion ?? {}) : "",
-        )}
-        ${tileHtml("Polivalencia", estado.polivalencia, pctTexto(orgPolivalencia(estado)), "índice del personal")}
-        ${tileHtml("Capacitación", estado.capacitacion, pctTexto(orgCapacitacion(estado)), "cursos completados")}
-        ${tileHtml("PDI", estado.pdi, pctTexto(orgPdi(estado)), "planes completados")}
-        ${tileHtml("Índice objetivo", estado.objetivo, pctTexto(orgObjetivo(estado)), "últimos 12 meses")}
-      </div>
-      ${tabla}
-    </div>`;
+      ${kpis}
+      ${tabla}`,
+      { dashboard: true },
+    );
   }
 
   function render(): void {
     mountAppShell(container, {
       pageTitle: "Dashboard de Talento",
       activeNav: "dashboard-talento",
-      mainClass: "py-5 sm:py-6",
+      // Sin padding en <main>: el shell `.rh-dashboard-page` debe cubrir todo el
+      // lienzo (mismo patrón que Solicitudes/Incidencias). Con py-* se veía el
+      // bg-surface gris detrás del degradado azul.
+      mainClass: "py-0",
       mainHtml: pageContent(),
     });
   }

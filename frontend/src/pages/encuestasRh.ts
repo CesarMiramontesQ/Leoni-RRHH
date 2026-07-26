@@ -18,7 +18,7 @@ import {
   MODAL_PANEL,
   pageHeading,
   renderTabNav,
-  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
   SELECT_CHEVRON,
@@ -26,6 +26,7 @@ import {
   badgeApproved,
   badgeCancelled,
 } from "../ui/uiTokens.ts";
+import { talentoEyebrow } from "../talento/pageKit.ts";
 import { estadoBadge, fmtFechaEncuesta, renderAudienciaDesglose, renderEmptyState } from "../encuestasRh/shared.ts";
 import { getAreasOptions, type AreaOption } from "../api/puestos.ts";
 import {
@@ -569,10 +570,10 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
         ? state.nuevaMetaForm.esAnonima != null
         : state.plantillaSeleccionadaId != null && state.plantillaEsAnonima != null;
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
         <a href="#/talento/encuestas" class="w-fit text-xs font-semibold text-accent hover:underline">← Volver a encuestas</a>
-        <p class="text-xs font-medium text-text-muted">Talento</p>
+        ${talentoEyebrow()}
         ${pageHeading("Nueva encuesta", "Define los metadatos; agregarás las preguntas en el siguiente paso.")}
       </div>
       ${state.nuevaError ? alertError(state.nuevaError) : ""}
@@ -859,10 +860,10 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
     }
     const detalle = state.detalle;
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
         <a href="#/talento/encuestas" class="w-fit text-xs font-semibold text-accent hover:underline">← Volver a encuestas</a>
-        <p class="text-xs font-medium text-text-muted">Talento</p>
+        ${talentoEyebrow()}
         ${pageHeading(detalle.titulo, undefined, renderDetalleAcciones(detalle))}
         <div class="-mt-2 flex flex-wrap items-center gap-2">
           ${estadoBadge(detalle.estado)}
@@ -1027,9 +1028,9 @@ export function mountEncuestasRh(container: HTMLElement, signal?: AbortSignal): 
   function pageContent(): string {
     if (state.subview.kind === "list") {
       return `
-      <div class="${RH_LISTADO_PAGE_OUTER}">
+      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         <div class="flex flex-col gap-2">
-          <p class="text-xs font-medium text-text-muted">Talento</p>
+          ${talentoEyebrow()}
           ${pageHeading(
             "Encuestas RH",
             "Encuestas de clima, pulso y otras mediciones organizacionales.",

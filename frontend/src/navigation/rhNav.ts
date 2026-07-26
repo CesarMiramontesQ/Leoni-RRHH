@@ -128,7 +128,7 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
     sections.push({
       id: "talento",
       title: TALENTO_SIDEBAR_ITEM.label,
-      sectionKey: "encuestas-rh",
+      sectionKey: "dashboard-talento",
       iconSvgPaths: TALENTO_SIDEBAR_ITEM.svgPaths,
       items: talentoItems,
     });

@@ -27,7 +27,8 @@ import {
   FIELD_INPUT,
   FORM_LABEL,
   pageHeading,
-  RH_LISTADO_PAGE_OUTER,
+  RH_DASHBOARD_PAGE_SHELL,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
   skeletonBlock,
@@ -211,7 +212,8 @@ export function mountHistorialObjetivo(container: HTMLElement, signal?: AbortSig
 
   function pageContent(): string {
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_DASHBOARD_PAGE_SHELL}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
         <p class="text-xs font-medium text-text-muted">${state.esGestionRh ? "Cumplimiento" : "Cumplimiento · Mi equipo"}</p>
         ${pageHeading(
@@ -221,6 +223,7 @@ export function mountHistorialObjetivo(container: HTMLElement, signal?: AbortSig
       </div>
       ${renderFiltros(state)}
       ${renderBody(state)}
+    </div>
     </div>`;
   }
 
@@ -228,7 +231,7 @@ export function mountHistorialObjetivo(container: HTMLElement, signal?: AbortSig
     mountAppShell(container, {
       pageTitle: "Historial Objetivo",
       activeNav: "historial-objetivo",
-      mainClass: "py-5 sm:py-6",
+      mainClass: "py-0",
       mainHtml: pageContent(),
     });
   }

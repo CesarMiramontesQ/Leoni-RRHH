@@ -68,18 +68,16 @@ export const TALENTO_NAV_ITEMS: readonly TalentoNavItem[] = [
   ENCUESTAS_RH,
 ];
 
-/** Icono original del hub «Talento» (encuestas de clima/pulso): fijo por id,
- * no por posicion -- `TALENTO_NAV_ITEMS[0]` cambia de icono cada vez que se
- * reordena la lista (p.ej. al insertar el Dashboard de Talento como primer
- * item), aunque `TALENTO_SIDEBAR_ITEM` siga apuntando a `encuestas-rh`. */
-const ICONO_ENCUESTAS_RH = TALENTO_NAV_ITEMS.find((item) => item.id === "encuestas-rh")!.svgPaths;
+/** Hub «Talento» aterriza en el dashboard (entrada del dominio). Icono fijo por
+ * id `dashboard-talento`, no por posición de `TALENTO_NAV_ITEMS[0]`. */
+const ICONO_DASHBOARD_TALENTO = TALENTO_NAV_ITEMS.find((item) => item.id === "dashboard-talento")!.svgPaths;
 
 export const TALENTO_SIDEBAR_ITEM = {
-  id: "encuestas-rh" as const,
-  key: "encuestas-rh" as const,
-  href: "#/talento/encuestas",
+  id: "dashboard-talento" as const,
+  key: "dashboard-talento" as const,
+  href: "#/talento/dashboard",
   label: "Talento",
-  svgPaths: ICONO_ENCUESTAS_RH,
+  svgPaths: ICONO_DASHBOARD_TALENTO,
 };
 
 export function getVisibleTalentoNavItems(rol: string | null): TalentoNavItem[] {

@@ -12,10 +12,11 @@ import {
   FIELD_TEXTAREA,
   pageHeading,
   renderTabNav,
-  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
   skeletonBlock,
 } from "../ui/uiTokens.ts";
+import { talentoEyebrow } from "../talento/pageKit.ts";
 import { fmtFechaEncuesta, renderEmptyState } from "../encuestasRh/shared.ts";
 import {
   getMiEncuesta,
@@ -323,9 +324,9 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
 
   function renderPage(): string {
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
-        <p class="text-xs font-medium text-text-muted">Talento</p>
+        ${talentoEyebrow()}
         ${pageHeading("Mis encuestas RH", "Encuestas de clima y pulso organizacional dirigidas a ti.")}
       </div>
       ${state.successMessage ? alertSuccess(state.successMessage) : ""}

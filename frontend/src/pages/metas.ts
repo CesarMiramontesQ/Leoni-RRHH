@@ -26,7 +26,8 @@ import {
   MODAL_PANEL,
   pageHeading,
   renderTabNav,
-  RH_LISTADO_PAGE_OUTER,
+  RH_DASHBOARD_PAGE_SHELL,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
   SELECT_CHEVRON,
@@ -1154,7 +1155,8 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
 
   function pageContent(): string {
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_DASHBOARD_PAGE_SHELL}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
         <p class="text-xs font-medium text-text-muted">${state.esGestionRh ? "Talento" : "Talento · Mi equipo"}</p>
         ${pageHeading(
@@ -1177,6 +1179,7 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
       </div>
       ${state.tab === "ciclos" && state.esGestionRh ? renderCiclosTab() : state.tab === "metas" ? renderMetasTab() : renderTableroTab()}
     </div>
+    </div>
     ${renderNuevoCicloModal()}
     ${renderEditCicloModal()}
     ${renderNuevaMetaModal()}
@@ -1187,7 +1190,7 @@ export function mountMetas(container: HTMLElement, signal?: AbortSignal): void {
     mountAppShell(container, {
       pageTitle: "Metas",
       activeNav: "metas",
-      mainClass: "py-5 sm:py-6",
+      mainClass: "py-0",
       mainHtml: pageContent(),
     });
   }

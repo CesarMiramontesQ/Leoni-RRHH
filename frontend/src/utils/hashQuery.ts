@@ -28,3 +28,32 @@ export function hashParamNumero(
   const n = Number(crudo);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
+
+/** Parámetro de texto del hash, o `null` si falta / vacío. */
+export function hashParamTexto(
+  nombre: string,
+  hash: string = typeof window !== "undefined" ? window.location.hash : "",
+): string | null {
+  const i = hash.indexOf("?");
+  if (i < 0) return null;
+  const crudo = new URLSearchParams(hash.slice(i + 1)).get(nombre);
+  if (crudo === null || crudo.trim() === "") return null;
+  return crudo;
+}
+
+/**
+ * Quita claves del query del hash y deja el resto (p. ej. conservar `area_id`
+ * tras consumir un deep-link de wizard).
+ */
+export function hashSinParams(
+  quitar: readonly string[],
+  hash: string = typeof window !== "undefined" ? window.location.hash : "",
+): string {
+  const path = hashSinQuery(hash);
+  const i = hash.indexOf("?");
+  if (i < 0) return path;
+  const params = new URLSearchParams(hash.slice(i + 1));
+  for (const k of quitar) params.delete(k);
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}

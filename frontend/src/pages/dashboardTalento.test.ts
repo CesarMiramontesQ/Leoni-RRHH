@@ -180,11 +180,12 @@ describe("dashboardTalento", () => {
     // A") siguen presentes, no se degradan por el fallo de otro bloque.
     expect(container.textContent).toContain("85.5%");
     expect(container.textContent).toContain("92.3%");
-    // El índice objetivo sí falló: su tile queda en n/d, anclado al mensaje
-    // de error que `tileHtml` vuelca como `title` solo en el estado "error"
-    // (ver dashboardTalento.ts). Un `toContain("n/d")` a secas no sirve de
-    // guardián: cualquier celda vacía produce el mismo texto.
-    expect(container.innerHTML).toContain('title="DATOS_ANALISIS no responde">n/d<');
+    // El índice objetivo sí falló: su tile queda en n/d con el mensaje de
+    // error como subtítulo del KPI (kit `talentoKpiCard`). Un `toContain("n/d")`
+    // a secas no sirve de guardián: cualquier celda vacía produce el mismo texto.
+    expect(container.innerHTML).toContain(">Índice objetivo</p>");
+    expect(container.innerHTML).toContain(">DATOS_ANALISIS no responde</p>");
+    expect(container.innerHTML).toMatch(/Índice objetivo[\s\S]*?>n\/d</);
   });
 
   it("ofrece el selector con el ciclo vigente marcado", async () => {
@@ -321,9 +322,9 @@ describe("renderDetallePanel", () => {
     const html = renderDetallePanel(sinDesempeno);
     // El tile de Desempeño debe quedar en "n/d" -- no en "0.0%" (que además
     // significaría algo muy distinto: "el ciclo calificó a todos con 0").
-    expect(html).toContain(
-      '>Desempeño</p><p class="mt-1 text-xl font-semibold text-text-primary">n/d</p>',
-    );
+    expect(html).toContain(">Desempeño</p>");
+    expect(html).toMatch(/Desempeño[\s\S]*?>n\/d</);
+    expect(html).not.toContain(">0.0%</p>");
   });
 });
 

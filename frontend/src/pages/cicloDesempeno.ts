@@ -38,7 +38,8 @@ import {
   MODAL_PANEL,
   pageHeading,
   renderTabNav,
-  RH_LISTADO_PAGE_OUTER,
+  RH_DASHBOARD_PAGE_SHELL,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
   SELECT_CHEVRON,
@@ -946,7 +947,8 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
         ]
       : [{ id: "resultados", label: "Resultados y 9-Box" }];
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_DASHBOARD_PAGE_SHELL}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
         <p class="text-xs font-medium text-text-muted">${state.esGestionRh ? "Talento" : "Talento · Mi equipo"}</p>
         ${pageHeading(
@@ -963,6 +965,7 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
       }
       ${state.tab === "ciclos" && state.esGestionRh ? renderCiclosTab() : renderResultadosTab()}
     </div>
+    </div>
     ${renderNuevoCicloModal()}
     ${renderEditCicloModal()}`;
   }
@@ -971,7 +974,7 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     mountAppShell(container, {
       pageTitle: "Ciclo de Desempeño",
       activeNav: "ciclo-desempeno",
-      mainClass: "py-5 sm:py-6",
+      mainClass: "py-0",
       mainHtml: pageContent(),
     });
   }

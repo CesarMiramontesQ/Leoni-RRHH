@@ -39,6 +39,8 @@ import {
   badgeApproved,
   badgeRejected,
   badgePending,
+  RH_DASHBOARD_PAGE_SHELL,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
 } from "../ui/uiTokens.ts";
 import { formatNombreEmpleadoUi, inicialesDesdeNombreDisplay } from "../utils/nombreEmpleadoDisplay.ts";
 
@@ -174,7 +176,7 @@ export function mountEvaluacionEmpleado(
 ): void {
   mountAppShell(container, {
     activeNav: "evaluaciones",
-    mainHtml: `<div id="eval-empleado-page"></div>`,
+    mainHtml: `<div id="eval-empleado-page" class="${RH_DASHBOARD_PAGE_SHELL}"></div>`,
     mainClass: "py-0",
   });
 
@@ -190,7 +192,7 @@ export function mountEvaluacionEmpleado(
 
   function renderLoading(): string {
     return `
-      <div class="px-6 py-6 max-w-6xl mx-auto">
+      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderLevelUpBackBar()}
         <div class="py-12 text-center text-gray-500">Cargando resumen...</div>
       </div>`;
@@ -198,7 +200,7 @@ export function mountEvaluacionEmpleado(
 
   function renderError(): string {
     return `
-      <div class="px-6 py-6 max-w-6xl mx-auto">
+      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderLevelUpBackBar()}
         <div class="mt-6 rounded-lg border border-dashed border-gray-300 py-12 text-center text-gray-500">
           <p class="text-sm">No se pudo cargar el resumen de este empleado.</p>
@@ -812,7 +814,7 @@ export function mountEvaluacionEmpleado(
 
   function renderResumen(data: EmpleadoResumen, pdiItems: PDIAccion[], evaluaciones: Evaluacion[]): string {
     return `
-      <div class="px-6 py-6 max-w-6xl mx-auto">
+      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderLevelUpBackBar()}
         <div class="mt-4">
           ${renderHeader()}
