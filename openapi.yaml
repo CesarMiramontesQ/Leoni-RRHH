@@ -5498,6 +5498,21 @@ components:
         notificaciones_creadas: { type: integer }
         empleados_notificados: { type: integer }
 
+    PDIFilterOption:
+      type: object
+      required: [id, label]
+      properties:
+        id: { type: string }
+        label: { type: string }
+
+    PDIFilterOptionsResponse:
+      type: object
+      properties:
+        puestos_perfil:
+          type: array
+          items:
+            $ref: "#/components/schemas/PDIFilterOption"
+
     # ── Level Up - Catálogos Cursos ───────────────────
     InstructorInternoCreate:
       type: object
@@ -12221,6 +12236,26 @@ paths:
 
   # ── Talento - PDI Avanzado ─────────────────────────────────────────────────
 
+  /api/v1/evaluaciones/pdi/filter-options:
+    get:
+      tags: [Talento - PDI]
+      summary: Opciones de filtro PDI (perfiles de puesto)
+      operationId: pdi_filter_options
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: query
+          schema: { type: integer }
+          description: Acotar perfiles al área del perfil
+      responses:
+        "200":
+          description: Opciones de filtro
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PDIFilterOptionsResponse"
+
   /api/v1/evaluaciones/pdi/kpis-avanzados:
     get:
       tags: [Talento - PDI]
@@ -12233,6 +12268,10 @@ paths:
           in: query
           schema: { type: integer }
           description: Filtrar por area (omitir para scope completo del usuario)
+        - name: puesto_perfil_id
+          in: query
+          schema: { type: integer }
+          description: Filtrar por perfil de puesto Talento (asignación activa)
       responses:
         "200":
           description: KPIs calculados
@@ -12276,6 +12315,10 @@ paths:
         - name: area_id
           in: query
           schema: { type: integer }
+        - name: puesto_perfil_id
+          in: query
+          schema: { type: integer }
+          description: Filtrar por perfil de puesto Talento
       responses:
         "200":
           description: Archivo descargable

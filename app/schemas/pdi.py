@@ -225,3 +225,12 @@ class PDIRecomendacionesResponse(BaseModel):
 class PDINotificarEquipoResponse(BaseModel):
     notificaciones_creadas: int
     empleados_notificados: int
+
+
+class PDIFilterOption(BaseModel):
+    id: str
+    label: str
+
+
+class PDIFilterOptionsResponse(BaseModel):
+    puestos_perfil: list[PDIFilterOption] = []

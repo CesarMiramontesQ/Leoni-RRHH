@@ -7,7 +7,7 @@ import pytest
 from app.models.talento import PlanDesarrolloIndividual
 from app.repositories.pdi_repository import PDIRepository
 from tests.conftest import make_empleado
-from tests.conftest_talento import make_competencia
+from tests.conftest_talento import make_area, make_competencia, make_perfil_funciones, make_puesto_perfil
 
 
 async def _pdi(db, empleado_id: int, competencia_id: int, estado: str) -> None:
@@ -77,3 +77,32 @@ async def test_equipo_pdi_aggregates_cuenta_cancelados(db):
     assert fila.completadas == 1
     assert fila.pendientes == 1
     assert fila.cancelados == 2
+
+
+@pytest.mark.asyncio
+async def test_list_consolidated_filtra_por_puesto_perfil(db):
+    """puesto_perfil_id limita a empleados con asignación activa a ese perfil."""
+    area = await make_area(db, descripcion="Area PDI Puesto")
+    perfil_a = await make_puesto_perfil(db, nombre="Perfil A PDI", area_id=area.area_id)
+    perfil_b = await make_puesto_perfil(db, nombre="Perfil B PDI", area_id=area.area_id)
+    comp = await make_competencia(db)
+    emp_a = await make_empleado(db, email="pdi_puesto_a@leoni.test")
+    emp_b = await make_empleado(db, email="pdi_puesto_b@leoni.test")
+    await make_perfil_funciones(
+        db, empleado_id=emp_a.empleado_id, puesto_perfil_id=perfil_a.id
+    )
+    await make_perfil_funciones(
+        db, empleado_id=emp_b.empleado_id, puesto_perfil_id=perfil_b.id
+    )
+    await _pdi(db, emp_a.empleado_id, comp.id, "pendiente")
+    await _pdi(db, emp_b.empleado_id, comp.id, "pendiente")
+
+    repo = PDIRepository(db)
+    items, total = await repo.list_consolidated(
+        offset=0, limit=50, puesto_perfil_id=perfil_a.id
+    )
+    assert total == 1
+    assert items[0].empleado_id == emp_a.empleado_id
+
+    agregados = await repo.equipo_pdi_aggregates(puesto_perfil_id=perfil_a.id)
+    assert [r.empleado_id for r in agregados] == [emp_a.empleado_id]
