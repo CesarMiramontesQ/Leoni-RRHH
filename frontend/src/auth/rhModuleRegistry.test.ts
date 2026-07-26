@@ -22,6 +22,13 @@ describe("resolveModuleFromHash", () => {
     expect(resolveModuleFromHash("#/faltas-retardos?tipo=retardo")).toBe("faltas-retardos");
   });
 
+  it("la Matriz de multihabilidades resuelve al módulo con el que se fusionó", () => {
+    // `#/capacidades` sigue siendo una pantalla propia; lo que dejó de existir
+    // es su clave de permiso (misma API y misma tabla que Competencias).
+    expect(resolveModuleFromHash("#/capacidades")).toBe("competencias");
+    expect(resolveModuleFromHash("#/competencias")).toBe("competencias");
+  });
+
   it("devuelve null para rutas que no son de ningún módulo", () => {
     expect(resolveModuleFromHash("#/no-existe")).toBeNull();
   });

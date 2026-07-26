@@ -21,7 +21,9 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "puestos-ajustes", prefix: "#/puestos/ajustes" },
   { key: "puestos", prefix: "#/puestos" },
   { key: "tareas-catalogo", prefix: "#/tareas-catalogo" },
-  { key: "capacidades", prefix: "#/capacidades" },
+  // La Matriz de multihabilidades ya no tiene permiso propio: se fundió en
+  // `competencias` (misma API y misma tabla). La pantalla sigue existiendo.
+  { key: "competencias", prefix: "#/capacidades" },
   { key: "operaciones", prefix: "#/operaciones" },
   { key: "competencias", prefix: "#/competencias" },
   { key: "evaluaciones", prefix: "#/evaluaciones" },
@@ -66,6 +68,7 @@ export function resolveModuleFromHash(hashValue: string): string | null {
 }
 
 export function navItemIdToModuleKey(navItemId: string): string {
+  if (navItemId === "capacidades") return "competencias";
   if (navItemId === "cursos-juntas") return "juntas";
   if (navItemId === "cursos-proveedores") return "proveedores-externos";
   if (navItemId === "comedor-menu" || navItemId === "comedor") return "comedor-registro";
