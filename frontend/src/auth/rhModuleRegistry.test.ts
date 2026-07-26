@@ -25,4 +25,17 @@ describe("resolveModuleFromHash", () => {
   it("devuelve null para rutas que no son de ningún módulo", () => {
     expect(resolveModuleFromHash("#/no-existe")).toBeNull();
   });
+
+  /**
+   * `#/level-up/resumen` era una pantalla propia (una maqueta con KPIs
+   * inventados) y dejó de existir: ahora cae en el hub. El módulo tiene que
+   * seguir resolviendo, o un marcador guardado se saltaría la compuerta de
+   * permisos por ser "ruta sin módulo".
+   */
+  it("un marcador de la pantalla retirada sigue resolviendo a su módulo", () => {
+    expect(resolveModuleFromHash("#/level-up/resumen")).toBe("level-up");
+    expect(resolveModuleFromHash("#/level-up")).toBe("level-up");
+    // Y no se come la ruta de Evaluación 360°, que cuelga del mismo prefijo.
+    expect(resolveModuleFromHash("#/level-up/evaluacion-360")).toBe("evaluacion-360");
+  });
 });

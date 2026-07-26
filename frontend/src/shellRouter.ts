@@ -41,7 +41,6 @@ import { mountEvaluaciones } from "./pages/evaluaciones.ts";
 import { mountEvaluacionEmpleado } from "./pages/evaluacionEmpleado.ts";
 import { canAccessOrganigramaPage } from "./auth/jwt.ts";
 import {
-  mountLevelUpDashboard,
   mountCursos,
   mountSugerencias,
   mountEncuestas,
@@ -304,10 +303,6 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       void import("./pages/evaluacion360.ts").then(({ mountEvaluacion360 }) => {
         mountEvaluacion360(container, signal);
       });
-      return;
-    }
-    if (h.startsWith("#/level-up/resumen")) {
-      mountLevelUpDashboard(container);
       return;
     }
     if (h.startsWith("#/level-up")) {
