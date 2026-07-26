@@ -13,7 +13,6 @@ import { isComedorHubVisibleForRol } from "./comedorNav.ts";
 import { isLaboralesHubVisibleForRol } from "./laboralesNav.ts";
 import {
   isLevelUpHubVisibleForRol,
-  getVisibleLevelUpCategoriesForRhSidebar,
 } from "./levelUpNav.ts";
 import { isNominasHubVisibleForRol } from "./nominasNav.ts";
 import { canApproveOvertime, canRegisterOvertime } from "../auth/payrollPermissions.ts";
@@ -335,9 +334,10 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
     return hasExplicitModuleGrant(navItemIdToModuleKey(itemId));
   }
   if (itemId === "level-up") {
-    if (isRhStructuredNavRol(rol)) {
-      return getVisibleLevelUpCategoriesForRhSidebar(rol).some((category) => category.items.length > 0);
-    }
+    // El sidebar RH ya no tiene sección «Level Up»: sus ítems se repartieron
+    // entre Talento, Desempeño y Desarrollo. El hub sigue vivo para quien
+    // navega por hubs (supervisor/gerente).
+    if (isRhStructuredNavRol(rol)) return false;
     return isLevelUpHubVisibleForRol(rol);
   }
   if (itemId === "laborales") {

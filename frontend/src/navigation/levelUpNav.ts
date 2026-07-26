@@ -39,7 +39,7 @@ export type LevelUpAccessItem = {
 };
 
 export type LevelUpCategory = {
-  id: "cursos" | "puestos" | "formacion" | "cumplimiento";
+  id: "talento" | "desempeno" | "desarrollo";
   title: string;
   items: readonly LevelUpAccessItem[];
 };
@@ -165,29 +165,29 @@ export const LEVEL_UP_PUESTOS: readonly LevelUpAccessItem[] = [
   },
 ];
 
-const LEVEL_UP_FORMACION: readonly LevelUpAccessItem[] = [
-  {
-    id: "evaluacion-360",
-    key: "evaluacion-360",
-    href: "#/level-up/evaluacion-360",
-    label: "Evaluación 360°",
-    svgPaths: `<path d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5ZM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0 0v.008H12V15Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  },
-  {
-    id: "capacidades",
-    key: "capacidades",
-    href: "#/capacidades",
-    label: "Matriz de multihabilidades",
-    svgPaths: `<path d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  },
-  {
-    id: "operaciones",
-    key: "operaciones",
-    href: "#/operaciones",
-    label: "Cobertura y polivalencia",
-    svgPaths: `<path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" stroke-linecap="round" stroke-linejoin="round" />`,
-  },
-];
+export const LEVEL_UP_EVALUACION_360: LevelUpAccessItem = {
+  id: "evaluacion-360",
+  key: "evaluacion-360",
+  href: "#/level-up/evaluacion-360",
+  label: "Evaluación 360°",
+  svgPaths: `<path d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5ZM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0 0v.008H12V15Z" stroke-linecap="round" stroke-linejoin="round" />`,
+};
+
+export const LEVEL_UP_CAPACIDADES: LevelUpAccessItem = {
+  id: "capacidades",
+  key: "capacidades",
+  href: "#/capacidades",
+  label: "Matriz de multihabilidades",
+  svgPaths: `<path d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6Zm0 9.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" stroke-linecap="round" stroke-linejoin="round" />`,
+};
+
+export const LEVEL_UP_OPERACIONES: LevelUpAccessItem = {
+  id: "operaciones",
+  key: "operaciones",
+  href: "#/operaciones",
+  label: "Cobertura y polivalencia",
+  svgPaths: `<path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" stroke-linecap="round" stroke-linejoin="round" />`,
+};
 
 export const LEVEL_UP_CUMPLIMIENTO: readonly LevelUpAccessItem[] = [
   {
@@ -200,13 +200,28 @@ export const LEVEL_UP_CUMPLIMIENTO: readonly LevelUpAccessItem[] = [
   LEVEL_UP_ENCUESTAS,
 ];
 
-const RH_CURSOS_SIDEBAR_ITEM_KEYS: ReadonlySet<LevelUpNavKey> = new Set(["encuestas"]);
-
+/**
+ * Categorías del hub `#/level-up`. Mismo reparto por dominio que las secciones
+ * del sidebar RH (ver `talentoNav` / `desempenoNav` / `cursosNav`): si el hub y
+ * el menú agruparan distinto, cada uno contaría una historia diferente del
+ * mismo producto.
+ */
 export const LEVEL_UP_CATEGORIES: readonly LevelUpCategory[] = [
-  { id: "cursos", title: "Cursos", items: LEVEL_UP_CURSOS },
-  { id: "puestos", title: "Puestos", items: LEVEL_UP_PUESTOS },
-  { id: "formacion", title: "Formación", items: LEVEL_UP_FORMACION },
-  { id: "cumplimiento", title: "Cumplimiento", items: LEVEL_UP_CUMPLIMIENTO },
+  {
+    id: "talento",
+    title: "Talento",
+    items: [...LEVEL_UP_PUESTOS, LEVEL_UP_CAPACIDADES, LEVEL_UP_OPERACIONES],
+  },
+  {
+    id: "desempeno",
+    title: "Desempeño",
+    items: [LEVEL_UP_EVALUACION_360, ...LEVEL_UP_CUMPLIMIENTO.filter((i) => i.key === "evaluaciones")],
+  },
+  {
+    id: "desarrollo",
+    title: "Desarrollo",
+    items: [...LEVEL_UP_CURSOS, LEVEL_UP_ENCUESTAS],
+  },
 ];
 
 export const LEVEL_UP_SUB_NAV_KEYS: ReadonlySet<LevelUpNavKey> = new Set(
@@ -233,23 +248,6 @@ export function getVisibleLevelUpCategories(rol: string | null): LevelUpCategory
 }
 
 /** Categorías Level Up visibles en el sidebar RH (sin secciones propias: Cursos, Puestos). */
-const RH_SIDEBAR_OWN_SECTION_CATEGORY_IDS = new Set<LevelUpCategory["id"]>(["cursos", "puestos"]);
-
-function filterRhSidebarLevelUpCategory(category: LevelUpCategory): LevelUpCategory {
-  if (category.id !== "cumplimiento") return category;
-  return {
-    ...category,
-    items: category.items.filter((item) => !RH_CURSOS_SIDEBAR_ITEM_KEYS.has(item.key)),
-  };
-}
-
-export function getVisibleLevelUpCategoriesForRhSidebar(rol: string | null): LevelUpCategory[] {
-  return getVisibleLevelUpCategories(rol)
-    .filter((category) => !RH_SIDEBAR_OWN_SECTION_CATEGORY_IDS.has(category.id))
-    .map(filterRhSidebarLevelUpCategory)
-    .filter((category) => category.items.length > 0);
-}
-
 export function isLevelUpHubVisibleForRol(rol: string | null): boolean {
   if (isEmpleadoFlatNavRol(rol) || isSupervisorStructuredNavRol(rol)) return false;
   if (isRhOperativoUiMode()) return false;

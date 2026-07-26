@@ -182,7 +182,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "cursos": RhModuleDef(
         key="cursos",
         label="Catálogo de cursos",
-        group="Cursos",
+        group="Desarrollo",
         nav_item_ids=("cursos",),
         hash_prefixes=("#/cursos",),
         api_prefixes=("/api/v1/level-up/cursos",),
@@ -190,7 +190,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "cursos-seguimiento": RhModuleDef(
         key="cursos-seguimiento",
         label="Seguimiento de capacitaciones",
-        group="Cursos",
+        group="Desarrollo",
         nav_item_ids=("cursos-seguimiento",),
         hash_prefixes=("#/cursos/seguimiento",),
         api_prefixes=("/api/v1/level-up/cursos/dashboard",),
@@ -198,7 +198,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "sesiones": RhModuleDef(
         key="sesiones",
         label="Sesiones",
-        group="Cursos",
+        group="Desarrollo",
         nav_item_ids=("sesiones",),
         hash_prefixes=("#/sesiones",),
         api_prefixes=("/api/v1/level-up/sesiones",),
@@ -206,7 +206,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "capacitaciones": RhModuleDef(
         key="capacitaciones",
         label="Capacitaciones",
-        group="Cursos",
+        group="Desarrollo",
         nav_item_ids=("capacitaciones",),
         hash_prefixes=("#/capacitaciones",),
         api_prefixes=("/api/v1/capacitaciones",),
@@ -214,7 +214,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "encuestas": RhModuleDef(
         key="encuestas",
         label="Encuestas Post Curso",
-        group="Cursos",
+        group="Desarrollo",
         nav_item_ids=("encuestas",),
         hash_prefixes=("#/encuestas",),
         api_prefixes=(),
@@ -222,7 +222,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "cursos-ajustes": RhModuleDef(
         key="cursos-ajustes",
         label="Ajustes de cursos",
-        group="Cursos",
+        group="Desarrollo",
         nav_item_ids=("cursos-ajustes",),
         hash_prefixes=("#/cursos/ajustes",),
         api_prefixes=("/api/v1/level-up/catalogos",),
@@ -230,7 +230,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "juntas": RhModuleDef(
         key="juntas",
         label="Juntas",
-        group="Cursos",
+        group="Desarrollo",
         nav_item_ids=("cursos-juntas",),
         hash_prefixes=("#/cursos/juntas",),
         api_prefixes=("/api/v1/juntas",),
@@ -263,7 +263,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "puestos": RhModuleDef(
         key="puestos",
         label="Perfiles de puesto",
-        group="Puestos",
+        group="Talento",
         nav_item_ids=("puestos",),
         hash_prefixes=("#/puestos",),
         api_prefixes=(
@@ -276,7 +276,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "competencias": RhModuleDef(
         key="competencias",
         label="Competencias",
-        group="Puestos",
+        group="Talento",
         nav_item_ids=("competencias",),
         hash_prefixes=("#/competencias",),
         api_prefixes=("/api/v1/competencias",),
@@ -284,7 +284,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "tareas-catalogo": RhModuleDef(
         key="tareas-catalogo",
         label="Tareas",
-        group="Puestos",
+        group="Talento",
         nav_item_ids=("tareas-catalogo",),
         hash_prefixes=("#/tareas-catalogo",),
         api_prefixes=("/api/v1/tareas-catalogo",),
@@ -292,7 +292,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "puestos-ajustes": RhModuleDef(
         key="puestos-ajustes",
         label="Ajustes perfil de puesto",
-        group="Puestos",
+        group="Talento",
         nav_item_ids=("puestos-ajustes",),
         hash_prefixes=("#/puestos/ajustes",),
         api_prefixes=(
@@ -306,7 +306,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "evaluaciones": RhModuleDef(
         key="evaluaciones",
         label="Evaluaciones",
-        group="Cumplimiento",
+        group="Desempeño",
         nav_item_ids=("evaluaciones",),
         hash_prefixes=("#/evaluaciones",),
         api_prefixes=("/api/v1/evaluaciones",),
@@ -314,7 +314,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "opls": RhModuleDef(
         key="opls",
         label="Manejo de OPLs",
-        group="Cumplimiento",
+        group="Desarrollo",
         nav_item_ids=("opls",),
         hash_prefixes=("#/opls",),
         api_prefixes=("/api/v1/level-up/opls",),
@@ -322,7 +322,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "evidencias": RhModuleDef(
         key="evidencias",
         label="Motor de Evidencias",
-        group="Cumplimiento",
+        group="Desarrollo",
         nav_item_ids=("evidencias",),
         hash_prefixes=("#/evidencias",),
         api_prefixes=("/api/v1/level-up/evidencias",),
@@ -330,7 +330,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "sugerencias": RhModuleDef(
         key="sugerencias",
         label="Motor de Sugerencias",
-        group="Cumplimiento",
+        group="Desarrollo",
         nav_item_ids=("sugerencias",),
         hash_prefixes=("#/sugerencias",),
         api_prefixes=("/api/v1/level-up/sugerencias",),
@@ -338,7 +338,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "pdi-gestion": RhModuleDef(
         key="pdi-gestion",
         label="Gestión PDI",
-        group="Cumplimiento",
+        group="Desarrollo",
         nav_item_ids=("pdi-gestion",),
         hash_prefixes=("#/pdi-gestion",),
         api_prefixes=("/api/v1/evaluaciones/pdi",),
@@ -346,7 +346,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "historial-objetivo": RhModuleDef(
         key="historial-objetivo",
         label="Historial Objetivo",
-        group="Cumplimiento",
+        group="Desempeño",
         nav_item_ids=("historial-objetivo",),
         hash_prefixes=("#/cumplimiento/historial-objetivo",),
         api_prefixes=("/api/v1/historial-objetivo",),
@@ -357,7 +357,8 @@ RH_MODULES: dict[str, RhModuleDef] = {
         # resulto ser una maqueta con numeros inventados. El modulo es el hub
         # (#/level-up), que es lo que de verdad hay detras de la clave.
         label="Menu Level Up",
-        group="Level Up",
+        # Es un menu (el hub #/level-up), no un dominio.
+        group="General",
         nav_item_ids=("level-up",),
         hash_prefixes=("#/level-up",),
         api_prefixes=("/api/v1/level-up",),
@@ -365,7 +366,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "evaluacion-360": RhModuleDef(
         key="evaluacion-360",
         label="Evaluación 360°",
-        group="Level Up",
+        group="Desempeño",
         nav_item_ids=("evaluacion-360",),
         hash_prefixes=("#/level-up/evaluacion-360",),
         api_prefixes=("/api/v1/evaluacion-360",),
@@ -373,7 +374,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "capacidades": RhModuleDef(
         key="capacidades",
         label="Matriz de multihabilidades",
-        group="Level Up",
+        group="Talento",
         nav_item_ids=("capacidades",),
         hash_prefixes=("#/capacidades",),
         api_prefixes=("/api/v1/competencias/multihabilidades",),
@@ -389,7 +390,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "metas": RhModuleDef(
         key="metas",
         label="Metas",
-        group="Talento",
+        group="Desempeño",
         nav_item_ids=("metas",),
         hash_prefixes=("#/talento/metas",),
         api_prefixes=("/api/v1/metas",),
@@ -397,7 +398,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "ciclo-desempeno": RhModuleDef(
         key="ciclo-desempeno",
         label="Ciclo de Desempeño",
-        group="Talento",
+        group="Desempeño",
         nav_item_ids=("ciclo-desempeno",),
         hash_prefixes=("#/talento/ciclo-desempeno",),
         api_prefixes=("/api/v1/ciclo-desempeno",),
@@ -405,7 +406,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "operaciones": RhModuleDef(
         key="operaciones",
         label="Cobertura y polivalencia",
-        group="Level Up",
+        group="Talento",
         nav_item_ids=("operaciones",),
         hash_prefixes=("#/operaciones",),
         api_prefixes=("/api/v1/operaciones",),
@@ -420,17 +421,18 @@ RH_MODULES: dict[str, RhModuleDef] = {
     ),
 }
 
+# Mismo reparto por dominio que el sidebar (frontend/src/navigation/*Nav.ts):
+# si Permisos RH agrupara distinto, el administrador vería una organizacion del
+# producto que no existe en el menu.
 RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
     "General",
     "Laborales",
     "Comedor",
     "Nóminas",
-    "Cursos",
-    "Personal Externo",
-    "Puestos",
-    "Cumplimiento",
-    "Level Up",
     "Talento",
+    "Desempeño",
+    "Desarrollo",
+    "Personal Externo",
 )
 
 RH_MODULE_EXEMPT_API_PREFIXES: tuple[str, ...] = (
