@@ -81,26 +81,6 @@ describe("rhNav sections", () => {
     vi.resetModules();
   });
 
-  it("expone Cursos como sección independiente sin duplicar ítems en Level Up", async () => {
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-
-    const cursosSection = sections.find((section) => section.id === "cursos");
-    const levelUpSection = sections.find((section) => section.id === "level-up");
-
-    expect(cursosSection?.title).toBe("Cursos");
-    expect(cursosSection?.items.map((item) => item.key)).toEqual([
-      "cursos-seguimiento",
-      "cursos",
-      "sesiones",
-      "encuestas",
-      "cursos-ajustes",
-    ]);
-    expect(levelUpSection?.items.some((item) => item.key === "cursos")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "sesiones")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
-  });
-
   it("expone Personal Externo como sección de primer nivel con sus tres subpáginas", async () => {
     allowedModules.add("proveedores-externos");
     allowedModules.add("cursos-externos");
@@ -123,225 +103,129 @@ describe("rhNav sections", () => {
     expect(cursosSection?.items.some((item) => item.key === "cursos-vencimientos")).toBe(false);
   });
 
-  it("expone Puestos como sección independiente sin duplicar ítems en Level Up", async () => {
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-
-    const puestosSection = sections.find((section) => section.id === "puestos");
-    const levelUpSection = sections.find((section) => section.id === "level-up");
-
-    expect(puestosSection?.title).toBe("Puestos");
-    expect(puestosSection?.items.map((item) => item.key)).toEqual([
-      "puestos",
-      "competencias",
-      "tareas-catalogo",
-      "puestos-ajustes",
-    ]);
-    expect(levelUpSection?.items.some((item) => item.key === "puestos")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "competencias")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "tareas-catalogo")).toBe(false);
-    expect(levelUpSection?.items.some((item) => item.key === "puestos-ajustes")).toBe(false);
-  });
-
-  it("no expone sección Cumplimiento; Evaluaciones vive dentro de Level Up", async () => {
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-
-    const cumplimientoSection = sections.find((section) => section.id === "cumplimiento");
-    const levelUpSection = sections.find((section) => section.id === "level-up");
-
-    expect(cumplimientoSection).toBeUndefined();
-    expect(levelUpSection?.items.some((item) => item.key === "evaluaciones")).toBe(true);
-    expect(levelUpSection?.items.some((item) => item.key === "encuestas")).toBe(false);
-    // "Resumen operativo" (key level-up) ya no se muestra en el submenú.
-    expect(levelUpSection?.items.some((item) => item.key === "level-up")).toBe(false);
-  });
-
-  it("conserva rutas y etiquetas originales de los ítems de Cursos", async () => {
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const cursosSection = getVisibleRhNavSections("supervisor").find((section) => section.id === "cursos");
-
-    expect(cursosSection?.items).toEqual([
-      expect.objectContaining({
-        key: "cursos-seguimiento",
-        href: "#/cursos/seguimiento",
-        label: "Seguimiento",
-      }),
-      expect.objectContaining({
-        key: "cursos",
-        href: "#/cursos",
-        label: "Catálogo de cursos",
-      }),
-      expect.objectContaining({
-        key: "sesiones",
-        href: "#/sesiones",
-        label: "Sesiones",
-      }),
-      expect.objectContaining({
-        key: "encuestas",
-        href: "#/encuestas",
-        label: "Encuestas Post Curso",
-      }),
-      expect.objectContaining({
-        key: "cursos-ajustes",
-        href: "#/cursos/ajustes",
-        label: "Ajustes de cursos",
-      }),
-    ]);
-  });
-
-  it("conserva rutas y etiquetas originales de los ítems de Puestos", async () => {
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const puestosSection = getVisibleRhNavSections("supervisor").find((section) => section.id === "puestos");
-
-    expect(puestosSection?.items).toEqual([
-      expect.objectContaining({
-        key: "puestos",
-        href: "#/puestos",
-        label: "Perfiles de puesto",
-      }),
-      expect.objectContaining({
-        key: "competencias",
-        href: "#/competencias",
-        label: "Competencias",
-      }),
-      expect.objectContaining({
-        key: "tareas-catalogo",
-        href: "#/tareas-catalogo",
-        label: "Tareas",
-      }),
-      expect.objectContaining({
-        key: "puestos-ajustes",
-        href: "#/puestos/ajustes",
-        label: "Ajustes perfil de puesto",
-      }),
-    ]);
-  });
-
-  it("conserva ruta y etiqueta de Evaluaciones dentro de Level Up", async () => {
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const levelUpSection = getVisibleRhNavSections("supervisor").find(
-      (section) => section.id === "level-up",
-    );
-
-    expect(levelUpSection?.items).toContainEqual(
-      expect.objectContaining({
-        key: "evaluaciones",
-        href: "#/evaluaciones",
-        label: "Evaluaciones",
-      }),
-    );
-  });
-
-  it("ordena módulos de forma lógica para RH", async () => {
+  it("agrupa el menú por dominio: Talento, Desempeño y Desarrollo", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sectionIds = getVisibleRhNavSections("supervisor").map((section) => section.id);
 
-    expect(sectionIds).toEqual(["cursos", "puestos", "level-up"]);
+    // Ya no hay sección «Level Up»: era un nombre de fase, no un dominio, y sus
+    // ítems se repartieron entre las tres secciones de abajo.
+    expect(sectionIds).toEqual(["talento", "desempeno", "cursos"]);
+    expect(sectionIds).not.toContain("level-up");
+    expect(sectionIds).not.toContain("puestos");
   });
 
-  it("omite Cursos cuando no hay ítems visibles", async () => {
-    allowedModules.delete("cursos");
-    allowedModules.delete("cursos-seguimiento");
-    allowedModules.delete("sesiones");
-    allowedModules.delete("encuestas");
-    allowedModules.delete("cursos-ajustes");
-
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-
-    expect(sections.some((section) => section.id === "cursos")).toBe(false);
-  });
-
-  it("omite Puestos cuando no hay ítems visibles", async () => {
-    allowedModules.delete("puestos");
-    allowedModules.delete("competencias");
-    allowedModules.delete("tareas-catalogo");
-    allowedModules.delete("puestos-ajustes");
-
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-
-    expect(sections.some((section) => section.id === "puestos")).toBe(false);
-  });
-
-  it("omite Talento por defecto (módulo encuestas-rh no otorgado)", async () => {
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-
-    expect(sections.some((section) => section.id === "talento")).toBe(false);
-  });
-
-  it("expone Talento con Encuestas cuando se otorga el módulo encuestas-rh", async () => {
-    allowedModules.add("encuestas-rh");
-
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-    const talentoSection = sections.find((section) => section.id === "talento");
-
-    expect(talentoSection?.title).toBe("Talento");
-    expect(talentoSection?.items).toEqual([
-      expect.objectContaining({
-        id: "encuestas-rh",
-        key: "encuestas-rh",
-        href: "#/talento/encuestas",
-        label: "Encuestas",
-      }),
-    ]);
-  });
-
-  it("expone Talento con Ciclo de Desempeño cuando se otorga el módulo ciclo-desempeno", async () => {
-    allowedModules.add("ciclo-desempeno");
-
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-    const talentoSection = sections.find((section) => section.id === "talento");
-
-    expect(talentoSection?.title).toBe("Talento");
-    expect(talentoSection?.items).toEqual([
-      expect.objectContaining({
-        id: "ciclo-desempeno",
-        key: "ciclo-desempeno",
-        href: "#/talento/ciclo-desempeno",
-        label: "Ciclo de Desempeño",
-      }),
-    ]);
-  });
-
-  it("expone Talento con Dashboard de Talento cuando se otorga el módulo dashboard-talento", async () => {
+  it("ningún ítem aparece en dos secciones", async () => {
     allowedModules.add("dashboard-talento");
-
-    const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-    const talentoSection = sections.find((section) => section.id === "talento");
-
-    expect(talentoSection?.title).toBe("Talento");
-    expect(talentoSection?.items).toEqual([
-      expect.objectContaining({
-        id: "dashboard-talento",
-        key: "dashboard-talento",
-        href: "#/talento/dashboard",
-        label: "Dashboard de Talento",
-      }),
-    ]);
-  });
-
-  it("expone Talento con Historial Objetivo cuando se otorga el módulo historial-objetivo", async () => {
+    allowedModules.add("encuestas-rh");
+    allowedModules.add("capacidades");
+    allowedModules.add("operaciones");
+    allowedModules.add("ciclo-desempeno");
+    allowedModules.add("metas");
+    allowedModules.add("evaluacion-360");
     allowedModules.add("historial-objetivo");
 
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
-    const sections = getVisibleRhNavSections("supervisor");
-    const talentoSection = sections.find((section) => section.id === "talento");
+    const keys = getVisibleRhNavSections("supervisor").flatMap((s) => s.items.map((i) => i.key));
 
-    expect(talentoSection?.title).toBe("Talento");
-    expect(talentoSection?.items).toEqual([
-      expect.objectContaining({
-        id: "historial-objetivo",
-        key: "historial-objetivo",
-        href: "#/cumplimiento/historial-objetivo",
-        label: "Historial Objetivo",
-      }),
+    expect(keys).toHaveLength(new Set(keys).size);
+  });
+
+  it("Talento reúne el perfil de puesto y todo lo que se mide sobre él", async () => {
+    allowedModules.add("dashboard-talento");
+    allowedModules.add("capacidades");
+    allowedModules.add("operaciones");
+    allowedModules.add("encuestas-rh");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const talento = getVisibleRhNavSections("supervisor").find((s) => s.id === "talento");
+
+    expect(talento?.title).toBe("Talento");
+    // Competencias y Matriz de multihabilidades leen la misma tabla, y
+    // Cobertura y polivalencia es el building block del propio dashboard:
+    // estaban en tres secciones distintas.
+    expect(talento?.items.map((item) => item.key)).toEqual([
+      "dashboard-talento",
+      "puestos",
+      "competencias",
+      "capacidades",
+      "operaciones",
+      "tareas-catalogo",
+      "puestos-ajustes",
+      "encuestas-rh",
     ]);
   });
 
+  it("Desempeño reúne las señales que el ciclo pondera", async () => {
+    allowedModules.add("ciclo-desempeno");
+    allowedModules.add("metas");
+    allowedModules.add("evaluacion-360");
+    allowedModules.add("historial-objetivo");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const desempeno = getVisibleRhNavSections("supervisor").find((s) => s.id === "desempeno");
+
+    expect(desempeno?.title).toBe("Desempeño");
+    expect(desempeno?.items.map((item) => item.key)).toEqual([
+      "ciclo-desempeno",
+      "metas",
+      "evaluacion-360",
+      "evaluaciones",
+      "historial-objetivo",
+    ]);
+  });
+
+  it("Desarrollo incluye Gestión PDI, que no tenía entrada de menú", async () => {
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const desarrollo = getVisibleRhNavSections("supervisor").find((s) => s.id === "cursos");
+
+    expect(desarrollo?.title).toBe("Desarrollo");
+    // `#/pdi-gestion` tenía página propia y era uno de los cinco bloques del
+    // Dashboard de Talento, pero solo se llegaba por URL.
+    expect(desarrollo?.items).toContainEqual(
+      expect.objectContaining({ key: "pdi-gestion", href: "#/pdi-gestion", label: "Gestión PDI" }),
+    );
+  });
+
+  it("conserva rutas y etiquetas de los ítems que cambiaron de sección", async () => {
+    allowedModules.add("capacidades");
+    allowedModules.add("operaciones");
+    allowedModules.add("evaluacion-360");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const items = getVisibleRhNavSections("supervisor").flatMap((s) => s.items);
+    const porKey = (key: string) => items.find((item) => item.key === key);
+
+    expect(porKey("puestos")).toMatchObject({ href: "#/puestos", label: "Perfiles de puesto" });
+    expect(porKey("competencias")).toMatchObject({ href: "#/competencias", label: "Competencias" });
+    expect(porKey("capacidades")).toMatchObject({ href: "#/capacidades", label: "Matriz de multihabilidades" });
+    expect(porKey("operaciones")).toMatchObject({ href: "#/operaciones", label: "Cobertura y polivalencia" });
+    expect(porKey("evaluacion-360")).toMatchObject({ href: "#/level-up/evaluacion-360", label: "Evaluación 360°" });
+    expect(porKey("evaluaciones")).toMatchObject({ href: "#/evaluaciones", label: "Evaluaciones" });
+    expect(porKey("cursos-seguimiento")).toMatchObject({ href: "#/cursos/seguimiento", label: "Seguimiento" });
+  });
+
+  it("omite Desarrollo cuando no hay ítems visibles", async () => {
+    for (const key of ["cursos", "cursos-seguimiento", "sesiones", "encuestas", "cursos-ajustes", "pdi-gestion"]) {
+      allowedModules.delete(key);
+    }
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    expect(getVisibleRhNavSections("supervisor").some((s) => s.id === "cursos")).toBe(false);
+  });
+
+  it("omite Talento cuando no hay ninguno de sus módulos", async () => {
+    for (const key of ["puestos", "competencias", "tareas-catalogo", "puestos-ajustes"]) {
+      allowedModules.delete(key);
+    }
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    expect(getVisibleRhNavSections("supervisor").some((s) => s.id === "talento")).toBe(false);
+  });
+
+  it("omite Desempeño cuando no hay ninguno de sus módulos", async () => {
+    allowedModules.delete("evaluaciones");
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    expect(getVisibleRhNavSections("supervisor").some((s) => s.id === "desempeno")).toBe(false);
+  });
 });

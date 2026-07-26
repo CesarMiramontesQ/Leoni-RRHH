@@ -594,10 +594,12 @@ async def test_catalog_covers_all_rh_modules(client: AsyncClient, db):
     assert res.status_code == 200
     catalog_keys = {m["key"] for m in res.json()}
     assert catalog_keys == set(all_module_keys())
-    assert {m["group"] for m in catalog_for_api()} >= {
-        "Personal Externo",
-        "Cumplimiento",
-    }
+    # Los grupos siguen el mismo reparto por dominio que el sidebar
+    # (frontend/src/navigation/*Nav.ts). "Cumplimiento", "Cursos", "Puestos" y
+    # "Level Up" se fusionaron en Talento / Desempeño / Desarrollo.
+    grupos = {m["group"] for m in catalog_for_api()}
+    assert grupos >= {"Talento", "Desempeño", "Desarrollo", "Personal Externo"}
+    assert not grupos & {"Cumplimiento", "Cursos", "Puestos", "Level Up"}
 
 
 def test_resolve_module_from_api_path_pdi_empleado():

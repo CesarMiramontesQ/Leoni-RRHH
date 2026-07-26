@@ -8,9 +8,9 @@ import { COMEDOR_SIDEBAR_ITEM, COMEDOR_NAV_ITEMS } from "./comedorNav.ts";
 import { CURSOS_SIDEBAR_ITEM, getVisibleCursosNavItems } from "./cursosNav.ts";
 import { PERSONAL_EXTERNO_SIDEBAR_ITEM, getVisiblePersonalExternoNavItems } from "./personalExternoNav.ts";
 import { LABORALES_SIDEBAR_ITEM, LABORALES_NAV_ITEMS } from "./laboralesNav.ts";
-import { getVisibleLevelUpCategoriesForRhSidebar, LEVEL_UP_SIDEBAR_ITEM } from "./levelUpNav.ts";
+
 import { NOMINAS_NAV_ITEMS, NOMINAS_SIDEBAR_ITEM } from "./nominasNav.ts";
-import { PUESTOS_SIDEBAR_ITEM, getVisiblePuestosNavItems } from "./puestosNav.ts";
+import { DESEMPENO_SIDEBAR_ITEM, getVisibleDesempenoNavItems } from "./desempenoNav.ts";
 import { TALENTO_SIDEBAR_ITEM, getVisibleTalentoNavItems } from "./talentoNav.ts";
 
 export type RhNavKey =
@@ -32,6 +32,7 @@ export type RhNavKey =
   | "competencias"
   | "tareas-catalogo"
   | "evaluaciones"
+  | "evaluacion-360"
   | "pdi-gestion"
   | "capacidades"
   | "operaciones"
@@ -97,18 +98,6 @@ function filterVisibleItems(rol: string | null, items: readonly RhNavItem[]): Rh
   return items.filter((item) => isShellNavItemVisibleForRol(rol, item.id));
 }
 
-function buildLevelUpItems(rol: string | null): RhNavItem[] {
-  return getVisibleLevelUpCategoriesForRhSidebar(rol).flatMap((category) =>
-    category.items.map((item) => ({
-      id: item.id,
-      key: item.key as RhNavKey,
-      href: item.href,
-      label: item.label,
-      svgPaths: item.svgPaths,
-    })),
-  );
-}
-
 export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
   const sections: RhNavSection[] = [];
 
@@ -134,14 +123,36 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
     });
   }
 
-  const cursosItems = getVisibleCursosNavItems(rol);
-  if (cursosItems.length > 0) {
+  const talentoItems = getVisibleTalentoNavItems(rol);
+  if (talentoItems.length > 0) {
+    sections.push({
+      id: "talento",
+      title: TALENTO_SIDEBAR_ITEM.label,
+      sectionKey: "encuestas-rh",
+      iconSvgPaths: TALENTO_SIDEBAR_ITEM.svgPaths,
+      items: talentoItems,
+    });
+  }
+
+  const desempenoItems = getVisibleDesempenoNavItems(rol);
+  if (desempenoItems.length > 0) {
+    sections.push({
+      id: "desempeno",
+      title: DESEMPENO_SIDEBAR_ITEM.label,
+      sectionKey: "ciclo-desempeno",
+      iconSvgPaths: DESEMPENO_SIDEBAR_ITEM.svgPaths,
+      items: desempenoItems,
+    });
+  }
+
+  const desarrolloItems = getVisibleCursosNavItems(rol);
+  if (desarrolloItems.length > 0) {
     sections.push({
       id: "cursos",
       title: CURSOS_SIDEBAR_ITEM.label,
       sectionKey: "cursos",
       iconSvgPaths: CURSOS_SIDEBAR_ITEM.svgPaths,
-      items: cursosItems,
+      items: desarrolloItems,
     });
   }
 
@@ -153,39 +164,6 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
       sectionKey: "personal-externo",
       iconSvgPaths: PERSONAL_EXTERNO_SIDEBAR_ITEM.svgPaths,
       items: personalExternoItems,
-    });
-  }
-
-  const puestosItems = getVisiblePuestosNavItems(rol);
-  if (puestosItems.length > 0) {
-    sections.push({
-      id: "puestos",
-      title: PUESTOS_SIDEBAR_ITEM.label,
-      sectionKey: "puestos",
-      iconSvgPaths: PUESTOS_SIDEBAR_ITEM.svgPaths,
-      items: puestosItems,
-    });
-  }
-
-  const levelUpItems = buildLevelUpItems(rol);
-  if (levelUpItems.length > 0) {
-    sections.push({
-      id: "level-up",
-      title: LEVEL_UP_SIDEBAR_ITEM.label,
-      sectionKey: "level-up",
-      iconSvgPaths: LEVEL_UP_SIDEBAR_ITEM.svgPaths,
-      items: levelUpItems,
-    });
-  }
-
-  const talentoItems = getVisibleTalentoNavItems(rol);
-  if (talentoItems.length > 0) {
-    sections.push({
-      id: "talento",
-      title: TALENTO_SIDEBAR_ITEM.label,
-      sectionKey: "encuestas-rh",
-      iconSvgPaths: TALENTO_SIDEBAR_ITEM.svgPaths,
-      items: talentoItems,
     });
   }
 
