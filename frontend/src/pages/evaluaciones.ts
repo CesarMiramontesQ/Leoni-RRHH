@@ -5,7 +5,13 @@ import {
   type EmpleadoConPerfil,
 } from "../api/evaluaciones.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
-import { BTN_SECONDARY, FIELD_FOCUS, RH_LISTADO_SURFACE } from "../ui/uiTokens.ts";
+import {
+  BTN_SECONDARY,
+  FIELD_FOCUS,
+  RH_DASHBOARD_PAGE_SHELL,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
+  RH_LISTADO_SURFACE,
+} from "../ui/uiTokens.ts";
 
 interface SeveridadCfg {
   dot: string;
@@ -34,7 +40,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
 
   mountAppShell(container, {
     activeNav: "evaluaciones",
-    mainHtml: `<div id="evaluaciones-page"></div>`,
+    mainHtml: `<div id="evaluaciones-page" class="${RH_DASHBOARD_PAGE_SHELL}"></div>`,
     mainClass: "py-0",
   });
 
@@ -252,7 +258,7 @@ export function mountEvaluaciones(container: HTMLElement, signal: AbortSignal): 
 
   function render() {
     root.innerHTML = `
-      <div class="px-6 py-6 max-w-7xl mx-auto">
+      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderLevelUpBackBar()}
         <div class="flex items-center justify-between mb-6">
           <h1 class="text-xl font-semibold text-gray-900">Evaluaciones de Competencias</h1>

@@ -37,11 +37,12 @@ import {
   RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
-  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
 } from "../ui/uiTokens.ts";
+import { talentoEyebrow, talentoKpiCard, talentoKpiGrid, talentoKpiSkeleton } from "../talento/pageKit.ts";
 import { getTiposCompetencia } from "../api/tiposCompetencia.ts";
 import type { TipoCompetencia } from "../dashboard/tiposCompetencia/types.ts";
 
@@ -130,38 +131,43 @@ function renderRowActions(id: number): string {
 // ── KPIs del catálogo ───────────────────────────────────────────────────
 
 function kpiSkeletonCard(): string {
-  return `<article class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse rounded-[18px] p-5">
-    <div class="flex items-start justify-between gap-3">
-      <div class="h-3.5 w-28 rounded-md bg-slate-200/90"></div>
-      <div class="h-11 w-11 rounded-xl bg-slate-200/80"></div>
-    </div>
-    <div class="mt-4 h-10 w-16 rounded-md bg-slate-100/90"></div>
-  </article>`;
+  return talentoKpiSkeleton();
 }
 
 function renderCatalogoKpis(stats: CatalogoStats): string {
-  const items = [
-    { label: "Total competencias", value: stats.total, sub: "En el catálogo activo", icon: ICON_GRID, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue" },
-    { label: "Técnicas", value: stats.tecnicas, sub: "Conocimientos e idiomas", icon: ICON_WRENCH, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky" },
-    { label: "Habilidades blandas", value: stats.blandas, sub: "Competencias conductuales", icon: ICON_HEART, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--violet" },
-    { label: "Tipos", value: stats.tipos, sub: "Tipos distintos en uso", icon: ICON_TAG, iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--slate" },
-  ];
-  return `
-  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Indicadores del catálogo">
-    ${items
-      .map(
-        (k) => `
-      <article class="rh-dash-kpi-card rounded-[18px] p-5">
-        <div class="flex items-start justify-between gap-3">
-          <p class="text-xs font-semibold text-text-muted">${escapeHtml(k.label)}</p>
-          <span class="${k.iconWrap} size-11 shrink-0 [&_svg]:size-5">${k.icon}</span>
-        </div>
-        <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary">${k.value}</p>
-        <p class="mt-1.5 text-xs leading-snug text-text-secondary">${escapeHtml(k.sub)}</p>
-      </article>`,
-      )
-      .join("")}
-  </div>`;
+  return talentoKpiGrid(
+    [
+      talentoKpiCard({
+        label: "Total competencias",
+        value: String(stats.total),
+        sub: "En el catálogo activo",
+        icon: ICON_GRID,
+        accent: "blue",
+      }),
+      talentoKpiCard({
+        label: "Técnicas",
+        value: String(stats.tecnicas),
+        sub: "Conocimientos e idiomas",
+        icon: ICON_WRENCH,
+        accent: "sky",
+      }),
+      talentoKpiCard({
+        label: "Habilidades blandas",
+        value: String(stats.blandas),
+        sub: "Competencias conductuales",
+        icon: ICON_HEART,
+        accent: "violet",
+      }),
+      talentoKpiCard({
+        label: "Tipos",
+        value: String(stats.tipos),
+        sub: "Tipos distintos en uso",
+        icon: ICON_TAG,
+        accent: "slate",
+      }),
+    ].join(""),
+    { ariaLabel: "Indicadores del catálogo" },
+  );
 }
 
 // ── Pestañas ────────────────────────────────────────────────────────────
@@ -398,7 +404,7 @@ function renderCatalogoTab(
 
 function renderLoading(): string {
   return `
-    <div class="${RH_LISTADO_PAGE_OUTER}" aria-busy="true" aria-label="Cargando competencias">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}" aria-busy="true" aria-label="Cargando competencias">
       ${renderLevelUpBackBar()}
       <div class="h-6 w-48 animate-pulse rounded-md bg-slate-200/90"></div>
       <div class="h-16 w-full max-w-2xl animate-pulse rounded-xl bg-slate-100/90"></div>
@@ -410,7 +416,7 @@ function renderLoading(): string {
 
 function renderError(message: string | null): string {
   return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       ${renderLevelUpBackBar()}
       <div class="flex min-h-[280px] items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50/80 via-white to-white px-6 py-14 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]" role="alert">
         <div class="flex max-w-md flex-col items-center gap-4">
@@ -424,6 +430,7 @@ function renderError(message: string | null): string {
 
 function renderPageHeader(): string {
   return `
+    ${talentoEyebrow()}
     ${pageHeading(
       "Matriz de Competencias",
       "Administra el catálogo corporativo y los niveles mínimos exigidos por perfil de puesto.",
@@ -581,7 +588,7 @@ export function mountCompetencias(container: HTMLElement, _signal: AbortSignal):
         : `<div role="tabpanel" id="comp-tab-panel-matriz" aria-label="Niveles por puesto" class="flex flex-col gap-4">${renderMatrizRequisitosTab(matrizModel)}</div>`;
 
     inner.innerHTML = `
-      <div id="competencias-root" class="${RH_LISTADO_PAGE_OUTER}">
+      <div id="competencias-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderLevelUpBackBar()}
         ${renderPageHeader()}
         ${renderTabsNav(activeTab)}

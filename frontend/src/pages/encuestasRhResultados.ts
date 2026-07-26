@@ -8,11 +8,12 @@ import {
   FORM_LABEL,
   FORM_SELECT,
   pageHeading,
-  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
   skeletonBlock,
 } from "../ui/uiTokens.ts";
+import { talentoEyebrow } from "../talento/pageKit.ts";
 import { estadoBadge, renderEmptyState } from "../encuestasRh/shared.ts";
 import {
   descargarResultadosExcel,
@@ -402,10 +403,10 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
 
   function renderPage(): string {
     if (state.detalleLoading || state.resultadosLoading) {
-      return `<div class="${RH_LISTADO_PAGE_OUTER}">${skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando resultados…" })}</div>`;
+      return `<div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">${skeletonBlock({ className: `${RH_LISTADO_SURFACE} px-6 py-16`, label: "Cargando resultados…" })}</div>`;
     }
     if (state.detalleError || state.resultadosError || !state.detalle || !state.resultados) {
-      return `<div class="${RH_LISTADO_PAGE_OUTER}">
+      return `<div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${errorState({
           message: state.detalleError ?? state.resultadosError ?? "No se pudieron cargar los resultados",
           actionLabel: "Volver a encuestas",
@@ -416,10 +417,10 @@ export function mountEncuestasRhResultados(container: HTMLElement, encuestaId: n
     const detalle = state.detalle;
     const res = state.resultados;
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
         <a href="#/talento/encuestas/${detalle.id}" class="w-fit text-xs font-semibold text-accent hover:underline">← Volver a la encuesta</a>
-        <p class="text-xs font-medium text-text-muted">Talento · Resultados</p>
+        ${talentoEyebrow("Talento · Resultados")}
         ${pageHeading(
           res.titulo,
           `${res.es_anonima ? "Anónima" : "No anónima"} · Umbral mínimo ${res.umbral_minimo_respuestas} respuesta(s)`,

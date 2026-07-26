@@ -189,19 +189,20 @@ export function renderTabNav(
 }
 
 // ── Vistas listado RH (Actas, Incidencias, Solicitudes, Empleados) ───────────
-/** Contenedor principal: fondo gris-azulado y ancho máximo alineado a Actas. */
-export const RH_LISTADO_PAGE_OUTER =
-  "mx-auto flex min-h-0 w-full max-w-[1320px] flex-1 flex-col gap-5 bg-[#f6f8fb] px-2 pb-2 sm:gap-6 sm:px-3";
-
 /**
- * Mismo layout que `RH_LISTADO_PAGE_OUTER`, sin fondo plano (p. ej. sobre `.rh-dashboard-page`).
+ * Contenedor de contenido (max-width + gaps). El fondo del lienzo lo aporta el
+ * app shell (`.rh-dashboard-page`); no pintar gris plano aquí.
  */
 export const RH_LISTADO_PAGE_OUTER_GRADIENT =
   "mx-auto flex min-h-0 w-full max-w-[1320px] flex-1 flex-col gap-5 px-2 pb-2 sm:gap-6 sm:px-3";
 
+/** Alias de `RH_LISTADO_PAGE_OUTER_GRADIENT` (histórico: tenía `bg-[#f6f8fb]`). */
+export const RH_LISTADO_PAGE_OUTER = RH_LISTADO_PAGE_OUTER_GRADIENT;
+
 /**
  * Envoltorio full-bleed con degradado (`.rh-dashboard-page`).
  * Cancela y reaplica el padding horizontal de `<main>` (`px-4 sm:px-6 lg:px-8`).
+ * Con el shell ya en degradado, sirve sobre todo para full-bleed / padding de página.
  */
 export const RH_DASHBOARD_PAGE_SHELL =
   "rh-dashboard-page relative flex min-h-[calc(100dvh-4rem)] flex-col -mx-4 px-4 pb-5 pt-8 sm:-mx-6 sm:px-6 sm:pb-6 sm:pt-10 lg:-mx-8 lg:px-8";

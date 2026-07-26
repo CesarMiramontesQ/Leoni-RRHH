@@ -22,12 +22,13 @@ import {
   RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
-  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
   SELECT_CHEVRON,
 } from "../ui/uiTokens.ts";
+import { talentoEyebrow, talentoKpiCard, talentoKpiGrid, talentoKpiSkeleton } from "../talento/pageKit.ts";
 
 // ── Constantes ────────────────────────────────────────────────────────────
 
@@ -167,18 +168,14 @@ function tipoBadge(esComplemento: boolean): string {
 }
 
 function kpiSkeletonCard(): string {
-  return `<article class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse rounded-[18px] p-5">
-    <div class="h-3 w-24 rounded bg-slate-200/90"></div>
-    <div class="mt-4 h-8 w-16 rounded bg-slate-200/90"></div>
-    <div class="mt-2 h-3 w-32 rounded bg-slate-100/90"></div>
-  </article>`;
+  return talentoKpiSkeleton();
 }
 
 // ── Render ──────────────────────────────────────────────────────────────
 
 function renderLoading(): string {
   return `
-  <div class="${RH_LISTADO_PAGE_OUTER} tc-page" aria-busy="true" aria-label="Cargando catálogo de tareas">
+  <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} tc-page" aria-busy="true" aria-label="Cargando catálogo de tareas">
     ${renderLevelUpBackBar()}
     <div class="h-6 w-56 animate-pulse rounded-md bg-slate-200/90"></div>
     <div class="h-16 w-full max-w-2xl animate-pulse rounded-xl bg-slate-100/90"></div>
@@ -190,7 +187,7 @@ function renderLoading(): string {
 
 function renderError(message: string | null): string {
   return `
-  <div class="${RH_LISTADO_PAGE_OUTER} tc-page">
+  <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} tc-page">
     ${renderLevelUpBackBar()}
     <div class="flex min-h-[280px] items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50/80 via-white to-white px-6 py-14 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]" role="alert">
       <div class="flex max-w-md flex-col items-center gap-4">
@@ -204,6 +201,7 @@ function renderError(message: string | null): string {
 
 function renderPageHeader(): string {
   return `
+  ${talentoEyebrow()}
   ${pageHeading(
     "Catálogo de Tareas",
     "Administra las tareas utilizadas en perfiles de puesto y evaluaciones operativas.",
@@ -211,53 +209,39 @@ function renderPageHeader(): string {
 }
 
 function renderKpis(stats: CatalogoStats): string {
-  const kpis = [
-    {
-      label: "Total de tareas",
-      value: String(stats.total),
-      sub: "En el catálogo activo",
-      icon: ICON_CLIPBOARD,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
-    },
-    {
-      label: "Categorías",
-      value: String(stats.categorias),
-      sub: "Clasificaciones distintas",
-      icon: ICON_TAG,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--violet",
-    },
-    {
-      label: "Tareas activas",
-      value: String(stats.activas),
-      sub: "Disponibles para asignar",
-      icon: ICON_CHECK,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky",
-    },
-    {
-      label: "Complementarias",
-      value: String(stats.complementarias),
-      sub: "Marcadas como complemento",
-      icon: ICON_SPARK,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
-    },
-  ];
-
-  return `
-  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Resumen del catálogo">
-    ${kpis
-      .map(
-        (k) => `
-      <article class="rh-dash-kpi-card rounded-[18px] p-5">
-        <div class="flex items-start justify-between gap-3">
-          <p class="text-xs font-semibold text-text-muted">${escapeHtml(k.label)}</p>
-          <span class="${k.iconWrap} size-11 shrink-0 [&_svg]:size-5">${k.icon}</span>
-        </div>
-        <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary">${k.value}</p>
-        <p class="mt-1.5 text-xs leading-snug text-text-secondary">${escapeHtml(k.sub)}</p>
-      </article>`,
-      )
-      .join("")}
-  </div>`;
+  return talentoKpiGrid(
+    [
+      talentoKpiCard({
+        label: "Total de tareas",
+        value: String(stats.total),
+        sub: "En el catálogo activo",
+        icon: ICON_CLIPBOARD,
+        accent: "blue",
+      }),
+      talentoKpiCard({
+        label: "Categorías",
+        value: String(stats.categorias),
+        sub: "Clasificaciones distintas",
+        icon: ICON_TAG,
+        accent: "violet",
+      }),
+      talentoKpiCard({
+        label: "Tareas activas",
+        value: String(stats.activas),
+        sub: "Disponibles para asignar",
+        icon: ICON_CHECK,
+        accent: "sky",
+      }),
+      talentoKpiCard({
+        label: "Complementarias",
+        value: String(stats.complementarias),
+        sub: "Marcadas como complemento",
+        icon: ICON_SPARK,
+        accent: "amber",
+      }),
+    ].join(""),
+    { ariaLabel: "Resumen del catálogo" },
+  );
 }
 
 function renderFilters(filters: CatalogoFilters, categorias: string[]): string {
@@ -489,7 +473,7 @@ function renderReadyContent(
     </div>`;
 
   return `
-  <div class="${RH_LISTADO_PAGE_OUTER} tc-page">
+  <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} tc-page">
     ${renderLevelUpBackBar()}
     ${renderPageHeader()}
     ${items.length > 0 ? renderKpis(stats) : ""}

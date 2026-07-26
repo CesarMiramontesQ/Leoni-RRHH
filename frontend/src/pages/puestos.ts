@@ -35,11 +35,12 @@ import {
   RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
-  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
 } from "../ui/uiTokens.ts";
+import { talentoEyebrow, talentoKpiCard, talentoKpiGrid, talentoKpiSkeleton } from "../talento/pageKit.ts";
 
 // ── Iconos ──────────────────────────────────────────────────────────────
 
@@ -256,13 +257,7 @@ function renderBrechasBlock(brechas: number): string {
 }
 
 function kpiSkeletonCard(): string {
-  return `<article class="rh-dash-kpi-card rh-dash-kpi-card--skeleton animate-pulse rounded-[18px] p-5">
-    <div class="flex items-start justify-between gap-3">
-      <div class="h-3.5 w-28 rounded-md bg-slate-200/90"></div>
-      <div class="h-11 w-11 rounded-xl bg-slate-200/80"></div>
-    </div>
-    <div class="mt-4 h-10 w-16 rounded-md bg-slate-100/90"></div>
-  </article>`;
+  return talentoKpiSkeleton();
 }
 
 function renderKpiDashboard(tarjetas: PerfilTarjetaItem[]): string {
@@ -273,56 +268,42 @@ function renderKpiDashboard(tarjetas: PerfilTarjetaItem[]): string {
   const areas = new Set(tarjetas.map((p) => p.area_nombre).filter(Boolean));
   const brechasCritico = totalBrechas > 20;
 
-  const mainKpis = [
-    {
-      label: "Perfiles activos",
-      value: String(tarjetas.length),
-      sub: `En ${areas.size} área${areas.size !== 1 ? "s" : ""}`,
-      icon: ICON_GRID,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
-    },
-    {
-      label: "Personas vinculadas",
-      value: String(totalPersonas),
-      sub: "Colaboradores asignados",
-      icon: ICON_USERS,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--sky",
-    },
-    {
-      label: "Cumplimiento promedio",
-      value: `${avgCumplimiento}%`,
-      sub: "Requisitos que cumplen el mínimo",
-      icon: ICON_CHART,
-      iconWrap: "rh-dash-kpi-icon rh-dash-kpi-icon--violet",
-      valueClass: avgCumplimiento < 80 ? "text-red-700" : avgCumplimiento < 90 ? "text-amber-800" : "",
-    },
-    {
-      label: "Brechas totales",
-      value: String(totalBrechas),
-      sub: "No cumplen el mínimo o sin evaluar",
-      icon: ICON_ALERT,
-      iconWrap: brechasCritico ? "rh-dash-kpi-icon rh-dash-kpi-icon--red" : "rh-dash-kpi-icon rh-dash-kpi-icon--amber",
-      valueClass: brechasCritico ? "text-red-700" : "",
-      cardClass: brechasCritico ? "border-red-200/80 bg-gradient-to-br from-red-50/40 via-white to-white" : "",
-    },
-  ];
-
-  return `
-  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Indicadores de perfiles">
-    ${mainKpis
-      .map(
-        (k) => `
-      <article class="rh-dash-kpi-card rounded-[18px] p-5 ${k.cardClass ?? ""}">
-        <div class="flex items-start justify-between gap-3">
-          <p class="text-xs font-semibold text-text-muted">${escapeHtml(k.label)}</p>
-          <span class="${k.iconWrap} size-11 shrink-0 [&_svg]:size-5">${k.icon}</span>
-        </div>
-        <p class="mt-3 text-3xl font-bold tabular-nums tracking-tight text-text-primary ${k.valueClass ?? ""}">${k.value}</p>
-        <p class="mt-1.5 text-xs leading-snug text-text-secondary">${escapeHtml(k.sub)}</p>
-      </article>`,
-      )
-      .join("")}
-  </div>`;
+  return talentoKpiGrid(
+    [
+      talentoKpiCard({
+        label: "Perfiles activos",
+        value: String(tarjetas.length),
+        sub: `En ${areas.size} área${areas.size !== 1 ? "s" : ""}`,
+        icon: ICON_GRID,
+        accent: "blue",
+      }),
+      talentoKpiCard({
+        label: "Personas vinculadas",
+        value: String(totalPersonas),
+        sub: "Colaboradores asignados",
+        icon: ICON_USERS,
+        accent: "sky",
+      }),
+      talentoKpiCard({
+        label: "Cumplimiento promedio",
+        value: `${avgCumplimiento}%`,
+        sub: "Requisitos que cumplen el mínimo",
+        icon: ICON_CHART,
+        accent: "violet",
+        valueClass: avgCumplimiento < 80 ? "text-red-700" : avgCumplimiento < 90 ? "text-amber-800" : "",
+      }),
+      talentoKpiCard({
+        label: "Brechas totales",
+        value: String(totalBrechas),
+        sub: "No cumplen el mínimo o sin evaluar",
+        icon: ICON_ALERT,
+        accent: brechasCritico ? "red" : "amber",
+        valueClass: brechasCritico ? "text-red-700" : "",
+        cardClass: brechasCritico ? "border-red-200/80 bg-gradient-to-br from-red-50/40 via-white to-white" : "",
+      }),
+    ].join(""),
+    { ariaLabel: "Indicadores de perfiles" },
+  );
 }
 
 function renderViewToggle(active: "tabla" | "tarjetas"): string {
@@ -720,7 +701,7 @@ function renderDeleteConfirm(nombre: string, saving: boolean): string {
 
 function renderLoading(): string {
   return `
-  <div class="${RH_LISTADO_PAGE_OUTER}" aria-busy="true">
+  <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}" aria-busy="true">
     ${renderLevelUpBackBar()}
     <div class="h-16 w-full max-w-2xl animate-pulse rounded-xl bg-slate-100/90"></div>
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}${kpiSkeletonCard()}</div>
@@ -731,7 +712,7 @@ function renderLoading(): string {
 
 function renderError(message: string): string {
   return `
-  <div class="${RH_LISTADO_PAGE_OUTER}">
+  <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
     ${renderLevelUpBackBar()}
     <div class="flex min-h-[280px] items-center justify-center rounded-2xl border border-red-200/80 bg-gradient-to-br from-red-50/80 via-white to-white px-6 py-14 text-center" role="alert">
       <div class="max-w-md">
@@ -747,11 +728,12 @@ function renderPageHeader(): string {
   const actions = `
     <a href="#/puestos/ajustes" class="${RH_LISTADO_BTN_SECONDARY} w-full sm:w-auto text-center">Ajustes</a>
     <button type="button" data-action="create" class="${RH_LISTADO_BTN_PRIMARY} puestos-btn-nuevo w-full sm:w-auto">${ICON_PLUS} Nuevo perfil</button>`;
-  return pageHeading(
+  return `${talentoEyebrow()}
+  ${pageHeading(
     "Perfiles de Puesto",
     "Vista ejecutiva del catálogo de posiciones: cumplimiento, brechas y colaboradores vinculados por perfil.",
     actions,
-  );
+  )}`;
 }
 
 // ── Page mount ───────────────────────────────────────────────────────────
@@ -836,7 +818,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
         ${renderTable(filteredItems, sourceTotal)}`;
 
     inner.innerHTML = `
-      <div id="puestos-root" class="${RH_LISTADO_PAGE_OUTER}">
+      <div id="puestos-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderLevelUpBackBar()}
         ${renderPageHeader()}
         ${renderFilterBar(filters, areasOptions, gradosCatalog, filtered.length, sourceTotal)}

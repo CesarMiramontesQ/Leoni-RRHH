@@ -20,10 +20,11 @@ import {
   FIELD_INPUT,
   pageHeading,
   renderTabNav,
-  RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_LISTADO_SURFACE,
   skeletonBlock,
 } from "../ui/uiTokens.ts";
+import { talentoEyebrow } from "../talento/pageKit.ts";
 import {
   avanceBar,
   avanceRcCliente,
@@ -245,9 +246,9 @@ export function mountMisMetas(container: HTMLElement, signal?: AbortSignal): voi
 
   function renderPage(): string {
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
-        <p class="text-xs font-medium text-text-muted">Talento</p>
+        ${talentoEyebrow()}
         ${pageHeading("Mis metas", "Objetivos asignados y seguimiento de tus resultados clave.")}
       </div>
       ${state.successMessage ? alertSuccess(state.successMessage) : ""}

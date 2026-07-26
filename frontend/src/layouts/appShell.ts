@@ -118,6 +118,7 @@ export type ShellNavKey =
   | "competencias"
   | "evaluaciones"
   | "evaluacion-360"
+  | "pdi-gestion"
   | "capacidades"
   | "operaciones"
   | "cursos"
@@ -605,7 +606,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   </div>
 </div>
 
-<div class="min-h-full bg-surface md:pl-[4.75rem] lg:pl-72">
+<div class="min-h-full rh-dashboard-page md:pl-[4.75rem] lg:pl-72">
   <div class="sticky top-0 z-40 flex min-h-[3.75rem] shrink-0 items-center gap-x-3 border-b border-border bg-white px-4 py-2 shadow-[0_2px_8px_-2px_rgb(15_23_42/0.06)] sm:gap-x-5 sm:px-6 lg:px-8">
     <button type="button" command="show-modal" commandfor="sidebar" class="flex items-center rounded-lg p-2 text-text-muted transition-colors hover:bg-shell-hover hover:text-text-primary md:hidden">
       <span class="sr-only">Abrir menú</span>

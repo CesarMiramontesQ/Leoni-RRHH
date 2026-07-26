@@ -12,7 +12,8 @@ import {
   AJUSTES_ICON_QUAL,
 } from "../components/puestos/ajustes/ajustesSectionUi.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
-import { pageHeading, RH_LISTADO_PAGE_OUTER, RH_LISTADO_SURFACE } from "../ui/uiTokens.ts";
+import { pageHeading, RH_LISTADO_PAGE_OUTER_GRADIENT, RH_LISTADO_SURFACE } from "../ui/uiTokens.ts";
+import { talentoEyebrow } from "../talento/pageKit.ts";
 
 type TabId = "estructura" | "competencias" | "cualificaciones";
 
@@ -156,13 +157,14 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
       activeNav: "puestos-ajustes",
       pageTitle: "Ajustes de perfiles de puesto",
       mainClass: "py-5 sm:py-6",
-      mainHtml: `<div id="puestos-ajustes-root" class="${RH_LISTADO_PAGE_OUTER}">
+      mainHtml: `<div id="puestos-ajustes-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderLevelUpBackBar()}
+        ${talentoEyebrow()}
         ${pageHeading(
           "Ajustes de perfil de puesto",
           "Catálogos maestros que alimentan perfiles, matriz de competencias y evaluaciones.",
         )}
-        <div class="sticky top-0 z-20 -mx-1 bg-[var(--color-surface,#F4F6F9)]/95 px-1 py-2 backdrop-blur-sm supports-[backdrop-filter]:bg-[var(--color-surface,#F4F6F9)]/80">
+        <div class="sticky top-0 z-20 -mx-1 bg-surface/95 px-1 py-2 backdrop-blur-sm supports-[backdrop-filter]:bg-surface/80">
           ${renderTabs(activeTab)}
         </div>
         <div id="puestos-ajustes-panels" class="flex flex-col gap-5">

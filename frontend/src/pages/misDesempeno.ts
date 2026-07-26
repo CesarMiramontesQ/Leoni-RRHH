@@ -11,7 +11,8 @@
  */
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
-import { errorState, pageHeading, RH_LISTADO_PAGE_OUTER, RH_LISTADO_SURFACE, skeletonBlock } from "../ui/uiTokens.ts";
+import { errorState, pageHeading, RH_LISTADO_PAGE_OUTER_GRADIENT, RH_LISTADO_SURFACE, skeletonBlock } from "../ui/uiTokens.ts";
+import { talentoEyebrow } from "../talento/pageKit.ts";
 import { bandaBadge, fmtScore, renderEmptyState } from "../cicloDesempeno/shared.ts";
 import { getMisResultadosDesempeno, type MisResultadoResponse } from "../api/cicloDesempeno.ts";
 
@@ -95,9 +96,9 @@ export function mountMisDesempeno(container: HTMLElement, signal?: AbortSignal):
 
   function renderPage(): string {
     return `
-    <div class="${RH_LISTADO_PAGE_OUTER}">
+    <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
-        <p class="text-xs font-medium text-text-muted">Talento</p>
+        ${talentoEyebrow()}
         ${pageHeading("Mi desempeño", "Tu calificación de desempeño por ciclo cerrado: cumplimiento de metas, evaluación 360° y banda final.")}
       </div>
       ${renderResultados()}
