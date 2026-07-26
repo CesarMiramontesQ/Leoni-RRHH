@@ -16,6 +16,7 @@
  *    potencial. Sin CRUD de ciclos (el backend lo rechazaría con 403).
  */
 import { mezclarAreasOpciones } from "../cicloDesempeno/areasOpciones.ts";
+import { celdaVisual, repartirNombres } from "../cicloDesempeno/nueveBox.ts";
 import { hashParamNumero } from "../utils/hashQuery.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
@@ -65,6 +66,7 @@ import {
   type CicloDesempenoResponse,
   type CicloDesempenoResultadoResponse,
   type DistribucionResponse,
+  type NueveBoxEmpleadoItem,
   type NueveBoxResponse,
   type PotencialUpdateItem,
 } from "../api/cicloDesempeno.ts";
@@ -619,24 +621,51 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
 
   function renderCelda(bd: CicloDesempenoBanda, bp: CicloDesempenoBanda, celda: CeldaResponse | undefined): string {
     const empleados = celda?.empleados ?? [];
+    const { segmento, descripcion, tono, clases } = celdaVisual(bd, bp);
+    const { visibles, restantes } = repartirNombres(empleados);
+    const nombreDe = (e: NueveBoxEmpleadoItem) => e.empleado_nombre ?? `Empleado #${e.empleado_id}`;
+    // Una celda vacía se apaga en vez de competir por atención: lo que se lee
+    // primero tiene que ser dónde SÍ hay gente.
+    const vacia = empleados.length === 0;
     return `
-    <div class="flex min-h-[7rem] flex-col gap-1.5 rounded-lg border border-slate-200 bg-white p-2.5">
-      <div class="flex items-center justify-between gap-2">
-        <span class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">${BANDA_LABELS[bd]} / ${BANDA_LABELS[bp]}</span>
-        <span class="shrink-0 text-xs font-bold tabular-nums text-text-secondary">${empleados.length}</span>
+    <div class="flex min-h-[8.5rem] flex-col gap-2 rounded-lg border p-2.5 transition ${clases}${vacia ? " opacity-60" : ""}"
+         title="${escapeHtml(`${segmento} — ${descripcion}`)}">
+      <div class="flex items-start justify-between gap-2">
+        <span class="text-[11px] font-semibold leading-tight text-text-primary">${escapeHtml(segmento)}${tono === "estrella" ? " ★" : ""}</span>
+        <span class="shrink-0 rounded-full bg-white/70 px-1.5 text-xs font-bold tabular-nums text-text-primary">${empleados.length}</span>
       </div>
-      <div class="flex flex-1 flex-col gap-1 overflow-y-auto">
+      <div class="flex flex-1 flex-col gap-1">
         ${
-          empleados.length === 0
+          vacia
             ? `<p class="text-xs text-text-muted">Sin colaboradores</p>`
-            : empleados
+            : visibles
                 .map(
                   (e) =>
-                    `<p class="truncate text-xs text-text-primary" title="${escapeHtml(e.empleado_nombre ?? `Empleado #${e.empleado_id}`)}">${escapeHtml(e.empleado_nombre ?? `Empleado #${e.empleado_id}`)}</p>`,
+                    `<p class="truncate rounded bg-white/70 px-1.5 py-0.5 text-xs text-text-primary" title="${escapeHtml(nombreDe(e))}">${escapeHtml(nombreDe(e))}</p>`,
                 )
-                .join("")
+                .join("") +
+              (restantes > 0
+                ? `<p class="px-1.5 text-xs font-semibold text-text-secondary">+${restantes} más</p>`
+                : "")
         }
       </div>
+    </div>`;
+  }
+
+  /**
+   * Leyenda del degradado. El color de la celda codifica la SUMA de los dos
+   * ejes, no una categoría, así que sin esta línea el lector tiene que
+   * adivinarlo.
+   */
+  function renderLeyenda9Box(): string {
+    const punto = (clases: string) => `<span class="size-2.5 shrink-0 rounded-sm border ${clases}" aria-hidden="true"></span>`;
+    return `<div class="flex items-center gap-2 text-[11px] text-text-secondary">
+      <span>Riesgo</span>
+      ${punto("border-danger-border bg-danger-bg")}
+      ${punto("border-warning-border bg-warning-bg")}
+      ${punto("border-border bg-surface-container-low")}
+      ${punto("border-success-border bg-success-bg")}
+      <span>Talento clave</span>
     </div>`;
   }
 
@@ -651,19 +680,29 @@ export function mountCicloDesempeno(container: HTMLElement, signal?: AbortSignal
     const totalUbicados = nb.celdas.reduce((acc, c) => acc + c.empleados.length, 0);
     return `
     <div class="${RH_LISTADO_SURFACE} p-4">
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p class="text-sm font-semibold text-text-primary">Matriz 9-Box</p>
-        <p class="text-xs text-text-muted">Desempeño (vertical) × Potencial (horizontal) · ${totalUbicados} ubicado(s)</p>
+      <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p class="text-sm font-semibold text-text-primary">Matriz 9-Box</p>
+          <p class="mt-0.5 text-xs text-text-muted">${totalUbicados} colaborador(es) ubicado(s). Solo entran quienes tienen banda de desempeño y de potencial.</p>
+        </div>
+        ${renderLeyenda9Box()}
       </div>
       <div class="overflow-x-auto">
-        <div class="grid min-w-[36rem] grid-cols-[6rem_repeat(3,1fr)] gap-2">
-          <div></div>
-          ${COLUMNAS_POTENCIAL.map((bp) => `<div class="text-center text-[11px] font-semibold uppercase tracking-wide text-text-muted">Potencial ${BANDA_LABELS[bp]}</div>`).join("")}
+        <div class="grid min-w-[40rem] grid-cols-[auto_repeat(3,1fr)] gap-2" role="table" aria-label="Matriz 9-Box de desempeño y potencial">
+          <div class="flex items-end justify-center pb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+            <span>Desempeño ↑</span>
+          </div>
+          ${COLUMNAS_POTENCIAL.map(
+            (bp) =>
+              `<div class="pb-1 text-center text-[11px] font-semibold uppercase tracking-wide text-text-secondary">${BANDA_LABELS[bp]}</div>`,
+          ).join("")}
           ${FILAS_DESEMPENO.map(
             (bd) => `
-          <div class="flex items-center justify-end pr-1 text-right text-[11px] font-semibold uppercase tracking-wide text-text-muted">Desemp. ${BANDA_LABELS[bd]}</div>
+          <div class="flex w-16 items-center justify-end pr-1 text-right text-[11px] font-semibold uppercase tracking-wide text-text-secondary">${BANDA_LABELS[bd]}</div>
           ${COLUMNAS_POTENCIAL.map((bp) => renderCelda(bd, bp, celdaMap.get(`${bd}_${bp}`))).join("")}`,
           ).join("")}
+          <div></div>
+          <div class="col-span-3 pt-1 text-center text-[10px] font-semibold uppercase tracking-wide text-text-muted">Potencial →</div>
         </div>
       </div>
     </div>`;

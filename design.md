@@ -1233,6 +1233,22 @@ indistinguible. Con #15803D las tres bandas pasan la validacion CVD. Regla gener
 los colores de **estado** valen para marcas de datos solo si los pares adyacentes
 superan la separacion CVD; si no, hay que bajar un paso el tono, no confiar en el label.
 
+### 14.1.3 Matriz 9-Box (rejilla ordinal en dos ejes)
+
+La matriz de desempeno x potencial NO es una rejilla de nueve categorias sueltas: es una
+escala **ordinal en dos ejes** y el lector busca la esquina buena y la mala. Implementada en
+`frontend/src/cicloDesempeno/nueveBox.ts`.
+
+| Regla | Por que |
+|---|---|
+| Color **divergente** por la SUMA de los dos ejes (bajo=0, medio=1, alto=2) | rojo en la esquina de riesgo, neutro en la antidiagonal, verde en la de talento clave; una paleta categorica de 9 colores no diria nada |
+| Tintes de estado (`*-bg` + `*-border`), nunca el color pleno | dentro de la celda va texto (nombres); el fondo tiene que admitirlo |
+| **Nombre del segmento en cada celda** ("Estrella", "Riesgo", "Enigma"…) | la matriz se lee igual en escala de grises o con daltonismo: el color no es la unica senal |
+| Anillo solo en la celda estrella | es la que se busca primero; si todo destaca, nada destaca |
+| Celda vacia al 60 % de opacidad | lo que se lee primero debe ser donde SI hay gente |
+| Maximo 4 nombres + "+N mas" | una celda con 30 personas estira la fila y la matriz deja de leerse de un vistazo |
+| Leyenda del degradado (Riesgo → Talento clave) | el color codifica una suma, no una categoria: sin leyenda hay que adivinarlo |
+
 ### 14.2 Progress Bar con Marker (nivel requerido)
 
 Barra de progreso con indicador vertical del nivel requerido.
