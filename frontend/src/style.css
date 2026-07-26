@@ -43,6 +43,16 @@
   --color-success-text:              #15803D;
   --color-warning:                   #F59E0B;
   --color-danger:                    #EF4444;
+  /* Tintes y bordes de estado (design.md §1.1): fondos suaves que admiten texto
+     encima, para superficies con semántica de estado como la matriz 9-Box. */
+  --color-success-bg:                rgba(34, 197, 94, 0.10);
+  --color-success-border:            #BBF7D0;
+  --color-warning-bg:                rgba(245, 158, 11, 0.10);
+  --color-warning-text:              #92400E;
+  --color-warning-border:            #FDE68A;
+  --color-danger-bg:                 rgba(239, 68, 68, 0.10);
+  --color-danger-text:               #991B1B;
+  --color-danger-border:             #FECACA;
   /* Alias del primario de marca. design.md §1.2 lo migra a #0A1628 junto con el
      resto de la paleta (checklist §14, aún pendiente); hasta entonces = leoni-blue. */
   --color-primary:                   #002147;
