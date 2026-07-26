@@ -37,6 +37,10 @@ _LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
         "proveedores-externos", "cursos-externos", "cursos-vencimientos",
     ),
     "level-up": ("evaluacion-360",),
+    # Fusionada en `competencias` (ver la migracion f7u8s9c0m1p2). El alias hace
+    # que un token ya emitido, o una fila que la migracion no haya tocado, sigan
+    # dando acceso en vez de un 403 hasta el siguiente login.
+    "capacidades": ("competencias",),
 }
 
 
@@ -275,10 +279,15 @@ RH_MODULES: dict[str, RhModuleDef] = {
     ),
     "competencias": RhModuleDef(
         key="competencias",
-        label="Competencias",
+        # Absorbe la antigua clave `capacidades` (Matriz de multihabilidades):
+        # eran dos permisos sobre el MISMO API -- /competencias/multihabilidades
+        # es un sub-recurso de /competencias -- y sobre la misma tabla
+        # (`levelup_perfil_funciones_competencia`). Las dos pantallas siguen
+        # existiendo por separado; lo que se unifico es el permiso.
+        label="Competencias y multihabilidades",
         group="Talento",
-        nav_item_ids=("competencias",),
-        hash_prefixes=("#/competencias",),
+        nav_item_ids=("competencias", "capacidades"),
+        hash_prefixes=("#/competencias", "#/capacidades"),
         api_prefixes=("/api/v1/competencias",),
     ),
     "tareas-catalogo": RhModuleDef(
@@ -370,14 +379,6 @@ RH_MODULES: dict[str, RhModuleDef] = {
         nav_item_ids=("evaluacion-360",),
         hash_prefixes=("#/level-up/evaluacion-360",),
         api_prefixes=("/api/v1/evaluacion-360",),
-    ),
-    "capacidades": RhModuleDef(
-        key="capacidades",
-        label="Matriz de multihabilidades",
-        group="Talento",
-        nav_item_ids=("capacidades",),
-        hash_prefixes=("#/capacidades",),
-        api_prefixes=("/api/v1/competencias/multihabilidades",),
     ),
     "encuestas-rh": RhModuleDef(
         key="encuestas-rh",

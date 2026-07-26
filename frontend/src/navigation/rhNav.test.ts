@@ -117,7 +117,6 @@ describe("rhNav sections", () => {
   it("ningún ítem aparece en dos secciones", async () => {
     allowedModules.add("dashboard-talento");
     allowedModules.add("encuestas-rh");
-    allowedModules.add("capacidades");
     allowedModules.add("operaciones");
     allowedModules.add("ciclo-desempeno");
     allowedModules.add("metas");
@@ -132,7 +131,6 @@ describe("rhNav sections", () => {
 
   it("Talento reúne el perfil de puesto y todo lo que se mide sobre él", async () => {
     allowedModules.add("dashboard-talento");
-    allowedModules.add("capacidades");
     allowedModules.add("operaciones");
     allowedModules.add("encuestas-rh");
 
@@ -187,7 +185,6 @@ describe("rhNav sections", () => {
   });
 
   it("conserva rutas y etiquetas de los ítems que cambiaron de sección", async () => {
-    allowedModules.add("capacidades");
     allowedModules.add("operaciones");
     allowedModules.add("evaluacion-360");
 
