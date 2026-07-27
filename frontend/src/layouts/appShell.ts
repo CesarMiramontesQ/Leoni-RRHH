@@ -24,7 +24,7 @@ import {
   NOMINAS_SIDEBAR_ITEM,
 } from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
-import { EMPLEADO_FLAT_NAV_ITEMS } from "../navigation/empleadoNav.ts";
+import { EMPLEADO_DASHBOARD_ITEM, getVisibleEmpleadoNavSections } from "../navigation/empleadoNav.ts";
 import {
   SUPERVISOR_DASHBOARD_ITEM,
   SUPERVISOR_EMPLEADOS_ITEM,
@@ -395,7 +395,7 @@ function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | nul
   </li>`;
 }
 
-function renderSupervisorNavSection(
+function renderFlatNavSection(
   sectionId: string,
   title: string,
   items: readonly { id: AppShellNavItemId; key: ShellNavKey; href: string; label: string; svgPaths: string }[],
@@ -433,8 +433,25 @@ function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol
     svgPaths: SUPERVISOR_DASHBOARD_ITEM.svgPaths,
   });
   const sectionLis = SUPERVISOR_NAV_SECTIONS.map((section) =>
-    renderSupervisorNavSection(section.id, section.title, section.items, activeNav, rol),
+    renderFlatNavSection(section.id, section.title, section.items, activeNav, rol),
   ).join("");
+  return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
+}
+
+function renderEmpleadoSidebarSections(
+  activeNav: ShellNavKey | undefined,
+  rol: string | null,
+): string {
+  const dashboardLi = navItemLi(activeNav, rol, {
+    id: EMPLEADO_DASHBOARD_ITEM.id,
+    key: EMPLEADO_DASHBOARD_ITEM.key,
+    hrefFor: () => EMPLEADO_DASHBOARD_ITEM.href,
+    label: EMPLEADO_DASHBOARD_ITEM.label,
+    svgPaths: EMPLEADO_DASHBOARD_ITEM.svgPaths,
+  });
+  const sectionLis = getVisibleEmpleadoNavSections(rol)
+    .map((section) => renderFlatNavSection(section.id, section.title, section.items, activeNav, rol))
+    .join("");
   return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
 }
 
@@ -451,15 +468,7 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const nonRhRhMode = isNonRhRhMode();
   const rhStructuredSidebar = usesRhStructuredSidebar(rol);
   const mainMenuLis = (!nonRhRhMode && isEmpleadoFlatNavRol(rol))
-    ? EMPLEADO_FLAT_NAV_ITEMS.map((d) =>
-        navItemLi(sidebarActiveNav, rol, {
-          id: d.id,
-          key: d.key,
-          hrefFor: () => d.href,
-          label: d.label,
-          svgPaths: d.svgPaths,
-        }),
-      ).join("")
+    ? renderEmpleadoSidebarSections(sidebarActiveNav, rol)
     : (!nonRhRhMode && supervisorSidebar)
       ? renderSupervisorSidebarSections(sidebarActiveNav, rol)
       : (() => {
@@ -487,7 +496,8 @@ function sidebarBody(activeNav: ShellNavKey | undefined): string {
   const navContent = rhStructuredSidebar
     ? renderRhStructuredSidebarSections(sidebarActiveNav as RhNavKey | undefined, rol)
     : (() => {
-        const mainMenuBlock = (supervisorSidebar && !nonRhRhMode)
+        const empleadoSidebar = !nonRhRhMode && isEmpleadoFlatNavRol(rol);
+        const mainMenuBlock = ((supervisorSidebar && !nonRhRhMode) || empleadoSidebar)
           ? mainMenuLis
           : `<li>
           <div id="${menuPrincipalHeadingId}" class="${navSectionHeadingClass}">Menú principal</div>

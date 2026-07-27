@@ -336,7 +336,7 @@ export function mountMisEvaluaciones(container: HTMLElement, signal?: AbortSigna
     return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
       <header class="flex flex-col gap-1">
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Mis Evaluaciones</h1>
+        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Evaluaciones 360</h1>
         <p class="text-sm text-text-muted">Responde las evaluaciones 360° donde participas como evaluador.</p>
       </header>
       ${msg}
@@ -363,7 +363,7 @@ export function mountMisEvaluaciones(container: HTMLElement, signal?: AbortSigna
 
   function render(): void {
     mountAppShell(container, {
-      pageTitle: "Mis Evaluaciones",
+      pageTitle: "Evaluaciones 360",
       activeNav: "mis-evaluaciones",
       mainClass: "py-5 sm:py-6",
       mainHtml: renderPage(),

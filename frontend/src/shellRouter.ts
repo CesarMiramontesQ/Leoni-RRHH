@@ -370,7 +370,7 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     if (h.startsWith("#/mis-aprobaciones-opl")) {
       void import("./pages/misAprobaciones.ts").then(({ mountMisAprobaciones }) => {
         mountMisAprobaciones(container, signal);
-      }).catch((err) => renderLazyPageImportError(container, "mis-aprobaciones-opl", "Mis aprobaciones", err));
+      }).catch((err) => renderLazyPageImportError(container, "mis-aprobaciones-opl", "Aprobaciones de OPL", err));
       return;
     }
     if (h.startsWith("#/mis-encuestas")) {
