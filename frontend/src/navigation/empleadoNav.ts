@@ -143,15 +143,6 @@ export const EMPLEADO_NAV_SECTIONS: readonly EmpleadoNavSection[] = [
   },
 ];
 
-/**
- * Puente de compilación mientras `appShell` y `shellSidebar` siguen consumiéndolo.
- * Se elimina en el Task 3, cuando ya no le quede ningún consumidor.
- */
-export const EMPLEADO_FLAT_NAV_ITEMS: readonly EmpleadoFlatNavItem[] = [
-  EMPLEADO_DASHBOARD_ITEM,
-  ...EMPLEADO_NAV_SECTIONS.flatMap((seccion) => seccion.items),
-];
-
 /** Secciones con sus ítems ya filtrados por rol/permiso; descarta las que quedan vacías. */
 export function getVisibleEmpleadoNavSections(rol: string | null): EmpleadoNavSection[] {
   return EMPLEADO_NAV_SECTIONS.map((seccion) => ({
