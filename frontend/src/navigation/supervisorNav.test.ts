@@ -92,7 +92,6 @@ describe("SUPERVISOR_NAV_SECTIONS", () => {
       "incidencias",
       "faltas-retardos",
       "solicitudes",
-      "viajes-laborales",
     ]);
     expect(porSeccion["talento-equipo"]).toEqual([
       "dashboard-talento",
@@ -118,8 +117,9 @@ describe("SUPERVISOR_NAV_SECTIONS", () => {
   });
 
   it("reagrupar no agregó ni quitó accesos", () => {
-    // Los mismos 20 ids que el supervisor alcanzaba antes: 18 viven en las
-    // secciones, y 2 son sueltos arriba (dashboard, comedor).
+    // Los mismos 19 ids que el supervisor alcanza hoy (viajes-laborales pasó a
+    // ser exclusivo de RH y salió del menú): 17 viven en las secciones, y 2 son
+    // sueltos arriba (dashboard, comedor).
     expect(TODOS.map((i) => i.id).sort()).toEqual(
       [
         "ciclo-desempeno",
@@ -141,7 +141,6 @@ describe("SUPERVISOR_NAV_SECTIONS", () => {
         "mis-firmas",
         "mis-metas",
         "solicitudes",
-        "viajes-laborales",
       ].sort(),
     );
   });
@@ -177,7 +176,7 @@ describe("getVisibleSupervisorNavSections", () => {
       "mis-encuestas",
       "mis-encuestas-rh",
     ]);
-    expect(porSeccion.equipo).toHaveLength(6);
+    expect(porSeccion.equipo).toHaveLength(5);
   });
 
   it("con permiso de registro, Horas extra vuelve a Mis trámites en su posición", () => {

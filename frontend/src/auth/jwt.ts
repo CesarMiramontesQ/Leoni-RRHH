@@ -320,13 +320,18 @@ export function canAccessFaltasRetardosPage(): boolean {
   return r === "director" || r === "gerente" || r === "supervisor";
 }
 
-/** Página de viajes laborales (`#/viajes-laborales`). */
+/**
+ * Página de viajes laborales (`#/viajes-laborales`): exclusiva de RH.
+ * Solo la ven el admin RH en Modo RH (operativo) y quien tenga el módulo
+ * `viajes-laborales` otorgado desde Permisos RH; supervisor, gerente y
+ * director (rol real o ADMIN emulando esos modos) ya no tienen acceso.
+ */
 export function canAccessViajesLaboralesPage(): boolean {
-  if (isRhEmpleadoUiMode() || isRhDirectorUiMode()) return false;
-  if (isRhLiderUiMode() || isRhGerenteUiMode()) return true;
-  if (canAccessRhAssignedModule("viajes-laborales")) return true;
-  const r = getRolFromAccessToken();
-  return r === "director" || r === "gerente" || r === "supervisor";
+  return canAccessRhAssignedModule("viajes-laborales", {
+    blockGestorTeam: true,
+    blockEmpleado: true,
+    blockDirector: true,
+  });
 }
 
 /** Aprobar/rechazar viajes: RH operativo o director. */

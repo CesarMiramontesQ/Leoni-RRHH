@@ -41,7 +41,7 @@ export const VL_COPY = {
 
   accesoDenegadoTitulo: "Acceso restringido",
   accesoDenegadoTexto:
-    "La vista de viajes laborales está disponible solo para usuarios con rol Recursos Humanos, director, gerente o supervisor.",
+    "La vista de viajes laborales está disponible solo para Recursos Humanos o para quien tenga este módulo asignado.",
 
   estadisticasAria: "Estadísticas de viajes laborales",
   errorEstadisticas: "No se pudieron cargar las estadísticas.",

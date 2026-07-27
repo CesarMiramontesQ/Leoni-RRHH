@@ -220,7 +220,6 @@ const SUPERVISOR_VISIBLE_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
   "metricas",
   "incidencias",
   "faltas-retardos",
-  "viajes-laborales",
   "solicitudes",
   "mis-encuestas",
   "mis-encuestas-rh",
@@ -275,6 +274,14 @@ const SUPERVISOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["acta
 
 const GERENTE_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set();
 
+/**
+ * Viajes laborales pasó a ser exclusivo de RH: el rol `director` (real o ADMIN
+ * en Modo director) ya no tiene acceso al endpoint, así que tampoco debe verlo
+ * en el hub «Laborales» (evita un enlace que solo lleva a la pantalla de
+ * "sin acceso").
+ */
+const DIRECTOR_HIDDEN_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["viajes-laborales"]);
+
 function effectiveShellNavRol(rol: string | null): string | null {
   if (isRhLiderUiMode()) return "supervisor";
   if (isRhGerenteUiMode()) return "gerente";
@@ -308,6 +315,7 @@ function roleOnlyNavVisible(rol: string | null, itemId: AppShellNavItemId): bool
   }
   if (navRol === "supervisor" && rol !== "supervisor" && SUPERVISOR_HIDDEN_NAV_IDS.has(itemId)) return false;
   if (navRol === "gerente" && GERENTE_HIDDEN_NAV_IDS.has(itemId)) return false;
+  if (navRol === "director" && DIRECTOR_HIDDEN_NAV_IDS.has(itemId)) return false;
   return true;
 }
 
@@ -400,6 +408,7 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/actas")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
+  if (h.startsWith("#/viajes-laborales")) return false;
   if (h.startsWith("#/pdi-gestion")) return true;
   if (h.startsWith("#/evaluaciones")) return true;
   if (h.startsWith("#/cumplimiento/historial-objetivo")) return true;
