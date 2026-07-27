@@ -71,6 +71,7 @@ from app.models.level_up import (
     EstadoSesion,
 )
 from app.models.metas import Meta, MetaCiclo, MetaResultadoClave
+from app.utils.demo_residuo import REFERENTES_GRUPO, REFERENTES_TIPO, ids_libres
 from app.models.talento import (
     Competencia,
     CompetenciaRequisito,
@@ -100,6 +101,19 @@ DEMO_NOMBRE_PREFIJO = "[DEMO]"
 
 # Niveles de `levelup_metodos_calificacion_competencia`
 NIVEL_PLANEADO, NIVEL_ENTRENAMIENTO, NIVEL_CERTIFICADO, NIVEL_EXPERTO = 1, 2, 3, 4
+
+# Grupos y tipos de competencia: el seed los crea con `_get_or_create` y nombres reales,
+# sin marcador. El cleanup los retira solo si al final nadie los referencia.
+GRUPO_TECNICAS = "Competencias Tecnicas"
+GRUPO_BLANDAS = "Competencias Blandas"
+GRUPOS_DEMO = [GRUPO_TECNICAS, GRUPO_BLANDAS]
+TIPOS_POR_GRUPO: list[tuple[str, str]] = [
+    ("Profesional", GRUPO_TECNICAS),
+    ("Informatica", GRUPO_TECNICAS),
+    ("Metodos", GRUPO_TECNICAS),
+    ("Social", GRUPO_BLANDAS),
+]
+TIPOS_DEMO = [nombre for nombre, _ in TIPOS_POR_GRUPO]
 
 
 def es_demo_codigo(codigo: str | None) -> bool:
@@ -302,24 +316,18 @@ async def seed_talento_demo(
         # ── Catalogos ────────────────────────────────────────────────────
         await _ensure_metodos_competencia(s)
         grados = await _grados_activos(s, 2)
-        grupo_tecnicas = await _get_or_create(
-            s, GrupoCompetencia, {"nombre": "Competencias Tecnicas"}, {"activo": True}
-        )
-        grupo_blandas = await _get_or_create(
-            s, GrupoCompetencia, {"nombre": "Competencias Blandas"}, {"activo": True}
-        )
+        grupos: dict[str, GrupoCompetencia] = {}
+        for grupo_nombre in GRUPOS_DEMO:
+            grupos[grupo_nombre] = await _get_or_create(
+                s, GrupoCompetencia, {"nombre": grupo_nombre}, {"activo": True}
+            )
         tipos: dict[str, TipoCompetencia] = {}
-        for tipo_nombre, grupo in [
-            ("Profesional", grupo_tecnicas),
-            ("Informatica", grupo_tecnicas),
-            ("Metodos", grupo_tecnicas),
-            ("Social", grupo_blandas),
-        ]:
+        for tipo_nombre, grupo_nombre in TIPOS_POR_GRUPO:
             tipos[tipo_nombre] = await _get_or_create(
                 s,
                 TipoCompetencia,
                 {"nombre": tipo_nombre},
-                {"grupo_competencia_id": grupo.id, "activo": True},
+                {"grupo_competencia_id": grupos[grupo_nombre].id, "activo": True},
             )
 
         competencias: list[tuple[Competencia, int]] = []
@@ -778,6 +786,9 @@ async def cleanup_talento_demo(*, execute: bool) -> None:
 
     Nunca toca empleados, areas ni los cursos/actas reales: cada delete filtra
     por el marcador o por las filas hijas de un puesto `DEMO-TAL-`.
+
+    Todo corre dentro de una transaccion: en dry-run se hace rollback al final, asi que
+    los conteos reportados ya ven el efecto de los borrados previos.
     """
     borrados: dict[str, int] = {}
 
@@ -887,16 +898,45 @@ async def cleanup_talento_demo(*, execute: bool) -> None:
         for etiqueta, stmt in plan:
             if stmt is None:
                 continue
-            if execute:
-                result = await s.execute(stmt)
-                borrados[etiqueta] = result.rowcount or 0
-            else:
-                # Dry-run: cuenta con el mismo filtro sin borrar.
-                count_stmt = select(func.count()).select_from(stmt.table).where(stmt.whereclause)
-                borrados[etiqueta] = (await s.execute(count_stmt)).scalar_one()
+            result = await s.execute(stmt)
+            borrados[etiqueta] = result.rowcount or 0
+
+        # Residuo sin marcador: grupos y tipos de competencia creados por `_get_or_create`.
+        # Solo se retiran si ya nadie los referencia (competencias reales, p.ej.).
+        # `levelup_metodos_calificacion_competencia` se conserva a proposito: sin esas 4
+        # filas `competencia_service.validar_nivel_requerido` rechaza cualquier requisito.
+        tipo_ids = list(
+            (
+                await s.execute(
+                    select(TipoCompetencia.id).where(TipoCompetencia.nombre.in_(TIPOS_DEMO))
+                )
+            ).scalars().all()
+        )
+        libres = await ids_libres(s, tipo_ids, REFERENTES_TIPO) if tipo_ids else []
+        if libres:
+            result = await s.execute(
+                delete(TipoCompetencia).where(TipoCompetencia.id.in_(libres))
+            )
+            borrados["tipos_competencia"] = result.rowcount or 0
+
+        grupo_ids = list(
+            (
+                await s.execute(
+                    select(GrupoCompetencia.id).where(GrupoCompetencia.nombre.in_(GRUPOS_DEMO))
+                )
+            ).scalars().all()
+        )
+        libres = await ids_libres(s, grupo_ids, REFERENTES_GRUPO) if grupo_ids else []
+        if libres:
+            result = await s.execute(
+                delete(GrupoCompetencia).where(GrupoCompetencia.id.in_(libres))
+            )
+            borrados["grupos_competencia"] = result.rowcount or 0
 
         if execute:
             await s.commit()
+        else:
+            await s.rollback()
 
     logger.info("=== Cleanup talento demo (%s) ===", "ejecutado" if execute else "simulación")
     total = 0

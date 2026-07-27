@@ -49,7 +49,17 @@ docker-compose exec backend python -m app.utils.seed_comedor_accesos_demo --clea
 docker-compose exec backend python -m app.utils.seed_talento_demo
 docker-compose exec backend python -m app.utils.seed_talento_demo --cleanup            # dry-run
 docker-compose exec backend python -m app.utils.seed_talento_demo --cleanup --execute  # borrar
+
+# Demos puntuales de evaluación individual y PDI (empleados 553 / 1)
+docker-compose exec backend python -m app.utils.seed_evaluacion_demo --cleanup --execute
+docker-compose exec backend python -m app.utils.seed_pdi_demo --cleanup --execute
 ```
+> Todos los `--cleanup` son **dry-run** salvo que se pase `--execute`. Borran solo lo
+> marcado como demo; el residuo de catálogo (grupos, tipos, competencias, grados que los
+> seeds crean con nombres reales) se retira únicamente si ya nadie lo referencia —
+> `app/utils/demo_residuo.py` centraliza ese criterio. `levelup_grados_puesto` y
+> `levelup_metodos_calificacion_competencia` se conservan siempre: son catálogo base y
+> sin ellos `competencia_service.validar_nivel_requerido` y los perfiles dejan de operar.
 
 ### Frontend (build, lint)
 ```bash
