@@ -2,16 +2,22 @@
 
 Uso:
   docker-compose exec backend python -m app.utils.seed_pdi_demo
+  docker-compose exec backend python -m app.utils.seed_pdi_demo --cleanup            # dry-run
+  docker-compose exec backend python -m app.utils.seed_pdi_demo --cleanup --execute  # borra
 """
 
+import argparse
 import asyncio
+import logging
 from datetime import date
 
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, func, select
 
 from app.core.database import AsyncSessionLocal
 from app.models.talento import PlanDesarrolloIndividual, Competencia
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+logger = logging.getLogger(__name__)
 
 
 DEMO_EMPLEADOS = [553, 1]
@@ -31,13 +37,21 @@ DEMO_DATA_1 = [
     {"competencia": "Comunicación Efectiva", "accion": "Taller de presentaciones ejecutivas", "tipo": "Presencial", "duracion": 8, "inicio": "2026-07-20", "fin": "2026-08-20", "responsable": "RH Capacitación", "estado": "completado"},
 ]
 
+DEMO_POR_EMPLEADO: list[tuple[int, list[dict]]] = [(553, DEMO_DATA_553), (1, DEMO_DATA_1)]
+
+# Texto exacto de cada acción sembrada. El cleanup filtra por (empleado, acción) para
+# no tocar los PDI que RH capture a mano para estos mismos empleados.
+ACCIONES_DEMO: dict[int, list[str]] = {
+    emp_id: [item["accion"] for item in data] for emp_id, data in DEMO_POR_EMPLEADO
+}
+
 
 async def seed_pdi():
     async with AsyncSessionLocal() as db:
         competencias_result = await db.execute(select(Competencia))
         competencias = {c.nombre: c.id for c in competencias_result.scalars().all()}
 
-        for emp_id, data_list in [(553, DEMO_DATA_553), (1, DEMO_DATA_1)]:
+        for emp_id, data_list in DEMO_POR_EMPLEADO:
             existing = await db.execute(
                 select(PlanDesarrolloIndividual).where(
                     PlanDesarrolloIndividual.empleado_id == emp_id
@@ -71,5 +85,53 @@ async def seed_pdi():
     print("\n✅ Seed PDI completado.")
 
 
-if __name__ == "__main__":
+async def cleanup_pdi_demo(*, execute: bool) -> None:
+    """Borra las acciones PDI sembradas por este script. Dry-run salvo --execute."""
+    borrados: dict[int, int] = {}
+
+    async with AsyncSessionLocal() as db:
+        for emp_id, acciones in ACCIONES_DEMO.items():
+            cond = (
+                PlanDesarrolloIndividual.empleado_id == emp_id,
+                PlanDesarrolloIndividual.accion.in_(acciones),
+            )
+            if execute:
+                result = await db.execute(delete(PlanDesarrolloIndividual).where(*cond))
+                borrados[emp_id] = result.rowcount or 0
+            else:
+                borrados[emp_id] = (
+                    await db.execute(
+                        select(func.count()).select_from(PlanDesarrolloIndividual).where(*cond)
+                    )
+                ).scalar_one()
+
+        if execute:
+            await db.commit()
+
+    logger.info("=== Cleanup PDI demo (%s) ===", "ejecutado" if execute else "simulación")
+    total = 0
+    for emp_id in sorted(borrados):
+        logger.info("empleado %-10s %d", emp_id, borrados[emp_id])
+        total += borrados[emp_id]
+    logger.info("%-20s %d", "TOTAL", total)
+    if not execute:
+        logger.info("Modo simulación (--cleanup sin --execute). No se modificó la BD.")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Seed demo de PDI.")
+    parser.add_argument("--cleanup", action="store_true", help="Borrar los datos demo.")
+    parser.add_argument(
+        "--execute", action="store_true", help="Con --cleanup, ejecuta el borrado (default dry-run)."
+    )
+    args = parser.parse_args()
+
+    if args.cleanup:
+        asyncio.run(cleanup_pdi_demo(execute=args.execute))
+        return
+
     asyncio.run(seed_pdi())
+
+
+if __name__ == "__main__":
+    main()

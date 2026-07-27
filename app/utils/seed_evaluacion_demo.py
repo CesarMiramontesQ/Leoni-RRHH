@@ -10,23 +10,30 @@ Idempotente: si ya existe un puesto con código 'DEMO-CAL-001', no hace nada.
 Uso:
     docker-compose exec backend python -m app.utils.seed_evaluacion_demo
     docker-compose exec backend python -m app.utils.seed_evaluacion_demo --cleanup
+    docker-compose exec backend python -m app.utils.seed_evaluacion_demo --cleanup --execute
 """
 
+import argparse
 import asyncio
 import logging
-import sys
 
-from sqlalchemy import select, delete, text
+from sqlalchemy import select, delete
 
 from app.core.database import AsyncSessionLocal
+from app.utils.demo_residuo import (
+    REFERENTES_COMPETENCIA,
+    REFERENTES_GRUPO,
+    REFERENTES_TIPO,
+    ids_libres,
+)
 from app.models.talento import (
-    AccionRecomendada,
     Competencia,
     CompetenciaRequisito,
     EvaluacionCompetencia,
     GradoPuesto,
     GrupoCompetencia,
     PerfilFunciones,
+    PerfilFuncionesCompetencia,
     PuestoPerfil,
     PuestoPerfilGrado,
     TipoCompetencia,
@@ -62,35 +69,168 @@ COMPETENCIAS = [
 ]
 
 
-async def cleanup():
-    """Remove all demo data."""
-    async with AsyncSessionLocal() as s:
-        puesto_r = await s.execute(
-            select(PuestoPerfil).where(PuestoPerfil.codigo == DEMO_PUESTO_CODIGO)
-        )
-        puesto = puesto_r.scalar_one_or_none()
-        if not puesto:
-            logger.info("No demo data found.")
-            return
+async def cleanup_evaluacion_demo(*, execute: bool) -> None:
+    """Borra el demo de evaluación y su residuo de catálogo. Dry-run salvo --execute.
 
-        # Delete evaluations for demo employee
-        await s.execute(
-            delete(EvaluacionCompetencia).where(
-                EvaluacionCompetencia.empleado_id == DEMO_EMPLEADO_ID
+    Todo corre dentro de una transacción: en dry-run se hace rollback al final, así que
+    los conteos reportados son los reales (ven el efecto de los borrados previos).
+    """
+    borrados: dict[str, int] = {}
+
+    async def _borrar(etiqueta: str, stmt) -> None:
+        result = await s.execute(stmt)
+        borrados[etiqueta] = borrados.get(etiqueta, 0) + (result.rowcount or 0)
+
+    async with AsyncSessionLocal() as s:
+        puesto_id = (
+            await s.execute(
+                select(PuestoPerfil.id).where(PuestoPerfil.codigo == DEMO_PUESTO_CODIGO)
             )
+        ).scalar_one_or_none()
+
+        comp_ids = list(
+            (
+                await s.execute(
+                    select(Competencia.id).where(
+                        Competencia.nombre.in_([nombre for nombre, *_ in COMPETENCIAS])
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        # Delete PerfilFunciones
-        await s.execute(
-            delete(PerfilFunciones).where(PerfilFunciones.puesto_perfil_id == puesto.id)
+
+        if puesto_id is not None:
+            pf_ids = list(
+                (
+                    await s.execute(
+                        select(PerfilFunciones.id).where(
+                            PerfilFunciones.puesto_perfil_id == puesto_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if pf_ids:
+                await _borrar(
+                    "niveles_evaluados",
+                    delete(PerfilFuncionesCompetencia).where(
+                        PerfilFuncionesCompetencia.perfil_funciones_id.in_(pf_ids)
+                    ),
+                )
+
+        # Solo las evaluaciones del empleado demo sobre las competencias del demo:
+        # las que RH haya capturado sobre otras competencias se conservan.
+        if comp_ids:
+            await _borrar(
+                "evaluaciones",
+                delete(EvaluacionCompetencia).where(
+                    EvaluacionCompetencia.empleado_id == DEMO_EMPLEADO_ID,
+                    EvaluacionCompetencia.competencia_id.in_(comp_ids),
+                ),
+            )
+
+        if puesto_id is not None:
+            await _borrar(
+                "asignaciones",
+                delete(PerfilFunciones).where(PerfilFunciones.puesto_perfil_id == puesto_id),
+            )
+            await _borrar(
+                "requisitos",
+                delete(CompetenciaRequisito).where(
+                    CompetenciaRequisito.puesto_perfil_id == puesto_id
+                ),
+            )
+            await _borrar(
+                "puesto_perfil_grados",
+                delete(PuestoPerfilGrado).where(PuestoPerfilGrado.puesto_perfil_id == puesto_id),
+            )
+            await _borrar(
+                "puestos_perfil", delete(PuestoPerfil).where(PuestoPerfil.id == puesto_id)
+            )
+
+        # Residuo de catálogo: competencias → tipos → grupos → grados.
+        if comp_ids:
+            libres = await ids_libres(s, comp_ids, REFERENTES_COMPETENCIA)
+            if libres:
+                await _borrar(
+                    "competencias", delete(Competencia).where(Competencia.id.in_(libres))
+                )
+
+        tipo_ids = list(
+            (
+                await s.execute(
+                    select(TipoCompetencia.id).where(
+                        TipoCompetencia.nombre.in_(
+                            [t for tipos in GRUPOS_TIPOS.values() for t in tipos]
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        # Delete requisitos
-        await s.execute(
-            delete(CompetenciaRequisito).where(CompetenciaRequisito.puesto_perfil_id == puesto.id)
+        if tipo_ids:
+            libres = await ids_libres(s, tipo_ids, REFERENTES_TIPO)
+            if libres:
+                await _borrar(
+                    "tipos_competencia",
+                    delete(TipoCompetencia).where(TipoCompetencia.id.in_(libres)),
+                )
+
+        grupo_ids = list(
+            (
+                await s.execute(
+                    select(GrupoCompetencia.id).where(
+                        GrupoCompetencia.nombre.in_(list(GRUPOS_TIPOS))
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        # Delete puesto
-        await s.execute(delete(PuestoPerfil).where(PuestoPerfil.id == puesto.id))
-        await s.commit()
-        logger.info("Demo data cleaned up.")
+        if grupo_ids:
+            libres = await ids_libres(s, grupo_ids, REFERENTES_GRUPO)
+            if libres:
+                await _borrar(
+                    "grupos_competencia",
+                    delete(GrupoCompetencia).where(GrupoCompetencia.id.in_(libres)),
+                )
+
+        # Los grados NO se borran: son catálogo base de la plataforma (el seed solo los
+        # crea si faltan) y `seed_talento_demo._grados_activos` exige que existan. Que
+        # ahora nadie los referencie no los vuelve residuo demo.
+        grados = list(
+            (
+                await s.execute(
+                    select(GradoPuesto.nombre).where(GradoPuesto.nombre.in_(GRADOS))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if grados:
+            logger.info(
+                "Se conservan %d grados de puesto (catálogo base): %s",
+                len(grados),
+                ", ".join(sorted(set(grados))),
+            )
+
+        if execute:
+            await s.commit()
+        else:
+            await s.rollback()
+
+    logger.info("=== Cleanup evaluación demo (%s) ===", "ejecutado" if execute else "simulación")
+    total = 0
+    for etiqueta in sorted(borrados):
+        if borrados[etiqueta]:
+            logger.info("%-24s %d", etiqueta, borrados[etiqueta])
+            total += borrados[etiqueta]
+    logger.info("%-24s %d", "TOTAL", total)
+    if not execute:
+        logger.info("Modo simulación (--cleanup sin --execute). No se modificó la BD.")
 
 
 async def seed():
@@ -206,12 +346,20 @@ async def seed():
         logger.info("Done! Visit: http://localhost:5173/#/evaluaciones/empleado/%d", DEMO_EMPLEADO_ID)
 
 
-async def main():
-    if "--cleanup" in sys.argv:
-        await cleanup()
-    else:
-        await seed()
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Seed demo de Evaluación Individual.")
+    parser.add_argument("--cleanup", action="store_true", help="Borrar los datos demo.")
+    parser.add_argument(
+        "--execute", action="store_true", help="Con --cleanup, ejecuta el borrado (default dry-run)."
+    )
+    args = parser.parse_args()
+
+    if args.cleanup:
+        asyncio.run(cleanup_evaluacion_demo(execute=args.execute))
+        return
+
+    asyncio.run(seed())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

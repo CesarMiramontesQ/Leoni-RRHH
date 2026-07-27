@@ -199,6 +199,9 @@ async def cleanup_comedor_demo_data(*, execute: bool = False) -> None:
     """
     Elimina empleados demo de simulación y sus accesos/registros de comedor.
     También borra accesos del mismo lote de inserción (mismo created_at) en empleados reales.
+
+    Nunca borra `levelup_comedor_registros` de empleados reales: una reserva semanal sin
+    acceso registrado es un dato productivo válido (la semana aún no se consume).
     """
     async with AsyncSessionLocal() as session:
         demos = await _find_demo_empleados(session)
@@ -271,17 +274,6 @@ async def cleanup_comedor_demo_data(*, execute: bool = False) -> None:
                 delete(ComedorRegistro).where(ComedorRegistro.empleado_id.in_(demo_ids))
             )
             await session.execute(delete(Empleado).where(Empleado.id.in_(demo_ids)))
-
-        orphan_ids = (
-            await session.execute(
-                select(ComedorRegistro.id).where(
-                    ~ComedorRegistro.id.in_(select(ComedorAcceso.comedor_registro_id).distinct())
-                )
-            )
-        ).scalars()
-        orphan_list = list(orphan_ids.all())
-        if orphan_list:
-            await session.execute(delete(ComedorRegistro).where(ComedorRegistro.id.in_(orphan_list)))
 
         await session.commit()
 
