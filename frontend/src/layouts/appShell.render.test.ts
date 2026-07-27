@@ -14,7 +14,10 @@ vi.mock("../auth/jwt.ts", () => ({
   getRhGestorAlcanceFromToken: () => null,
   getAccessTokenPayload: () => null,
   isHorasExtraAprobador: () => false,
-  isHorasExtraRegistroAutorizado: () => false,
+  // true: mantiene "Mis trámites" con su único ítem (horas-extra-solicitud)
+  // para poder seguir afirmando sobre su <details>; la visibilidad condicional
+  // de ese ítem ya se prueba en supervisorNav.test.ts/empleadoNav.test.ts.
+  isHorasExtraRegistroAutorizado: () => true,
   canAccessEmpleadoPersonalDashboard: () => false,
   getUserDisplayNameFromAccessToken: () => "",
   getUserInitialsFromAccessToken: () => "",
@@ -80,6 +83,13 @@ describe("renderSupervisorSidebarSections", () => {
     const htmlSinActivaPlegable = renderSupervisorSidebarSections("metricas", "supervisor");
     expect(htmlSinActivaPlegable).not.toMatch(/<details[^>]*\bopen\b/);
   });
+
+  it("emite el enlace a Comedor exactamente una vez, suelto arriba y fuera de cualquier <details>", () => {
+    const html = renderSupervisorSidebarSections(undefined, "supervisor");
+    expect(countOccurrences(html, 'href="#/comedor"')).toBe(1);
+    const detailsBlocks = html.match(/<details[\s\S]*?<\/details>/g) ?? [];
+    expect(detailsBlocks.some((block) => block.includes('href="#/comedor"'))).toBe(false);
+  });
 });
 
 describe("renderEmpleadoSidebarSections", () => {
@@ -91,6 +101,13 @@ describe("renderEmpleadoSidebarSections", () => {
     expect(html).toContain("Mis trámites");
     expect(html).toContain("Pendientes");
     expect(html).toContain("Mi desarrollo");
+  });
+
+  it("emite el enlace a Comedor exactamente una vez, suelto arriba y fuera de cualquier <details>", () => {
+    const html = renderEmpleadoSidebarSections(undefined, "empleado");
+    expect(countOccurrences(html, 'href="#/comedor"')).toBe(1);
+    const detailsBlocks = html.match(/<details[\s\S]*?<\/details>/g) ?? [];
+    expect(detailsBlocks.some((block) => block.includes('href="#/comedor"'))).toBe(false);
   });
 });
 

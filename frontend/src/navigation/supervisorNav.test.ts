@@ -31,12 +31,14 @@ vi.mock("../auth/rhUiMode.ts", () => ({
 import {
   SUPERVISOR_DASHBOARD_ITEM,
   SUPERVISOR_NAV_SECTIONS,
+  SUPERVISOR_TOP_ITEMS,
   getVisibleSupervisorNavSections,
 } from "./supervisorNav.ts";
 
-/** Todo lo que el menú ofrece, sin filtrar por permiso. */
+/** Todo lo que el menú ofrece, sin filtrar por permiso: los ítems sueltos de
+ * arriba (Dashboard, Comedor) más los de las secciones. */
 const TODOS = [
-  SUPERVISOR_DASHBOARD_ITEM,
+  ...SUPERVISOR_TOP_ITEMS,
   ...SUPERVISOR_NAV_SECTIONS.flatMap((s) => s.items),
 ];
 
@@ -98,7 +100,7 @@ describe("SUPERVISOR_NAV_SECTIONS", () => {
       "ciclo-desempeno",
       "historial-objetivo",
     ]);
-    expect(porSeccion.tramites).toEqual(["horas-extra-solicitud", "comedor"]);
+    expect(porSeccion.tramites).toEqual(["horas-extra-solicitud"]);
     expect(porSeccion.pendientes).toEqual([
       "mis-firmas",
       "mis-aprobaciones-opl",
@@ -116,8 +118,8 @@ describe("SUPERVISOR_NAV_SECTIONS", () => {
   });
 
   it("reagrupar no agregó ni quitó accesos", () => {
-    // Los 20 ids que el supervisor alcanzaba antes: 18 de las secciones viejas,
-    // más el dashboard y `empleados`, que vivía anclado al pie.
+    // Los mismos 20 ids que el supervisor alcanzaba antes: 18 viven en las
+    // secciones, y 2 son sueltos arriba (dashboard, comedor).
     expect(TODOS.map((i) => i.id).sort()).toEqual(
       [
         "ciclo-desempeno",
@@ -164,11 +166,11 @@ describe("getVisibleSupervisorNavSections", () => {
     heAutorizado = false;
   });
 
-  it("sin permisos de horas extra, oculta los dos ítems y conserva el resto", () => {
-    const porSeccion = Object.fromEntries(
-      getVisibleSupervisorNavSections("supervisor").map((s) => [s.id, s.items.map((i) => i.id)]),
-    );
-    expect(porSeccion.tramites).toEqual(["comedor"]);
+  it("sin permisos de horas extra, la sección tramites desaparece (era su único ítem) y conserva el resto", () => {
+    const secciones = getVisibleSupervisorNavSections("supervisor");
+    const porSeccion = Object.fromEntries(secciones.map((s) => [s.id, s.items.map((i) => i.id)]));
+    expect(secciones.map((s) => s.id)).not.toContain("tramites");
+    expect(porSeccion.tramites).toBeUndefined();
     expect(porSeccion.pendientes).toEqual([
       "mis-firmas",
       "mis-aprobaciones-opl",
@@ -181,7 +183,7 @@ describe("getVisibleSupervisorNavSections", () => {
   it("con permiso de registro, Horas extra vuelve a Mis trámites en su posición", () => {
     heAutorizado = true;
     const tramites = getVisibleSupervisorNavSections("supervisor").find((s) => s.id === "tramites");
-    expect(tramites?.items.map((i) => i.id)).toEqual(["horas-extra-solicitud", "comedor"]);
+    expect(tramites?.items.map((i) => i.id)).toEqual(["horas-extra-solicitud"]);
   });
 
   it("con permiso de aprobación, Aprobar horas extra vuelve a Pendientes", () => {
@@ -192,12 +194,23 @@ describe("getVisibleSupervisorNavSections", () => {
     expect(pendientes?.items.map((i) => i.id)).toContain("horas-extra-aprobaciones");
   });
 
-  it("nunca devuelve una sección vacía", () => {
+  it("sin permiso de horas extra son 4 secciones (tramites se queda sin nada que mostrar)", () => {
+    const secciones = getVisibleSupervisorNavSections("supervisor");
+    expect(secciones.length).toBe(4);
+    for (const seccion of secciones) {
+      expect(seccion.items.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("con permiso de horas extra vuelven a ser 5 secciones, con tramites de un solo ítem", () => {
+    heAutorizado = true;
     const secciones = getVisibleSupervisorNavSections("supervisor");
     expect(secciones.length).toBe(5);
     for (const seccion of secciones) {
       expect(seccion.items.length).toBeGreaterThan(0);
     }
+    const tramites = secciones.find((s) => s.id === "tramites");
+    expect(tramites?.items).toHaveLength(1);
   });
 
   it("aplica de verdad el filtro por rol", () => {

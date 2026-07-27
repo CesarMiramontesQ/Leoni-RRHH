@@ -31,12 +31,14 @@ vi.mock("../auth/rhUiMode.ts", () => ({
 import {
   EMPLEADO_DASHBOARD_ITEM,
   EMPLEADO_NAV_SECTIONS,
+  EMPLEADO_TOP_ITEMS,
   getVisibleEmpleadoNavSections,
 } from "./empleadoNav.ts";
 
-/** Todo lo que el menú ofrece, sin filtrar por permiso. */
+/** Todo lo que el menú ofrece, sin filtrar por permiso: los ítems sueltos de
+ * arriba (Dashboard, Comedor) más los de las secciones. */
 const TODOS = [
-  EMPLEADO_DASHBOARD_ITEM,
+  ...EMPLEADO_TOP_ITEMS,
   ...EMPLEADO_NAV_SECTIONS.flatMap((s) => s.items),
 ];
 
@@ -58,11 +60,7 @@ describe("EMPLEADO_NAV_SECTIONS", () => {
     const porSeccion = Object.fromEntries(
       EMPLEADO_NAV_SECTIONS.map((s) => [s.id, s.items.map((i) => i.id)]),
     );
-    expect(porSeccion.tramites).toEqual([
-      "solicitudes",
-      "horas-extra-solicitud",
-      "comedor",
-    ]);
+    expect(porSeccion.tramites).toEqual(["solicitudes", "horas-extra-solicitud"]);
     expect(porSeccion.pendientes).toEqual([
       "mis-firmas",
       "mis-aprobaciones-opl",
@@ -127,7 +125,7 @@ describe("getVisibleEmpleadoNavSections", () => {
     const porSeccion = Object.fromEntries(
       secciones.map((s) => [s.id, s.items.map((i) => i.id)]),
     );
-    expect(porSeccion.tramites).toEqual(["solicitudes", "comedor"]);
+    expect(porSeccion.tramites).toEqual(["solicitudes"]);
     expect(porSeccion.pendientes).toEqual([
       "mis-firmas",
       "mis-aprobaciones-opl",
@@ -141,11 +139,7 @@ describe("getVisibleEmpleadoNavSections", () => {
   it("con permiso de registro, Horas extra vuelve a Mis trámites en su posición", () => {
     heAutorizado = true;
     const tramites = getVisibleEmpleadoNavSections("empleado").find((s) => s.id === "tramites");
-    expect(tramites?.items.map((i) => i.id)).toEqual([
-      "solicitudes",
-      "horas-extra-solicitud",
-      "comedor",
-    ]);
+    expect(tramites?.items.map((i) => i.id)).toEqual(["solicitudes", "horas-extra-solicitud"]);
   });
 
   it("con permiso de aprobación, Aprobar horas extra vuelve a Pendientes", () => {
