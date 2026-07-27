@@ -25,11 +25,7 @@ import {
 } from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
 import { EMPLEADO_DASHBOARD_ITEM, getVisibleEmpleadoNavSections } from "../navigation/empleadoNav.ts";
-import {
-  SUPERVISOR_DASHBOARD_ITEM,
-  SUPERVISOR_EMPLEADOS_ITEM,
-  SUPERVISOR_NAV_SECTIONS,
-} from "../navigation/supervisorNav.ts";
+import { SUPERVISOR_DASHBOARD_ITEM, getVisibleSupervisorNavSections } from "../navigation/supervisorNav.ts";
 import {
   isEmpleadoFlatNavRol,
   isRhStructuredNavRol,
@@ -402,16 +398,9 @@ const NAV_NOMINAS: NavItemDef = {
 
 function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
   if (isRhStructuredNavRol(rol)) return "";
-  const empleadosDef: NavItemDef = isSupervisorStructuredNavRol(rol)
-    ? {
-        id: SUPERVISOR_EMPLEADOS_ITEM.id,
-        key: SUPERVISOR_EMPLEADOS_ITEM.key,
-        hrefFor: () => SUPERVISOR_EMPLEADOS_ITEM.href,
-        label: SUPERVISOR_EMPLEADOS_ITEM.label,
-        svgPaths: SUPERVISOR_EMPLEADOS_ITEM.svgPaths,
-      }
-    : NAV_EMPLEADOS;
-  const empleadosLi = navItemLi(activeNav, rol, empleadosDef);
+  // El supervisor lleva `Empleados` dentro de la sección "Mi equipo".
+  if (isSupervisorStructuredNavRol(rol)) return "";
+  const empleadosLi = navItemLi(activeNav, rol, NAV_EMPLEADOS);
   if (empleadosLi.trim() === "") return "";
   return `<li class="mt-auto pt-6">
     <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">
@@ -457,9 +446,20 @@ function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol
     label: SUPERVISOR_DASHBOARD_ITEM.label,
     svgPaths: SUPERVISOR_DASHBOARD_ITEM.svgPaths,
   });
-  const sectionLis = SUPERVISOR_NAV_SECTIONS.map((section) =>
-    renderFlatNavSection(section.id, section.title, section.items, activeNav, rol),
-  ).join("");
+  const sectionLis = getVisibleSupervisorNavSections(rol)
+    .map((section) =>
+      section.tipo === "plegable" ?
+        renderCollapsibleNavSection(
+          section.id,
+          section.title,
+          section.iconSvgPaths ?? "",
+          section.items,
+          activeNav,
+          rol,
+        )
+      : renderFlatNavSection(section.id, section.title, section.items, activeNav, rol),
+    )
+    .join("");
   return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
 }
 
