@@ -517,7 +517,7 @@ Todos los componentes generan HTML strings via funciones TypeScript. Los tokens 
 
 El criterio es **la frecuencia de uso, no el número de ítems**: el supervisor tiene sus dos secciones de equipo estáticas y las tres personales plegables, aunque sumen 19 ítems.
 
-Toda sección plegable **necesita icono**. El encabezado estático lleva `md:max-lg:hidden`, así que en el rail de tablet desaparece; una sección plegable sin icono se quedaría sin ningún control visible y sus ítems serían inalcanzables. El icono se toma del primer ítem de la sección.
+Toda sección plegable **necesita icono**. El encabezado estático lleva `md:max-lg:hidden`, así que en el rail de tablet desaparece; una sección plegable sin icono se quedaría sin ningún control visible y sus ítems serían inalcanzables. De dónde sale ese icono depende de quién arma la sección: RH (`rhNav.ts`) usa el icono propio del hub (`LABORALES_SIDEBAR_ITEM.svgPaths`, `COMEDOR_SIDEBAR_ITEM.svgPaths`, etc.), mientras que el supervisor reusa el icono de su primer ítem.
 
 ### 8.2 Topbar
 
