@@ -56,3 +56,6 @@ htmlcov/
 # PDF / Excel generados
 *.pdf
 *.xlsx
+
+# Scratch de agentes (planes SDD: ledger, briefs, reportes)
+.superpowers/

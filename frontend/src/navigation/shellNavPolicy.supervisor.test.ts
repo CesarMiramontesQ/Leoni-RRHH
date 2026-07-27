@@ -104,6 +104,12 @@ describe("shellNavPolicy supervisor structured nav", () => {
     expect(supervisorMayAccessHash("#/metricas")).toBe(true);
     expect(supervisorMayAccessHash("#/metricas?foo=bar")).toBe(true);
   });
+
+  it("supervisor ya no puede acceder a #/viajes-laborales (pasó a ser exclusivo de RH)", async () => {
+    const { supervisorMayAccessHash, isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(supervisorMayAccessHash("#/viajes-laborales")).toBe(false);
+    expect(isShellNavItemVisibleForRol("supervisor", "viajes-laborales")).toBe(false);
+  });
 });
 
 describe("shellNavPolicy gerente structured nav", () => {
@@ -127,6 +133,7 @@ describe("shellNavPolicy gerente structured nav", () => {
     expect(isShellNavItemVisibleForRol("gerente", "reportes")).toBe(false);
     expect(isShellNavItemVisibleForRol("gerente", "level-up")).toBe(false);
     expect(isShellNavItemVisibleForRol("gerente", "puestos")).toBe(false);
+    expect(isShellNavItemVisibleForRol("gerente", "viajes-laborales")).toBe(false);
   });
 
   it("gerente no ve hubs agrupados", async () => {
@@ -149,5 +156,24 @@ describe("shellNavPolicy gerente structured nav", () => {
     expect(supervisorMayAccessHash("#/talento/ciclo-desempeno")).toBe(true);
     expect(supervisorMayAccessHash("#/talento/mi-desempeno")).toBe(true);
     expect(supervisorMayAccessHash("#/cumplimiento/historial-objetivo")).toBe(true);
+  });
+});
+
+describe("shellNavPolicy director nav (hub Laborales)", () => {
+  beforeEach(() => {
+    storage.clear();
+    vi.resetModules();
+  });
+
+  it("director real (rol de BD, no ADMIN) ya no ve viajes-laborales en el hub Laborales", async () => {
+    // director no usa el menú estructurado de supervisor/gerente: cae en el
+    // sidebar genérico con el hub «Laborales» (isLaboralesHubVisibleForRol),
+    // donde antes sí aparecía viajes-laborales por el fallback por defecto de
+    // roleOnlyNavVisible. Con el cierre a RH, debe quedar oculto también ahí.
+    const { isShellNavItemVisibleForRol } = await import("./shellNavPolicy.ts");
+    expect(isShellNavItemVisibleForRol("director", "viajes-laborales")).toBe(false);
+    // El resto del hub Laborales para director no cambia con este fix.
+    expect(isShellNavItemVisibleForRol("director", "incidencias")).toBe(true);
+    expect(isShellNavItemVisibleForRol("director", "faltas-retardos")).toBe(true);
   });
 });

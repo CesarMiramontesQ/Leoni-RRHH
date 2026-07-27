@@ -32,7 +32,7 @@ async def health():
 @router.get("", response_model=ViajesLaboralesPageResponse)
 async def list_viajes_laborales(
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -62,7 +62,7 @@ async def list_viajes_laborales(
 @router.get("/estados", response_model=ViajesLaboralesEstadosResponse)
 async def list_estados_viajes_laborales(
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     svc: ViajesLaboralesService = Depends(_svc),
 ):
@@ -72,7 +72,7 @@ async def list_estados_viajes_laborales(
 @router.get("/estadisticas", response_model=ViajesLaboralesEstadisticasResponse)
 async def estadisticas_viajes_laborales(
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -99,7 +99,7 @@ async def estadisticas_viajes_laborales(
 async def get_viaje_laboral(
     id: int,
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -111,7 +111,7 @@ async def get_viaje_laboral(
 async def create_viaje_laboral(
     body: ViajeLaboralCreate,
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -124,7 +124,7 @@ async def update_viaje_laboral(
     id: int,
     body: ViajeLaboralUpdate,
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -136,7 +136,7 @@ async def update_viaje_laboral(
 async def enviar_viaje_laboral(
     id: int,
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -148,7 +148,7 @@ async def enviar_viaje_laboral(
 async def aprobar_viaje_laboral(
     id: int,
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -161,7 +161,7 @@ async def rechazar_viaje_laboral(
     id: int,
     body: ViajeLaboralRechazarRequest,
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -173,7 +173,7 @@ async def rechazar_viaje_laboral(
 async def cancelar_viaje_laboral(
     id: int,
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
@@ -185,7 +185,7 @@ async def cancelar_viaje_laboral(
 async def delete_viaje_laboral(
     id: int,
     current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
+        role_checker(["operativo"])
     ),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: ViajesLaboralesService = Depends(_svc),
