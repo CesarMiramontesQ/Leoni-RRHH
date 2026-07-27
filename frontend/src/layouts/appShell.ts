@@ -41,10 +41,8 @@ import {
 import {
   getVisibleRhGeneralItems,
   getVisibleRhNavSections,
-  rhNavSectionContainsActiveKey,
   type RhNavItem,
   type RhNavKey,
-  type RhNavSection,
 } from "../navigation/rhNav.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
@@ -213,7 +211,22 @@ function renderRhPrimaryLinkLi(
   </li>`;
 }
 
-function rhSubNavItemLi(activeNav: RhNavKey | undefined, rol: string | null, item: RhNavItem): string {
+/** `RhNavKey` aporta `cursos-ajustes` y `personal-externo`, que no están en `ShellNavKey`. */
+type SidebarNavKey = ShellNavKey | RhNavKey;
+
+type SidebarNavItemShape = {
+  id: AppShellNavItemId;
+  key: SidebarNavKey;
+  href: string;
+  label: string;
+  svgPaths: string;
+};
+
+function rhSubNavItemLi(
+  activeNav: SidebarNavKey | undefined,
+  rol: string | null,
+  item: SidebarNavItemShape,
+): string {
   if (!isShellNavItemVisibleForRol(rol, item.id)) return "";
   const isActive = activeNav === item.key;
   const cls = isActive ? rhSubNavActive : rhSubNavInactive;
@@ -230,23 +243,26 @@ function rhSubNavItemLi(activeNav: RhNavKey | undefined, rol: string | null, ite
   </li>`;
 }
 
-function renderRhCollapsibleSection(
-  section: RhNavSection,
-  activeNav: RhNavKey | undefined,
+function renderCollapsibleNavSection(
+  sectionId: string,
+  title: string,
+  iconSvgPaths: string,
+  items: readonly SidebarNavItemShape[],
+  activeNav: SidebarNavKey | undefined,
   rol: string | null,
 ): string {
-  const subLis = section.items.map((item) => rhSubNavItemLi(activeNav, rol, item)).filter(Boolean);
+  const subLis = items.map((item) => rhSubNavItemLi(activeNav, rol, item)).filter(Boolean);
   if (subLis.length === 0) return "";
 
-  const isOpen = rhNavSectionContainsActiveKey(section, activeNav);
-  const panelId = `shell-rh-nav-panel-${section.id}`;
+  const isOpen = activeNav != null && items.some((item) => item.key === activeNav);
+  const panelId = `shell-rh-nav-panel-${sectionId}`;
 
   return `<li>
     <details class="group/rh-nav-section" ${isOpen ? "open" : ""}>
       <summary class="${rhSectionSummaryClass} ${navInactive}" aria-controls="${panelId}">
         <span class="flex min-w-0 flex-1 items-center gap-x-3">
-          ${rhPrimaryIcon(section.iconSvgPaths, false)}
-          <span class="${rhPrimaryLabelClass}">${section.title}</span>
+          ${rhPrimaryIcon(iconSvgPaths, false)}
+          <span class="${rhPrimaryLabelClass}">${title}</span>
         </span>
         ${rhPrimaryChevronIcon}
       </summary>
@@ -282,7 +298,16 @@ function renderRhStructuredSidebarSections(activeNav: RhNavKey | undefined, rol:
     .join("");
 
   const sectionLis = getVisibleRhNavSections(rol)
-    .map((section) => renderRhCollapsibleSection(section, activeNav, rol))
+    .map((section) =>
+      renderCollapsibleNavSection(
+        section.id,
+        section.title,
+        section.iconSvgPaths,
+        section.items,
+        activeNav,
+        rol,
+      ),
+    )
     .join("");
 
   const empleadosFooter = renderRhEmpleadosFooter(activeNav, rol);
