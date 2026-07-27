@@ -53,19 +53,21 @@ Se descartaron:
 
 ## Implementación
 
-- `navigation/empleadoNav.ts`: `EMPLEADO_NAV_SECTIONS` (`{ id, title, items }`) pasa a ser la fuente de verdad. `EMPLEADO_FLAT_NAV_ITEMS` se conserva exportado como flatten derivado para no romper consumidores ni los tests existentes.
+- `navigation/empleadoNav.ts`: `EMPLEADO_NAV_SECTIONS` (`{ id, title, items }`) pasa a ser la fuente de verdad, más `getVisibleEmpleadoNavSections(rol)` que filtra por `isShellNavItemVisibleForRol` y descarta secciones vacías — espejo de `rhNav.ts::getVisibleRhNavSections`. Ese filtrado en la capa de datos es lo que hace testeables los casos condicionales de horas extra: `appShell` no es importable desde un test con `environment: "node"`.
+- `EMPLEADO_FLAT_NAV_ITEMS` **se elimina**. Sus dos únicos consumidores son `appShell.ts:454` y `shellSidebar.ts:229`, y ambos desaparecen en este cambio; conservarlo contradiría el borrado de código muerto. Sobrevive como puente de compilación intermedio y se retira al final.
 - `layouts/appShell.ts::sidebarBody`: la rama `isEmpleadoFlatNavRol` renderiza secciones reusando `renderSupervisorNavSection` (`appShell.ts:398-425`), que ya acepta la forma genérica `{ id, key, href, label, svgPaths }` y ya devuelve `""` cuando ningún ítem es visible. Solo hay que renombrarlo a algo neutro de rol (`renderFlatNavSection`); no se crea componente ni token de diseño nuevo.
 - Borrar `layouts/shellSidebar.ts`: 331 líneas que **ningún módulo importa** (verificado por grep sobre todo `frontend/src`). Duplican el render del sidebar y consumen `EMPLEADO_FLAT_NAV_ITEMS`, así que son la trampa evidente para quien retome este trabajo.
 - Actualizar `design.md` §8.1, cuya lista de ítems de empleado (dashboard, solicitudes, comedor, notificaciones) quedó desactualizada hace varias versiones.
 
 ## Tests
 
-Junto a `navigation/shellNavPolicy.empleado.test.ts`, cubrir sobre la nueva estructura:
+Nuevo `navigation/empleadoNav.test.ts`, con los mocks de `rhNav.test.ts`:
 - Orden de secciones y de ítems dentro de cada una.
-- Cada ítem cae en la sección que le toca.
+- Cada ítem cae en la sección que le toca; ninguno se repite entre secciones.
+- El dashboard queda fuera de toda sección.
 - Con `canRegisterOvertime()` falso, "Horas extra" no aparece y "Mis trámites" conserva el resto.
-- Con ambos permisos de horas extra falsos, ninguna sección queda vacía ni se renderiza vacía.
-- `EMPLEADO_FLAT_NAV_ITEMS` sigue conteniendo los mismos `id` que antes del cambio (garantiza que agrupar no agregó ni quitó accesos).
+- Con ambos permisos de horas extra falsos, ninguna sección queda vacía.
+- El conjunto de `id` ofrecidos es idéntico al de antes del cambio (garantiza que agrupar no agregó ni quitó accesos).
 
 ## Fuera de alcance
 
