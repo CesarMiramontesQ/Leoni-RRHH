@@ -502,11 +502,20 @@ Todos los componentes generan HTML strings via funciones TypeScript. Los tokens 
 | Active | `group flex gap-x-3 rounded-md bg-surface p-2 text-sm/6 font-semibold text-accent` | `size-6 shrink-0 text-accent` |
 
 **Role-based**: Items filtrados por `isShellNavItemVisibleForRol(rol, itemId)`.
-- `empleado`: dashboard, solicitudes, comedor, notificaciones
+- `empleado`: menú agrupado en tres secciones estáticas — **Mis trámites** (solicitudes, horas extra*, comedor), **Pendientes** (mis firmas, aprobaciones de OPL, aprobar horas extra*, encuestas de curso, encuestas de RH, evaluaciones 360) y **Mi desarrollo** (mis metas, mi desempeño), con Dashboard suelto arriba. (*) sujeto a permiso de nómina.
 - `supervisor`: todo excepto actas, reportes
 - `rh`: acceso completo + organigrama
 
 **Responsive**: `lg+` = fixed left column. `<lg` = `<dialog>` slide-in overlay.
+
+**Secciones del sidebar**: dos variantes según el volumen de ítems.
+
+| Variante | Cuándo | Implementación |
+|---|---|---|
+| Estática | ≤ ~15 ítems (empleado, supervisor) | Encabezado `navSectionHeadingClass` + `<ul>`. Todo visible, sin taps extra. |
+| Colapsable | > ~15 ítems (RH operativo) | `<details>` por sección, abierta la que contiene la ruta activa. |
+
+El encabezado de sección lleva `md:max-lg:hidden`: en el rail de tablet el sidebar queda solo con iconos y los títulos estorbarían.
 
 ### 8.2 Topbar
 
