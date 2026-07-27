@@ -6,18 +6,6 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const storage = new Map<string, string>();
-
-vi.stubGlobal("sessionStorage", {
-  getItem: (key: string) => storage.get(key) ?? null,
-  setItem: (key: string, value: string) => {
-    storage.set(key, value);
-  },
-  removeItem: (key: string) => {
-    storage.delete(key);
-  },
-});
-
 let heAprobador = false;
 let heAutorizado = false;
 
@@ -130,7 +118,6 @@ describe("EMPLEADO_NAV_SECTIONS", () => {
 
 describe("getVisibleEmpleadoNavSections", () => {
   beforeEach(() => {
-    storage.clear();
     heAprobador = false;
     heAutorizado = false;
   });
@@ -168,7 +155,9 @@ describe("getVisibleEmpleadoNavSections", () => {
   });
 
   it("nunca devuelve una sección vacía", () => {
-    for (const seccion of getVisibleEmpleadoNavSections("empleado")) {
+    const secciones = getVisibleEmpleadoNavSections("empleado");
+    expect(secciones.length).toBe(3);
+    for (const seccion of secciones) {
       expect(seccion.items.length).toBeGreaterThan(0);
     }
   });
