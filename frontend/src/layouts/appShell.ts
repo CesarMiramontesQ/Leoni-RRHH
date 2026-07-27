@@ -396,7 +396,7 @@ const NAV_NOMINAS: NavItemDef = {
   svgPaths: NOMINAS_SIDEBAR_ITEM.svgPaths,
 };
 
-function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
+export function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
   if (isRhStructuredNavRol(rol)) return "";
   // El supervisor lleva `Empleados` dentro de la sección "Mi equipo".
   if (isSupervisorStructuredNavRol(rol)) return "";
@@ -438,7 +438,7 @@ function renderFlatNavSection(
   </li>`;
 }
 
-function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol: string | null): string {
+export function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol: string | null): string {
   const dashboardLi = navItemLi(activeNav, rol, {
     id: SUPERVISOR_DASHBOARD_ITEM.id,
     key: SUPERVISOR_DASHBOARD_ITEM.key,
@@ -463,7 +463,7 @@ function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol
   return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
 }
 
-function renderEmpleadoSidebarSections(
+export function renderEmpleadoSidebarSections(
   activeNav: ShellNavKey | undefined,
   rol: string | null,
 ): string {
