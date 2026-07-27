@@ -59,7 +59,7 @@ describe("renderSupervisorSidebarSections", () => {
     expect(footerGestionHtml(undefined, "supervisor")).toBe("");
   });
 
-  it("pinta las secciones plegables como <details> y dej fuera de <details> las estáticas", () => {
+  it("pinta las secciones plegables como <details> y deja fuera de <details> las estáticas", () => {
     const html = renderSupervisorSidebarSections(undefined, "supervisor");
     // Mis trámites, Pendientes y Mi desarrollo son "plegable" en SUPERVISOR_NAV_SECTIONS.
     expect(countOccurrences(html, "<details")).toBe(3);
@@ -86,6 +86,11 @@ describe("renderEmpleadoSidebarSections", () => {
   it("pinta sus tres secciones de forma estática, sin <details>", () => {
     const html = renderEmpleadoSidebarSections(undefined, "empleado");
     expect(countOccurrences(html, "<details")).toBe(0);
+    // No basta con "sin <details>": un string vacío también lo cumpliría.
+    // Confirma que sí renderizó las tres secciones estáticas del empleado.
+    expect(html).toContain("Mis trámites");
+    expect(html).toContain("Pendientes");
+    expect(html).toContain("Mi desarrollo");
   });
 });
 

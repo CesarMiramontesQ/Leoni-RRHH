@@ -287,7 +287,7 @@ function renderRhEmpleadosFooter(activeNav: RhNavKey | undefined, rol: string | 
   </ul>`;
 }
 
-function renderRhStructuredSidebarSections(activeNav: RhNavKey | undefined, rol: string | null): string {
+export function renderRhStructuredSidebarSections(activeNav: RhNavKey | undefined, rol: string | null): string {
   const primaryLis = getVisibleRhGeneralItems(rol)
     .map((item) => renderRhPrimaryLinkLi(item, activeNav, rol))
     .filter(Boolean)
