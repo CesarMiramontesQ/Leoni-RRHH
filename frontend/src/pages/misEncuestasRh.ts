@@ -327,7 +327,7 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
     <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
       <div class="flex flex-col gap-2">
         ${talentoEyebrow()}
-        ${pageHeading("Mis encuestas RH", "Encuestas de clima y pulso organizacional dirigidas a ti.")}
+        ${pageHeading("Encuestas de RH", "Encuestas de clima y pulso organizacional dirigidas a ti.")}
       </div>
       ${state.successMessage ? alertSuccess(state.successMessage) : ""}
       ${renderContent()}
@@ -336,7 +336,7 @@ export function mountMisEncuestasRh(container: HTMLElement, signal?: AbortSignal
 
   function render(): void {
     mountAppShell(container, {
-      pageTitle: "Mis encuestas RH",
+      pageTitle: "Encuestas de RH",
       activeNav: "mis-encuestas-rh",
       mainClass: "py-5 sm:py-6",
       mainHtml: renderPage(),

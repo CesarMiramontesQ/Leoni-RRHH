@@ -202,7 +202,7 @@ export function mountMisEncuestas(container: HTMLElement, signal?: AbortSignal):
     return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
       <header class="flex flex-col gap-1">
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Mis encuestas pendientes</h1>
+        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Encuestas de curso pendientes</h1>
         <p class="text-sm text-text-muted">Califica los cursos que tomaste para ayudarnos a mejorar la capacitación.</p>
       </header>
       ${state.successMessage ? alertSuccess(state.successMessage) : ""}
@@ -212,7 +212,7 @@ export function mountMisEncuestas(container: HTMLElement, signal?: AbortSignal):
 
   function render(): void {
     mountAppShell(container, {
-      pageTitle: "Mis encuestas",
+      pageTitle: "Encuestas de curso",
       activeNav: "mis-encuestas",
       mainClass: "py-5 sm:py-6",
       mainHtml: renderPage(),

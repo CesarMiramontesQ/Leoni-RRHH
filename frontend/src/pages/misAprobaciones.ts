@@ -132,7 +132,7 @@ function renderPage(v: View): string {
   return `
     <div class="${RH_LISTADO_PAGE_OUTER}">
       <header class="flex flex-col gap-1">
-        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Mis aprobaciones</h1>
+        <h1 class="text-xl font-bold tracking-tight text-text-primary sm:text-2xl">Aprobaciones de OPL</h1>
         <p class="text-sm text-text-muted">Revisa y aprueba las OPLs que te asignaron, o regrésalas a borrador para ajustes.</p>
       </header>
       ${v.successMessage ? alertSuccess(v.successMessage) : ""}
@@ -155,7 +155,7 @@ export function mountMisAprobaciones(container: HTMLElement, signal?: AbortSigna
 
   const render = (): void => {
     mountAppShell(container, {
-      pageTitle: "Mis aprobaciones",
+      pageTitle: "Aprobaciones de OPL",
       activeNav: "mis-aprobaciones-opl",
       mainClass: "py-5 sm:py-6",
       mainHtml: renderPage(view),
