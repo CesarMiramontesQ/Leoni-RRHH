@@ -173,11 +173,18 @@ describe("getVisibleEmpleadoNavSections", () => {
     }
   });
 
-  it("no cuela ítems que el rol no puede ver", () => {
-    const ids = getVisibleEmpleadoNavSections("empleado").flatMap((s) =>
+  it("no cuela ítems que el rol no puede ver (supervisor pierde mis-evaluaciones)", () => {
+    // SUPERVISOR_VISIBLE_NAV_IDS (shellNavPolicy.ts) no incluye "mis-evaluaciones",
+    // a diferencia de EMPLEADO_VISIBLE_NAV_IDS. Ejercita el filtro con un rol
+    // cuya política sí excluye ítems presentes en el menú del empleado.
+    const idsEmpleado = getVisibleEmpleadoNavSections("empleado").flatMap((s) =>
       s.items.map((i) => i.id),
     );
-    expect(ids).not.toContain("incidencias");
-    expect(ids).not.toContain("empleados");
+    const idsSupervisor = getVisibleEmpleadoNavSections("supervisor").flatMap((s) =>
+      s.items.map((i) => i.id),
+    );
+    expect(idsEmpleado).toContain("mis-evaluaciones");
+    expect(idsSupervisor).not.toContain("mis-evaluaciones");
+    expect(idsSupervisor.length).toBeLessThan(idsEmpleado.length);
   });
 });
