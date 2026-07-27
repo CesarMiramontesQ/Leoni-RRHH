@@ -112,6 +112,9 @@ async def test_rechazar_requiere_motivo(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_supervisor_fuera_alcance_403(client: AsyncClient, db):
+    """Viajes laborales es exclusivo de RH: un supervisor sin el módulo asignado
+    ya no entra al endpoint, ni siquiera para registrar un viaje de su propio
+    subordinado (antes del cierre esto último sí se permitía por alcance)."""
     supervisor = await make_empleado(db, rol="supervisor", nombre="Supervisor Viajes")
     subordinado = await make_empleado(
         db, rol="empleado", nombre="Subordinado", lider_id=supervisor.empleado_id
@@ -126,12 +129,35 @@ async def test_supervisor_fuera_alcance_403(client: AsyncClient, db):
     )
     assert res.status_code == 403
 
-    ok = await client.post(
+    tampoco = await client.post(
         "/api/v1/viajes-laborales",
         headers=headers,
         json={"empleado_id": subordinado.empleado_id, **VIAJE_PAYLOAD},
     )
-    assert ok.status_code == 201, ok.text
+    assert tampoco.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_supervisor_gerente_director_403_en_listado(client: AsyncClient, db):
+    """Cierre de API: supervisor, gerente y director pierden el acceso al listado
+    (antes lo veían junto con RH); sin el módulo `viajes-laborales` asignado,
+    role_checker ya no los deja pasar."""
+    for rol in ("supervisor", "gerente", "director"):
+        empleado = await make_empleado(db, rol=rol, nombre=f"{rol.title()} Cierre")
+        headers = await auth_headers(client, empleado)
+
+        res = await client.get("/api/v1/viajes-laborales", headers=headers)
+        assert res.status_code == 403, f"rol={rol} debería recibir 403, obtuvo {res.status_code}"
+
+
+@pytest.mark.asyncio
+async def test_rh_conserva_acceso_al_listado(client: AsyncClient, db):
+    """RH conserva acceso pleno al listado tras el cierre a supervisor/gerente/director."""
+    rh = await make_empleado(db, rol="rh", nombre="RH Cierre Viajes")
+    headers = await auth_headers(client, rh)
+
+    res = await client.get("/api/v1/viajes-laborales", headers=headers)
+    assert res.status_code == 200
 
 
 @pytest.mark.asyncio
