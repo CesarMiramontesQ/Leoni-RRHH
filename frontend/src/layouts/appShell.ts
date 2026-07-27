@@ -24,8 +24,8 @@ import {
   NOMINAS_SIDEBAR_ITEM,
 } from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
-import { EMPLEADO_DASHBOARD_ITEM, getVisibleEmpleadoNavSections } from "../navigation/empleadoNav.ts";
-import { SUPERVISOR_DASHBOARD_ITEM, getVisibleSupervisorNavSections } from "../navigation/supervisorNav.ts";
+import { EMPLEADO_TOP_ITEMS, getVisibleEmpleadoNavSections } from "../navigation/empleadoNav.ts";
+import { SUPERVISOR_TOP_ITEMS, getVisibleSupervisorNavSections } from "../navigation/supervisorNav.ts";
 import {
   isEmpleadoFlatNavRol,
   isRhStructuredNavRol,
@@ -439,13 +439,15 @@ function renderFlatNavSection(
 }
 
 export function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol: string | null): string {
-  const dashboardLi = navItemLi(activeNav, rol, {
-    id: SUPERVISOR_DASHBOARD_ITEM.id,
-    key: SUPERVISOR_DASHBOARD_ITEM.key,
-    hrefFor: () => SUPERVISOR_DASHBOARD_ITEM.href,
-    label: SUPERVISOR_DASHBOARD_ITEM.label,
-    svgPaths: SUPERVISOR_DASHBOARD_ITEM.svgPaths,
-  });
+  const topLis = SUPERVISOR_TOP_ITEMS.map((item) =>
+    navItemLi(activeNav, rol, {
+      id: item.id,
+      key: item.key,
+      hrefFor: () => item.href,
+      label: item.label,
+      svgPaths: item.svgPaths,
+    }),
+  ).join("");
   const sectionLis = getVisibleSupervisorNavSections(rol)
     .map((section) =>
       section.tipo === "plegable" ?
@@ -460,24 +462,26 @@ export function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefin
       : renderFlatNavSection(section.id, section.title, section.items, activeNav, rol),
     )
     .join("");
-  return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
+  return `${topLis ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${topLis}</ul></li>` : ""}${sectionLis}`;
 }
 
 export function renderEmpleadoSidebarSections(
   activeNav: ShellNavKey | undefined,
   rol: string | null,
 ): string {
-  const dashboardLi = navItemLi(activeNav, rol, {
-    id: EMPLEADO_DASHBOARD_ITEM.id,
-    key: EMPLEADO_DASHBOARD_ITEM.key,
-    hrefFor: () => EMPLEADO_DASHBOARD_ITEM.href,
-    label: EMPLEADO_DASHBOARD_ITEM.label,
-    svgPaths: EMPLEADO_DASHBOARD_ITEM.svgPaths,
-  });
+  const topLis = EMPLEADO_TOP_ITEMS.map((item) =>
+    navItemLi(activeNav, rol, {
+      id: item.id,
+      key: item.key,
+      hrefFor: () => item.href,
+      label: item.label,
+      svgPaths: item.svgPaths,
+    }),
+  ).join("");
   const sectionLis = getVisibleEmpleadoNavSections(rol)
     .map((section) => renderFlatNavSection(section.id, section.title, section.items, activeNav, rol))
     .join("");
-  return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
+  return `${topLis ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${topLis}</ul></li>` : ""}${sectionLis}`;
 }
 
 /** Sidebar interior (móvil + desktop idénticos). */

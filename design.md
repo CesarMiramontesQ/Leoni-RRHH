@@ -502,8 +502,8 @@ Todos los componentes generan HTML strings via funciones TypeScript. Los tokens 
 | Active | `group flex gap-x-3 rounded-md bg-surface p-2 text-sm/6 font-semibold text-accent` | `size-6 shrink-0 text-accent` |
 
 **Role-based**: Items filtrados por `isShellNavItemVisibleForRol(rol, itemId)`.
-- `empleado`: menú agrupado en tres secciones estáticas — **Mis trámites** (solicitudes, horas extra*, comedor), **Pendientes** (mis firmas, aprobaciones de OPL, aprobar horas extra*, encuestas de curso, encuestas de RH, evaluaciones 360) y **Mi desarrollo** (mis metas, mi desempeño), con Dashboard suelto arriba. (*) sujeto a permiso de nómina.
-- `supervisor` (y `gerente`): cinco secciones — **Mi equipo** y **Talento del equipo** estáticas, **Mis trámites**, **Pendientes** y **Mi desarrollo** plegables, con Dashboard suelto arriba. No ve actas ni reportes.
+- `empleado`: menú agrupado en tres secciones estáticas — **Mis trámites** (solicitudes, horas extra*), **Pendientes** (mis firmas, aprobaciones de OPL, aprobar horas extra*, encuestas de curso, encuestas de RH, evaluaciones 360) y **Mi desarrollo** (mis metas, mi desempeño), con Dashboard y Comedor sueltos arriba (acceso directo, sin sección). (*) sujeto a permiso de nómina.
+- `supervisor` (y `gerente`): cinco secciones — **Mi equipo** y **Talento del equipo** estáticas, **Mis trámites**, **Pendientes** y **Mi desarrollo** plegables, con Dashboard y Comedor sueltos arriba (acceso directo, sin sección). No ve actas ni reportes.
 - `rh`: acceso completo + organigrama
 
 **Responsive**: `lg+` = fixed left column. `<lg` = `<dialog>` slide-in overlay.
