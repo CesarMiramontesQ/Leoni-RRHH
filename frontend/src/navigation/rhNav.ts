@@ -184,11 +184,3 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
 export function getVisibleRhGeneralItems(rol: string | null): RhNavItem[] {
   return filterVisibleItems(rol, RH_GENERAL_NAV_ITEMS);
 }
-
-export function rhNavSectionContainsActiveKey(
-  section: RhNavSection,
-  activeNav: RhNavKey | undefined,
-): boolean {
-  if (activeNav == null) return false;
-  return section.items.some((item) => item.key === activeNav);
-}

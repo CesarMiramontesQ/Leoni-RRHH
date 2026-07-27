@@ -24,12 +24,8 @@ import {
   NOMINAS_SIDEBAR_ITEM,
 } from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
-import { EMPLEADO_DASHBOARD_ITEM, getVisibleEmpleadoNavSections } from "../navigation/empleadoNav.ts";
-import {
-  SUPERVISOR_DASHBOARD_ITEM,
-  SUPERVISOR_EMPLEADOS_ITEM,
-  SUPERVISOR_NAV_SECTIONS,
-} from "../navigation/supervisorNav.ts";
+import { EMPLEADO_TOP_ITEMS, getVisibleEmpleadoNavSections } from "../navigation/empleadoNav.ts";
+import { SUPERVISOR_TOP_ITEMS, getVisibleSupervisorNavSections } from "../navigation/supervisorNav.ts";
 import {
   isEmpleadoFlatNavRol,
   isRhStructuredNavRol,
@@ -41,10 +37,8 @@ import {
 import {
   getVisibleRhGeneralItems,
   getVisibleRhNavSections,
-  rhNavSectionContainsActiveKey,
   type RhNavItem,
   type RhNavKey,
-  type RhNavSection,
 } from "../navigation/rhNav.ts";
 import { clearAuth } from "../auth/session.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
@@ -213,7 +207,22 @@ function renderRhPrimaryLinkLi(
   </li>`;
 }
 
-function rhSubNavItemLi(activeNav: RhNavKey | undefined, rol: string | null, item: RhNavItem): string {
+/** `RhNavKey` aporta `cursos-ajustes` y `personal-externo`, que no están en `ShellNavKey`. */
+type SidebarNavKey = ShellNavKey | RhNavKey;
+
+type SidebarNavItemShape = {
+  id: AppShellNavItemId;
+  key: SidebarNavKey;
+  href: string;
+  label: string;
+  svgPaths: string;
+};
+
+function rhSubNavItemLi(
+  activeNav: SidebarNavKey | undefined,
+  rol: string | null,
+  item: SidebarNavItemShape,
+): string {
   if (!isShellNavItemVisibleForRol(rol, item.id)) return "";
   const isActive = activeNav === item.key;
   const cls = isActive ? rhSubNavActive : rhSubNavInactive;
@@ -230,23 +239,26 @@ function rhSubNavItemLi(activeNav: RhNavKey | undefined, rol: string | null, ite
   </li>`;
 }
 
-function renderRhCollapsibleSection(
-  section: RhNavSection,
-  activeNav: RhNavKey | undefined,
+function renderCollapsibleNavSection(
+  sectionId: string,
+  title: string,
+  iconSvgPaths: string,
+  items: readonly SidebarNavItemShape[],
+  activeNav: SidebarNavKey | undefined,
   rol: string | null,
 ): string {
-  const subLis = section.items.map((item) => rhSubNavItemLi(activeNav, rol, item)).filter(Boolean);
+  const subLis = items.map((item) => rhSubNavItemLi(activeNav, rol, item)).filter(Boolean);
   if (subLis.length === 0) return "";
 
-  const isOpen = rhNavSectionContainsActiveKey(section, activeNav);
-  const panelId = `shell-rh-nav-panel-${section.id}`;
+  const isOpen = activeNav != null && items.some((item) => item.key === activeNav);
+  const panelId = `shell-rh-nav-panel-${sectionId}`;
 
   return `<li>
     <details class="group/rh-nav-section" ${isOpen ? "open" : ""}>
       <summary class="${rhSectionSummaryClass} ${navInactive}" aria-controls="${panelId}">
         <span class="flex min-w-0 flex-1 items-center gap-x-3">
-          ${rhPrimaryIcon(section.iconSvgPaths, false)}
-          <span class="${rhPrimaryLabelClass}">${section.title}</span>
+          ${rhPrimaryIcon(iconSvgPaths, false)}
+          <span class="${rhPrimaryLabelClass}">${title}</span>
         </span>
         ${rhPrimaryChevronIcon}
       </summary>
@@ -275,14 +287,23 @@ function renderRhEmpleadosFooter(activeNav: RhNavKey | undefined, rol: string | 
   </ul>`;
 }
 
-function renderRhStructuredSidebarSections(activeNav: RhNavKey | undefined, rol: string | null): string {
+export function renderRhStructuredSidebarSections(activeNav: RhNavKey | undefined, rol: string | null): string {
   const primaryLis = getVisibleRhGeneralItems(rol)
     .map((item) => renderRhPrimaryLinkLi(item, activeNav, rol))
     .filter(Boolean)
     .join("");
 
   const sectionLis = getVisibleRhNavSections(rol)
-    .map((section) => renderRhCollapsibleSection(section, activeNav, rol))
+    .map((section) =>
+      renderCollapsibleNavSection(
+        section.id,
+        section.title,
+        section.iconSvgPaths,
+        section.items,
+        activeNav,
+        rol,
+      ),
+    )
     .join("");
 
   const empleadosFooter = renderRhEmpleadosFooter(activeNav, rol);
@@ -375,18 +396,11 @@ const NAV_NOMINAS: NavItemDef = {
   svgPaths: NOMINAS_SIDEBAR_ITEM.svgPaths,
 };
 
-function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
+export function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
   if (isRhStructuredNavRol(rol)) return "";
-  const empleadosDef: NavItemDef = isSupervisorStructuredNavRol(rol)
-    ? {
-        id: SUPERVISOR_EMPLEADOS_ITEM.id,
-        key: SUPERVISOR_EMPLEADOS_ITEM.key,
-        hrefFor: () => SUPERVISOR_EMPLEADOS_ITEM.href,
-        label: SUPERVISOR_EMPLEADOS_ITEM.label,
-        svgPaths: SUPERVISOR_EMPLEADOS_ITEM.svgPaths,
-      }
-    : NAV_EMPLEADOS;
-  const empleadosLi = navItemLi(activeNav, rol, empleadosDef);
+  // El supervisor lleva `Empleados` dentro de la sección "Mi equipo".
+  if (isSupervisorStructuredNavRol(rol)) return "";
+  const empleadosLi = navItemLi(activeNav, rol, NAV_EMPLEADOS);
   if (empleadosLi.trim() === "") return "";
   return `<li class="mt-auto pt-6">
     <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">
@@ -424,35 +438,50 @@ function renderFlatNavSection(
   </li>`;
 }
 
-function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol: string | null): string {
-  const dashboardLi = navItemLi(activeNav, rol, {
-    id: SUPERVISOR_DASHBOARD_ITEM.id,
-    key: SUPERVISOR_DASHBOARD_ITEM.key,
-    hrefFor: () => SUPERVISOR_DASHBOARD_ITEM.href,
-    label: SUPERVISOR_DASHBOARD_ITEM.label,
-    svgPaths: SUPERVISOR_DASHBOARD_ITEM.svgPaths,
-  });
-  const sectionLis = SUPERVISOR_NAV_SECTIONS.map((section) =>
-    renderFlatNavSection(section.id, section.title, section.items, activeNav, rol),
+export function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefined, rol: string | null): string {
+  const topLis = SUPERVISOR_TOP_ITEMS.map((item) =>
+    navItemLi(activeNav, rol, {
+      id: item.id,
+      key: item.key,
+      hrefFor: () => item.href,
+      label: item.label,
+      svgPaths: item.svgPaths,
+    }),
   ).join("");
-  return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
+  const sectionLis = getVisibleSupervisorNavSections(rol)
+    .map((section) =>
+      section.tipo === "plegable" ?
+        renderCollapsibleNavSection(
+          section.id,
+          section.title,
+          section.iconSvgPaths ?? "",
+          section.items,
+          activeNav,
+          rol,
+        )
+      : renderFlatNavSection(section.id, section.title, section.items, activeNav, rol),
+    )
+    .join("");
+  return `${topLis ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${topLis}</ul></li>` : ""}${sectionLis}`;
 }
 
-function renderEmpleadoSidebarSections(
+export function renderEmpleadoSidebarSections(
   activeNav: ShellNavKey | undefined,
   rol: string | null,
 ): string {
-  const dashboardLi = navItemLi(activeNav, rol, {
-    id: EMPLEADO_DASHBOARD_ITEM.id,
-    key: EMPLEADO_DASHBOARD_ITEM.key,
-    hrefFor: () => EMPLEADO_DASHBOARD_ITEM.href,
-    label: EMPLEADO_DASHBOARD_ITEM.label,
-    svgPaths: EMPLEADO_DASHBOARD_ITEM.svgPaths,
-  });
+  const topLis = EMPLEADO_TOP_ITEMS.map((item) =>
+    navItemLi(activeNav, rol, {
+      id: item.id,
+      key: item.key,
+      hrefFor: () => item.href,
+      label: item.label,
+      svgPaths: item.svgPaths,
+    }),
+  ).join("");
   const sectionLis = getVisibleEmpleadoNavSections(rol)
     .map((section) => renderFlatNavSection(section.id, section.title, section.items, activeNav, rol))
     .join("");
-  return `${dashboardLi ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${dashboardLi}</ul></li>` : ""}${sectionLis}`;
+  return `${topLis ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${topLis}</ul></li>` : ""}${sectionLis}`;
 }
 
 /** Sidebar interior (móvil + desktop idénticos). */

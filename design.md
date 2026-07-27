@@ -502,20 +502,22 @@ Todos los componentes generan HTML strings via funciones TypeScript. Los tokens 
 | Active | `group flex gap-x-3 rounded-md bg-surface p-2 text-sm/6 font-semibold text-accent` | `size-6 shrink-0 text-accent` |
 
 **Role-based**: Items filtrados por `isShellNavItemVisibleForRol(rol, itemId)`.
-- `empleado`: menú agrupado en tres secciones estáticas — **Mis trámites** (solicitudes, horas extra*, comedor), **Pendientes** (mis firmas, aprobaciones de OPL, aprobar horas extra*, encuestas de curso, encuestas de RH, evaluaciones 360) y **Mi desarrollo** (mis metas, mi desempeño), con Dashboard suelto arriba. (*) sujeto a permiso de nómina.
-- `supervisor`: todo excepto actas, reportes
+- `empleado`: menú agrupado en tres secciones estáticas — **Mis trámites** (solicitudes, horas extra*), **Pendientes** (mis firmas, aprobaciones de OPL, aprobar horas extra*, encuestas de curso, encuestas de RH, evaluaciones 360) y **Mi desarrollo** (mis metas, mi desempeño), con Dashboard y Comedor sueltos arriba (acceso directo, sin sección). (*) sujeto a permiso de nómina.
+- `supervisor` (y `gerente`): cinco secciones — **Mi equipo** y **Talento del equipo** estáticas, **Mis trámites**, **Pendientes** y **Mi desarrollo** plegables, con Dashboard y Comedor sueltos arriba (acceso directo, sin sección). No ve actas ni reportes.
 - `rh`: acceso completo + organigrama
 
 **Responsive**: `lg+` = fixed left column. `<lg` = `<dialog>` slide-in overlay.
 
-**Secciones del sidebar**: dos variantes según el volumen de ítems.
+**Secciones del sidebar**: dos variantes, y un mismo menú puede mezclarlas.
 
 | Variante | Cuándo | Implementación |
 |---|---|---|
-| Estática | ≤ ~15 ítems (empleado, supervisor) | Encabezado `navSectionHeadingClass` + `<ul>`. Todo visible, sin taps extra. |
-| Colapsable | > ~15 ítems (RH operativo) | `<details>` por sección, abierta la que contiene la ruta activa. |
+| Estática | Lo que el rol usa a diario | Encabezado `navSectionHeadingClass` + `<ul>`. Todo visible, sin taps extra. |
+| Plegable | Lo secundario para ese rol | `<details>` por sección, abierta la que contiene la ruta activa. |
 
-El encabezado de sección lleva `md:max-lg:hidden`: en el rail de tablet el sidebar queda solo con iconos y los títulos estorbarían.
+El criterio es **la frecuencia de uso, no el número de ítems**: el supervisor tiene sus dos secciones de equipo estáticas y las tres personales plegables, aunque sumen 19 ítems.
+
+Toda sección plegable **necesita icono**. El encabezado estático lleva `md:max-lg:hidden`, así que en el rail de tablet desaparece; una sección plegable sin icono se quedaría sin ningún control visible y sus ítems serían inalcanzables. De dónde sale ese icono depende de quién arma la sección: RH (`rhNav.ts`) usa el icono propio del hub (`LABORALES_SIDEBAR_ITEM.svgPaths`, `COMEDOR_SIDEBAR_ITEM.svgPaths`, etc.), mientras que el supervisor reusa el icono de su primer ítem.
 
 ### 8.2 Topbar
 
