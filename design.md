@@ -1555,7 +1555,34 @@ mountCatalogoSection<MiEntidad>(sectionEl, signal, {
   del modal con `ajustesModalError`; no se traducen ni se resumen.
 - Los listeners se registran con `{ signal }` y el modal se pinta dentro de la sección.
 
-### 15.6.2 Tabs de la página de ajustes
+### 15.6.2 Altura de las tablas de catálogo
+
+Una pantalla que apila varias cards de catálogo **no puede dejar que cada tabla
+crezca con sus datos**: con seis catálogos, llegar al último exige recorrer media
+página y la jerarquía se pierde.
+
+`ajustesTableWrap` marca el contenedor con `.ajustes-table-scroll`, y en
+`#puestos-ajustes-root` eso aplica el patrón ya usado en `.puestos-table-scroll` y
+`.tc-catalogo-scroll`: **alto máximo con scroll propio y `thead` fijo**.
+
+- El tope (`min(38vh, 340px)`) es más bajo que el de esas pantallas a propósito:
+  allí la tabla es el contenido principal; aquí conviven varias.
+- **Solo actúa cuando el contenido lo excede**: un catálogo de dos filas se ve igual
+  que antes, sin caja vacía ni scroll fantasma.
+- En móvil (`< 640px`) se desactiva: la card ya ocupa el ancho completo y el scroll
+  interno competiría con el de la página.
+- El badge de conteo del header pasa a ser necesario, no decorativo: es lo que dice
+  cuántas filas hay cuando solo se ven seis.
+- La regla está acotada por id. Otras pantallas que reusan `ajustesTableWrap`
+  (Ajustes de cursos) conservan solo el `overflow-x-auto` de la clase Tailwind.
+
+**Buscador dentro de la card**: a partir de 8 filas aparece un `input[type=search]`
+sobre la tabla que filtra en cliente lo ya cargado, para que el scroll no sea la
+única forma de llegar a una fila. Por debajo de ese umbral la tabla se recorre de un
+vistazo y el campo solo robaría espacio. Al escribir se repinta **solo el cuerpo**:
+un repintado completo recrearía el input y el foco saltaría al primer carácter.
+
+### 15.6.3 Tabs de la página de ajustes
 
 `#/puestos/ajustes` agrupa los catálogos por dominio, no por tabla: **Clasificación**
 (career paths · funciones · disciplinas · global levels), **Competencias**, **Tareas**,
@@ -1563,6 +1590,18 @@ mountCatalogoSection<MiEntidad>(sectionEl, signal, {
 
 Las tabs de esta página usan píldoras (`tabButtonClass` local), no el subrayado de §8.9 —
 es una excepción documentada. Una página nueva debe usar `renderTabNav` de `uiTokens.ts`.
+
+**Agrupación dentro de un tab.** Cuando un tab reúne muchos catálogos, se ordenan en
+columnas que reflejan la estructura del dominio, no el orden en que se programaron. En
+Clasificación son las dos cadenas del modelo, cada una encabezada por una etiqueta
+ligera (`renderColumnaTitulo`: sin superficie ni borde, para no competir con las cards
+que ordena):
+
+| Qué es el puesto | Cuánto pesa el puesto |
+|---|---|
+| Función → Disciplina | Career Path → Global Level → Global Grade → Equivalencia |
+
+Cada columna se lee de arriba abajo en el mismo orden en que se captura.
 
 ---
 

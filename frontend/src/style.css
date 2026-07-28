@@ -3599,3 +3599,34 @@ body {
     animation: none;
   }
 }
+
+/* ── Ajustes de perfil de puesto — tablas de catálogo ─────────────────────
+   La pantalla apila varias cards de catálogo. Sin un tope de altura, cada una
+   crecía con sus datos y llegar a la siguiente exigía recorrer media página.
+   Mismo patrón que `.puestos-table-scroll` y `.tc-catalogo-scroll`: alto máximo
+   con scroll propio y encabezado fijo, para que la card mantenga un tamaño
+   predecible sin esconder filas.
+
+   El tope es más bajo que el de esas pantallas a propósito: allí la tabla es el
+   contenido principal; aquí conviven seis. */
+#puestos-ajustes-root .ajustes-table-scroll {
+  max-height: min(38vh, 340px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+#puestos-ajustes-root .ajustes-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--color-grid-header-bg, #f8fafc);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.35);
+}
+
+/* En móvil la card ya ocupa el ancho completo y el scroll interno compite con
+   el de la página; se deja crecer y que la página haga su trabajo. */
+@media (max-width: 640px) {
+  #puestos-ajustes-root .ajustes-table-scroll {
+    max-height: none;
+  }
+}
