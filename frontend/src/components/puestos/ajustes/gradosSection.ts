@@ -1,4 +1,5 @@
 import { getCareerPaths } from "../../../api/clasificacionPuesto.ts";
+import { notifyAjustesClasificacionChanged } from "./clasificacionSections.ts";
 import {
   createGradoPuesto,
   deleteGradoPuesto,
@@ -354,6 +355,8 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       }
       closeModal();
       await load();
+      // La card de equivalencias depende de este catalogo.
+      notifyAjustesClasificacionChanged();
     } catch (e) {
       modalSaving = false;
       modalError = (e as GradoPuestoFetchError).detail ?? "Error al guardar.";
@@ -370,6 +373,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       await deleteGradoPuesto(deletingItem.id);
       closeModal();
       await load();
+      notifyAjustesClasificacionChanged();
     } catch (e) {
       modalSaving = false;
       modalError = (e as GradoPuestoFetchError).detail ?? "No se pudo eliminar.";

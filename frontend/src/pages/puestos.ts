@@ -12,7 +12,31 @@ import {
   type PerfilTarjetaItem,
 } from "../api/puestos.ts";
 import { getGradosPuesto } from "../api/gradosPuesto.ts";
+import {
+  getCareerPaths,
+  getDisciplinasPuesto,
+  getFuncionesPuesto,
+  getGlobalGrades,
+  resolverEquivalencia,
+} from "../api/clasificacionPuesto.ts";
+import type {
+  CareerPath,
+  DisciplinaPuesto,
+  FuncionPuesto,
+  GlobalGrade,
+} from "../dashboard/clasificacionPuesto/types.ts";
 import type { GradoPuesto } from "../dashboard/gradosPuesto/types.ts";
+import {
+  careerPathBadge,
+  clasificacionPendienteBadge,
+  ESTADOS_PERFIL,
+  estadoPerfilBadge,
+  estadoPerfilLabel,
+  formatGlobalLevelRango,
+  globalGradeBadge,
+  globalLevelLabel,
+  GLOBAL_GRADE_TOOLTIP,
+} from "../talento/clasificacionPuestoUi.ts";
 import {
   gradoIdsEntre,
   type GradoPerfilItem,
@@ -59,16 +83,41 @@ const ICON_TRASH = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-4" 
 
 const BRECHAS_REF_MAX = 15;
 
+/** Catálogos de clasificación que alimentan filtros y formulario. */
+type CatalogosClasificacion = {
+  careerPaths: CareerPath[];
+  funciones: FuncionPuesto[];
+  disciplinas: DisciplinaPuesto[];
+  globalGrades: GlobalGrade[];
+};
+
+const CATALOGOS_VACIOS: CatalogosClasificacion = {
+  careerPaths: [],
+  funciones: [],
+  disciplinas: [],
+  globalGrades: [],
+};
+
+const VALORES_MODAL_VACIOS: ModalValues = {
+  codigo: "",
+  nombre_puesto: "",
+  area: "",
+  grado_desde_id: "",
+  grado_hasta_id: "",
+  career_path_id: "",
+  funcion_id: "",
+  disciplina_id: "",
+  global_grade_id: "",
+  estado: "activo",
+  global_grade_autocompletado: false,
+  global_grade_sin_equivalencia: false,
+};
+
 // ── Helpers de negocio ────────────────────────────────────────────────────
 
-type GradoLike = { id: number; nombre: string; orden: number };
-
-function formatGradosLabel(grados: GradoLike[]): string {
-  if (!grados.length) return "—";
-  const sorted = [...grados].sort((a, b) => a.orden - b.orden);
-  if (sorted.length === 1) return sorted[0].nombre;
-  return `${sorted[0].nombre} – ${sorted[sorted.length - 1].nombre}`;
-}
+// El formato del rango vive en `talento/clasificacionPuestoUi.ts`: se lee igual
+// aqui, en el detalle y en el modal.
+const formatGradosLabel = formatGlobalLevelRango;
 
 function gradosMinMaxIds(grados: GradoPerfilItem[]): { desde: string; hasta: string } {
   if (!grados.length) return { desde: "", hasta: "" };
@@ -89,17 +138,18 @@ function resolveGradoRango(
 function renderGradoRangoPreview(grados: GradoPuesto[]): string {
   if (!grados.length) {
     return `<div id="puestos-modal-grado-preview" class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-3 text-sm text-text-muted" role="status">
-      Selecciona el grado inicial y final. Deben ser consecutivos (ej. Grado 7 → 8 → 9).
+      Selecciona el global level inicial y final. Deben ser consecutivos y del mismo career path (ej. P10 → P11 → P12).
     </div>`;
   }
   const chips = grados
     .map(
       (g, i) => `
       ${i > 0 ? `<span class="text-slate-300" aria-hidden="true">→</span>` : ""}
-      <span class="inline-flex items-center rounded-lg border border-accent/20 bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent">${escapeHtml(g.nombre)}</span>`,
+      <span class="inline-flex items-center rounded-lg border border-accent/20 bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent" title="${escapeHtml(g.nombre)}">${escapeHtml(globalLevelLabel(g))}</span>`,
     )
     .join("");
-  const countLabel = grados.length === 1 ? "1 grado" : `${grados.length} grados`;
+  const countLabel =
+    grados.length === 1 ? "1 global level" : `${grados.length} global levels`;
   return `<div id="puestos-modal-grado-preview" class="rounded-xl border border-accent/15 bg-accent-light/40 px-3 py-3" role="status">
     <div class="flex flex-wrap items-center gap-1.5">${chips}</div>
     <p class="mt-2 text-xs text-text-secondary"><span class="font-semibold text-text-primary">${countLabel}</span> · rango consecutivo listo para el perfil</p>
@@ -140,6 +190,19 @@ function filterItems(items: PerfilPuestoListItem[], filters: PuestosFilterState)
   if (filters.grado_id) {
     result = result.filter((p) => p.grados.some((g) => String(g.id) === filters.grado_id));
   }
+  if (filters.career_path_id) {
+    result = result.filter((p) => String(p.career_path_id ?? "") === filters.career_path_id);
+  }
+  if (filters.funcion_id) {
+    result = result.filter((p) => String(p.funcion_id ?? "") === filters.funcion_id);
+  }
+  if (filters.disciplina_id) {
+    result = result.filter((p) => String(p.disciplina_id ?? "") === filters.disciplina_id);
+  }
+  if (filters.global_grade_id) {
+    result = result.filter((p) => String(p.global_grade_id ?? "") === filters.global_grade_id);
+  }
+  if (filters.estado) result = result.filter((p) => p.estado === filters.estado);
   return result;
 }
 
@@ -162,7 +225,16 @@ function filterTarjetas(items: PerfilTarjetaItem[], filters: PuestosFilterState)
 }
 
 function hasActiveFilters(filters: PuestosFilterState): boolean {
-  return Boolean(filters.q.trim() || filters.area || filters.grado_id);
+  return Boolean(
+    filters.q.trim() ||
+      filters.area ||
+      filters.grado_id ||
+      filters.career_path_id ||
+      filters.funcion_id ||
+      filters.disciplina_id ||
+      filters.global_grade_id ||
+      filters.estado,
+  );
 }
 
 // ── Métricas derivadas (mismos datos, sin nuevas consultas) ─────────────
@@ -323,14 +395,47 @@ function renderViewToggle(active: "tabla" | "tarjetas"): string {
   </div>`;
 }
 
-function renderFilterActiveChips(filters: PuestosFilterState, gradosCatalog: GradoPuesto[]): string {
+function renderFilterActiveChips(
+  filters: PuestosFilterState,
+  gradosCatalog: GradoPuesto[],
+  catalogos: CatalogosClasificacion,
+): string {
   const chips: string[] = [];
+  const etiqueta = <T extends { id: number }>(
+    lista: T[],
+    id: string,
+    nombre: (i: T) => string,
+  ): string => {
+    const item = lista.find((i) => String(i.id) === id);
+    return item ? nombre(item) : id;
+  };
   if (filters.q.trim()) chips.push(`Búsqueda: “${escapeHtml(filters.q.trim())}”`);
   if (filters.area) chips.push(`Área: ${escapeHtml(filters.area)}`);
   if (filters.grado_id) {
-    const label = gradosCatalog.find((g) => String(g.id) === filters.grado_id)?.nombre ?? filters.grado_id;
-    chips.push(`Grado: ${escapeHtml(label)}`);
+    const g = gradosCatalog.find((x) => String(x.id) === filters.grado_id);
+    chips.push(`Global level: ${escapeHtml(g ? globalLevelLabel(g) : filters.grado_id)}`);
   }
+  if (filters.career_path_id) {
+    chips.push(
+      `Career path: ${escapeHtml(etiqueta(catalogos.careerPaths, filters.career_path_id, (i) => i.nombre))}`,
+    );
+  }
+  if (filters.funcion_id) {
+    chips.push(
+      `Función: ${escapeHtml(etiqueta(catalogos.funciones, filters.funcion_id, (i) => i.nombre))}`,
+    );
+  }
+  if (filters.disciplina_id) {
+    chips.push(
+      `Disciplina: ${escapeHtml(etiqueta(catalogos.disciplinas, filters.disciplina_id, (i) => i.nombre))}`,
+    );
+  }
+  if (filters.global_grade_id) {
+    chips.push(
+      `Global grade: ${escapeHtml(etiqueta(catalogos.globalGrades, filters.global_grade_id, (i) => i.codigo))}`,
+    );
+  }
+  if (filters.estado) chips.push(`Estado: ${escapeHtml(estadoPerfilLabel(filters.estado))}`);
   if (chips.length === 0) return "";
   return `<div class="puestos-filter-chips flex flex-wrap items-center gap-2 border-t border-slate-100/90 pt-3">
     <span class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Filtros activos</span>
@@ -344,10 +449,38 @@ function renderFilterActiveChips(filters: PuestosFilterState, gradosCatalog: Gra
   </div>`;
 }
 
+function renderSelectFiltro(
+  id: string,
+  action: string,
+  label: string,
+  placeholder: string,
+  opciones: { value: string; label: string }[],
+  seleccionado: string,
+): string {
+  const opts = opciones
+    .map(
+      (o) =>
+        `<option value="${escapeHtml(o.value)}" ${seleccionado === o.value ? "selected" : ""}>${escapeHtml(o.label)}</option>`,
+    )
+    .join("");
+  return `
+      <div class="min-w-0">
+        <label for="${id}" class="${RH_LISTADO_LABEL}">${escapeHtml(label)}</label>
+        <div class="grid grid-cols-1">
+          <select id="${id}" data-action="${action}" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+            <option value="" ${seleccionado === "" ? "selected" : ""}>${escapeHtml(placeholder)}</option>
+            ${opts}
+          </select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>`;
+}
+
 function renderFilterBar(
   filters: PuestosFilterState,
   areas: AreaOption[],
   gradosCatalog: GradoPuesto[],
+  catalogos: CatalogosClasificacion,
   visibleCount: number,
   totalCount: number,
 ): string {
@@ -357,12 +490,11 @@ function renderFilterBar(
         `<option value="${escapeHtml(a.label)}" ${filters.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`,
     )
     .join("");
-  const gradoOpts = gradosCatalog
-    .map(
-      (g) =>
-        `<option value="${g.id}" ${filters.grado_id === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
-    )
-    .join("");
+  // Las disciplinas se acotan a la función elegida: sin eso el select mezcla
+  // especialidades de familias distintas.
+  const disciplinasVisibles = filters.funcion_id
+    ? catalogos.disciplinas.filter((d) => String(d.funcion_id) === filters.funcion_id)
+    : catalogos.disciplinas;
   const hasActive = hasActiveFilters(filters);
   const resultsLine = hasActive
     ? `Mostrando <strong class="font-semibold text-text-primary tabular-nums">${visibleCount}</strong> de <strong class="tabular-nums">${totalCount}</strong> perfiles`
@@ -373,7 +505,7 @@ function renderFilterBar(
     <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h2 class="text-sm font-semibold text-text-primary">Buscar y filtrar</h2>
-        <p class="mt-0.5 text-xs text-text-muted">Localiza perfiles por código, nombre, área o grado.</p>
+        <p class="mt-0.5 text-xs text-text-muted">Localiza perfiles por código, nombre, área o clasificación organizacional.</p>
       </div>
       <p class="text-xs text-text-muted" aria-live="polite">${resultsLine}</p>
     </div>
@@ -403,19 +535,64 @@ function renderFilterBar(
           ${SELECT_CHEVRON}
         </div>
       </div>
-      <div class="min-w-0">
-        <label for="puestos-filter-grado" class="${RH_LISTADO_LABEL}">Grado</label>
-        <div class="grid grid-cols-1">
-          <select id="puestos-filter-grado" data-action="filter-grado" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-            <option value="" ${filters.grado_id === "" ? "selected" : ""}>Todos los grados</option>
-            ${gradoOpts}
-          </select>
-          ${SELECT_CHEVRON}
-        </div>
-      </div>
+      ${renderSelectFiltro(
+        "puestos-filter-career-path",
+        "filter-career-path",
+        "Career path",
+        "Todos",
+        catalogos.careerPaths.map((c) => ({ value: String(c.id), label: c.nombre })),
+        filters.career_path_id,
+      )}
+    </div>
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+      ${renderSelectFiltro(
+        "puestos-filter-funcion",
+        "filter-funcion",
+        "Función",
+        "Todas",
+        catalogos.funciones.map((f) => ({ value: String(f.id), label: f.nombre })),
+        filters.funcion_id,
+      )}
+      ${renderSelectFiltro(
+        "puestos-filter-disciplina",
+        "filter-disciplina",
+        "Disciplina",
+        "Todas",
+        disciplinasVisibles.map((d) => ({ value: String(d.id), label: d.nombre })),
+        filters.disciplina_id,
+      )}
+      ${renderSelectFiltro(
+        "puestos-filter-grado",
+        "filter-grado",
+        "Global level",
+        "Todos",
+        gradosCatalog.map((g) => ({
+          value: String(g.id),
+          label: `${g.career_path_codigo ?? "?"} · ${globalLevelLabel(g)}`,
+        })),
+        filters.grado_id,
+      )}
+      ${renderSelectFiltro(
+        "puestos-filter-global-grade",
+        "filter-global-grade",
+        "Global grade",
+        "Todos",
+        catalogos.globalGrades.map((g) => ({ value: String(g.id), label: g.codigo })),
+        filters.global_grade_id,
+      )}
+    </div>
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+      ${renderSelectFiltro(
+        "puestos-filter-estado",
+        "filter-estado",
+        "Estado",
+        "Todos",
+        ESTADOS_PERFIL,
+        filters.estado,
+      )}
     </div>
     ${hasActive ? `<span class="mt-3 inline-flex size-2 rounded-full bg-leoni-blue" aria-hidden="true" title="Hay filtros activos"></span>` : ""}
-    ${renderFilterActiveChips(filters, gradosCatalog)}
+    ${renderFilterActiveChips(filters, gradosCatalog, catalogos)}
   </section>`;
 }
 
@@ -522,8 +699,12 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
       <td class="whitespace-nowrap px-4 py-3.5 text-sm font-semibold tabular-nums text-text-primary">${escapeHtml(p.codigo)}</td>
       <td class="px-4 py-3.5 text-sm font-medium text-text-primary">${escapeHtml(p.nombre_puesto)}</td>
       <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.area)}</td>
-      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(formatGradosLabel(p.grados))}</td>
-      <td class="whitespace-nowrap px-4 py-3.5 text-sm tabular-nums text-text-muted">${escapeHtml(p.version)}</td>
+      <td class="px-4 py-3.5 text-sm">${careerPathBadge(p.career_path_codigo, p.career_path_nombre) || '<span class="text-text-muted">—</span>'}</td>
+      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.funcion_nombre ?? "—")}</td>
+      <td class="px-4 py-3.5 text-sm text-text-secondary">${escapeHtml(p.disciplina_nombre ?? "—")}</td>
+      <td class="whitespace-nowrap px-4 py-3.5 text-sm font-medium tabular-nums text-text-primary">${escapeHtml(formatGradosLabel(p.grados))}</td>
+      <td class="px-4 py-3.5 text-sm">${globalGradeBadge(p.global_grade_codigo, { nombre: p.global_grade_nombre })}</td>
+      <td class="px-4 py-3.5 text-sm">${estadoPerfilBadge(p.estado)}${p.clasificacion_completa ? "" : `<div class="mt-1">${clasificacionPendienteBadge()}</div>`}</td>
       <td class="px-3 py-3 align-middle">
         <div class="flex items-center justify-end gap-1">
           <button type="button" data-action="edit" data-id="${p.id}" class="puestos-row-action" title="Editar perfil" aria-label="Editar ${escapeHtml(p.nombre_puesto)}">${ICON_EDIT}</button>
@@ -537,14 +718,18 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
   return `
   <section class="${RH_LISTADO_SURFACE} overflow-hidden p-0" aria-label="Tabla de perfiles de puesto">
     <div class="puestos-table-scroll overflow-x-auto overflow-y-auto">
-      <table class="puestos-table min-w-[700px] w-full border-collapse text-left">
+      <table class="puestos-table min-w-[1100px] w-full border-collapse text-left">
         <thead class="${RH_TABLE_HEAD}">
           <tr>
             <th scope="col" class="px-4 py-3.5 text-left">Código</th>
             <th scope="col" class="px-4 py-3.5 text-left">Nombre</th>
             <th scope="col" class="px-4 py-3.5 text-left">Área</th>
-            <th scope="col" class="px-4 py-3.5 text-left">Grados</th>
-            <th scope="col" class="px-4 py-3.5 text-left">Versión</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Career path</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Función</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Disciplina</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Global level</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Global grade</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Estado</th>
             <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
           </tr>
         </thead>
@@ -554,34 +739,53 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
   </section>`;
 }
 
+export type ModalValues = {
+  codigo: string;
+  nombre_puesto: string;
+  area: string;
+  grado_desde_id: string;
+  grado_hasta_id: string;
+  career_path_id: string;
+  funcion_id: string;
+  disciplina_id: string;
+  global_grade_id: string;
+  estado: string;
+  /** true cuando el global grade se resolvió desde la equivalencia configurada. */
+  global_grade_autocompletado: boolean;
+  /** true cuando el nivel elegido no tiene equivalencia: hay que capturarlo a mano. */
+  global_grade_sin_equivalencia: boolean;
+};
+
 function renderModal(
   mode: "create" | "edit",
-  values: {
-    codigo: string;
-    nombre_puesto: string;
-    area: string;
-    grado_desde_id: string;
-    grado_hasta_id: string;
-  },
+  values: ModalValues,
   saving: boolean,
   areas: AreaOption[] = [],
   gradosCatalog: GradoPuesto[] = [],
+  catalogos: CatalogosClasificacion = CATALOGOS_VACIOS,
 ): string {
   const title = mode === "create" ? "Nuevo perfil de puesto" : "Editar perfil de puesto";
   const subtitle =
     mode === "create"
-      ? "Crea la ficha base: identidad, área y rango de grados."
-      : "Actualiza los datos base del perfil. Los grados en uso no se pueden quitar.";
+      ? "Crea la ficha base: identidad, clasificación organizacional y rango de global levels."
+      : "Actualiza los datos base del perfil. Los global levels en uso no se pueden quitar.";
   const submitLabel = saving ? "Guardando…" : mode === "create" ? "Crear perfil" : "Guardar cambios";
   const rangoPreview = resolveGradoRango(gradosCatalog, values.grado_desde_id, values.grado_hasta_id);
+  // El rango solo puede moverse dentro del career path elegido.
+  const nivelesDelPath = values.career_path_id
+    ? gradosCatalog.filter((g) => String(g.career_path_id) === values.career_path_id)
+    : gradosCatalog;
   const gradoOptsPlain = (selectedId: string) =>
-    gradosCatalog
+    nivelesDelPath
       .map(
         (g) =>
-          `<option value="${g.id}" ${selectedId === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
+          `<option value="${g.id}" ${selectedId === String(g.id) ? "selected" : ""}>${escapeHtml(globalLevelLabel(g))} — ${escapeHtml(g.nombre)}</option>`,
       )
       .join("");
   const sinGrados = gradosCatalog.length === 0;
+  const disciplinasDeFuncion = values.funcion_id
+    ? catalogos.disciplinas.filter((d) => String(d.funcion_id) === values.funcion_id)
+    : [];
 
   return `
   <div data-action="modal-backdrop" class="puestos-modal-backdrop ${MODAL_OVERLAY}">
@@ -620,23 +824,49 @@ function renderModal(
 
         ${renderModalSection(
           2,
-          "Organización",
-          `<div>
-            <label for="puestos-modal-area" class="${RH_LISTADO_LABEL}">Área <span class="text-red-600" aria-hidden="true">*</span></label>
-            <div class="grid grid-cols-1">
-              <select id="puestos-modal-area" name="area" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-                <option value="">Seleccionar área…</option>
-                ${areas.map((a) => `<option value="${a.id}" ${values.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`).join("")}
-              </select>
-              ${SELECT_CHEVRON}
-            </div>
-          </div>`,
-          "Área organizacional a la que pertenece el perfil.",
+          "Clasificación del puesto",
+          catalogos.careerPaths.length === 0
+            ? `<div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900" role="alert">
+                No hay career paths configurados. Créalos primero en <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes de perfil de puesto</a>.
+              </div>`
+            : `<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label for="puestos-modal-career-path" class="${RH_LISTADO_LABEL}">Career path <span class="text-red-600" aria-hidden="true">*</span></label>
+                  <div class="grid grid-cols-1">
+                    <select id="puestos-modal-career-path" name="career_path_id" data-action="modal-clasificacion-change" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                      <option value="" ${!values.career_path_id ? "selected" : ""}>Seleccionar…</option>
+                      ${catalogos.careerPaths.map((c) => `<option value="${c.id}" ${values.career_path_id === String(c.id) ? "selected" : ""}>${escapeHtml(c.nombre)}</option>`).join("")}
+                    </select>
+                    ${SELECT_CHEVRON}
+                  </div>
+                </div>
+                <div>
+                  <label for="puestos-modal-funcion" class="${RH_LISTADO_LABEL}">Función <span class="text-red-600" aria-hidden="true">*</span></label>
+                  <div class="grid grid-cols-1">
+                    <select id="puestos-modal-funcion" name="funcion_id" data-action="modal-clasificacion-change" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                      <option value="" ${!values.funcion_id ? "selected" : ""}>Seleccionar…</option>
+                      ${catalogos.funciones.map((f) => `<option value="${f.id}" ${values.funcion_id === String(f.id) ? "selected" : ""}>${escapeHtml(f.nombre)}</option>`).join("")}
+                    </select>
+                    ${SELECT_CHEVRON}
+                  </div>
+                </div>
+                <div>
+                  <label for="puestos-modal-disciplina" class="${RH_LISTADO_LABEL}">Disciplina <span class="text-red-600" aria-hidden="true">*</span></label>
+                  <div class="grid grid-cols-1">
+                    <select id="puestos-modal-disciplina" name="disciplina_id" data-action="modal-clasificacion-change" required ${values.funcion_id ? "" : "disabled"} class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                      <option value="" ${!values.disciplina_id ? "selected" : ""}>${values.funcion_id ? "Seleccionar…" : "Elige una función"}</option>
+                      ${disciplinasDeFuncion.map((d) => `<option value="${d.id}" ${values.disciplina_id === String(d.id) ? "selected" : ""}>${escapeHtml(d.nombre)}</option>`).join("")}
+                    </select>
+                    ${SELECT_CHEVRON}
+                  </div>
+                </div>
+              </div>`,
+          "Identidad oficial del puesto según la estructura definida por RH.",
         )}
 
         ${renderModalSection(
           3,
-          "Rango de grados",
+          "Global level y global grade",
           sinGrados
             ? `<div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900" role="alert">
                 No hay grados configurados. Créalos primero en <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes de puesto</a>.
@@ -664,8 +894,58 @@ function renderModal(
                 </div>
               </div>
               <div class="mt-3">${renderGradoRangoPreview(rangoPreview)}</div>
-              <p class="mt-2 text-xs leading-relaxed text-text-muted">El rango debe ser consecutivo. Un grado no puede repetirse en otro perfil de la misma área.</p>`,
-          "Progresión consecutiva que cubre este perfil.",
+              <p class="mt-2 text-xs leading-relaxed text-text-muted">El rango debe ser consecutivo y del mismo career path. Varios puestos pueden compartir el mismo global level.</p>
+
+              <div class="mt-4 border-t border-slate-100 pt-4">
+                <label for="puestos-modal-global-grade" class="${RH_LISTADO_LABEL}">
+                  Global grade <span class="text-red-600" aria-hidden="true">*</span>
+                  <span class="ml-1 cursor-help text-text-muted" title="${escapeHtml(GLOBAL_GRADE_TOOLTIP)}" aria-label="${escapeHtml(GLOBAL_GRADE_TOOLTIP)}">ⓘ</span>
+                </label>
+                <div class="grid grid-cols-1">
+                  <select id="puestos-modal-global-grade" name="global_grade_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                    <option value="" ${!values.global_grade_id ? "selected" : ""}>Seleccionar…</option>
+                    ${catalogos.globalGrades.map((g) => `<option value="${g.id}" ${values.global_grade_id === String(g.id) ? "selected" : ""}>${escapeHtml(g.codigo)} — ${escapeHtml(g.nombre)}</option>`).join("")}
+                  </select>
+                  ${SELECT_CHEVRON}
+                </div>
+                ${
+                  values.global_grade_sin_equivalencia
+                    ? `<p class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900" role="status">
+                        Este global level no tiene una equivalencia configurada. Selecciona el global grade manualmente o define la equivalencia en <a href="#/puestos/ajustes" class="font-semibold underline">Ajustes</a>.
+                      </p>`
+                    : values.global_grade_autocompletado
+                      ? `<p class="mt-2 text-xs text-text-muted" role="status">Autocompletado desde la equivalencia configurada para el global level inicial. Puedes cambiarlo.</p>`
+                      : `<p class="mt-2 text-xs text-text-muted">Se autocompleta al elegir el global level inicial, si hay equivalencia configurada.</p>`
+                }
+              </div>`,
+          "Nivel del puesto y su clasificación organizacional.",
+        )}
+
+        ${renderModalSection(
+          4,
+          "Organización y estado",
+          `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label for="puestos-modal-area" class="${RH_LISTADO_LABEL}">Área <span class="text-red-600" aria-hidden="true">*</span></label>
+              <div class="grid grid-cols-1">
+                <select id="puestos-modal-area" name="area" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                  <option value="">Seleccionar área…</option>
+                  ${areas.map((a) => `<option value="${a.id}" ${values.area === a.label ? "selected" : ""}>${escapeHtml(a.label)}</option>`).join("")}
+                </select>
+                ${SELECT_CHEVRON}
+              </div>
+            </div>
+            <div>
+              <label for="puestos-modal-estado" class="${RH_LISTADO_LABEL}">Estado</label>
+              <div class="grid grid-cols-1">
+                <select id="puestos-modal-estado" name="estado" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                  ${ESTADOS_PERFIL.map((e) => `<option value="${e.value}" ${(values.estado || "activo") === e.value ? "selected" : ""}>${escapeHtml(e.label)}</option>`).join("")}
+                </select>
+                ${SELECT_CHEVRON}
+              </div>
+            </div>
+          </div>`,
+          "Dónde vive el perfil y en qué punto de su ciclo está.",
         )}
 
         <div class="sticky bottom-0 -mx-6 mt-1 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white/95 px-6 py-4 backdrop-blur-sm sm:flex-row sm:justify-end">
@@ -743,22 +1023,26 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   let tarjetasData: PerfilTarjetaItem[] = [];
   let areasOptions: AreaOption[] = [];
   let gradosCatalog: GradoPuesto[] = [];
+  let catalogos: CatalogosClasificacion = CATALOGOS_VACIOS;
   let status: "loading" | "ready" | "error" = "loading";
   let errorMessage = "";
-  const filters: PuestosFilterState = { q: "", area: "", grado_id: "" };
+  const filters: PuestosFilterState = {
+    q: "",
+    area: "",
+    grado_id: "",
+    career_path_id: "",
+    funcion_id: "",
+    disciplina_id: "",
+    global_grade_id: "",
+    estado: "",
+  };
   let viewMode: "tabla" | "tarjetas" = "tarjetas";
 
   let modalMode: "create" | "edit" | "delete" | null = null;
   let modalSaving = false;
   let modalFocusOnPaint = false;
   let editingId: number | null = null;
-  let editingValues = {
-    codigo: "",
-    nombre_puesto: "",
-    area: "",
-    grado_desde_id: "",
-    grado_hasta_id: "",
-  };
+  let editingValues: ModalValues = { ...VALORES_MODAL_VACIOS };
   let deletingItem: PerfilPuestoListItem | null = null;
 
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -782,6 +1066,11 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     filters.q = "";
     filters.area = "";
     filters.grado_id = "";
+    filters.career_path_id = "";
+    filters.funcion_id = "";
+    filters.disciplina_id = "";
+    filters.global_grade_id = "";
+    filters.estado = "";
     paint();
   }
 
@@ -821,7 +1110,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       <div id="puestos-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
         ${renderLevelUpBackBar()}
         ${renderPageHeader()}
-        ${renderFilterBar(filters, areasOptions, gradosCatalog, filtered.length, sourceTotal)}
+        ${renderFilterBar(filters, areasOptions, gradosCatalog, catalogos, filtered.length, sourceTotal)}
         <div class="flex flex-col gap-4 sm:gap-5">${mainContent}</div>
       </div>`;
   }
@@ -830,7 +1119,14 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const host = modalHost();
     if (!host) return;
     if (modalMode === "create" || modalMode === "edit") {
-      host.innerHTML = renderModal(modalMode, editingValues, modalSaving, areasOptions, gradosCatalog);
+      host.innerHTML = renderModal(
+        modalMode,
+        editingValues,
+        modalSaving,
+        areasOptions,
+        gradosCatalog,
+        catalogos,
+      );
       if (modalFocusOnPaint) {
         modalFocusOnPaint = false;
         queueMicrotask(() => {
@@ -863,6 +1159,50 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     if (preview) {
       preview.outerHTML = renderGradoRangoPreview(resolveGradoRango(gradosCatalog, desde, hasta));
     }
+    // El global grade cuelga del nivel inicial del rango.
+    void sincronizarGlobalGrade();
+  }
+
+  /** Captura la clasificación del formulario y repinta (cascada función→disciplina). */
+  function syncClasificacionFromForm(form: HTMLFormElement): void {
+    const fd = new FormData(form);
+    const funcionAnterior = editingValues.funcion_id;
+    editingValues.career_path_id = String(fd.get("career_path_id") ?? "");
+    editingValues.funcion_id = String(fd.get("funcion_id") ?? "");
+    editingValues.disciplina_id = String(fd.get("disciplina_id") ?? "");
+    editingValues.codigo = String(fd.get("codigo") ?? editingValues.codigo);
+    editingValues.nombre_puesto = String(fd.get("nombre_puesto") ?? editingValues.nombre_puesto);
+    editingValues.area = String(fd.get("area") ?? editingValues.area);
+    editingValues.estado = String(fd.get("estado") ?? editingValues.estado);
+    // Al cambiar de función, la disciplina anterior deja de ser válida.
+    if (editingValues.funcion_id !== funcionAnterior) editingValues.disciplina_id = "";
+    paintModal();
+  }
+
+  /**
+   * Resuelve el global grade desde la equivalencia del global level inicial.
+   *
+   * Nunca lo calcula: consulta el catálogo de equivalencias. Si RH no configuró
+   * ninguna, deja el campo libre y marca el aviso para capturarlo a mano.
+   */
+  async function sincronizarGlobalGrade(): Promise<void> {
+    const nivelInicial = Number(editingValues.grado_desde_id);
+    if (!Number.isFinite(nivelInicial) || nivelInicial <= 0) return;
+    try {
+      const equivalencia = await resolverEquivalencia(nivelInicial);
+      if (equivalencia) {
+        editingValues.global_grade_id = String(equivalencia.global_grade_id);
+        editingValues.global_grade_autocompletado = true;
+        editingValues.global_grade_sin_equivalencia = false;
+      } else {
+        editingValues.global_grade_autocompletado = false;
+        editingValues.global_grade_sin_equivalencia = true;
+      }
+    } catch {
+      // Un fallo al resolver no debe bloquear el alta: se captura a mano.
+      editingValues.global_grade_sin_equivalencia = true;
+    }
+    if (modalMode === "create" || modalMode === "edit") paintModal();
   }
 
   function closeModal(): void {
@@ -870,13 +1210,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     modalSaving = false;
     editingId = null;
     deletingItem = null;
-    editingValues = {
-      codigo: "",
-      nombre_puesto: "",
-      area: "",
-      grado_desde_id: "",
-      grado_hasta_id: "",
-    };
+    editingValues = { ...VALORES_MODAL_VACIOS };
     paintModal();
   }
 
@@ -884,16 +1218,22 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     status = "loading";
     paint();
     try {
-      const [items, areas, tarjetas, grados] = await Promise.all([
-        getPerfilesList(),
-        getAreasOptions(),
-        getResumenTarjetas(),
-        getGradosPuesto({ page_size: 200 }),
-      ]);
+      const [items, areas, tarjetas, grados, careerPaths, funciones, disciplinas, globalGrades] =
+        await Promise.all([
+          getPerfilesList(),
+          getAreasOptions(),
+          getResumenTarjetas(),
+          getGradosPuesto({ page_size: 200 }),
+          getCareerPaths(),
+          getFuncionesPuesto(),
+          getDisciplinasPuesto(),
+          getGlobalGrades(),
+        ]);
       allItems = items;
       areasOptions = areas;
       tarjetasData = tarjetas;
       gradosCatalog = grados;
+      catalogos = { careerPaths, funciones, disciplinas, globalGrades };
       status = "ready";
       paint();
     } catch (e: unknown) {
@@ -927,14 +1267,13 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
             editingId = null;
             const defaults = defaultGradoIds();
             editingValues = {
-              codigo: "",
-              nombre_puesto: "",
-              area: "",
+              ...VALORES_MODAL_VACIOS,
               grado_desde_id: defaults.desde,
               grado_hasta_id: defaults.hasta,
             };
             modalFocusOnPaint = true;
             paintModal();
+            void sincronizarGlobalGrade();
             break;
           }
           case "puestos-clear-filters":
@@ -950,11 +1289,17 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
             {
               const rango = gradosMinMaxIds(item.grados);
               editingValues = {
+                ...VALORES_MODAL_VACIOS,
                 codigo: item.codigo,
                 nombre_puesto: item.nombre_puesto,
                 area: item.area,
                 grado_desde_id: rango.desde,
                 grado_hasta_id: rango.hasta,
+                career_path_id: item.career_path_id ? String(item.career_path_id) : "",
+                funcion_id: item.funcion_id ? String(item.funcion_id) : "",
+                disciplina_id: item.disciplina_id ? String(item.disciplina_id) : "",
+                global_grade_id: item.global_grade_id ? String(item.global_grade_id) : "",
+                estado: item.estado,
               };
             }
             modalFocusOnPaint = true;
@@ -1020,6 +1365,26 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
         } else if (action === "filter-grado") {
           filters.grado_id = (t as HTMLSelectElement).value;
           paint();
+        } else if (action === "filter-career-path") {
+          filters.career_path_id = (t as HTMLSelectElement).value;
+          paint();
+        } else if (action === "filter-funcion") {
+          filters.funcion_id = (t as HTMLSelectElement).value;
+          // La disciplina elegida puede no pertenecer a la nueva función.
+          filters.disciplina_id = "";
+          paint();
+        } else if (action === "filter-disciplina") {
+          filters.disciplina_id = (t as HTMLSelectElement).value;
+          paint();
+        } else if (action === "filter-global-grade") {
+          filters.global_grade_id = (t as HTMLSelectElement).value;
+          paint();
+        } else if (action === "filter-estado") {
+          filters.estado = (t as HTMLSelectElement).value;
+          paint();
+        } else if (action === "modal-clasificacion-change") {
+          const form = t.closest<HTMLFormElement>("[data-action='modal-form']");
+          if (form) syncClasificacionFromForm(form);
         } else if (action === "modal-grado-change") {
           const form = t.closest<HTMLFormElement>("[data-action='modal-form']");
           if (!form) return;
@@ -1098,13 +1463,25 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     const hastaId = Number(hastaRaw);
     const grado_ids = gradoIdsEntre(gradosCatalog, desdeId, hastaId);
 
+    const careerPathId = Number(String(data.get("career_path_id") ?? "").trim());
+    const funcionId = Number(String(data.get("funcion_id") ?? "").trim());
+    const disciplinaId = Number(String(data.get("disciplina_id") ?? "").trim());
+    const globalGradeId = Number(String(data.get("global_grade_id") ?? "").trim());
+    const estado = String(data.get("estado") ?? "activo").trim();
+
     // Persistir valores actuales por si re-pintamos el modal.
     editingValues = {
+      ...editingValues,
       codigo: String(data.get("codigo") ?? "").trim(),
       nombre_puesto: String(data.get("nombre_puesto") ?? "").trim(),
       area: areaLabel,
       grado_desde_id: desdeRaw,
       grado_hasta_id: hastaRaw,
+      career_path_id: Number.isFinite(careerPathId) && careerPathId > 0 ? String(careerPathId) : "",
+      funcion_id: Number.isFinite(funcionId) && funcionId > 0 ? String(funcionId) : "",
+      disciplina_id: Number.isFinite(disciplinaId) && disciplinaId > 0 ? String(disciplinaId) : "",
+      global_grade_id: Number.isFinite(globalGradeId) && globalGradeId > 0 ? String(globalGradeId) : "",
+      estado,
     };
 
     if (!editingValues.codigo || !editingValues.nombre_puesto) {
@@ -1116,7 +1493,19 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       return;
     }
     if (!desdeRaw || !hastaRaw || Number.isNaN(desdeId) || Number.isNaN(hastaId) || grado_ids.length === 0) {
-      showModalError("Selecciona un rango de grados válido (desde / hasta).");
+      showModalError(
+        "Selecciona un rango de global levels válido: consecutivo y del mismo career path.",
+      );
+      return;
+    }
+    if (!careerPathId || !funcionId || !disciplinaId) {
+      showModalError("Completa la clasificación: career path, función y disciplina.");
+      return;
+    }
+    if (!globalGradeId) {
+      showModalError(
+        "Selecciona el global grade. Si el global level no tiene equivalencia configurada, elígelo manualmente.",
+      );
       return;
     }
 
@@ -1126,6 +1515,11 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       area: areaLabel,
       area_id: areaId,
       grado_ids,
+      career_path_id: careerPathId,
+      funcion_id: funcionId,
+      disciplina_id: disciplinaId,
+      global_grade_id: globalGradeId,
+      estado: estado as PerfilPuestoCreatePayload["estado"],
     };
 
     modalSaving = true;

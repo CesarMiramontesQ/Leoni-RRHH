@@ -121,3 +121,83 @@ class DisciplinaPuestoListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ── Global Grade ─────────────────────────────────────────────────────────────
+# Clasificacion organizacional del puesto. No representa sueldo ni compensacion.
+
+
+class GlobalGradeCreate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    codigo: str = Field(..., min_length=1, max_length=20, description="Ej. GG10")
+    nombre: str = Field(..., min_length=1, max_length=100)
+    descripcion: str | None = None
+    orden: int = Field(..., ge=1, le=999)
+
+
+class GlobalGradeUpdate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    codigo: str = Field(..., min_length=1, max_length=20)
+    nombre: str = Field(..., min_length=1, max_length=100)
+    descripcion: str | None = None
+    orden: int = Field(..., ge=1, le=999)
+
+
+class GlobalGradeResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    codigo: str
+    nombre: str
+    descripcion: str | None = None
+    orden: int
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class GlobalGradeListResponse(BaseModel):
+    items: list[GlobalGradeResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+# ── Equivalencia Global Level ↔ Global Grade ─────────────────────────────────
+
+
+class EquivalenciaCreate(BaseModel):
+    global_level_id: int = Field(..., gt=0)
+    global_grade_id: int = Field(..., gt=0)
+
+
+class EquivalenciaUpdate(BaseModel):
+    global_level_id: int = Field(..., gt=0)
+    global_grade_id: int = Field(..., gt=0)
+
+
+class EquivalenciaResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    global_level_id: int
+    global_level_codigo: str | None = None
+    global_level_nombre: str | None = None
+    career_path_id: int | None = None
+    career_path_codigo: str | None = None
+    career_path_nombre: str | None = None
+    global_grade_id: int
+    global_grade_codigo: str | None = None
+    global_grade_nombre: str | None = None
+    activo: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class EquivalenciaListResponse(BaseModel):
+    items: list[EquivalenciaResponse]
+    total: int
+    page: int
+    page_size: int

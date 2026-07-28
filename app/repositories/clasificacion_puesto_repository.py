@@ -9,6 +9,8 @@ from app.models.clasificacion_puesto import (
     CareerPath,
     DisciplinaPuesto,
     FuncionPuesto,
+    GlobalGrade,
+    GlobalLevelGradeMapping,
 )
 from app.models.talento import GradoPuesto, PuestoPerfil
 from app.repositories.base import BaseRepository
@@ -221,6 +223,151 @@ class DisciplinaPuestoRepository(BaseRepository[DisciplinaPuesto]):
         result = await self.db.execute(
             select(DisciplinaPuesto).where(
                 DisciplinaPuesto.id == id, DisciplinaPuesto.activo.is_(True)
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+class GlobalGradeRepository(BaseRepository[GlobalGrade]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(GlobalGrade, db)
+
+    async def list_filtered(
+        self,
+        offset: int,
+        limit: int,
+        busqueda: str | None = None,
+        solo_activos: bool = True,
+    ) -> tuple[list[GlobalGrade], int]:
+        query = select(GlobalGrade)
+        if solo_activos:
+            query = query.where(GlobalGrade.activo.is_(True))
+        if busqueda:
+            query = query.where(
+                GlobalGrade.nombre.ilike(f"%{busqueda}%")
+                | GlobalGrade.codigo.ilike(f"%{busqueda}%")
+            )
+
+        total = await self.db.scalar(select(func.count()).select_from(query.subquery()))
+
+        query = query.order_by(GlobalGrade.orden).offset(offset).limit(limit)
+        result = await self.db.execute(query)
+        return list(result.scalars().all()), total or 0
+
+    async def exists_by_codigo(self, codigo: str, exclude_id: int | None = None) -> bool:
+        query = select(func.count()).select_from(GlobalGrade).where(
+            GlobalGrade.codigo.ilike(codigo)
+        )
+        if exclude_id:
+            query = query.where(GlobalGrade.id != exclude_id)
+        return (await self.db.scalar(query) or 0) > 0
+
+    async def exists_by_orden(self, orden: int, exclude_id: int | None = None) -> bool:
+        query = select(func.count()).select_from(GlobalGrade).where(
+            GlobalGrade.orden == orden
+        )
+        if exclude_id:
+            query = query.where(GlobalGrade.id != exclude_id)
+        return (await self.db.scalar(query) or 0) > 0
+
+    async def count_perfiles_usando(self, global_grade_id: int) -> int:
+        query = select(func.count()).select_from(PuestoPerfil).where(
+            PuestoPerfil.global_grade_id == global_grade_id
+        )
+        return await self.db.scalar(query) or 0
+
+    async def count_equivalencias_usando(self, global_grade_id: int) -> int:
+        query = select(func.count()).select_from(GlobalLevelGradeMapping).where(
+            GlobalLevelGradeMapping.global_grade_id == global_grade_id
+        )
+        return await self.db.scalar(query) or 0
+
+    async def get_activo(self, id: int) -> GlobalGrade | None:
+        result = await self.db.execute(
+            select(GlobalGrade).where(
+                GlobalGrade.id == id, GlobalGrade.activo.is_(True)
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def max_orden(self) -> int:
+        return await self.db.scalar(select(func.max(GlobalGrade.orden))) or 0
+
+
+class GlobalLevelGradeMappingRepository(BaseRepository[GlobalLevelGradeMapping]):
+    """Equivalencias Global Level → Global Grade. Unicidad por global level."""
+
+    def __init__(self, db: AsyncSession):
+        super().__init__(GlobalLevelGradeMapping, db)
+
+    def _con_relaciones(self):
+        # El response denormaliza nivel, career path y grade; leerlos en lazy dentro
+        # de una sesion async revienta con MissingGreenlet.
+        return select(GlobalLevelGradeMapping).options(
+            selectinload(GlobalLevelGradeMapping.global_level).selectinload(
+                GradoPuesto.career_path
+            ),
+            selectinload(GlobalLevelGradeMapping.global_grade),
+        )
+
+    async def list_filtered(
+        self,
+        offset: int,
+        limit: int,
+        career_path_id: int | None = None,
+        solo_activos: bool = True,
+    ) -> tuple[list[GlobalLevelGradeMapping], int]:
+        query = self._con_relaciones()
+        if solo_activos:
+            query = query.where(GlobalLevelGradeMapping.activo.is_(True))
+        if career_path_id:
+            query = query.join(
+                GradoPuesto, GradoPuesto.id == GlobalLevelGradeMapping.global_level_id
+            ).where(GradoPuesto.career_path_id == career_path_id)
+
+        total = await self.db.scalar(
+            select(func.count()).select_from(
+                query.with_only_columns(GlobalLevelGradeMapping.id).subquery()
+            )
+        )
+
+        # Orden estable: por career path y luego por nivel, como se leen en la UI.
+        query = (
+            query.join(
+                GradoPuesto, GradoPuesto.id == GlobalLevelGradeMapping.global_level_id
+            )
+            .join(CareerPath, CareerPath.id == GradoPuesto.career_path_id)
+            .order_by(CareerPath.orden, GradoPuesto.orden)
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().unique().all()), total or 0
+
+    async def get_with_relaciones(self, id: int) -> GlobalLevelGradeMapping | None:
+        result = await self.db.execute(
+            self._con_relaciones().where(GlobalLevelGradeMapping.id == id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_global_level(
+        self, global_level_id: int, exclude_id: int | None = None
+    ) -> GlobalLevelGradeMapping | None:
+        query = self._con_relaciones().where(
+            GlobalLevelGradeMapping.global_level_id == global_level_id
+        )
+        if exclude_id:
+            query = query.where(GlobalLevelGradeMapping.id != exclude_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_activa_por_global_level(
+        self, global_level_id: int
+    ) -> GlobalLevelGradeMapping | None:
+        result = await self.db.execute(
+            self._con_relaciones().where(
+                GlobalLevelGradeMapping.global_level_id == global_level_id,
+                GlobalLevelGradeMapping.activo.is_(True),
             )
         )
         return result.scalar_one_or_none()

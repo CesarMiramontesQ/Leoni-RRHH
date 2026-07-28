@@ -7,6 +7,8 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.clasificacion_puesto import PuestoPerfilClasificacionHistorial
+from app.models.empleados import Empleado
 from app.models.level_up import CursoPuesto
 from app.models.talento import (
     CompetenciaRequisito,
@@ -26,15 +28,29 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
     def __init__(self, db: AsyncSession):
         super().__init__(PuestoPerfil, db)
 
+    @staticmethod
+    def _carga_clasificacion() -> tuple:
+        """
+        Relaciones que el response denormaliza.
+
+        Se precargan siempre: leerlas en lazy dentro de una sesion async revienta
+        con MissingGreenlet, y SQLite no lo reproduce.
+        """
+        return (
+            selectinload(PuestoPerfil.area),
+            selectinload(PuestoPerfil.career_path),
+            selectinload(PuestoPerfil.funcion),
+            selectinload(PuestoPerfil.disciplina),
+            selectinload(PuestoPerfil.global_grade),
+            selectinload(PuestoPerfil.grados_config)
+            .selectinload(PuestoPerfilGrado.grado)
+            .selectinload(GradoPuesto.career_path),
+        )
+
     async def get_with_relations(self, id: int) -> PuestoPerfil | None:
         result = await self.db.execute(
             select(PuestoPerfil)
-            .options(
-                selectinload(PuestoPerfil.area),
-                selectinload(PuestoPerfil.grados_config).selectinload(
-                    PuestoPerfilGrado.grado
-                ),
-            )
+            .options(*self._carga_clasificacion())
             .where(PuestoPerfil.id == id, PuestoPerfil.activo.is_(True))
         )
         return result.scalar_one_or_none()
@@ -46,16 +62,17 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         area_id: int | None = None,
         grado_id: int | None = None,
         busqueda: str | None = None,
+        career_path_id: int | None = None,
+        funcion_id: int | None = None,
+        disciplina_id: int | None = None,
+        global_grade_id: int | None = None,
+        estado: str | None = None,
+        clasificacion_pendiente: bool | None = None,
     ) -> tuple[list[PuestoPerfil], int]:
         """Lista paginada con filtros opcionales. Retorna (items, total)."""
         query = (
             select(PuestoPerfil)
-            .options(
-                selectinload(PuestoPerfil.area),
-                selectinload(PuestoPerfil.grados_config).selectinload(
-                    PuestoPerfilGrado.grado
-                ),
-            )
+            .options(*self._carga_clasificacion())
             .where(PuestoPerfil.activo.is_(True))
         )
 
@@ -67,6 +84,26 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                     PuestoPerfilGrado.grado_id == grado_id
                 )
             )
+        if career_path_id is not None:
+            query = query.where(PuestoPerfil.career_path_id == career_path_id)
+        if funcion_id is not None:
+            query = query.where(PuestoPerfil.funcion_id == funcion_id)
+        if disciplina_id is not None:
+            query = query.where(PuestoPerfil.disciplina_id == disciplina_id)
+        if global_grade_id is not None:
+            query = query.where(PuestoPerfil.global_grade_id == global_grade_id)
+        if estado is not None:
+            query = query.where(PuestoPerfil.estado == estado)
+        if clasificacion_pendiente is not None:
+            # Un perfil esta clasificado cuando tiene los cuatro campos; el rango de
+            # global levels ya es obligatorio desde el alta.
+            completa = (
+                PuestoPerfil.career_path_id.isnot(None)
+                & PuestoPerfil.funcion_id.isnot(None)
+                & PuestoPerfil.disciplina_id.isnot(None)
+                & PuestoPerfil.global_grade_id.isnot(None)
+            )
+            query = query.where(~completa if clasificacion_pendiente else completa)
         if busqueda:
             pattern = f"%{busqueda}%"
             query = query.where(
@@ -128,32 +165,11 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         return (count or 0) > 0
 
     # ── Grados por perfil ─────────────────────────────────────────────────────
-
-    async def grados_ocupados_en_area(
-        self,
-        area_id: int,
-        grado_ids: list[int],
-        exclude_perfil_id: int | None = None,
-    ) -> list[tuple[str, str]]:
-        """Devuelve [(grado_nombre, perfil_nombre)] de grados ya usados por otros
-        perfiles activos de la misma area."""
-        if not grado_ids:
-            return []
-        query = (
-            select(GradoPuesto.nombre, PuestoPerfil.nombre)
-            .select_from(PuestoPerfilGrado)
-            .join(PuestoPerfil, PuestoPerfilGrado.puesto_perfil_id == PuestoPerfil.id)
-            .join(GradoPuesto, PuestoPerfilGrado.grado_id == GradoPuesto.id)
-            .where(
-                PuestoPerfil.area_id == area_id,
-                PuestoPerfil.activo.is_(True),
-                PuestoPerfilGrado.grado_id.in_(grado_ids),
-            )
-        )
-        if exclude_perfil_id is not None:
-            query = query.where(PuestoPerfil.id != exclude_perfil_id)
-        result = await self.db.execute(query)
-        return [(row[0], row[1]) for row in result.all()]
+    #
+    # Aqui vivia `grados_ocupados_en_area`, que sostenia la regla "un global level
+    # no puede repetirse en otro perfil de la misma area". Con la metodologia WTW
+    # esa regla es invalida: el nivel mide el tamano del puesto, no lo ocupa en
+    # exclusiva, y varios puestos distintos de Ingenieria pueden estar en P10.
 
     async def get_grado_ids(self, perfil_id: int) -> set[int]:
         """Conjunto de grado_ids configurados para un perfil."""
@@ -362,3 +378,34 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                 )
 
         return items
+
+
+class ClasificacionHistorialRepository(BaseRepository[PuestoPerfilClasificacionHistorial]):
+    """Bitacora append-only de la clasificacion. Nunca se actualiza ni se borra."""
+
+    def __init__(self, db: AsyncSession):
+        super().__init__(PuestoPerfilClasificacionHistorial, db)
+
+    async def list_by_perfil(
+        self, puesto_perfil_id: int, limit: int = 100
+    ) -> list[tuple[PuestoPerfilClasificacionHistorial, str | None]]:
+        """Eventos del perfil, del mas reciente al mas antiguo, con el nombre del autor."""
+        result = await self.db.execute(
+            select(PuestoPerfilClasificacionHistorial, Empleado.nombre)
+            .outerjoin(
+                Empleado,
+                Empleado.empleado_id == PuestoPerfilClasificacionHistorial.changed_by,
+            )
+            .where(
+                PuestoPerfilClasificacionHistorial.puesto_perfil_id == puesto_perfil_id
+            )
+            .order_by(PuestoPerfilClasificacionHistorial.created_at.desc())
+            .limit(limit)
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
+    async def ultimo_de_perfil(
+        self, puesto_perfil_id: int
+    ) -> tuple[PuestoPerfilClasificacionHistorial, str | None] | None:
+        filas = await self.list_by_perfil(puesto_perfil_id, limit=1)
+        return filas[0] if filas else None

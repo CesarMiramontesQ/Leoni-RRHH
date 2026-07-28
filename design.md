@@ -1566,6 +1566,52 @@ es una excepción documentada. Una página nueva debe usar `renderTabNav` de `ui
 
 ---
 
+## 15.7 Clasificación de puesto — Presentación
+
+La clasificación WTW de un puesto (**Career Path · Función · Disciplina · Global Level ·
+Global Grade**) se lee igual en listado, detalle y formulario. Todo lo visual sale de
+`frontend/src/talento/clasificacionPuestoUi.ts`; **no** se re-implementa por pantalla.
+
+| Elemento | Helper | Se lee como |
+|---|---|---|
+| Rango de niveles | `formatGlobalLevelRango` | `P10 → P12` (o `P10` si es uno solo) |
+| Rango expandido | `globalLevelChips` | `P10` → `P11` → `P12`, para el formulario |
+| Career Path | `careerPathBadge` | pill neutra con dot accent |
+| Global Grade | `globalGradeBadge` | pill accent tabular con tooltip |
+| Estado | `estadoPerfilBadge` | verde activo · azul en revisión · gris inactivo |
+| Clasificación incompleta | `clasificacionPendienteBadge` | pill ámbar con texto |
+
+### 15.7.1 Reglas
+
+- **El código manda sobre el nombre.** Un global level se muestra por su `codigo`
+  (`P10`); el `nombre` va en el `title`. Los códigos llevan `tabular-nums` para que las
+  columnas no bailen.
+- **El Global Grade siempre lleva tooltip** (`GLOBAL_GRADE_TOOLTIP`): explica que es la
+  clasificación organizacional definida por RH. **Ningún texto de la UI puede sugerir que
+  el Global Grade determina sueldo, banda salarial o compensación** — este sistema no
+  administra esos conceptos. Hay un test que lo verifica.
+- **Un rango solo existe dentro de un career path.** `globalLevelsEntre` devuelve vacío si
+  los extremos son de paths distintos, y el select de "hasta" se acota al path elegido.
+- **Los badges llevan texto, nunca solo color** (§8.9). El de "Clasificación pendiente" es
+  ámbar informativo, no un error: el perfil se puede seguir editando.
+- **Cascadas**: Función → Disciplina en filtros y formulario; al cambiar la función se
+  invalida la disciplina. Career Path → Global Level en el formulario.
+- **Autocompletado del Global Grade**: al elegir el global level inicial se consulta la
+  equivalencia configurada. Si existe, se rellena y se avisa con un texto discreto
+  ("Autocompletado desde la equivalencia…"); si no, se muestra un aviso ámbar que enlaza a
+  Ajustes y el campo queda libre. El valor **nunca** se calcula.
+
+### 15.7.2 Formulario de perfil
+
+Cuatro pasos numerados (`renderModalSection`), en este orden:
+
+1. **Identidad del puesto** — código y nombre.
+2. **Clasificación del puesto** — Career Path · Función · Disciplina.
+3. **Global level y global grade** — rango desde/hasta con preview de chips, y el GG.
+4. **Organización y estado** — Área y Estado.
+
+---
+
 ## 16. Stitch Screens Reference
 
 ### Original — HCM Platform (project `1746412759455982581`)

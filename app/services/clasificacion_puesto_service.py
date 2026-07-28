@@ -8,19 +8,29 @@ modulo: guard por modulo `puestos`, soft delete y bloqueo si la fila esta en uso
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.exceptions import (
+    ConflictError,
+    DomainValidationError,
+    ForbiddenError,
+    NotFoundError,
+)
 from app.core.rh_module_registry import user_has_module
 from app.models.clasificacion_puesto import (
     CareerPath,
     DisciplinaPuesto,
     FuncionPuesto,
+    GlobalGrade,
+    GlobalLevelGradeMapping,
 )
 from app.models.empleados import Empleado
 from app.repositories.clasificacion_puesto_repository import (
     CareerPathRepository,
     DisciplinaPuestoRepository,
     FuncionPuestoRepository,
+    GlobalGradeRepository,
+    GlobalLevelGradeMappingRepository,
 )
+from app.repositories.grado_puesto_repository import GradoPuestoRepository
 from app.schemas.clasificacion_puesto import (
     CareerPathCreate,
     CareerPathListResponse,
@@ -32,8 +42,16 @@ from app.schemas.clasificacion_puesto import (
     DisciplinaPuestoUpdate,
     FuncionPuestoCreate,
     FuncionPuestoListResponse,
+    EquivalenciaCreate,
+    EquivalenciaListResponse,
+    EquivalenciaResponse,
+    EquivalenciaUpdate,
     FuncionPuestoResponse,
     FuncionPuestoUpdate,
+    GlobalGradeCreate,
+    GlobalGradeListResponse,
+    GlobalGradeResponse,
+    GlobalGradeUpdate,
 )
 
 MODULO = "puestos"
@@ -372,3 +390,271 @@ class DisciplinaPuestoService:
         if not item:
             raise NotFoundError(entidad="DisciplinaPuesto", id=disciplina_id)
         return item
+
+
+class GlobalGradeService:
+    """
+    Catalogo de Global Grades.
+
+    El Global Grade clasifica el puesto dentro de la estructura organizacional; no
+    representa sueldo, banda salarial ni compensacion.
+    """
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.repo = GlobalGradeRepository(db)
+
+    @staticmethod
+    def _to_response(item: GlobalGrade) -> GlobalGradeResponse:
+        return GlobalGradeResponse(
+            id=item.id,
+            codigo=item.codigo,
+            nombre=item.nombre,
+            descripcion=item.descripcion,
+            orden=item.orden,
+            activo=item.activo,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+        )
+
+    async def listar(
+        self,
+        page: int,
+        page_size: int,
+        busqueda: str | None = None,
+        solo_activos: bool = True,
+    ) -> GlobalGradeListResponse:
+        items, total = await self.repo.list_filtered(
+            offset=(page - 1) * page_size,
+            limit=page_size,
+            busqueda=busqueda,
+            solo_activos=solo_activos,
+        )
+        return GlobalGradeListResponse(
+            items=[self._to_response(i) for i in items],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def obtener(self, id: int) -> GlobalGradeResponse:
+        item = await self.repo.get(id)
+        if not item or not item.activo:
+            raise NotFoundError(entidad="GlobalGrade", id=id)
+        return self._to_response(item)
+
+    async def _validar_unicidad(
+        self,
+        data: GlobalGradeCreate | GlobalGradeUpdate,
+        exclude_id: int | None = None,
+    ) -> None:
+        # El codigo se compara contra TODOS, incluidos los inactivos: reutilizar el
+        # codigo de un grado desactivado haria ambigua la lectura del historial.
+        if await self.repo.exists_by_codigo(data.codigo, exclude_id=exclude_id):
+            raise ConflictError(
+                detail=f"Ya existe un global grade con codigo '{data.codigo}'"
+            )
+        if await self.repo.exists_by_orden(data.orden, exclude_id=exclude_id):
+            raise ConflictError(
+                detail=f"Ya existe un global grade con orden {data.orden}"
+            )
+
+    async def crear(
+        self, data: GlobalGradeCreate, current_user: Empleado
+    ) -> GlobalGradeResponse:
+        _require_modulo(current_user, "crear global grades")
+        await self._validar_unicidad(data)
+        item = await self.repo.create(
+            {
+                "codigo": data.codigo,
+                "nombre": data.nombre,
+                "descripcion": data.descripcion,
+                "orden": data.orden,
+                "activo": True,
+            }
+        )
+        return self._to_response(item)
+
+    async def actualizar(
+        self, id: int, data: GlobalGradeUpdate, current_user: Empleado
+    ) -> GlobalGradeResponse:
+        _require_modulo(current_user, "actualizar global grades")
+        item = await self.repo.get(id)
+        if not item or not item.activo:
+            raise NotFoundError(entidad="GlobalGrade", id=id)
+
+        await self._validar_unicidad(data, exclude_id=id)
+        await self.repo.update(
+            id,
+            {
+                "codigo": data.codigo,
+                "nombre": data.nombre,
+                "descripcion": data.descripcion,
+                "orden": data.orden,
+            },
+        )
+        return self._to_response(await self.repo.get(id))
+
+    async def eliminar(self, id: int, current_user: Empleado) -> None:
+        _require_modulo(current_user, "eliminar global grades")
+        item = await self.repo.get(id)
+        if not item or not item.activo:
+            raise NotFoundError(entidad="GlobalGrade", id=id)
+
+        perfiles = await self.repo.count_perfiles_usando(id)
+        equivalencias = await self.repo.count_equivalencias_usando(id)
+        if perfiles or equivalencias:
+            raise ConflictError(
+                detail=(
+                    f"No se puede eliminar el global grade '{item.codigo}' porque esta "
+                    f"en uso ({perfiles} perfil(es), {equivalencias} equivalencia(s))"
+                )
+            )
+        await self.repo.update(id, {"activo": False})
+
+    async def validar_activo(self, global_grade_id: int) -> GlobalGrade:
+        """Un global grade inactivo no se puede asignar a un perfil."""
+        item = await self.repo.get(global_grade_id)
+        if not item:
+            raise NotFoundError(entidad="GlobalGrade", id=global_grade_id)
+        if not item.activo:
+            raise DomainValidationError(
+                f"El global grade '{item.codigo}' esta inactivo y no se puede asignar"
+            )
+        return item
+
+
+class EquivalenciaService:
+    """
+    Equivalencias Global Level → Global Grade.
+
+    Las define RH; el sistema nunca las calcula. Se usan para autocompletar el
+    global grade del perfil, pero no lo imponen: si no hay equivalencia, RH lo
+    elige a mano.
+    """
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.repo = GlobalLevelGradeMappingRepository(db)
+        self.grade_repo = GlobalGradeRepository(db)
+        self.grado_repo = GradoPuestoRepository(db)
+
+    @staticmethod
+    def _to_response(item: GlobalLevelGradeMapping) -> EquivalenciaResponse:
+        nivel = item.global_level
+        career_path = nivel.career_path if nivel else None
+        grade = item.global_grade
+        return EquivalenciaResponse(
+            id=item.id,
+            global_level_id=item.global_level_id,
+            global_level_codigo=nivel.codigo if nivel else None,
+            global_level_nombre=nivel.nombre if nivel else None,
+            career_path_id=career_path.id if career_path else None,
+            career_path_codigo=career_path.codigo if career_path else None,
+            career_path_nombre=career_path.nombre if career_path else None,
+            global_grade_id=item.global_grade_id,
+            global_grade_codigo=grade.codigo if grade else None,
+            global_grade_nombre=grade.nombre if grade else None,
+            activo=item.activo,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+        )
+
+    async def listar(
+        self,
+        page: int,
+        page_size: int,
+        career_path_id: int | None = None,
+        solo_activos: bool = True,
+    ) -> EquivalenciaListResponse:
+        items, total = await self.repo.list_filtered(
+            offset=(page - 1) * page_size,
+            limit=page_size,
+            career_path_id=career_path_id,
+            solo_activos=solo_activos,
+        )
+        return EquivalenciaListResponse(
+            items=[self._to_response(i) for i in items],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def obtener(self, id: int) -> EquivalenciaResponse:
+        item = await self.repo.get_with_relaciones(id)
+        if not item or not item.activo:
+            raise NotFoundError(entidad="GlobalLevelGradeMapping", id=id)
+        return self._to_response(item)
+
+    async def _validar(
+        self,
+        data: EquivalenciaCreate | EquivalenciaUpdate,
+        exclude_id: int | None = None,
+    ) -> None:
+        if not await self.grado_repo.get_activo(data.global_level_id):
+            raise NotFoundError(entidad="GradoPuesto", id=data.global_level_id)
+        grade = await self.grade_repo.get(data.global_grade_id)
+        if not grade:
+            raise NotFoundError(entidad="GlobalGrade", id=data.global_grade_id)
+        if not grade.activo:
+            raise DomainValidationError(
+                f"El global grade '{grade.codigo}' esta inactivo y no se puede "
+                "usar en una equivalencia"
+            )
+        existente = await self.repo.get_by_global_level(
+            data.global_level_id, exclude_id=exclude_id
+        )
+        if existente:
+            nivel = existente.global_level
+            raise ConflictError(
+                detail=(
+                    f"El global level '{nivel.codigo if nivel else data.global_level_id}' "
+                    "ya tiene una equivalencia configurada"
+                )
+            )
+
+    async def crear(
+        self, data: EquivalenciaCreate, current_user: Empleado
+    ) -> EquivalenciaResponse:
+        _require_modulo(current_user, "crear equivalencias")
+        await self._validar(data)
+        item = await self.repo.create(
+            {
+                "global_level_id": data.global_level_id,
+                "global_grade_id": data.global_grade_id,
+                "activo": True,
+            }
+        )
+        return self._to_response(await self.repo.get_with_relaciones(item.id))
+
+    async def actualizar(
+        self, id: int, data: EquivalenciaUpdate, current_user: Empleado
+    ) -> EquivalenciaResponse:
+        _require_modulo(current_user, "actualizar equivalencias")
+        item = await self.repo.get(id)
+        if not item or not item.activo:
+            raise NotFoundError(entidad="GlobalLevelGradeMapping", id=id)
+
+        await self._validar(data, exclude_id=id)
+        await self.repo.update(
+            id,
+            {
+                "global_level_id": data.global_level_id,
+                "global_grade_id": data.global_grade_id,
+            },
+        )
+        return self._to_response(await self.repo.get_with_relaciones(id))
+
+    async def eliminar(self, id: int, current_user: Empleado) -> None:
+        _require_modulo(current_user, "eliminar equivalencias")
+        item = await self.repo.get(id)
+        if not item or not item.activo:
+            raise NotFoundError(entidad="GlobalLevelGradeMapping", id=id)
+        # Borrar una equivalencia no toca los perfiles que ya la usaron: su global
+        # grade quedo grabado en el perfil, no se deriva en cada lectura.
+        await self.repo.update(id, {"activo": False})
+
+    async def resolver(self, global_level_id: int) -> EquivalenciaResponse | None:
+        """Equivalencia activa del nivel, o None si RH no la ha configurado."""
+        item = await self.repo.get_activa_por_global_level(global_level_id)
+        return self._to_response(item) if item else None

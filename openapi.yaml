@@ -3697,6 +3697,7 @@ components:
             $ref: "#/components/schemas/BrechaItem"
 
     # ── Talento — Puestos Perfil ──────────────────────
+    # Global Level del perfil (P10, M3).
     GradoPerfilItem:
       type: object
       required: [id, nombre, orden]
@@ -3707,10 +3708,15 @@ components:
           type: string
         orden:
           type: integer
+        codigo:
+          type: [string, "null"]
+          description: Etiqueta corta del nivel (P10, M3)
+        career_path_codigo:
+          type: [string, "null"]
 
     PuestoPerfilCreate:
       type: object
-      required: [codigo, nombre, area_id, grado_ids]
+      required: [codigo, nombre, area_id, grado_ids, career_path_id, funcion_id, disciplina_id]
       properties:
         codigo:
           type: string
@@ -3730,12 +3736,37 @@ components:
           minItems: 1
           items:
             type: integer
-          description: Grados consecutivos del perfil (obligatorio)
+          description: >-
+            Global levels consecutivos del perfil, todos del mismo career path
+        career_path_id:
+          type: integer
+          minimum: 1
+          description: Clasificacion organizacional (obligatoria al crear)
+        funcion_id:
+          type: integer
+          minimum: 1
+        disciplina_id:
+          type: integer
+          minimum: 1
+          description: Debe pertenecer a la funcion seleccionada
+        global_grade_id:
+          type: [integer, "null"]
+          minimum: 1
+          description: >-
+            Se toma de la equivalencia configurada para el global level inicial.
+            Solo hay que enviarlo si no existe equivalencia.
+        estado:
+          type: string
+          enum: [activo, inactivo, en_revision]
+          default: activo
+        motivo_clasificacion:
+          type: [string, "null"]
+          description: Queda registrado en el historial de clasificacion
         tipo:
           type: string
           enum: [administrativo, operativo]
           default: administrativo
-          description: Clasificacion del puesto
+          description: Clasificacion operativa del puesto (no es la clasificacion WTW)
         descripcion:
           type: [string, "null"]
 
@@ -3759,11 +3790,28 @@ components:
           minItems: 1
           items:
             type: integer
+        career_path_id:
+          type: [integer, "null"]
+          minimum: 1
+        funcion_id:
+          type: [integer, "null"]
+          minimum: 1
+        disciplina_id:
+          type: [integer, "null"]
+          minimum: 1
+        global_grade_id:
+          type: [integer, "null"]
+          minimum: 1
+        estado:
+          type: [string, "null"]
+          enum: [activo, inactivo, en_revision, null]
+        motivo_clasificacion:
+          type: [string, "null"]
         tipo:
           type: string
           enum: [administrativo, operativo]
           default: administrativo
-          description: Clasificacion del puesto
+          description: Clasificacion operativa del puesto (no es la clasificacion WTW)
         descripcion:
           type: [string, "null"]
 
@@ -4056,6 +4104,194 @@ components:
         page:
           type: integer
         page_size:
+          type: integer
+
+    # Global Grade: clasificacion organizacional del puesto. NO representa sueldo,
+    # banda salarial ni compensacion; este sistema no administra esos conceptos.
+    GlobalGradeCreate:
+      type: object
+      required: [codigo, nombre, orden]
+      properties:
+        codigo:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: Ej. GG10. El formato lo define RH.
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+        descripcion:
+          type: string
+          nullable: true
+        orden:
+          type: integer
+          minimum: 1
+          maximum: 999
+
+    GlobalGradeUpdate:
+      $ref: "#/components/schemas/GlobalGradeCreate"
+
+    GlobalGradeResponse:
+      type: object
+      required: [id, codigo, nombre, orden, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+        nombre:
+          type: string
+        descripcion:
+          type: string
+          nullable: true
+        orden:
+          type: integer
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    GlobalGradeListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GlobalGradeResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    # Equivalencia configurable Global Level -> Global Grade. La define RH; el
+    # sistema nunca la deduce (P10 puede equivaler a GG08).
+    EquivalenciaCreate:
+      type: object
+      required: [global_level_id, global_grade_id]
+      properties:
+        global_level_id:
+          type: integer
+          minimum: 1
+        global_grade_id:
+          type: integer
+          minimum: 1
+
+    EquivalenciaUpdate:
+      $ref: "#/components/schemas/EquivalenciaCreate"
+
+    EquivalenciaResponse:
+      type: object
+      required: [id, global_level_id, global_grade_id, activo, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+        global_level_id:
+          type: integer
+        global_level_codigo:
+          type: string
+          nullable: true
+        global_level_nombre:
+          type: string
+          nullable: true
+        career_path_id:
+          type: integer
+          nullable: true
+        career_path_codigo:
+          type: string
+          nullable: true
+        career_path_nombre:
+          type: string
+          nullable: true
+        global_grade_id:
+          type: integer
+        global_grade_codigo:
+          type: string
+          nullable: true
+        global_grade_nombre:
+          type: string
+          nullable: true
+        activo:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    EquivalenciaListResponse:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EquivalenciaResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    ClasificacionCambioItem:
+      type: object
+      required: [campo, etiqueta]
+      properties:
+        campo:
+          type: string
+        etiqueta:
+          type: string
+        anterior:
+          type: string
+          nullable: true
+        nuevo:
+          type: string
+          nullable: true
+
+    ClasificacionHistorialItem:
+      type: object
+      required: [id, cambios, created_at]
+      properties:
+        id:
+          type: integer
+        version:
+          type: integer
+          nullable: true
+        cambios:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClasificacionCambioItem"
+        motivo:
+          type: string
+          nullable: true
+        changed_by:
+          type: integer
+          nullable: true
+        changed_by_nombre:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ClasificacionHistorialResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClasificacionHistorialItem"
+        total:
           type: integer
 
     CategoriaTareaCreate:
@@ -4509,6 +4745,40 @@ components:
           type: integer
         activo:
           type: boolean
+        career_path_id:
+          type: [integer, "null"]
+        career_path_codigo:
+          type: [string, "null"]
+        career_path_nombre:
+          type: [string, "null"]
+        funcion_id:
+          type: [integer, "null"]
+        funcion_nombre:
+          type: [string, "null"]
+        disciplina_id:
+          type: [integer, "null"]
+        disciplina_nombre:
+          type: [string, "null"]
+        global_grade_id:
+          type: [integer, "null"]
+        global_grade_codigo:
+          type: [string, "null"]
+        global_grade_nombre:
+          type: [string, "null"]
+        estado:
+          type: string
+          enum: [activo, inactivo, en_revision]
+          default: activo
+        clasificacion_completa:
+          type: boolean
+          description: Falso cuando faltan campos de la clasificacion organizacional
+        clasificado_por:
+          type: [string, "null"]
+          description: Solo se llena en el detalle, no en el listado
+        clasificado_en:
+          type: [string, "null"]
+          format: date-time
+          description: Solo se llena en el detalle, no en el listado
         created_by:
           type: [integer, "null"]
         updated_by:
@@ -11314,6 +11584,290 @@ paths:
         "409":
           description: En uso
 
+  /api/v1/clasificacion-puesto/global-grades:
+    get:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Listar global grades
+      operationId: global_grades_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 200
+        - name: busqueda
+          in: query
+          description: Busca por codigo o nombre
+          schema:
+            type: string
+        - name: solo_activos
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Pagina de global grades
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlobalGradeListResponse"
+    post:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Crear global grade
+      description: Solo RH. El codigo y el orden son unicos.
+      operationId: global_grades_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GlobalGradeCreate"
+      responses:
+        "201":
+          description: Global grade creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlobalGradeResponse"
+        "409":
+          description: Codigo u orden duplicado
+
+  /api/v1/clasificacion-puesto/global-grades/{id}:
+    get:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Obtener global grade
+      operationId: global_grades_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Global grade
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlobalGradeResponse"
+        "404":
+          description: No encontrado
+    patch:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Actualizar global grade
+      description: Solo RH.
+      operationId: global_grades_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GlobalGradeUpdate"
+      responses:
+        "200":
+          description: Global grade actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GlobalGradeResponse"
+    delete:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Desactivar global grade (soft delete)
+      description: Solo RH. Falla si algun perfil o equivalencia lo usa.
+      operationId: global_grades_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Global grade desactivado
+        "409":
+          description: En uso
+
+  /api/v1/clasificacion-puesto/equivalencias:
+    get:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Listar equivalencias Global Level - Global Grade
+      operationId: equivalencias_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 200
+            minimum: 1
+            maximum: 500
+        - name: career_path_id
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+        - name: solo_activos
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Pagina de equivalencias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquivalenciaListResponse"
+    post:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Configurar la equivalencia de un global level
+      description: Solo RH. Un global level solo puede tener una equivalencia.
+      operationId: equivalencias_create
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EquivalenciaCreate"
+      responses:
+        "201":
+          description: Equivalencia creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquivalenciaResponse"
+        "409":
+          description: El global level ya tiene equivalencia
+
+  /api/v1/clasificacion-puesto/equivalencias/resolver:
+    get:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Resolver el global grade de un global level
+      description: >-
+        Devuelve la equivalencia configurada por RH, o `null` si no existe.
+        `null` NO es un error: significa que el global grade debe capturarse a
+        mano. El sistema nunca deduce la correspondencia.
+      operationId: equivalencias_resolver
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: global_level_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Equivalencia configurada, o null
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/EquivalenciaResponse"
+                  - type: "null"
+
+  /api/v1/clasificacion-puesto/equivalencias/{id}:
+    get:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Obtener equivalencia
+      operationId: equivalencias_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Equivalencia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquivalenciaResponse"
+        "404":
+          description: No encontrada
+    patch:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Actualizar equivalencia
+      description: Solo RH.
+      operationId: equivalencias_update
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EquivalenciaUpdate"
+      responses:
+        "200":
+          description: Equivalencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquivalenciaResponse"
+    delete:
+      tags: [Talento - Clasificacion de Puesto]
+      summary: Desactivar equivalencia
+      description: >-
+        Solo RH. No toca los perfiles que ya la usaron: su global grade quedo
+        grabado en el perfil, no se deriva en cada lectura.
+      operationId: equivalencias_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Equivalencia desactivada
+
   # ── Talento — Categorias de Tarea ─────────────────────────────────────────
   /api/v1/categorias-tarea:
     get:
@@ -12626,6 +13180,40 @@ paths:
       responses:
         "204":
           description: Perfil eliminado
+
+  /api/v1/puestos-perfil/{id}/clasificacion-historial:
+    get:
+      tags: [Talento - Puestos Perfil]
+      summary: Bitacora de clasificacion del perfil
+      description: >-
+        Eventos de la clasificacion organizacional, del mas reciente al mas
+        antiguo. Cada uno trae el diff (campo, valor anterior, valor nuevo), el
+        motivo, el usuario y la fecha.
+      operationId: puestos_perfil_clasificacion_historial
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 500
+      responses:
+        "200":
+          description: Bitacora de clasificacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClasificacionHistorialResponse"
+        "404":
+          description: Perfil no encontrado
 
   /api/v1/puestos-perfil/{id}/generar-ia:
     post:

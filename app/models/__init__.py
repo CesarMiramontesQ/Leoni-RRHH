@@ -41,6 +41,8 @@ from app.models.clasificacion_puesto import (
     CategoriaTarea,
     DisciplinaPuesto,
     FuncionPuesto,
+    GlobalGrade,
+    GlobalLevelGradeMapping,
     PuestoPerfilClasificacionHistorial,
 )
 from app.models.talento import (
@@ -181,6 +183,8 @@ __all__ = [
     "FuncionPuesto",
     "DisciplinaPuesto",
     "CategoriaTarea",
+    "GlobalGrade",
+    "GlobalLevelGradeMapping",
     "PuestoPerfilClasificacionHistorial",
     "GradoPuesto",
     "PuestoPerfilGrado",

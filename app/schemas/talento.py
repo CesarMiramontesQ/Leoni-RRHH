@@ -19,9 +19,16 @@ TipoPuestoPerfil = Literal["administrativo", "operativo"]
 
 
 class GradoPerfilItem(BaseModel):
+    """Global Level del perfil (P10, M3)."""
+
     id: int
     nombre: str
     orden: int
+    codigo: Optional[str] = None
+    career_path_codigo: Optional[str] = None
+
+
+EstadoPuestoPerfil = Literal["activo", "inactivo", "en_revision"]
 
 
 class PuestoPerfilCreate(BaseModel):
@@ -31,22 +38,54 @@ class PuestoPerfilCreate(BaseModel):
     nombre: str = Field(..., min_length=3, max_length=255)
     area_id: int = Field(..., gt=0, description="Area del perfil (obligatoria)")
     grado_ids: list[int] = Field(
-        ..., min_length=1, description="Grados consecutivos del perfil (obligatorio)"
+        ...,
+        min_length=1,
+        description="Global levels consecutivos del perfil, todos del mismo career path",
+    )
+    # ── Clasificacion organizacional (obligatoria al crear) ───────────────────
+    career_path_id: int = Field(..., gt=0)
+    funcion_id: int = Field(..., gt=0)
+    disciplina_id: int = Field(..., gt=0)
+    global_grade_id: Optional[int] = Field(
+        None,
+        gt=0,
+        description=(
+            "Se toma de la equivalencia configurada para el global level inicial. "
+            "Solo hay que enviarlo si no existe equivalencia."
+        ),
+    )
+    estado: Optional[EstadoPuestoPerfil] = None
+    motivo_clasificacion: Optional[str] = Field(
+        None, description="Queda registrado en el historial de clasificacion"
     )
     tipo: TipoPuestoPerfil = Field(
         default="administrativo",
-        description="Clasificacion del puesto: administrativo u operativo",
+        description="Clasificacion operativa del puesto: administrativo u operativo",
     )
     descripcion: Optional[str] = None
 
 
 class PuestoPerfilUpdate(BaseModel):
+    """
+    Actualizacion parcial.
+
+    La clasificacion es opcional a proposito: los perfiles anteriores a la
+    metodologia WTW se pueden seguir editando sin completarla, y se marcan como
+    pendientes en la UI.
+    """
+
     model_config = {"str_strip_whitespace": True}
 
     codigo: Optional[str] = Field(None, min_length=1, max_length=20)
     nombre: Optional[str] = Field(None, min_length=3, max_length=255)
     area_id: Optional[int] = Field(None, gt=0)
     grado_ids: Optional[list[int]] = Field(None, min_length=1)
+    career_path_id: Optional[int] = Field(None, gt=0)
+    funcion_id: Optional[int] = Field(None, gt=0)
+    disciplina_id: Optional[int] = Field(None, gt=0)
+    global_grade_id: Optional[int] = Field(None, gt=0)
+    estado: Optional[EstadoPuestoPerfil] = None
+    motivo_clasificacion: Optional[str] = None
     tipo: Optional[TipoPuestoPerfil] = None
     descripcion: Optional[str] = None
 
@@ -64,10 +103,51 @@ class PuestoPerfilResponse(BaseModel):
     descripcion: Optional[str] = None
     version: int
     activo: bool
+    # ── Clasificacion organizacional ─────────────────────────────────────────
+    career_path_id: Optional[int] = None
+    career_path_codigo: Optional[str] = None
+    career_path_nombre: Optional[str] = None
+    funcion_id: Optional[int] = None
+    funcion_nombre: Optional[str] = None
+    disciplina_id: Optional[int] = None
+    disciplina_nombre: Optional[str] = None
+    global_grade_id: Optional[int] = None
+    global_grade_codigo: Optional[str] = None
+    global_grade_nombre: Optional[str] = None
+    estado: EstadoPuestoPerfil = "activo"
+    clasificacion_completa: bool = False
+    # Solo se llenan en el detalle: sacarlos en el listado costaria una consulta
+    # de historial por fila.
+    clasificado_por: Optional[str] = None
+    clasificado_en: Optional[datetime] = None
     created_by: Optional[int] = None
     updated_by: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+
+
+class ClasificacionCambioItem(BaseModel):
+    """Un campo que se movio en un evento de clasificacion."""
+
+    campo: str
+    etiqueta: str
+    anterior: Optional[str] = None
+    nuevo: Optional[str] = None
+
+
+class ClasificacionHistorialItem(BaseModel):
+    id: int
+    version: Optional[int] = None
+    cambios: list[ClasificacionCambioItem] = []
+    motivo: Optional[str] = None
+    changed_by: Optional[int] = None
+    changed_by_nombre: Optional[str] = None
+    created_at: datetime
+
+
+class ClasificacionHistorialResponse(BaseModel):
+    items: list[ClasificacionHistorialItem]
+    total: int
 
 
 class PuestoPerfilListResponse(BaseModel):
