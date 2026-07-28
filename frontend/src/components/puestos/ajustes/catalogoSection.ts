@@ -12,6 +12,7 @@
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import {
   BTN_DANGER,
+  FIELD_FOCUS,
   RH_LISTADO_BTN_PRIMARY,
   RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_LABEL,
@@ -93,6 +94,15 @@ export type CatalogoSectionConfig<T extends CatalogoItem> = {
   alCambiar?: () => void;
 };
 
+/**
+ * A partir de cuantas filas aparece el buscador de la card.
+ *
+ * Por debajo de esto la tabla se recorre de un vistazo y el campo solo robaria
+ * espacio; por encima, la altura esta acotada y el scroll no deberia ser la
+ * unica forma de llegar a una fila.
+ */
+const FILAS_PARA_BUSCADOR = 8;
+
 type ModalMode = "create" | "edit" | "delete" | null;
 
 function detalleError(e: unknown, fallback: string): string {
@@ -109,6 +119,7 @@ export function mountCatalogoSection<T extends CatalogoItem>(
   config: CatalogoSectionConfig<T>,
 ): { recargar: () => Promise<void> } {
   const attr = `data-${config.key}-action`;
+  const attrFiltro = `data-${config.key}-filtro`;
   const attrModal = `data-${config.key}-modal`;
   // dataset normaliza kebab-case a camelCase: data-career-path-action -> careerPathAction
   const dsAction = `${config.key.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())}Action`;
@@ -123,6 +134,27 @@ export function mountCatalogoSection<T extends CatalogoItem>(
   let valores: Record<string, string> = {};
   let deletingItem: T | null = null;
   let modalError = "";
+  let filtro = "";
+
+  /** Filas visibles: filtra por el texto de las columnas ya renderizadas. */
+  function itemsVisibles(): T[] {
+    const q = filtro.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) =>
+      config.columnas.some((c) => c.valor(item).toLowerCase().includes(q)),
+    );
+  }
+
+  function renderBuscador(): string {
+    if (items.length < FILAS_PARA_BUSCADOR) return "";
+    return `<div class="border-b border-slate-100 px-4 py-2.5 sm:px-5">
+      <label for="${config.key}-filtro" class="sr-only">Buscar ${escapeHtml(config.singular)}</label>
+      <input id="${config.key}-filtro" type="search" ${attrFiltro}
+        value="${escapeHtml(filtro)}" autocomplete="off"
+        placeholder="Buscar entre ${items.length}…"
+        class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted ${FIELD_FOCUS}" />
+    </div>`;
+  }
 
   const botonNuevo = (extraClase = "") =>
     `<button type="button" ${attr}="create" class="${RH_LISTADO_BTN_PRIMARY} ${extraClase}">${AJUSTES_ICON_PLUS}<span>Nuevo ${escapeHtml(config.singular)}</span></button>`;
@@ -136,10 +168,18 @@ export function mountCatalogoSection<T extends CatalogoItem>(
 
     if (items.length === 0) return ajustesEmptyState(config.emptyMessage, botonNuevo());
 
+    const visibles = itemsVisibles();
+    if (visibles.length === 0) {
+      return (
+        renderBuscador() +
+        ajustesEmptyState(`Ningún resultado para “${filtro.trim()}”.`)
+      );
+    }
+
     const encabezados = config.columnas
       .map((c) => `<th scope="col" class="${AJUSTES_TABLE_TH}">${escapeHtml(c.header)}</th>`)
       .join("");
-    const filas = items
+    const filas = visibles
       .map((item) => {
         const celdas = config.columnas
           .map(
@@ -160,7 +200,9 @@ export function mountCatalogoSection<T extends CatalogoItem>(
       })
       .join("");
 
-    return ajustesTableWrap(`
+    return (
+      renderBuscador() +
+      ajustesTableWrap(`
         <table class="min-w-full text-left">
           <thead>
             <tr class="border-b border-slate-100">
@@ -169,7 +211,8 @@ export function mountCatalogoSection<T extends CatalogoItem>(
             </tr>
           </thead>
           <tbody>${filas}</tbody>
-        </table>`);
+        </table>`)
+    );
   }
 
   function renderCampo(campo: CatalogoCampo): string {
@@ -274,7 +317,7 @@ export function mountCatalogoSection<T extends CatalogoItem>(
         iconHtml: config.iconHtml,
         badgeHtml: loading ? ajustesCountBadge(0, true) : ajustesCountBadge(items.length),
         actionButtonHtml: bloqueado ? "" : botonNuevo("shrink-0"),
-        bodyHtml: renderTable(),
+        bodyHtml: `<div data-catalogo-body>${renderTable()}</div>`,
       }) + renderModal();
   }
 
@@ -363,6 +406,31 @@ export function mountCatalogoSection<T extends CatalogoItem>(
       if (!select || !modalMode || modalMode === "delete") return;
       capturarFormulario();
       paint();
+    },
+    { signal },
+  );
+
+  sectionEl.addEventListener(
+    "input",
+    (ev) => {
+      const input = (ev.target as HTMLElement).closest(
+        `[${attrFiltro}]`,
+      ) as HTMLInputElement | null;
+      if (!input) return;
+      filtro = input.value;
+      // Se repinta solo el cuerpo: un `paint()` completo recrearia el input y
+      // el foco saltaria al primer caracter escrito.
+      const cuerpo = sectionEl.querySelector<HTMLElement>("[data-catalogo-body]");
+      const scroll = cuerpo?.querySelector<HTMLElement>(".ajustes-table-scroll");
+      if (!cuerpo) return;
+      const seguiaEnfocado = document.activeElement === input;
+      cuerpo.innerHTML = renderTable();
+      if (scroll) scroll.scrollTop = 0;
+      if (seguiaEnfocado) {
+        const nuevo = sectionEl.querySelector<HTMLInputElement>(`[${attrFiltro}]`);
+        nuevo?.focus();
+        nuevo?.setSelectionRange(nuevo.value.length, nuevo.value.length);
+      }
     },
     { signal },
   );

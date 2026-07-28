@@ -11,6 +11,7 @@ import type { GradoPuesto, GradoPuestoFetchError } from "../../../dashboard/grad
 import { escapeHtml } from "../../../ui/uiUtils.ts";
 import {
   BTN_DANGER,
+  FIELD_FOCUS,
   RH_LISTADO_BTN_PRIMARY,
   RH_LISTADO_BTN_SECONDARY,
   RH_LISTADO_LABEL,
@@ -55,6 +56,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   let editingOrden = 1;
   let deletingItem: GradoPuesto | null = null;
   let modalError = "";
+  let filtro = "";
 
   function careerPathLabel(g: GradoPuesto): string {
     return g.career_path_nombre ?? g.career_path_codigo ?? "—";
@@ -71,6 +73,29 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     return path ? `${path.codigo}${orden}` : "";
   }
 
+  /** Mismo umbral y comportamiento que el buscador de `catalogoSection`. */
+  const FILAS_PARA_BUSCADOR = 8;
+
+  function itemsVisibles(): GradoPuesto[] {
+    const q = filtro.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((g) =>
+      [g.codigo, g.nombre, careerPathLabel(g)].some((v) =>
+        (v ?? "").toLowerCase().includes(q),
+      ),
+    );
+  }
+
+  function renderBuscador(): string {
+    if (items.length < FILAS_PARA_BUSCADOR) return "";
+    return `<div class="border-b border-slate-100 px-4 py-2.5 sm:px-5">
+      <label for="grado-filtro" class="sr-only">Buscar global level</label>
+      <input id="grado-filtro" type="search" data-grado-filtro value="${escapeHtml(filtro)}"
+        autocomplete="off" placeholder="Buscar entre ${items.length}…"
+        class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted ${FIELD_FOCUS}" />
+    </div>`;
+  }
+
   function renderTable(): string {
     if (loading) return ajustesLoadingState("Cargando global levels…");
     if (error) return ajustesErrorAlert(error);
@@ -84,7 +109,14 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
         "No hay global levels registrados. Crea el primero.",
         `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY}">${AJUSTES_ICON_PLUS}<span>Nuevo global level</span></button>`,
       );
-    const rows = items
+    const visibles = itemsVisibles();
+    if (visibles.length === 0) {
+      return (
+        renderBuscador() +
+        ajustesEmptyState(`Ningún resultado para “${filtro.trim()}”.`)
+      );
+    }
+    const rows = visibles
       .map(
         (g) => `
       <tr class="border-b border-slate-100/90">
@@ -101,7 +133,9 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       </tr>`,
       )
       .join("");
-    return ajustesTableWrap(`
+    return (
+      renderBuscador() +
+      ajustesTableWrap(`
         <table class="min-w-full text-left">
           <thead>
             <tr class="border-b border-slate-100">
@@ -113,7 +147,8 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
             </tr>
           </thead>
           <tbody>${rows}</tbody>
-        </table>`);
+        </table>`)
+    );
   }
 
   function renderCareerPathOptions(): string {
@@ -201,7 +236,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
         actionButtonHtml: sinCareerPaths
           ? ""
           : `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo global level</span></button>`,
-        bodyHtml: renderTable(),
+        bodyHtml: `<div data-grados-body>${renderTable()}</div>`,
       }) + renderModal();
   }
 
@@ -302,6 +337,25 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       const form = sectionEl.querySelector<HTMLFormElement>("#grado-form");
       editingNombre = String(new FormData(form!).get("nombre") ?? editingNombre);
       paint();
+    },
+    { signal },
+  );
+
+  sectionEl.addEventListener(
+    "input",
+    (ev) => {
+      const input = (ev.target as HTMLElement).closest(
+        "[data-grado-filtro]",
+      ) as HTMLInputElement | null;
+      if (!input) return;
+      filtro = input.value;
+      // Repintar todo recrearia el input y el foco saltaria al primer caracter.
+      const cuerpo = sectionEl.querySelector<HTMLElement>("[data-grados-body]");
+      if (!cuerpo) return;
+      cuerpo.innerHTML = renderTable();
+      const nuevo = sectionEl.querySelector<HTMLInputElement>("[data-grado-filtro]");
+      nuevo?.focus();
+      nuevo?.setSelectionRange(nuevo.value.length, nuevo.value.length);
     },
     { signal },
   );

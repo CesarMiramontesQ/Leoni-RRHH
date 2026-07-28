@@ -107,19 +107,41 @@ function renderTabIntro(tab: (typeof TABS)[number]): string {
     </div>`;
 }
 
+/**
+ * Encabezado de una columna de catálogos.
+ *
+ * No es una card: es una etiqueta de agrupación, así que se mantiene ligera
+ * (sin superficie ni borde) para no competir con las cards que ordena.
+ */
+function renderColumnaTitulo(titulo: string, descripcion: string): string {
+  return `<div class="px-1">
+    <h3 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">${escapeHtml(titulo)}</h3>
+    <p class="mt-0.5 text-xs text-text-muted">${escapeHtml(descripcion)}</p>
+  </div>`;
+}
+
 function renderPanel(tabId: TabId, activeTab: TabId): string {
   const tab = TABS.find((t) => t.id === tabId)!;
   let body = "";
   if (tabId === "clasificacion") {
-    body = `<div class="flex flex-col gap-5">
-      <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <div id="puestos-ajustes-career-paths" class="min-w-0"></div>
+    // Los seis catálogos son dos cadenas independientes, y la pantalla lo dice:
+    //   qué es el puesto   → Función → Disciplina
+    //   cuánto pesa        → Career Path → Global Level → Global Grade → equivalencia
+    // Cada columna se lee de arriba abajo en el orden en que se captura, y en
+    // pantallas anchas dejan de apilarse seis cards a lo largo.
+    body = `<div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+      <div class="flex min-w-0 flex-col gap-5">
+        ${renderColumnaTitulo("Qué es el puesto", "Familia de puesto y su especialidad.")}
         <div id="puestos-ajustes-funciones" class="min-w-0"></div>
+        <div id="puestos-ajustes-disciplinas" class="min-w-0"></div>
       </div>
-      <div id="puestos-ajustes-disciplinas" class="min-w-0"></div>
-      <div id="puestos-ajustes-grados" class="min-w-0"></div>
-      <div id="puestos-ajustes-global-grades" class="min-w-0"></div>
-      <div id="puestos-ajustes-equivalencias" class="min-w-0"></div>
+      <div class="flex min-w-0 flex-col gap-5">
+        ${renderColumnaTitulo("Cuánto pesa el puesto", "Trayectoria, nivel y su grado organizacional.")}
+        <div id="puestos-ajustes-career-paths" class="min-w-0"></div>
+        <div id="puestos-ajustes-grados" class="min-w-0"></div>
+        <div id="puestos-ajustes-global-grades" class="min-w-0"></div>
+        <div id="puestos-ajustes-equivalencias" class="min-w-0"></div>
+      </div>
     </div>`;
   } else if (tabId === "tareas") {
     body = `<div id="puestos-ajustes-categorias-tarea" class="min-w-0"></div>`;

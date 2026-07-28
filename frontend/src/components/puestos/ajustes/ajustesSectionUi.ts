@@ -98,8 +98,20 @@ export function ajustesSectionCard(opts: {
     </section>`;
 }
 
+/**
+ * Contenedor de tabla de una card de ajustes.
+ *
+ * En la pantalla de perfiles de puesto la altura queda acotada y el `thead` fijo
+ * (ver `.ajustes-table-scroll` en `style.css`): sin el tope, cada card crecía con
+ * sus datos y llegar a la siguiente exigía recorrer media página. El tope solo
+ * actúa cuando el contenido lo excede, así que los catálogos cortos se ven igual.
+ *
+ * `overflow-x-auto` se mantiene en el elemento para que las demás pantallas que
+ * reusan este helper (Ajustes de cursos) conserven el scroll horizontal: la regla
+ * de altura está acotada por id y no las alcanza.
+ */
 export function ajustesTableWrap(tableHtml: string): string {
-  return `<div class="overflow-x-auto">${tableHtml}</div>`;
+  return `<div class="ajustes-table-scroll overflow-x-auto">${tableHtml}</div>`;
 }
 
 /** Disparado cuando cambia el catálogo de métodos de calificación (cualificaciones). */
