@@ -23,6 +23,9 @@ class GrupoCompetenciaResponse(BaseModel):
 
     id: int
     nombre: str
+    # Identidad estable de la categoria: es el valor que se guarda en
+    # `Competencia.categoria`. Se deriva del nombre al crear y no cambia al renombrar.
+    codigo: str
     activo: bool
     created_at: datetime
     updated_at: datetime

@@ -23,6 +23,10 @@ async function readErrorDetail(res: Response): Promise<string> {
 function mapGrado(raw: Record<string, unknown>): GradoPuesto {
   return {
     id: raw.id as number,
+    career_path_id: (raw.career_path_id ?? 0) as number,
+    career_path_codigo: (raw.career_path_codigo ?? null) as string | null,
+    career_path_nombre: (raw.career_path_nombre ?? null) as string | null,
+    codigo: (raw.codigo ?? "") as string,
     nombre: (raw.nombre ?? "") as string,
     orden: (raw.orden ?? 0) as number,
     activo: (raw.activo ?? true) as boolean,
@@ -36,18 +40,28 @@ export async function getGradosPuesto(opts?: {
   page?: number;
   page_size?: number;
   busqueda?: string;
+  career_path_id?: number;
 }): Promise<GradoPuesto[]> {
   const qs = new URLSearchParams();
   qs.set("page", String(opts?.page ?? 1));
   qs.set("page_size", String(opts?.page_size ?? 200));
   if (opts?.busqueda?.trim()) qs.set("busqueda", opts.busqueda.trim());
+  if (opts?.career_path_id) qs.set("career_path_id", String(opts.career_path_id));
   const res = await fetchWithAuth(`/api/v1/grados-puesto?${qs}`);
   if (!res.ok) {
     throw { status: res.status, detail: await readErrorDetail(res) } as GradoPuestoFetchError;
   }
   const data = await res.json();
   const items = (data.items ?? data) as Record<string, unknown>[];
-  return items.map(mapGrado).sort((a, b) => a.orden - b.orden);
+  // Los niveles solo son comparables dentro de su career path: primero se agrupa
+  // por path y dentro de cada uno se ordena por `orden`.
+  return items
+    .map(mapGrado)
+    .sort(
+      (a, b) =>
+        (a.career_path_codigo ?? "").localeCompare(b.career_path_codigo ?? "") ||
+        a.orden - b.orden,
+    );
 }
 
 /** POST /api/v1/grados-puesto */

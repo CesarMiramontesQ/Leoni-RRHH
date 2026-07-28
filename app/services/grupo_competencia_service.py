@@ -15,7 +15,7 @@ from app.schemas.grupos_competencia import (
     GrupoCompetenciaResponse,
     GrupoCompetenciaUpdate,
 )
-from app.utils.competencia_categoria import categoria_desde_grupo_nombre
+from app.utils.competencia_categoria import slug_codigo_grupo
 
 
 class GrupoCompetenciaService:
@@ -33,10 +33,27 @@ class GrupoCompetenciaService:
         return GrupoCompetenciaResponse(
             id=grupo.id,
             nombre=grupo.nombre,
+            codigo=grupo.codigo,
             activo=grupo.activo,
             created_at=grupo.created_at,
             updated_at=grupo.updated_at,
         )
+
+    async def _codigo_libre(self, nombre: str) -> str:
+        """
+        Deriva un codigo unico desde el nombre.
+
+        El codigo es la identidad estable de la categoria: es lo que se guarda en
+        `Competencia.categoria`, asi que se asigna al crear y NO cambia si luego
+        se renombra el grupo.
+        """
+        base = slug_codigo_grupo(nombre)
+        codigo = base
+        sufijo = 2
+        while await self.repo.exists_by_codigo(codigo):
+            codigo = f"{base[:27]}-{sufijo}"
+            sufijo += 1
+        return codigo
 
     async def listar(
         self,
@@ -79,6 +96,7 @@ class GrupoCompetenciaService:
         grupo = await self.repo.create(
             {
                 "nombre": data.nombre,
+                "codigo": await self._codigo_libre(data.nombre),
                 "activo": True,
             }
         )
@@ -103,8 +121,12 @@ class GrupoCompetenciaService:
         await self.repo.update(id, {"nombre": data.nombre})
         grupo = await self.repo.get(id)
         if grupo:
-            categoria = categoria_desde_grupo_nombre(grupo.nombre)
-            await self.competencia_repo.actualizar_categoria_por_grupo(grupo.id, categoria)
+            # Renombrar la categoria no cambia su codigo, asi que las competencias
+            # conservan el suyo. La llamada se mantiene por idempotencia: repara
+            # cualquier fila que haya quedado desalineada.
+            await self.competencia_repo.actualizar_categoria_por_grupo(
+                grupo.id, grupo.codigo
+            )
         return self._to_response(grupo)
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:

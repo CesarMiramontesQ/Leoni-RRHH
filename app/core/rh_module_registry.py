@@ -296,7 +296,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
         group="Talento",
         nav_item_ids=("tareas-catalogo",),
         hash_prefixes=("#/tareas-catalogo",),
-        api_prefixes=("/api/v1/tareas-catalogo",),
+        api_prefixes=("/api/v1/tareas-catalogo", "/api/v1/categorias-tarea"),
     ),
     "puestos-ajustes": RhModuleDef(
         key="puestos-ajustes",
@@ -306,6 +306,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/puestos/ajustes",),
         api_prefixes=(
             "/api/v1/grados-puesto",
+            "/api/v1/clasificacion-puesto",
             "/api/v1/metodos-calificacion-competencia",
             "/api/v1/grupos-competencia",
             "/api/v1/tipos-competencia",

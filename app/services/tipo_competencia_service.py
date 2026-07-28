@@ -16,7 +16,6 @@ from app.schemas.tipos_competencia import (
     TipoCompetenciaUpdate,
 )
 from app.services.grupo_competencia_service import GrupoCompetenciaService
-from app.utils.competencia_categoria import categoria_desde_grupo_nombre
 
 
 class TipoCompetenciaService:
@@ -123,7 +122,7 @@ class TipoCompetenciaService:
         )
         tipo = await self.repo.get_with_grupo(id)
         if tipo and tipo.grupo_competencia:
-            categoria = categoria_desde_grupo_nombre(tipo.grupo_competencia.nombre)
+            categoria = tipo.grupo_competencia.codigo
             await self.competencia_repo.actualizar_categoria_por_tipo(tipo.id, categoria)
         return self._to_response(tipo)
 

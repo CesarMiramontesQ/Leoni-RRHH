@@ -1514,6 +1514,58 @@ Filas de resultados como `<label>` clickeable: checkbox/radio + avatar `size-9` 
 
 ---
 
+## 15.6 Catálogos de Ajustes — Sección reutilizable
+
+Los catálogos de `#/puestos/ajustes` (career paths, funciones, disciplinas, global levels,
+categorías de tarea, grupos y tipos de competencia) son **la misma pantalla**: card con
+header + tabla + modal de alta/edición + confirmación de borrado. Ese comportamiento vive en
+`frontend/src/components/puestos/ajustes/catalogoSection.ts` (`mountCatalogoSection`), y los
+estilos en `ajustesSectionUi.ts`.
+
+**No dupliques la sección entera para un catálogo nuevo.** Declara su configuración:
+
+```ts
+mountCatalogoSection<MiEntidad>(sectionEl, signal, {
+  key: "mi-entidad",        // prefijo de data-attributes e ids del DOM
+  title, titleId, description, iconHtml,
+  singular: "mi entidad",   // usado en botones y títulos de modal
+  emptyMessage,
+  columnas: [{ header: "Nombre", valor: (i) => i.nombre, clase: "font-medium" }],
+  campos: [{ tipo: "texto", name: "nombre", label: "Nombre", minLength: 2 }],
+  valoresNuevo, valoresEdicion, etiqueta,
+  cargar, crear, actualizar, eliminar,
+  validar,                  // mensaje de error o null
+  bloqueo,                  // mensaje si falta un requisito previo (ver abajo)
+});
+```
+
+### 15.6.1 Reglas de la sección de catálogo
+
+- **Campos**: `tipo: "texto" | "numero" | "select"`. Dos campos consecutivos con
+  `ancho: "medio"` se emparejan en `sm:grid-cols-2`; el resto ocupa el ancho completo.
+  El chevron de los `select` sale de `SELECT_CHEVRON`, nunca se dibuja a mano.
+- **Dependencias entre catálogos**: cuando un catálogo no puede existir sin otro
+  (una disciplina necesita una función; un global level necesita un career path), se usa
+  `bloqueo()`. Devuelve un mensaje y la sección muestra un empty state explicativo **y oculta
+  el botón de alta**, en vez de dejar al usuario abrir un formulario que va a fallar.
+- **Sincronía entre cards**: si dar de alta en una card cambia el select de otra, se emite un
+  evento en `document` (`AJUSTES_CLASIFICACION_CHANGED`) y la card dependiente se recarga.
+  Mismo patrón que `AJUSTES_GRUPOS_COMPETENCIA_CHANGED`.
+- **Conflictos del backend**: los 409 ("está en uso", "duplicado") se muestran tal cual dentro
+  del modal con `ajustesModalError`; no se traducen ni se resumen.
+- Los listeners se registran con `{ signal }` y el modal se pinta dentro de la sección.
+
+### 15.6.2 Tabs de la página de ajustes
+
+`#/puestos/ajustes` agrupa los catálogos por dominio, no por tabla: **Clasificación**
+(career paths · funciones · disciplinas · global levels), **Competencias**, **Tareas**,
+**Cualificaciones**. La primera tab es la que define la identidad del puesto.
+
+Las tabs de esta página usan píldoras (`tabButtonClass` local), no el subrayado de §8.9 —
+es una excepción documentada. Una página nueva debe usar `renderTabNav` de `uiTokens.ts`.
+
+---
+
 ## 16. Stitch Screens Reference
 
 ### Original — HCM Platform (project `1746412759455982581`)
