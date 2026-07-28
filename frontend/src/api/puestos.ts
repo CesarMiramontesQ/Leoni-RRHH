@@ -261,6 +261,16 @@ export async function generateAi(id: number): Promise<GenerateAiResponse> {
 
 // ── Tareas ───────────────────────────────────────────────────────────────────
 
+/** Valores fijos validados en backend; no son catálogo editable. */
+export type PrioridadTarea = "alta" | "media" | "baja";
+export type FrecuenciaTarea =
+  | "diaria"
+  | "semanal"
+  | "mensual"
+  | "trimestral"
+  | "anual"
+  | "eventual";
+
 export type PerfilTarea = {
   id: number;
   orden: number;
@@ -271,7 +281,32 @@ export type PerfilTarea = {
   grado_id: number | null;
   grado_nombre: string | null;
   es_general: boolean;
+  categoria_tarea_id: number | null;
+  categoria_tarea_nombre: string | null;
+  prioridad: PrioridadTarea | null;
+  frecuencia: FrecuenciaTarea | null;
+  /** Porcentaje del tiempo del puesto. La suma no es bloqueante. */
+  porcentaje_dedicacion: number | null;
 };
+
+/** Suma de dedicación de un alcance del perfil (general o un global level). */
+export type DedicacionAlcance = {
+  grado_id: number | null;
+  grado_nombre: string | null;
+  es_general: boolean;
+  total_porcentaje: number;
+  tareas_con_porcentaje: number;
+  tareas_sin_porcentaje: number;
+};
+
+/** GET /api/v1/perfiles/:id/tareas/dedicacion */
+export async function getDedicacionPerfil(
+  perfilId: number,
+): Promise<DedicacionAlcance[]> {
+  const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/dedicacion`);
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  return (await res.json()) as DedicacionAlcance[];
+}
 
 /** GET /api/v1/perfiles/:id/tareas */
 export async function getPerfilTareas(
@@ -295,6 +330,10 @@ export async function createPerfilTarea(
     es_complemento?: boolean;
     tarea_catalogo_id?: number;
     grado_id?: number | null;
+    categoria_tarea_id?: number | null;
+    prioridad?: PrioridadTarea | null;
+    frecuencia?: FrecuenciaTarea | null;
+    porcentaje_dedicacion?: number | null;
   },
 ): Promise<PerfilTarea> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas`, {
@@ -315,6 +354,10 @@ export async function updatePerfilTarea(
     orden?: number;
     es_complemento?: boolean;
     grado_id?: number | null;
+    categoria_tarea_id?: number | null;
+    prioridad?: PrioridadTarea | null;
+    frecuencia?: FrecuenciaTarea | null;
+    porcentaje_dedicacion?: number | null;
   },
 ): Promise<PerfilTarea> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/tareas/${tareaId}`, {
@@ -429,6 +472,8 @@ export type PerfilCompetencia = {
   grado_nombre: string | null;
   es_general: boolean;
   nivel_requerido: number;
+  /** Qué acredita el nivel requerido en este puesto. Opcional. */
+  evidencia: string | null;
   orden: number | null;
 };
 
@@ -448,7 +493,12 @@ export async function getPerfilCompetencias(
 /** POST /api/v1/perfiles/:id/competencias — agrega competencia del catálogo */
 export async function createPerfilCompetencia(
   perfilId: number,
-  body: { competencia_id: number; grado_id?: number | null; nivel_requerido: number },
+  body: {
+    competencia_id: number;
+    grado_id?: number | null;
+    nivel_requerido: number;
+    evidencia?: string | null;
+  },
 ): Promise<PerfilCompetencia> {
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias`, {
     method: "POST",
@@ -462,6 +512,8 @@ export async function createPerfilCompetencia(
 export type PerfilCompetenciaSyncItem = {
   competencia_id: number;
   nivel_requerido: number;
+  /** Omitir para conservar la evidencia ya capturada. */
+  evidencia?: string | null;
 };
 
 /** PUT /api/v1/perfiles/:id/competencias/sync — sync multi-select por categoría */
@@ -482,16 +534,24 @@ export async function syncPerfilCompetencias(
   return (await res.json()) as PerfilCompetencia[];
 }
 
-/** PATCH /api/v1/perfiles/:id/competencias/:requisitoId — actualiza nivel requerido */
+/**
+ * PATCH /api/v1/perfiles/:id/competencias/:requisitoId
+ *
+ * Actualiza el nivel requerido y, si se pasa, la evidencia. Omitir `evidencia`
+ * conserva la ya capturada.
+ */
 export async function updatePerfilCompetenciaNivel(
   perfilId: number,
   requisitoId: number,
   nivel_requerido: number,
+  evidencia?: string | null,
 ): Promise<PerfilCompetencia> {
+  const body: Record<string, unknown> = { nivel_requerido };
+  if (evidencia !== undefined) body.evidencia = evidencia;
   const res = await fetchWithAuth(`/api/v1/perfiles/${perfilId}/competencias/${requisitoId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nivel_requerido }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return (await res.json()) as PerfilCompetencia;

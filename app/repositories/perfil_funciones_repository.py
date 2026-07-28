@@ -21,6 +21,7 @@ from app.models.talento import (
     PerfilFuncionesCompetencia,
     PerfilFuncionesTarea,
     PerfilTarea,
+    TareaCatalogo,
 )
 from app.repositories.base import BaseRepository
 
@@ -42,8 +43,13 @@ class PerfilTareaRepository(BaseRepository[PerfilTarea]):
         query = (
             select(PerfilTarea)
             .options(
-                selectinload(PerfilTarea.tarea_catalogo),
+                # La categoria y el catalogo se denormalizan en el response; leerlos
+                # en lazy dentro de una sesion async revienta con MissingGreenlet.
+                selectinload(PerfilTarea.tarea_catalogo).selectinload(
+                    TareaCatalogo.categoria_tarea
+                ),
                 selectinload(PerfilTarea.grado),
+                selectinload(PerfilTarea.categoria_tarea),
             )
             .where(PerfilTarea.puesto_perfil_id == puesto_perfil_id)
         )

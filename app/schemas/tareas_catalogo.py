@@ -12,7 +12,7 @@ class TareaCatalogoCreate(BaseModel):
 
     nombre: str = Field(..., min_length=2, max_length=255)
     descripcion: Optional[str] = Field(None, min_length=1)
-    categoria: Optional[str] = Field(None, max_length=50)
+    categoria_tarea_id: Optional[int] = Field(None, gt=0)
     es_complemento: bool = False
 
 
@@ -21,7 +21,9 @@ class TareaCatalogoUpdate(BaseModel):
 
     nombre: Optional[str] = Field(None, min_length=2, max_length=255)
     descripcion: Optional[str] = Field(None, min_length=1)
-    categoria: Optional[str] = Field(None, max_length=50)
+    categoria_tarea_id: Optional[int] = Field(
+        None, description="Null = quitar la categoria; omitir para no cambiarla"
+    )
     es_complemento: Optional[bool] = None
 
 
@@ -31,6 +33,10 @@ class TareaCatalogoResponse(BaseModel):
     id: int
     nombre: str
     descripcion: Optional[str] = None
+    categoria_tarea_id: Optional[int] = None
+    categoria_tarea_nombre: Optional[str] = None
+    # Texto libre legacy: se conserva de solo lectura mientras quedan filas sin
+    # migrar al catalogo. No se puede escribir desde la API.
     categoria: Optional[str] = None
     es_complemento: bool
     activo: bool

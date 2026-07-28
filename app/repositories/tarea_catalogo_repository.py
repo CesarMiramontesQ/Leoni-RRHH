@@ -3,6 +3,7 @@
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.talento import TareaCatalogo
 from app.repositories.base import BaseRepository
@@ -18,10 +19,15 @@ class TareaCatalogoRepository(BaseRepository[TareaCatalogo]):
         limit: int,
         categoria: str | None = None,
         busqueda: str | None = None,
+        categoria_tarea_id: int | None = None,
     ) -> tuple[list[TareaCatalogo], int]:
         """Lista paginada con filtros opcionales."""
         query = select(TareaCatalogo).where(TareaCatalogo.activo.is_(True))
 
+        if categoria_tarea_id:
+            query = query.where(TareaCatalogo.categoria_tarea_id == categoria_tarea_id)
+        # Filtro legacy por el texto libre; sigue vivo mientras queden filas sin
+        # migrar al catalogo de categorias.
         if categoria:
             query = query.where(TareaCatalogo.categoria == categoria)
         if busqueda:
@@ -36,11 +42,24 @@ class TareaCatalogoRepository(BaseRepository[TareaCatalogo]):
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query)
 
-        query = query.order_by(TareaCatalogo.nombre).offset(offset).limit(limit)
+        query = (
+            query.options(selectinload(TareaCatalogo.categoria_tarea))
+            .order_by(TareaCatalogo.nombre)
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self.db.execute(query)
         items = list(result.scalars().all())
 
         return items, total or 0
+
+    async def get_with_categoria(self, id: int) -> TareaCatalogo | None:
+        result = await self.db.execute(
+            select(TareaCatalogo)
+            .options(selectinload(TareaCatalogo.categoria_tarea))
+            .where(TareaCatalogo.id == id)
+        )
+        return result.scalar_one_or_none()
 
     async def exists_by_nombre(
         self, nombre: str, exclude_id: int | None = None

@@ -31,6 +31,7 @@ router = APIRouter(prefix="/api/v1/tareas-catalogo", tags=["Tareas Catalogo"])
 async def listar_tareas_catalogo(
     page: int = Query(1, ge=1, description="Numero de pagina"),
     page_size: int = Query(50, ge=1, le=200, description="Items por pagina"),
+    categoria_tarea_id: int | None = Query(None, gt=0, description="Filtrar por categoria del catalogo"),
     categoria: str | None = Query(None, description="Filtrar por categoria"),
     busqueda: str | None = Query(None, description="Buscar por nombre o descripcion"),
     current_user: Empleado = Depends(get_current_user),
@@ -42,6 +43,7 @@ async def listar_tareas_catalogo(
         page=page,
         page_size=page_size,
         categoria=categoria,
+        categoria_tarea_id=categoria_tarea_id,
         busqueda=busqueda,
     )
 

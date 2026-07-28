@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.talento import TareaCatalogo
 from tests.conftest import auth_headers, make_empleado
-from tests.conftest_talento import make_area, make_puesto_perfil
+from tests.conftest_talento import make_area, make_categoria_tarea, make_puesto_perfil
 
 
 # ---------------------------------------------------------------------------
@@ -56,13 +56,18 @@ async def test_crear_tarea_catalogo_success(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="tc_crear_rh@leoni.test")
     headers = await auth_headers(client, rh)
 
-    payload = {"nombre": "Supervisar entregas de material", "categoria": "logistica"}
+    categoria = await make_categoria_tarea(db, nombre="Logistica")
+    payload = {
+        "nombre": "Supervisar entregas de material",
+        "categoria_tarea_id": categoria.id,
+    }
     response = await client.post("/api/v1/tareas-catalogo", json=payload, headers=headers)
 
     assert response.status_code == 201
     data = response.json()
     assert data["nombre"] == "Supervisar entregas de material"
-    assert data["categoria"] == "logistica"
+    assert data["categoria_tarea_id"] == categoria.id
+    assert data["categoria_tarea_nombre"] == "Logistica"
     assert data["es_complemento"] is False
     assert data["activo"] is True
 
@@ -128,12 +133,13 @@ async def test_listar_tareas_catalogo_con_busqueda(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_actualizar_tarea_catalogo(client: AsyncClient, db):
-    """PATCH /tareas-catalogo/{id} actualiza nombre y categoria."""
+    """PATCH /tareas-catalogo/{id} actualiza nombre y categoria del catalogo."""
     rh = await make_empleado(db, rol="rh", email="tc_upd_rh@leoni.test")
     tarea = await make_tarea_catalogo(db, nombre="Nombre original", categoria="vieja")
+    nueva = await make_categoria_tarea(db, nombre="Categoria Nueva")
     headers = await auth_headers(client, rh)
 
-    payload = {"nombre": "Nombre actualizado", "categoria": "nueva"}
+    payload = {"nombre": "Nombre actualizado", "categoria_tarea_id": nueva.id}
     response = await client.patch(
         f"/api/v1/tareas-catalogo/{tarea.id}", json=payload, headers=headers
     )
@@ -141,7 +147,7 @@ async def test_actualizar_tarea_catalogo(client: AsyncClient, db):
     assert response.status_code == 200
     data = response.json()
     assert data["nombre"] == "Nombre actualizado"
-    assert data["categoria"] == "nueva"
+    assert data["categoria_tarea_nombre"] == "Categoria Nueva"
 
 
 @pytest.mark.asyncio
@@ -344,7 +350,7 @@ async def test_crear_tarea_catalogo_con_descripcion(client: AsyncClient, db):
     payload = {
         "nombre": "Supervisión entregas",
         "descripcion": "Supervisar y validar entregas de material del almacén.",
-        "categoria": "logistica",
+        "categoria_tarea_id": None,
     }
     response = await client.post("/api/v1/tareas-catalogo", json=payload, headers=headers)
 

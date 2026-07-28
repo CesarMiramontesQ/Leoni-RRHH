@@ -6,6 +6,7 @@ competencias requeridas, asignaciones y evaluaciones por puesto.
 Endpoints:
   ── Tareas ──
   GET    /api/v1/perfiles/{perfil_id}/tareas
+  GET    /api/v1/perfiles/{perfil_id}/tareas/dedicacion
   POST   /api/v1/perfiles/{perfil_id}/tareas
   PUT    /api/v1/perfiles/{perfil_id}/tareas/{tarea_id}
   PUT    /api/v1/perfiles/{perfil_id}/tareas/reorder
@@ -63,6 +64,7 @@ from app.schemas.perfil_funciones import (
     PerfilFuncionesTareaCreate,
     PerfilFuncionesTareaResponse,
     PerfilFuncionesUpdate,
+    DedicacionAlcance,
     PerfilTareaCreate,
     PerfilTareaResponse,
     PerfilTareaUpdate,
@@ -111,6 +113,23 @@ async def listar_tareas(
     """Lista tareas de un perfil. Con grado_id: generales + específicas del grado."""
     service = PerfilFuncionesService(db)
     return await service.listar_tareas(perfil_id=perfil_id, grado_id=grado_id)
+
+
+@router.get(
+    "/{perfil_id}/tareas/dedicacion", response_model=list[DedicacionAlcance]
+)
+async def resumen_dedicacion(
+    perfil_id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Suma del porcentaje de dedicacion por alcance (general y cada global level).
+
+    Informativo: alimenta el aviso de la UI cuando la carga no llega a 100%.
+    """
+    service = PerfilFuncionesService(db)
+    return await service.resumen_dedicacion(perfil_id)
 
 
 @router.post(

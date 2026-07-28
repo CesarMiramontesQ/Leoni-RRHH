@@ -1612,6 +1612,54 @@ Cuatro pasos numerados (`renderModalSection`), en este orden:
 
 ---
 
+## 15.8 Responsabilidades del puesto — Atributos
+
+Cada responsabilidad puede llevar **categoría, prioridad, frecuencia y % de dedicación**.
+La presentación vive en `frontend/src/talento/tareaAtributosUi.ts`.
+
+| Atributo | Helper | Tono |
+|---|---|---|
+| Categoría | `categoriaTareaBadge` | accent (viene de catálogo) |
+| Prioridad | `prioridadBadge` | rojo alta · ámbar media · gris baja |
+| Frecuencia | `frecuenciaBadge` | neutro |
+| % dedicación | `dedicacionBadge` | neutro, `tabular-nums` |
+
+### 15.8.1 Reglas
+
+- **Solo se pinta lo capturado.** Los cuatro son opcionales; una tarea sin atributos se
+  ve exactamente como antes. Nada de badges "Sin definir" ocupando espacio.
+- **Prioridad y frecuencia son valores fijos**, no catálogo editable: cargan lógica de
+  lectura y el backend los valida contra un conjunto cerrado. Las etiquetas salen de
+  `PRIORIDADES` y `FRECUENCIAS`; no se escriben a mano en cada vista.
+- **La categoría sí es catálogo** (`levelup_categorias_tarea`), administrable en
+  Ajustes → Tareas. El texto libre anterior sigue de solo lectura como fallback mientras
+  queden filas sin migrar.
+- **El aviso de dedicación es informativo, nunca bloqueante.** `dedicacionResumen`
+  distingue tres estados: verde en 100%, ámbar si falta (dice cuánto) y rojo si se pasa.
+  Menciona cuántas tareas no tienen porcentaje, para que el total no se lea como completo
+  cuando no lo es. **No debe usar lenguaje de error**: repartir el 100% es una guía de
+  análisis del puesto, no una regla de validación. Hay un test que lo verifica.
+- El resumen **solo aparece si alguien empezó a repartir**: sin ningún porcentaje
+  capturado, un "faltan 100%" sería ruido.
+- En el modal, el resumen corresponde **al alcance seleccionado**: si RH está trabajando
+  en un global level, muestra el total de ese nivel (que incluye las generales, porque ese
+  nivel también las ejecuta).
+
+### 15.8.2 Evidencia de competencia
+
+La evidencia es un texto opcional por competencia **y alcance** (general o un global
+level): acredita qué respalda el nivel requerido en ese puesto.
+
+- En la **matriz del detalle** se lee en el `title` de la celda y se marca con un punto
+  accent de 6px. Es un dato de apoyo: no debe competir visualmente con el nivel.
+- En el **modal de competencias** se edita con un botón de nota en el chip, que abre un
+  textarea debajo. Un editor a la vez.
+- Al guardar, la evidencia **solo viaja si cambió**. Un sync que no la manda conserva la
+  ya capturada: el sync existe para ajustar niveles en bloque y no debe tirar el trabajo
+  de captura por omitir un campo opcional.
+
+---
+
 ## 16. Stitch Screens Reference
 
 ### Original — HCM Platform (project `1746412759455982581`)

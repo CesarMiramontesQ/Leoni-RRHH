@@ -48,6 +48,7 @@ from app.services.calificacion_comparador_service import (
     resolver_etiqueta_opcion,
 )
 from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
+from app.services.categoria_tarea_service import CategoriaTareaService
 from app.services.grado_puesto_service import GradoPuestoService
 from app.services.metodo_calificacion_competencia_service import (
     MetodoCalificacionCompetenciaService,
@@ -68,6 +69,7 @@ from app.schemas.perfil_funciones import (
     PerfilFuncionesTareaCreate,
     PerfilFuncionesTareaResponse,
     PerfilFuncionesUpdate,
+    DedicacionAlcance,
     PerfilTareaCreate,
     PerfilTareaResponse,
     PerfilTareaUpdate,
@@ -126,6 +128,7 @@ class PerfilFuncionesService:
         self.eval_competencia_repo = PerfilFuncionesCompetenciaRepository(db)
         self.tarea_extra_repo = PerfilFuncionesTareaRepository(db)
         self.grado_service = GradoPuestoService(db)
+        self.categoria_tarea_service = CategoriaTareaService(db)
         self.metodo_competencia_service = MetodoCalificacionCompetenciaService(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
@@ -172,6 +175,7 @@ class PerfilFuncionesService:
             grado_nombre=requisito.grado.nombre if requisito.grado else None,
             es_general=es_general,
             nivel_requerido=requisito.nivel_requerido,
+            evidencia=requisito.evidencia,
             orden=requisito.orden,
         )
 
@@ -217,6 +221,22 @@ class PerfilFuncionesService:
             grado_id=t.grado_id,
             grado_nombre=t.grado.nombre if t.grado else None,
             es_general=es_general,
+            # La categoria del perfil manda sobre la del catalogo: una misma tarea
+            # puede clasificarse distinto segun el puesto que la usa.
+            categoria_tarea_id=t.categoria_tarea_id
+            or (catalogo.categoria_tarea_id if catalogo else None),
+            categoria_tarea_nombre=(
+                t.categoria_tarea.nombre
+                if t.categoria_tarea
+                else (
+                    catalogo.categoria_tarea.nombre
+                    if catalogo and catalogo.categoria_tarea
+                    else None
+                )
+            ),
+            prioridad=t.prioridad,
+            frecuencia=t.frecuencia,
+            porcentaje_dedicacion=t.porcentaje_dedicacion,
             created_at=t.created_at,
             updated_at=t.updated_at,
         )
@@ -227,8 +247,11 @@ class PerfilFuncionesService:
         result = await self.db.execute(
             select(PerfilTarea)
             .options(
-                selectinload(PerfilTarea.tarea_catalogo),
+                selectinload(PerfilTarea.tarea_catalogo).selectinload(
+                    TareaCatalogo.categoria_tarea
+                ),
                 selectinload(PerfilTarea.grado),
+                selectinload(PerfilTarea.categoria_tarea),
             )
             .where(PerfilTarea.id == tarea_id)
         )
@@ -246,6 +269,44 @@ class PerfilFuncionesService:
             await self._validar_grado_del_perfil(perfil_id, grado_id)
         items = await self.tarea_repo.list_by_perfil(perfil_id, grado_id=grado_id)
         return [self._tarea_to_response(t) for t in items]
+
+    async def resumen_dedicacion(self, perfil_id: int) -> list[DedicacionAlcance]:
+        """
+        Suma del porcentaje de dedicacion por alcance (general y cada global level).
+
+        Las tareas generales aplican a todos los niveles, asi que se suman dentro
+        de cada uno; el alcance "general" se reporta ademas por separado para que
+        la UI pueda explicar de donde sale el total.
+
+        Es informativo: nada bloquea guardar si no llega a 100%.
+        """
+        await self._get_perfil_or_404(perfil_id)
+        tareas = await self.tarea_repo.list_by_perfil(perfil_id)
+
+        generales = [t for t in tareas if t.grado_id is None]
+        por_grado: dict[int, list] = {}
+        for t in tareas:
+            if t.grado_id is not None:
+                por_grado.setdefault(t.grado_id, []).append(t)
+
+        def _resumen(items, grado_id, grado_nombre, es_general) -> DedicacionAlcance:
+            con = [t for t in items if t.porcentaje_dedicacion is not None]
+            return DedicacionAlcance(
+                grado_id=grado_id,
+                grado_nombre=grado_nombre,
+                es_general=es_general,
+                total_porcentaje=sum(t.porcentaje_dedicacion for t in con),
+                tareas_con_porcentaje=len(con),
+                tareas_sin_porcentaje=len(items) - len(con),
+            )
+
+        resumenes = [_resumen(generales, None, None, True)]
+        for grado_id, items in por_grado.items():
+            nombre = next((t.grado.nombre for t in items if t.grado), None)
+            # El total del nivel incluye las generales: son tareas que ese nivel
+            # tambien ejecuta.
+            resumenes.append(_resumen(items + generales, grado_id, nombre, False))
+        return resumenes
 
     async def crear_tarea(
         self, perfil_id: int, data: PerfilTareaCreate, current_user: Empleado
@@ -277,6 +338,9 @@ class PerfilFuncionesService:
                 descripcion = cat_desc or tarea_cat.nombre
             es_complemento = tarea_cat.es_complemento
 
+        if data.categoria_tarea_id is not None:
+            await self.categoria_tarea_service.validar_activa(data.categoria_tarea_id)
+
         tarea = await self.tarea_repo.create({
             "puesto_perfil_id": perfil_id,
             "orden": data.orden,
@@ -284,6 +348,10 @@ class PerfilFuncionesService:
             "es_complemento": es_complemento,
             "tarea_catalogo_id": data.tarea_catalogo_id,
             "grado_id": data.grado_id,
+            "categoria_tarea_id": data.categoria_tarea_id,
+            "prioridad": data.prioridad,
+            "frecuencia": data.frecuencia,
+            "porcentaje_dedicacion": data.porcentaje_dedicacion,
         })
         tarea = await self._get_tarea_with_catalogo(tarea.id)
         assert tarea is not None
@@ -316,6 +384,15 @@ class PerfilFuncionesService:
             if data.grado_id is not None:
                 await self.grado_service.validar_grado_activo(data.grado_id)
             update_data["grado_id"] = data.grado_id
+        # Mismo criterio que grado_id: null explicito quita la categoria, omitirlo
+        # la deja como esta.
+        if "categoria_tarea_id" in data.model_fields_set:
+            if data.categoria_tarea_id is not None:
+                await self.categoria_tarea_service.validar_activa(data.categoria_tarea_id)
+            update_data["categoria_tarea_id"] = data.categoria_tarea_id
+        for campo in ("prioridad", "frecuencia", "porcentaje_dedicacion"):
+            if campo in data.model_fields_set:
+                update_data[campo] = getattr(data, campo)
 
         if update_data:
             await self.tarea_repo.update(tarea_id, update_data)
@@ -589,6 +666,7 @@ class PerfilFuncionesService:
             "competencia_id": data.competencia_id,
             "grado_id": data.grado_id,
             "nivel_requerido": data.nivel_requerido,
+            "evidencia": data.evidencia,
             "orden": orden,
         })
         requisito.grado = grado
@@ -622,6 +700,11 @@ class PerfilFuncionesService:
         catalogo_ids = {row[0] for row in result.all()}
 
         requested_map = {c.competencia_id: c.nivel_requerido for c in competencias}
+        evidencia_map = {
+            c.competencia_id: c.evidencia
+            for c in competencias
+            if c.evidencia is not None
+        }
         requested_ids = set(requested_map.keys())
 
         if requested_ids:
@@ -656,14 +739,24 @@ class PerfilFuncionesService:
                     "competencia_id": comp_id,
                     "grado_id": grado_id,
                     "nivel_requerido": requested_map[comp_id],
+                    "evidencia": evidencia_map.get(comp_id),
                     "orden": orden_base + i,
                 })
 
         for comp_id in sorted(to_update):
             requisito = current_catalogo[comp_id]
             nuevo_nivel = requested_map[comp_id]
+            nueva_evidencia = evidencia_map.get(comp_id)
+            cambio = False
             if requisito.nivel_requerido != nuevo_nivel:
                 requisito.nivel_requerido = nuevo_nivel
+                cambio = True
+            # Solo se pisa la evidencia si el sync la trae: los items que no la
+            # envian no deben borrar lo que RH ya habia capturado.
+            if nueva_evidencia is not None and requisito.evidencia != nueva_evidencia:
+                requisito.evidencia = nueva_evidencia
+                cambio = True
+            if cambio:
                 await self.db.flush()
 
         return await self.listar_competencias(perfil_id, grado_id)
@@ -704,6 +797,8 @@ class PerfilFuncionesService:
         await self.metodo_competencia_service.validar_nivel_requerido(data.nivel_requerido)
 
         requisito.nivel_requerido = data.nivel_requerido
+        if "evidencia" in data.model_fields_set:
+            requisito.evidencia = data.evidencia
         await self.db.flush()
 
         return self._to_competencia_response(requisito)

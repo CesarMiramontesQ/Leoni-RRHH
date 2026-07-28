@@ -4577,9 +4577,11 @@ components:
           type: string
           minLength: 1
           nullable: true
-        categoria:
-          type: string
-          maxLength: 50
+        categoria_tarea_id:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: Categoria del catalogo levelup_categorias_tarea
           nullable: true
         es_complemento:
           type: boolean
@@ -4596,9 +4598,11 @@ components:
           type: string
           minLength: 1
           nullable: true
-        categoria:
-          type: string
-          maxLength: 50
+        categoria_tarea_id:
+          type: integer
+          nullable: true
+          minimum: 1
+          description: Categoria del catalogo levelup_categorias_tarea
           nullable: true
         es_complemento:
           type: boolean
@@ -4614,6 +4618,13 @@ components:
         descripcion:
           type: string
           nullable: true
+        categoria_tarea_id:
+          type: integer
+          nullable: true
+        categoria_tarea_nombre:
+          type: string
+          nullable: true
+        # Texto libre legacy, de solo lectura mientras quedan filas sin migrar.
         categoria:
           type: string
           nullable: true
@@ -4643,6 +4654,35 @@ components:
         page_size:
           type: integer
 
+    # Valores fijos validados en backend; no son catalogo editable.
+    PrioridadTarea:
+      type: string
+      enum: [alta, media, baja]
+
+    FrecuenciaTarea:
+      type: string
+      enum: [diaria, semanal, mensual, trimestral, anual, eventual]
+
+    DedicacionAlcance:
+      type: object
+      required: [es_general, total_porcentaje, tareas_con_porcentaje, tareas_sin_porcentaje]
+      description: >-
+        Suma de dedicacion de un alcance del perfil. Informativa: la UI avisa
+        cuando no llega a 100%, pero nada bloquea guardar.
+      properties:
+        grado_id:
+          type: [integer, "null"]
+        grado_nombre:
+          type: [string, "null"]
+        es_general:
+          type: boolean
+        total_porcentaje:
+          type: integer
+        tareas_con_porcentaje:
+          type: integer
+        tareas_sin_porcentaje:
+          type: integer
+
     PerfilTareaCreate:
       type: object
       required: [orden]
@@ -4665,6 +4705,22 @@ components:
           nullable: true
           minimum: 1
           description: Null = tarea general (todos los grados del perfil)
+        categoria_tarea_id:
+          type: integer
+          nullable: true
+          minimum: 1
+        prioridad:
+          $ref: "#/components/schemas/PrioridadTarea"
+        frecuencia:
+          $ref: "#/components/schemas/FrecuenciaTarea"
+        porcentaje_dedicacion:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100
+          description: >-
+            Porcentaje del tiempo del puesto. Alimenta el analisis de la carga;
+            la suma no se valida de forma bloqueante.
 
     PerfilTareaUpdate:
       type: object
@@ -4681,6 +4737,19 @@ components:
           type: integer
           nullable: true
           description: Null = general; omitir para no cambiar
+        categoria_tarea_id:
+          type: integer
+          nullable: true
+          description: Null = quitar la categoria; omitir para no cambiarla
+        prioridad:
+          $ref: "#/components/schemas/PrioridadTarea"
+        frecuencia:
+          $ref: "#/components/schemas/FrecuenciaTarea"
+        porcentaje_dedicacion:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100
 
     PerfilTareaResponse:
       type: object
@@ -4711,6 +4780,23 @@ components:
         es_general:
           type: boolean
           description: True cuando grado_id es null (aplica a todos los grados)
+        categoria_tarea_id:
+          type: integer
+          nullable: true
+        categoria_tarea_nombre:
+          type: string
+          nullable: true
+        prioridad:
+          type: string
+          nullable: true
+          enum: [alta, media, baja, null]
+        frecuencia:
+          type: string
+          nullable: true
+          enum: [diaria, semanal, mensual, trimestral, anual, eventual, null]
+        porcentaje_dedicacion:
+          type: integer
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -5393,8 +5479,13 @@ components:
         nivel_requerido:
           type: integer
           minimum: 1
-          maximum: 4
-          description: Nivel mínimo requerido para este puesto (1-4)
+          description: >-
+            Nivel minimo requerido. El maximo lo define el catalogo de metodos
+            de calificacion de competencia, no un rango fijo.
+        evidencia:
+          type: string
+          nullable: true
+          description: Que acredita el nivel requerido en este puesto (opcional)
 
     PerfilCompetenciaUpdate:
       type: object
@@ -5404,6 +5495,9 @@ components:
           type: integer
           minimum: 1
           maximum: 4
+        evidencia:
+          type: string
+          nullable: true
 
     PerfilCompetenciaSyncItem:
       type: object
@@ -14156,6 +14250,36 @@ paths:
       responses:
         "200":
           description: Gap analysis actualizado
+
+  /api/v1/perfiles/{perfil_id}/tareas/dedicacion:
+    get:
+      tags: [Talento - Perfil de Funciones]
+      summary: Resumen de dedicacion por alcance
+      description: >-
+        Suma del porcentaje de dedicacion del alcance general y de cada global
+        level (el total de un nivel incluye las tareas generales, porque ese
+        nivel tambien las ejecuta). Es informativo: alimenta el aviso de la UI
+        cuando la carga no llega a 100%, y nada bloquea guardar.
+      operationId: perfil_tareas_dedicacion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: perfil_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resumen por alcance
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DedicacionAlcance"
+        "404":
+          description: Perfil no encontrado
 
   /api/v1/perfiles/{perfil_id}/competencias:
     get:
