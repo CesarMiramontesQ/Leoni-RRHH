@@ -36,6 +36,13 @@ from app.models.emails import Email
 from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
 from app.models.bono_historico_import_log import BonoHistoricoImportLog
 from app.models.tress import TressRobotQueue
+from app.models.clasificacion_puesto import (
+    CareerPath,
+    CategoriaTarea,
+    DisciplinaPuesto,
+    FuncionPuesto,
+    PuestoPerfilClasificacionHistorial,
+)
 from app.models.talento import (
     AccionRecomendada,
     PuestoPerfil, Competencia, CompetenciaRequisito, EvaluacionCompetencia,
@@ -170,6 +177,17 @@ __all__ = [
     "BonoHistoricoImportLog",
     "TressRobotQueue",
     "AccionRecomendada",
+    "CareerPath",
+    "FuncionPuesto",
+    "DisciplinaPuesto",
+    "CategoriaTarea",
+    "PuestoPerfilClasificacionHistorial",
+    "GradoPuesto",
+    "PuestoPerfilGrado",
+    "GrupoCompetencia",
+    "TipoCompetencia",
+    "TareaCatalogo",
+    "MetodoCalificacionCompetencia",
     "PuestoPerfil",
     "Competencia",
     "CompetenciaRequisito",

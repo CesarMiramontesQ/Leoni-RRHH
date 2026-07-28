@@ -18,6 +18,24 @@ _NOMBRES_BLANDA = frozenset(
 )
 
 
+def slug_codigo_grupo(nombre: str) -> str:
+    """
+    Deriva un codigo estable a partir del nombre del grupo.
+
+    Los dos grupos historicos conservan su codigo ('tecnica', 'blanda') para que los
+    valores ya guardados en `Competencia.categoria` sigan siendo validos; cualquier
+    otro nombre se convierte en slug.
+    """
+    key = _normalize_nombre(nombre)
+    if key in _NOMBRES_TECNICA:
+        return "tecnica"
+    if key in _NOMBRES_BLANDA:
+        return "blanda"
+    slug = "".join(c if c.isalnum() else "-" for c in key)
+    slug = "-".join(p for p in slug.split("-") if p)
+    return slug[:30] or "grupo"
+
+
 def categoria_desde_grupo_nombre(nombre: str) -> str:
     """
     Deriva la categoria de matriz a partir del nombre del grupo de competencia.

@@ -41,6 +41,13 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.catalogos import Area
+    from app.models.clasificacion_puesto import (
+        CareerPath,
+        CategoriaTarea,
+        DisciplinaPuesto,
+        FuncionPuesto,
+        PuestoPerfilClasificacionHistorial,
+    )
     from app.models.empleados import Empleado
     from app.models.level_up import Curso
 
@@ -51,6 +58,10 @@ class PuestoPerfil(Base):
         CheckConstraint(
             "tipo IN ('administrativo', 'operativo')",
             name="ck_levelup_puestos_perfil_tipo",
+        ),
+        CheckConstraint(
+            "estado IN ('activo', 'inactivo', 'en_revision')",
+            name="ck_levelup_puestos_perfil_estado",
         ),
     )
 
@@ -66,6 +77,28 @@ class PuestoPerfil(Base):
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # ── Clasificacion del puesto (Willis Towers Watson) ────────────────────────
+    # Nullable en BD a proposito: los perfiles creados antes de la metodologia WTW
+    # quedan sin clasificar y se marcan como "clasificacion pendiente" en la UI.
+    # El schema de alta si los exige; el de edicion no, para no bloquear a RH.
+    career_path_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_career_paths.id"), nullable=True
+    )
+    funcion_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_funciones_puesto.id"), nullable=True
+    )
+    disciplina_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_disciplinas_puesto.id"), nullable=True
+    )
+    # `activo` sigue siendo el soft-delete; el servicio mantiene la invariante
+    # activo == (estado != 'inactivo') para no romper los filtros existentes.
+    estado: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="activo",
+        server_default="activo",
+        comment="activo|inactivo|en_revision",
+    )
     created_by: Mapped[Optional[int]] = mapped_column(
         ForeignKey("empleados.empleado_id"), nullable=True
     )
@@ -101,6 +134,20 @@ class PuestoPerfil(Base):
 
     # Relationships
     area: Mapped[Optional["Area"]] = relationship("Area", foreign_keys=[area_id])
+    career_path: Mapped[Optional["CareerPath"]] = relationship(
+        "CareerPath", foreign_keys=[career_path_id]
+    )
+    funcion: Mapped[Optional["FuncionPuesto"]] = relationship(
+        "FuncionPuesto", foreign_keys=[funcion_id]
+    )
+    disciplina: Mapped[Optional["DisciplinaPuesto"]] = relationship(
+        "DisciplinaPuesto", foreign_keys=[disciplina_id]
+    )
+    clasificacion_historial: Mapped[List["PuestoPerfilClasificacionHistorial"]] = relationship(
+        "PuestoPerfilClasificacionHistorial",
+        back_populates="puesto_perfil",
+        cascade="all, delete-orphan",
+    )
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="puesto_perfil", cascade="all, delete-orphan"
     )
@@ -122,12 +169,19 @@ class PuestoPerfil(Base):
 
 
 class GrupoCompetencia(Base):
-    """Catalogo de grupos para clasificar tipos de competencia (ej. Tecnica, Habilidad blanda)."""
+    """
+    Categoria de competencia (Tecnicas, Conductuales, Liderazgo, Digitales).
+
+    `codigo` es la fuente de verdad de `Competencia.categoria`. Antes la categoria se
+    adivinaba desde el nombre del grupo (`categoria_desde_grupo_nombre`), que caia
+    siempre a "blanda" para cualquier nombre nuevo.
+    """
 
     __tablename__ = "levelup_grupos_competencia"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    codigo: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -180,8 +234,8 @@ class Competencia(Base):
     nombre: Mapped[str] = mapped_column(String(255), nullable=False)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     categoria: Mapped[str] = mapped_column(
-        String(20), nullable=False
-    )  # 'tecnica' | 'blanda' — derivado del tipo
+        String(30), nullable=False
+    )  # codigo del grupo de competencia: 'tecnica' | 'blanda' | 'liderazgo' | 'digital' | ...
     tipo_competencia_id: Mapped[int] = mapped_column(
         ForeignKey("levelup_tipos_competencia.id"), nullable=False
     )
@@ -242,6 +296,11 @@ class CompetenciaRequisito(Base):
     nivel_requerido: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0,
         comment="0=N/A, 1=Planeado, 2=En entrenamiento, 3=Certificado, 4=Experto",
+    )
+    evidencia: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Evidencia opcional que acredita el nivel requerido en este puesto",
     )
     orden: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -546,13 +605,36 @@ class CualificacionCatalogo(Base):
 
 
 class GradoPuesto(Base):
-    """Catalogo global de grados de progresion dentro de un puesto (Grado 1-4)."""
+    """
+    Global Level de la metodologia Willis Towers Watson (P1..Pn / M1..Mn).
+
+    Cada nivel pertenece a un Career Path, asi que `codigo` y `orden` son unicos
+    *dentro* del career path, no globalmente: P1 y M1 coexisten. La tabla conserva
+    el nombre `levelup_grados_puesto` porque cuatro tablas la referencian por FK
+    (`competencia_requisitos`, `perfil_tareas`, `perfil_funciones`,
+    `puesto_perfil_grados`); renombrarla seria riesgo sin beneficio.
+    """
 
     __tablename__ = "levelup_grados_puesto"
+    __table_args__ = (
+        UniqueConstraint(
+            "career_path_id", "codigo", name="uq_levelup_grados_puesto_path_codigo"
+        ),
+        UniqueConstraint(
+            "career_path_id", "orden", name="uq_levelup_grados_puesto_path_orden"
+        ),
+        UniqueConstraint(
+            "career_path_id", "nombre", name="uq_levelup_grados_puesto_path_nombre"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    orden: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    career_path_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_career_paths.id"), nullable=False
+    )
+    codigo: Mapped[str] = mapped_column(String(10), nullable=False)
+    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
+    orden: Mapped[int] = mapped_column(Integer, nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -561,6 +643,9 @@ class GradoPuesto(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    career_path: Mapped["CareerPath"] = relationship(
+        "CareerPath", back_populates="grados"
+    )
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="grado"
     )
@@ -569,7 +654,10 @@ class GradoPuesto(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<GradoPuesto id={self.id} nombre={self.nombre} orden={self.orden}>"
+        return (
+            f"<GradoPuesto id={self.id} codigo={self.codigo} "
+            f"career_path_id={self.career_path_id} orden={self.orden}>"
+        )
 
 
 class PuestoPerfilGrado(Base):
@@ -638,6 +726,10 @@ class TareaCatalogo(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     nombre: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    categoria_tarea_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_categorias_tarea.id"), nullable=True
+    )
+    # Texto libre legacy: se conserva de solo lectura mientras se migra a la FK.
     categoria: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     es_complemento: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -649,6 +741,9 @@ class TareaCatalogo(Base):
     )
 
     # Relationships
+    categoria_tarea: Mapped[Optional["CategoriaTarea"]] = relationship(
+        "CategoriaTarea", back_populates="tareas_catalogo"
+    )
     perfil_tareas: Mapped[List["PerfilTarea"]] = relationship(
         "PerfilTarea", back_populates="tarea_catalogo"
     )
@@ -658,9 +753,31 @@ class TareaCatalogo(Base):
 
 
 class PerfilTarea(Base):
-    """Tareas asociadas a un puesto perfil (1:N), vinculadas al catalogo."""
+    """
+    Responsabilidades del puesto (1:N), vinculadas al catalogo de tareas.
+
+    `porcentaje_dedicacion` alimenta el analisis del puesto: la suma por perfil
+    (o por grado, si la tarea esta acotada a uno) deberia acercarse a 100%, pero no
+    se valida de forma bloqueante — la UI solo avisa.
+    """
 
     __tablename__ = "levelup_perfil_tareas"
+    __table_args__ = (
+        CheckConstraint(
+            "porcentaje_dedicacion IS NULL "
+            "OR (porcentaje_dedicacion >= 0 AND porcentaje_dedicacion <= 100)",
+            name="ck_levelup_perfil_tareas_porcentaje",
+        ),
+        CheckConstraint(
+            "prioridad IS NULL OR prioridad IN ('alta', 'media', 'baja')",
+            name="ck_levelup_perfil_tareas_prioridad",
+        ),
+        CheckConstraint(
+            "frecuencia IS NULL OR frecuencia IN "
+            "('diaria', 'semanal', 'mensual', 'trimestral', 'anual', 'eventual')",
+            name="ck_levelup_perfil_tareas_frecuencia",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     puesto_perfil_id: Mapped[int] = mapped_column(
@@ -675,6 +792,20 @@ class PerfilTarea(Base):
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
     es_complemento: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    categoria_tarea_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_categorias_tarea.id"), nullable=True
+    )
+    prioridad: Mapped[Optional[str]] = mapped_column(
+        String(10), nullable=True, comment="alta|media|baja"
+    )
+    frecuencia: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="diaria|semanal|mensual|trimestral|anual|eventual",
+    )
+    porcentaje_dedicacion: Mapped[Optional[int]] = mapped_column(
+        SmallInteger, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -688,6 +819,9 @@ class PerfilTarea(Base):
     )
     tarea_catalogo: Mapped[Optional["TareaCatalogo"]] = relationship(
         "TareaCatalogo", back_populates="perfil_tareas"
+    )
+    categoria_tarea: Mapped[Optional["CategoriaTarea"]] = relationship(
+        "CategoriaTarea", back_populates="perfil_tareas"
     )
     grado: Mapped[Optional["GradoPuesto"]] = relationship("GradoPuesto")
 
