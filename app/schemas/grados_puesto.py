@@ -16,7 +16,15 @@ class GradoPuestoCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     career_path_id: int = Field(..., gt=0)
-    codigo: str = Field(..., min_length=1, max_length=10, description="Ej. P10, M3")
+    codigo: str = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description=(
+            "Codigo del career path seguido de un numero. Ej. P10, M3. "
+            "La regla se valida en el servicio, que es quien conoce el path."
+        ),
+    )
     nombre: str = Field(..., min_length=2, max_length=100)
 
 
@@ -24,7 +32,12 @@ class GradoPuestoUpdate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
     career_path_id: int = Field(..., gt=0)
-    codigo: str = Field(..., min_length=1, max_length=10)
+    codigo: str = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="Codigo del career path seguido de un numero. Ej. P10, M3.",
+    )
     nombre: str = Field(..., min_length=2, max_length=100)
 
 

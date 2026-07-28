@@ -34,11 +34,17 @@ import {
   ajustesCountBadge,
   ajustesEmptyState,
   ajustesErrorAlert,
+  ajustesInputConPrefijo,
   ajustesLoadingState,
   ajustesModalError,
   ajustesSectionCard,
   ajustesTableWrap,
 } from "./ajustesSectionUi.ts";
+import {
+  componerCodigoCareerLevel,
+  numeroDeCareerLevel,
+  siguienteNumeroCareerLevel,
+} from "../../../talento/clasificacionPuestoUi.ts";
 
 type ModalMode = "create" | "edit" | "delete" | null;
 
@@ -51,7 +57,8 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   let modalSaving = false;
   let editingId: number | null = null;
   let editingCareerPathId: number | null = null;
-  let editingCodigo = "";
+  // El código lo compone el prefijo del career path; RH solo captura el número.
+  let editingNumero = "";
   let editingNombre = "";
   let deletingItem: GradoPuesto | null = null;
   let modalError = "";
@@ -64,6 +71,19 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   /** Etiqueta de la posición: el global grade, o un aviso si falta la equivalencia. */
   function posicionLabel(g: GradoPuesto): string {
     return g.global_grade_codigo ?? "Sin equivalencia";
+  }
+
+  /** Prefijo del código: el del career path seleccionado en el formulario. */
+  function prefijoActual(): string {
+    return careerPaths.find((cp) => cp.id === editingCareerPathId)?.codigo ?? "";
+  }
+
+  /** Números ya usados en un career path, para proponer el siguiente libre. */
+  function sugerirNumero(careerPathId: number | null, prefijo: string): string {
+    const codigos = items
+      .filter((g) => g.career_path_id === careerPathId)
+      .map((g) => g.codigo);
+    return String(siguienteNumeroCareerLevel(prefijo, codigos));
   }
 
   /** Mismo umbral y comportamiento que el buscador de `catalogoSection`. */
@@ -186,11 +206,18 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
             </div>
             <div class="grid gap-4 sm:grid-cols-2">
               <div>
-                <label for="grado-codigo" class="${RH_LISTADO_LABEL}">Código <span class="text-red-600">*</span></label>
-                <input id="grado-codigo" name="codigo" type="text" required minlength="1" maxlength="10"
-                  value="${escapeHtml(editingCodigo)}"
-                  class="${AJUSTES_INPUT}" />
-                <p class="mt-1 text-xs text-text-muted">Etiqueta corta del nivel (P10, M3).</p>
+                <label for="grado-numero" class="${RH_LISTADO_LABEL}">Código <span class="text-red-600">*</span></label>
+                ${ajustesInputConPrefijo({
+                  id: "grado-numero",
+                  name: "numero",
+                  prefijo: prefijoActual(),
+                  value: editingNumero,
+                  placeholder: "10",
+                  inputMode: "numeric",
+                  maxlength: 9,
+                  required: true,
+                })}
+                <p class="mt-1 text-xs text-text-muted">El prefijo lo da el career path; captura solo el número.</p>
               </div>
               <div>
                 <label for="grado-nombre" class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600">*</span></label>
@@ -253,7 +280,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     modalMode = null;
     editingId = null;
     editingCareerPathId = null;
-    editingCodigo = "";
+    editingNumero = "";
     editingNombre = "";
     deletingItem = null;
     modalError = "";
@@ -278,18 +305,20 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
         if (careerPaths.length === 0) return;
         modalMode = "create";
         editingCareerPathId = careerPaths[0].id;
-        editingCodigo = "";
+        editingNumero = sugerirNumero(editingCareerPathId, careerPaths[0].codigo);
         editingNombre = "";
         modalError = "";
         paint();
-        sectionEl.querySelector<HTMLInputElement>("#grado-codigo")?.focus();
+        sectionEl.querySelector<HTMLInputElement>("#grado-numero")?.select();
       } else if (action === "edit" && !Number.isNaN(id)) {
         const item = items.find((g) => g.id === id);
         if (!item) return;
         modalMode = "edit";
         editingId = id;
         editingCareerPathId = item.career_path_id;
-        editingCodigo = item.codigo;
+        editingNumero = String(
+          numeroDeCareerLevel(item.career_path_codigo ?? "", item.codigo) ?? "",
+        );
         editingNombre = item.nombre;
         modalError = "";
         paint();
@@ -304,8 +333,10 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     { signal },
   );
 
-  // Al cambiar de career path en el alta, el orden y el codigo sugeridos deben
-  // recalcularse: ambos son unicos dentro del path, no globalmente.
+  // Al cambiar de career path cambia el prefijo del código, así que hay que
+  // repintar. En el alta se propone además el siguiente número libre del path
+  // nuevo: los números son únicos dentro del path, no globalmente. Al editar se
+  // conserva el número capturado, que es el que identifica al nivel.
   sectionEl.addEventListener(
     "change",
     (ev) => {
@@ -317,7 +348,12 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       if (Number.isNaN(nuevoId)) return;
       editingCareerPathId = nuevoId;
       const form = sectionEl.querySelector<HTMLFormElement>("#grado-form");
-      editingNombre = String(new FormData(form!).get("nombre") ?? editingNombre);
+      const fd = form ? new FormData(form) : null;
+      editingNombre = String(fd?.get("nombre") ?? editingNombre);
+      editingNumero =
+        modalMode === "create"
+          ? sugerirNumero(nuevoId, prefijoActual())
+          : String(fd?.get("numero") ?? editingNumero);
       paint();
     },
     { signal },
@@ -356,15 +392,21 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   async function submitForm(form: HTMLFormElement): Promise<void> {
     const fd = new FormData(form);
     const careerPathId = Number(fd.get("career_path_id"));
-    const codigo = String(fd.get("codigo") ?? "").trim();
+    const numero = String(fd.get("numero") ?? "").trim();
     const nombre = String(fd.get("nombre") ?? "").trim();
+    // Cualquier salida por error repinta el modal: sin esto se perdería lo
+    // capturado y el usuario tendría que volver a escribirlo.
+    editingNumero = numero;
+    editingNombre = nombre;
     if (!Number.isFinite(careerPathId) || careerPathId <= 0) {
       modalError = "Selecciona un career path.";
       paint();
       return;
     }
+    const prefijo = prefijoActual();
+    const codigo = componerCodigoCareerLevel(prefijo, numero);
     if (!codigo) {
-      modalError = "El código es obligatorio (ej. P10).";
+      modalError = `El código debe ser «${prefijo}» seguido de un número entero mayor que cero (${prefijo}1, ${prefijo}10).`;
       paint();
       return;
     }

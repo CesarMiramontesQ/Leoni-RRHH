@@ -2,14 +2,23 @@
 """
 Logica de negocio del catalogo de Career Levels (Willis Towers Watson).
 
-Cada nivel pertenece a un career path y su codigo/nombre/orden son unicos DENTRO
-de ese path, no en toda la tabla: P1 y M1 conviven.
+Cada nivel pertenece a un career path y su codigo/nombre son unicos DENTRO de ese
+path, no en toda la tabla: P1 y M1 conviven.
+
+El codigo ademas lo dicta el path: es su codigo seguido de un numero (ver
+`app/utils/career_level_codigo.py`).
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
+from app.core.exceptions import (
+    ConflictError,
+    DomainValidationError,
+    ForbiddenError,
+    NotFoundError,
+)
 from app.core.rh_module_registry import user_has_module
+from app.models.clasificacion_puesto import CareerPath
 from app.models.empleados import Empleado
 from app.models.talento import GradoPuesto
 from app.repositories.clasificacion_puesto_repository import CareerPathRepository
@@ -20,6 +29,7 @@ from app.schemas.grados_puesto import (
     GradoPuestoResponse,
     GradoPuestoUpdate,
 )
+from app.utils.career_level_codigo import normalizar_codigo
 
 
 class GradoPuestoService:
@@ -81,20 +91,39 @@ class GradoPuestoService:
             raise NotFoundError(entidad="GradoPuesto", id=id)
         return self._to_response(grado)
 
-    async def _validar_career_path(self, career_path_id: int) -> None:
-        if not await self.career_path_repo.get_activo(career_path_id):
+    async def _validar_career_path(self, career_path_id: int) -> CareerPath:
+        career_path = await self.career_path_repo.get_activo(career_path_id)
+        if not career_path:
             raise NotFoundError(entidad="CareerPath", id=career_path_id)
+        return career_path
+
+    @staticmethod
+    def _normalizar_codigo(career_path: CareerPath, codigo: str) -> str:
+        """
+        El codigo lo dicta el career path del payload, no el que tenga el nivel.
+
+        Se normaliza ANTES de comprobar unicidad: si no, 'p10' y 'P10' se verian
+        como codigos distintos dentro del mismo path.
+        """
+        try:
+            return normalizar_codigo(career_path.codigo, codigo)
+        except ValueError as e:
+            raise DomainValidationError(
+                f"El codigo de un career level del career path "
+                f"'{career_path.nombre}' {e}"
+            ) from e
 
     async def _validar_unicidad(
         self,
         data: GradoPuestoCreate | GradoPuestoUpdate,
+        codigo: str,
         exclude_id: int | None = None,
     ) -> None:
         if await self.repo.exists_by_codigo(
-            data.career_path_id, data.codigo, exclude_id=exclude_id
+            data.career_path_id, codigo, exclude_id=exclude_id
         ):
             raise ConflictError(
-                detail=f"Ya existe el career level '{data.codigo}' en ese career path"
+                detail=f"Ya existe el career level '{codigo}' en ese career path"
             )
         if await self.repo.exists_by_nombre(
             data.career_path_id, data.nombre, exclude_id=exclude_id
@@ -109,12 +138,13 @@ class GradoPuestoService:
         if not user_has_module(current_user, "puestos"):
             raise ForbiddenError(detail="Solo RH puede crear career levels")
 
-        await self._validar_career_path(data.career_path_id)
-        await self._validar_unicidad(data)
+        career_path = await self._validar_career_path(data.career_path_id)
+        codigo = self._normalizar_codigo(career_path, data.codigo)
+        await self._validar_unicidad(data, codigo)
 
         grado = await self.repo.create({
             "career_path_id": data.career_path_id,
-            "codigo": data.codigo,
+            "codigo": codigo,
             "nombre": data.nombre,
             "activo": True,
         })
@@ -130,8 +160,9 @@ class GradoPuestoService:
         if not grado or not grado.activo:
             raise NotFoundError(entidad="GradoPuesto", id=id)
 
-        await self._validar_career_path(data.career_path_id)
-        await self._validar_unicidad(data, exclude_id=id)
+        career_path = await self._validar_career_path(data.career_path_id)
+        codigo = self._normalizar_codigo(career_path, data.codigo)
+        await self._validar_unicidad(data, codigo, exclude_id=id)
 
         # Mover un nivel de career path rompe los perfiles que ya lo usan: sus
         # grados dejarian de compartir path y el rango quedaria invalido.
@@ -151,7 +182,7 @@ class GradoPuestoService:
             id,
             {
                 "career_path_id": data.career_path_id,
-                "codigo": data.codigo,
+                "codigo": codigo,
                 "nombre": data.nombre,
             },
         )

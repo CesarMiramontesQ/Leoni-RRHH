@@ -291,3 +291,89 @@ async def test_sync_competencias_no_borra_otro_grado(client: AsyncClient, db):
     assert still_g2.status_code == 200
     assert len(still_g2.json()) == 1
     assert still_g2.json()[0]["competencia_id"] == comp_b.id
+
+
+@pytest.mark.asyncio
+async def test_codigo_debe_empezar_con_el_codigo_del_career_path_422(client, db):
+    """
+    El codigo de un career level lo dicta su career path: 'P' + numero.
+
+    Sin esta regla nada impedia capturar 'M7' bajo Professional, y el codigo es
+    justo la etiqueta con la que el nivel aparece en el rango de un perfil.
+    """
+    rh = await make_empleado(db, rol="rh", email="gp_cod_prefijo@leoni.test")
+    professional = await make_career_path(db, codigo="P")
+    headers = await auth_headers(client, rh)
+
+    for codigo in ("M7", "Nivel 3", "P", "P0", "P01"):
+        response = await client.post(
+            "/api/v1/career-levels",
+            json={"career_path_id": professional.id, "codigo": codigo, "nombre": codigo},
+            headers=headers,
+        )
+        assert response.status_code == 422, f"{codigo}: {response.text}"
+
+
+@pytest.mark.asyncio
+async def test_el_codigo_se_guarda_con_el_prefijo_del_career_path(client, db):
+    """Capturar 'p10' bajo el path 'P' guarda 'P10', no 'p10'."""
+    rh = await make_empleado(db, rol="rh", email="gp_cod_norm@leoni.test")
+    professional = await make_career_path(db, codigo="P")
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/career-levels",
+        json={"career_path_id": professional.id, "codigo": "p10", "nombre": "P10"},
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["codigo"] == "P10"
+
+
+@pytest.mark.asyncio
+async def test_normalizar_no_deja_pasar_un_duplicado_con_otra_caja(client, db):
+    """
+    'p10' y 'P10' son el mismo career level.
+
+    Regresion: si la unicidad se comprobara con el codigo tal cual llego, en vez
+    de con el normalizado, ambos entrarian y el path tendria dos 'P10'.
+    """
+    rh = await make_empleado(db, rol="rh", email="gp_cod_caja@leoni.test")
+    path = await make_career_path(db, codigo="P")
+    await make_grado_puesto(db, codigo="P10", nombre="P10", orden=10, career_path_id=path.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/career-levels",
+        json={"career_path_id": path.id, "codigo": "p10", "nombre": "Otro"},
+        headers=headers,
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_mover_un_nivel_de_path_exige_el_prefijo_del_path_nuevo(client, db):
+    """Al editar, el prefijo que manda es el del career path del payload."""
+    rh = await make_empleado(db, rol="rh", email="gp_cod_mover@leoni.test")
+    professional = await make_career_path(db, codigo="P")
+    management = await make_career_path(db, codigo="M", nombre="Management")
+    grado = await make_grado_puesto(
+        db, codigo="P5", nombre="P5", orden=5, career_path_id=professional.id
+    )
+    headers = await auth_headers(client, rh)
+
+    # Mover a Management conservando el codigo 'P5' ya no es valido.
+    invalido = await client.patch(
+        f"/api/v1/career-levels/{grado.id}",
+        json={"career_path_id": management.id, "codigo": "P5", "nombre": "P5"},
+        headers=headers,
+    )
+    assert invalido.status_code == 422, invalido.text
+
+    valido = await client.patch(
+        f"/api/v1/career-levels/{grado.id}",
+        json={"career_path_id": management.id, "codigo": "M5", "nombre": "M5"},
+        headers=headers,
+    )
+    assert valido.status_code == 200, valido.text
+    assert valido.json()["codigo"] == "M5"

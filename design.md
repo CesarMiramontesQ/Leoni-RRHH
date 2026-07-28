@@ -1603,6 +1603,40 @@ que ordena):
 
 Cada columna se lee de arriba abajo en el mismo orden en que se captura.
 
+### 15.6.4 Campo con prefijo fijo
+
+Cuando parte del valor de un campo **la dicta otro dato del formulario**, esa parte no se
+teclea: se pinta adosada dentro del mismo borde, en un `<span>` que vive fuera del
+`<input>` (no se envía ni se puede editar). El usuario solo captura la parte variable, con
+lo que un valor inválido deja de ser posible de escribir.
+
+`ajustesInputConPrefijo` (`components/puestos/ajustes/ajustesSectionUi.ts`):
+
+```
+Career path  [ Professional (P) ▾ ]
+
+Código *
+┌─────┬──────────────────────┐
+│  P  │ 13                   │
+└─────┴──────────────────────┘
+El prefijo lo da el career path; captura solo el número.
+```
+
+Reglas:
+- El borde y el foco viven en el **contenedor** (`focus-within:border-accent` +
+  `focus-within:ring-accent/20`), no en el input, para que se lea como un solo campo.
+- El prefijo usa `bg-slate-50` + `text-text-secondary`: presente pero claramente inerte.
+  Lleva `aria-hidden` — el texto de ayuda bajo el campo es lo que lo explica.
+- El `<label>` apunta al input, no al contenedor.
+- Al cambiar el dato que dicta el prefijo, el campo se **repinta** y, en un alta, se
+  propone el siguiente valor libre.
+- La validación del prefijo es del backend; el cliente la replica solo para evitar el
+  viaje. Ambas reglas se escriben una vez y se comparten
+  (`app/utils/career_level_codigo.py` ↔ `talento/clasificacionPuestoUi.ts`).
+
+Único uso hoy: el código de un **career level**, que es el de su career path más un número
+(P1, P10, M3).
+
 ---
 
 ## 15.7 Clasificación de puesto — Presentación

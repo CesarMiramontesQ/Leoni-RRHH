@@ -3871,7 +3871,11 @@ components:
           type: string
           minLength: 1
           maxLength: 10
-          description: Etiqueta corta del nivel (P10, M3).
+          description: >-
+            Codigo del career path seguido de un numero entero >= 1, sin ceros a
+            la izquierda (P1, P10, M3). El prefijo se acepta sin distinguir
+            mayusculas y se guarda con el codigo exacto del path: 'p10' -> 'P10'.
+            Un codigo que no cumpla la regla devuelve 422.
         nombre:
           type: string
           minLength: 2
@@ -3888,6 +3892,10 @@ components:
           type: string
           minLength: 1
           maxLength: 10
+          description: >-
+            Codigo del career path seguido de un numero (P1, P10, M3). El
+            prefijo exigido es el del career path que trae el payload, no el que
+            tenga el nivel hoy.
         nombre:
           type: string
           minLength: 2
@@ -11375,7 +11383,9 @@ paths:
     patch:
       tags: [Talento - Clasificacion de Puesto]
       summary: Actualizar career path
-      description: Solo RH.
+      description: >-
+        Solo RH. El **codigo** no se puede cambiar si el path ya tiene career
+        levels: es el prefijo del codigo de todos ellos. El **nombre** si.
       operationId: career_paths_update
       security:
         - BearerAuth: []
@@ -11398,6 +11408,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CareerPathResponse"
+        "409":
+          description: >-
+            Se intento cambiar el codigo de un career path que tiene career
+            levels colgando de el.
     delete:
       tags: [Talento - Clasificacion de Puesto]
       summary: Desactivar career path (soft delete)
