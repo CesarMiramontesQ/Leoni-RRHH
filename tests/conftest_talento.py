@@ -25,6 +25,8 @@ from app.models.clasificacion_puesto import (
     CategoriaTarea,
     DisciplinaPuesto,
     FuncionPuesto,
+    GlobalGrade,
+    GlobalLevelGradeMapping,
 )
 from app.models.talento import (
     Competencia,
@@ -600,3 +602,83 @@ async def seed_cualificaciones_catalogo(db: AsyncSession) -> dict[str, int]:
         catalogo_ids[legacy] = cat.id
 
     return catalogo_ids
+
+
+async def make_global_grade(
+    db: AsyncSession,
+    *,
+    codigo: str | None = None,
+    nombre: str | None = None,
+    orden: int | None = None,
+    activo: bool = True,
+) -> GlobalGrade:
+    """Factory get-or-create de GlobalGrade por codigo (codigo y orden son unicos)."""
+    uid = uuid.uuid4().hex[:6]
+    _codigo = codigo or f"GG{uid}"
+
+    existente = await db.execute(
+        select(GlobalGrade).where(GlobalGrade.codigo == _codigo)
+    )
+    grade = existente.scalar_one_or_none()
+    if grade:
+        return grade
+
+    if orden is None:
+        orden = (await db.scalar(select(func.max(GlobalGrade.orden))) or 0) + 1
+    grade = GlobalGrade(
+        codigo=_codigo,
+        nombre=nombre or f"Global Grade {_codigo}",
+        orden=orden,
+        activo=activo,
+    )
+    db.add(grade)
+    await db.flush()
+    await db.refresh(grade)
+    return grade
+
+
+async def make_equivalencia(
+    db: AsyncSession,
+    *,
+    global_level_id: int,
+    global_grade_id: int | None = None,
+    activo: bool = True,
+) -> GlobalLevelGradeMapping:
+    """Equivalencia Global Level → Global Grade (unica por nivel)."""
+    if global_grade_id is None:
+        global_grade_id = (await make_global_grade(db)).id
+    mapping = GlobalLevelGradeMapping(
+        global_level_id=global_level_id,
+        global_grade_id=global_grade_id,
+        activo=activo,
+    )
+    db.add(mapping)
+    await db.flush()
+    await db.refresh(mapping)
+    return mapping
+
+
+async def make_clasificacion_payload(
+    db: AsyncSession,
+    *,
+    ordenes: list[int] | None = None,
+    con_equivalencia: bool = True,
+) -> dict:
+    """
+    Crea los catalogos de clasificacion y devuelve el fragmento de payload que el
+    alta de perfil exige: career path, funcion, disciplina y global levels.
+
+    Con `con_equivalencia=True` (por defecto) tambien configura la equivalencia del
+    nivel inicial, de modo que el global grade se autocompleta y no hay que enviarlo.
+    """
+    grados = await make_grados_consecutivos(db, ordenes=ordenes or [1, 2])
+    funcion = await make_funcion_puesto(db)
+    disciplina = await make_disciplina_puesto(db, funcion_id=funcion.id)
+    if con_equivalencia:
+        await make_equivalencia(db, global_level_id=grados[0].id)
+    return {
+        "career_path_id": grados[0].career_path_id,
+        "funcion_id": funcion.id,
+        "disciplina_id": disciplina.id,
+        "grado_ids": [g.id for g in grados],
+    }

@@ -63,3 +63,53 @@ export type ClasificacionPuestoFetchError = {
   status: number;
   detail: string;
 };
+
+/**
+ * Global Grade: clasificación organizacional oficial del puesto.
+ *
+ * No representa sueldo, banda salarial ni compensación — este sistema no
+ * administra nada de eso.
+ */
+export type GlobalGrade = {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  orden: number;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GlobalGradeCreatePayload = {
+  codigo: string;
+  nombre: string;
+  descripcion?: string | null;
+  orden: number;
+};
+
+export type GlobalGradeUpdatePayload = GlobalGradeCreatePayload;
+
+/** Equivalencia configurable Global Level → Global Grade. Única por nivel. */
+export type Equivalencia = {
+  id: number;
+  global_level_id: number;
+  global_level_codigo: string | null;
+  global_level_nombre: string | null;
+  career_path_id: number | null;
+  career_path_codigo: string | null;
+  career_path_nombre: string | null;
+  global_grade_id: number;
+  global_grade_codigo: string | null;
+  global_grade_nombre: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EquivalenciaCreatePayload = {
+  global_level_id: number;
+  global_grade_id: number;
+};
+
+export type EquivalenciaUpdatePayload = EquivalenciaCreatePayload;
