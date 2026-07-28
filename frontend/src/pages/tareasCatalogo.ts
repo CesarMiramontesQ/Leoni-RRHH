@@ -8,6 +8,8 @@ import {
   type TareaCatalogoFetchError,
 } from "../api/tareasCatalogo.ts";
 import { fetchWithAuth } from "../api/http.ts";
+import { getCategoriasTarea } from "../api/categoriasTarea.ts";
+import type { CategoriaTarea } from "../dashboard/categoriasTarea/types.ts";
 import { escapeHtml, paginationRange } from "../ui/uiUtils.ts";
 import {
   BTN_DANGER,
@@ -382,7 +384,7 @@ function renderTableRows(pageItems: TareaCatalogo[]): string {
       <td class="px-4 py-3.5 align-middle">
         <p class="max-w-md truncate text-sm text-text-secondary" title="${descripcion}">${descripcion}</p>
       </td>
-      <td class="px-4 py-3.5 align-middle">${categoriaBadge(t.categoria)}</td>
+      <td class="px-4 py-3.5 align-middle">${categoriaBadge(t.categoria_tarea_nombre ?? t.categoria)}</td>
       <td class="px-4 py-3.5 align-middle">${tipoBadge(t.es_complemento)}</td>
       <td class="whitespace-nowrap px-3 py-3 align-middle text-right" data-tc-stop-row-nav="1">
         <div class="flex items-center justify-end gap-1">
@@ -481,13 +483,19 @@ function renderReadyContent(
   </div>`;
 }
 
-function renderModal(editing: TareaCatalogo | null, categorias: string[]): string {
+function renderModal(
+  editing: TareaCatalogo | null,
+  categoriasCatalogo: CategoriaTarea[] = [],
+): string {
   const isEdit = !!editing;
   const nombre = editing?.nombre ?? "";
   const descripcion = editing?.descripcion ?? "";
-  const categoria = editing?.categoria ?? "";
-  const categoriaOpts = categorias
-    .map((c) => `<option value="${escapeHtml(c)}"></option>`)
+  const categoriaId = editing?.categoria_tarea_id ?? null;
+  const categoriaOpts = categoriasCatalogo
+    .map(
+      (c) =>
+        `<option value="${c.id}" ${categoriaId === c.id ? "selected" : ""}>${escapeHtml(c.nombre)}</option>`,
+    )
     .join("");
   const es_complemento = editing?.es_complemento ?? false;
   const title = isEdit ? "Editar tarea" : "Nueva tarea";
@@ -517,12 +525,15 @@ function renderModal(editing: TareaCatalogo | null, categorias: string[]): strin
               placeholder="Describe la tarea con el detalle que verán los perfiles">${escapeHtml(descripcion)}</textarea>
           </div>
           <div>
-            <label for="tarea-modal-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="text-text-muted font-normal">(opcional — elige una existente o escribe una nueva)</span></label>
-            <input id="tarea-modal-categoria" name="categoria" type="text" value="${escapeHtml(categoria)}"
-              list="tarea-modal-categoria-list" autocomplete="off"
-              class="${FIELD_INPUT}"
-              placeholder="Ej. logística, calidad, seguridad…" />
-            <datalist id="tarea-modal-categoria-list">${categoriaOpts}</datalist>
+            <label for="tarea-modal-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="text-text-muted font-normal">(opcional)</span></label>
+            <div class="grid grid-cols-1">
+              <select id="tarea-modal-categoria" name="categoria_tarea_id" class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="">Sin categoría</option>
+                ${categoriaOpts}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+            <p class="mt-1 text-xs text-text-muted">Se administran en <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes → Tareas</a>.</p>
           </div>
           <div class="flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-3">
             <input id="tarea-modal-complemento" name="es_complemento" type="checkbox" ${es_complemento ? "checked" : ""}
@@ -563,6 +574,7 @@ function renderDeleteConfirm(tarea: TareaCatalogo): string {
 export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal): void {
   let status: "loading" | "ready" | "error" = "loading";
   let items: TareaCatalogo[] = [];
+  let categoriasCatalogo: CategoriaTarea[] = [];
   const filters: CatalogoFilters = { text: "", categoria: "", tipo: "" };
   let listPage = 1;
   let errorMessage: string | null = null;
@@ -598,7 +610,11 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
     inner.innerHTML = renderReadyContent(items, filters, listPage);
 
     const modalHost = container.querySelector("#tarea-modal-host");
-    if (modalHost) modalHost.innerHTML = showModal ? renderModal(editingTarea, distinctCategorias(items)) : "";
+    if (modalHost) {
+      modalHost.innerHTML = showModal
+        ? renderModal(editingTarea, categoriasCatalogo)
+        : "";
+    }
 
     const deleteHost = container.querySelector("#tarea-delete-host");
     if (deleteHost) deleteHost.innerHTML = deletingTarea ? renderDeleteConfirm(deletingTarea) : "";
@@ -608,7 +624,14 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
     status = "loading";
     paint();
     try {
-      items = await getTareasCatalogo({ page_size: 200 });
+      const [tareas, categorias] = await Promise.all([
+        getTareasCatalogo({ page_size: 200 }),
+        // Si el catálogo de categorías falla, la página sigue usable: el select
+        // queda vacío y la tarea se guarda sin categoría.
+        getCategoriasTarea().catch(() => [] as CategoriaTarea[]),
+      ]);
+      items = tareas;
+      categoriasCatalogo = categorias;
       status = "ready";
       const filteredCount = filterItems(items, filters).length;
       const totalPages = Math.max(1, Math.ceil(filteredCount / PAGE_SIZE) || 1);
@@ -775,7 +798,8 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
       const fd = new FormData(form as HTMLFormElement);
       const nombre = String(fd.get("nombre") ?? "").trim();
       const descripcion = String(fd.get("descripcion") ?? "").trim();
-      const categoria = String(fd.get("categoria") ?? "").trim() || undefined;
+      const categoriaRaw = String(fd.get("categoria_tarea_id") ?? "").trim();
+      const categoriaTareaId = categoriaRaw ? Number(categoriaRaw) : null;
       const es_complemento = fd.has("es_complemento");
 
       if (!nombre || !descripcion) return;
@@ -795,13 +819,20 @@ export function mountTareasCatalogo(container: HTMLElement, signal: AbortSignal)
           if (nombre !== editingTarea.nombre) body.nombre = nombre;
           const prevDesc = editingTarea.descripcion?.trim() ?? "";
           if (descripcion !== prevDesc) body.descripcion = descripcion;
-          if (categoria !== editingTarea.categoria) body.categoria = categoria ?? null;
+          if (categoriaTareaId !== editingTarea.categoria_tarea_id) {
+            body.categoria_tarea_id = categoriaTareaId;
+          }
           if (es_complemento !== editingTarea.es_complemento) body.es_complemento = es_complemento;
           if (Object.keys(body).length > 0) {
             await updateTareaCatalogo(editingTarea.id, body);
           }
         } else {
-          await createTareaCatalogo({ nombre, descripcion, categoria, es_complemento });
+          await createTareaCatalogo({
+            nombre,
+            descripcion,
+            categoria_tarea_id: categoriaTareaId,
+            es_complemento,
+          });
         }
         showModal = false;
         editingTarea = null;

@@ -5,11 +5,22 @@
 
 import {
   getPerfilTareas,
+  getDedicacionPerfil,
   createPerfilTarea,
   updatePerfilTarea,
   deletePerfilTarea,
+  type DedicacionAlcance,
+  type FrecuenciaTarea,
   type PerfilTarea,
+  type PrioridadTarea,
 } from "../../api/puestos.ts";
+import { getCategoriasTarea } from "../../api/categoriasTarea.ts";
+import type { CategoriaTarea } from "../../dashboard/categoriasTarea/types.ts";
+import {
+  dedicacionResumen,
+  FRECUENCIAS,
+  PRIORIDADES,
+} from "../../talento/tareaAtributosUi.ts";
 import {
   getTareasCatalogo,
   createTareaCatalogo,
@@ -209,6 +220,8 @@ function renderAddForm(
   categorias: string[],
   grados: { id: number; nombre: string; orden: number }[],
   alcance: AlcanceValue,
+  categoriasCatalogo: CategoriaTarea[] = [],
+  resumenDedicacionHtml = "",
 ): string {
   const catOpts = categorias
     .map(
@@ -216,7 +229,6 @@ function renderAddForm(
         `<option value="${escapeHtml(c)}" ${filterCategoria.toLowerCase() === c.toLowerCase() ? "selected" : ""}>${escapeHtml(c)}</option>`,
     )
     .join("");
-  const datalistOpts = categorias.map((c) => `<option value="${escapeHtml(c)}"></option>`).join("");
   const gradoOpts = [...grados]
     .sort((a, b) => a.orden - b.orden)
     .map(
@@ -296,10 +308,38 @@ function renderAddForm(
       <!-- Selected + agregar -->
       <div id="tarea-selected-row" class="hidden rounded-lg border border-leoni-blue/30 bg-leoni-blue/5 p-3">
         <div id="tarea-selected-info" class="flex items-center justify-between gap-2"></div>
+        <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div class="min-w-0">
+            <label for="tarea-atrib-prioridad" class="${RH_LISTADO_LABEL}">Prioridad</label>
+            <div class="grid grid-cols-1">
+              <select id="tarea-atrib-prioridad" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="">Sin definir</option>
+                ${PRIORIDADES.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join("")}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div class="min-w-0">
+            <label for="tarea-atrib-frecuencia" class="${RH_LISTADO_LABEL}">Frecuencia</label>
+            <div class="grid grid-cols-1">
+              <select id="tarea-atrib-frecuencia" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="">Sin definir</option>
+                ${FRECUENCIAS.map((o) => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join("")}
+              </select>
+              ${SELECT_CHEVRON}
+            </div>
+          </div>
+          <div class="min-w-0">
+            <label for="tarea-atrib-porcentaje" class="${RH_LISTADO_LABEL}">% dedicación</label>
+            <input id="tarea-atrib-porcentaje" type="number" min="0" max="100" inputmode="numeric"
+              class="${FIELD_INPUT}" placeholder="Opcional" />
+          </div>
+        </div>
         <div class="mt-3 flex justify-end">
           <button type="button" id="tarea-submit-assign" class="${RH_LISTADO_BTN_PRIMARY} text-sm">${ICON_PLUS}<span>Agregar al perfil</span></button>
         </div>
       </div>
+      ${resumenDedicacionHtml}
 
       <!-- Create new toggle -->
       <div>
@@ -325,11 +365,15 @@ function renderAddForm(
             placeholder="Describe la tarea con el detalle del perfil"></textarea>
         </div>
         <div>
-          <label for="tarea-new-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="font-normal normal-case tracking-normal text-text-muted">(opcional — elige una o escribe una nueva)</span></label>
-          <input id="tarea-new-categoria" type="text" list="tarea-new-categoria-list" autocomplete="off"
-            class="${FIELD_INPUT}"
-            placeholder="Ej: logística, calidad, seguridad…" />
-          <datalist id="tarea-new-categoria-list">${datalistOpts}</datalist>
+          <label for="tarea-new-categoria" class="${RH_LISTADO_LABEL}">Categoría <span class="font-normal normal-case tracking-normal text-text-muted">(opcional)</span></label>
+          <div class="grid grid-cols-1">
+            <select id="tarea-new-categoria" class="${RH_LISTADO_SELECT} ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+              <option value="">Sin categoría</option>
+              ${categoriasCatalogo.map((c) => `<option value="${c.id}">${escapeHtml(c.nombre)}</option>`).join("")}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+          <p class="mt-1 text-xs text-text-muted">Se administran en <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes → Tareas</a>.</p>
         </div>
         <label class="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
           <input id="tarea-new-complemento" type="checkbox"
@@ -364,6 +408,8 @@ export function mountEditarTareasModal(
   const gradosPerfil = [...(options.grados ?? [])].sort((a, b) => a.orden - b.orden);
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let categoriasOpciones: string[] = [];
+  let categoriasCatalogo: CategoriaTarea[] = [];
+  let dedicacion: DedicacionAlcance[] = [];
   let searchResults: TareaCatalogo[] = [];
   let searchLoading = false;
   let searchError = "";
@@ -374,6 +420,46 @@ export function mountEditarTareasModal(
   let assignedCatalogoIds: Set<number> = new Set();
   let tareas: PerfilTarea[] = [];
   let editingTareaId: number | null = null;
+
+  /**
+   * Resumen de carga del alcance seleccionado.
+   *
+   * Se muestra el del alcance en el que RH está trabajando: si eligió un global
+   * level, el total de ese nivel (que incluye las generales); si no, el general.
+   */
+  function resumenDedicacionActual(): string {
+    if (!dedicacion.length) return "";
+    const gradoId = alcance ? Number(alcance) : null;
+    const item = gradoId
+      ? dedicacion.find((d) => d.grado_id === gradoId)
+      : dedicacion.find((d) => d.es_general);
+    if (!item) return "";
+    const nombre = item.grado_nombre ?? undefined;
+    return dedicacionResumen({
+      total: item.total_porcentaje,
+      sinPorcentaje: item.tareas_sin_porcentaje,
+      alcance: item.es_general ? undefined : nombre,
+    });
+  }
+
+  /** Atributos capturados en el bloque de asignación. */
+  function leerAtributos(): {
+    prioridad?: PrioridadTarea | null;
+    frecuencia?: FrecuenciaTarea | null;
+    porcentaje_dedicacion?: number | null;
+  } {
+    const sel = (id: string) =>
+      (body.querySelector(`#${id}`) as HTMLSelectElement | null)?.value ?? "";
+    const porcentajeRaw =
+      (body.querySelector("#tarea-atrib-porcentaje") as HTMLInputElement | null)?.value ?? "";
+    const porcentaje = porcentajeRaw.trim() === "" ? null : Number(porcentajeRaw);
+    return {
+      prioridad: (sel("tarea-atrib-prioridad") || null) as PrioridadTarea | null,
+      frecuencia: (sel("tarea-atrib-frecuencia") || null) as FrecuenciaTarea | null,
+      porcentaje_dedicacion:
+        porcentaje != null && Number.isFinite(porcentaje) ? porcentaje : null,
+    };
+  }
 
   function close(): void {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -398,14 +484,34 @@ export function mountEditarTareasModal(
       searchError = "";
       highlightedIndex = -1;
 
-      tareas = await getPerfilTareas(options.perfilId);
+      // El resumen de carga y el catálogo de categorías se recargan con la lista:
+      // agregar o quitar una tarea cambia el total.
+      const [tareasList, dedicacionList, categoriasList] = await Promise.all([
+        getPerfilTareas(options.perfilId),
+        getDedicacionPerfil(options.perfilId).catch(() => [] as DedicacionAlcance[]),
+        categoriasCatalogo.length
+          ? Promise.resolve(categoriasCatalogo)
+          : getCategoriasTarea().catch(() => [] as CategoriaTarea[]),
+      ]);
+      tareas = tareasList;
+      dedicacion = dedicacionList;
+      categoriasCatalogo = categoriasList;
       assignedCatalogoIds = new Set(
         tareas.filter(t => t.tarea_catalogo_id).map(t => t.tarea_catalogo_id as number),
       );
       selectedCatalogo = null;
       body.innerHTML =
         renderTareasList(tareas, editingTareaId) +
-        renderAddForm(showCreateNew, filterTipo, filterCategoria, categoriasOpciones, gradosPerfil, alcance);
+        renderAddForm(
+          showCreateNew,
+          filterTipo,
+          filterCategoria,
+          categoriasOpciones,
+          gradosPerfil,
+          alcance,
+          categoriasCatalogo,
+          resumenDedicacionActual(),
+        );
       bindDeleteButtons();
       bindEditButtons();
       bindInteractions();
@@ -795,6 +901,7 @@ export function mountEditarTareasModal(
           orden,
           tarea_catalogo_id: selectedCatalogo.id,
           grado_id: resolveGradoId(),
+          ...leerAtributos(),
         });
         options.onSuccess();
         await refreshList();
@@ -839,7 +946,9 @@ export function mountEditarTareasModal(
 
       const nombre = (body.querySelector("#tarea-new-nombre") as HTMLInputElement)?.value.trim();
       const descripcion = (body.querySelector("#tarea-new-descripcion") as HTMLTextAreaElement)?.value.trim();
-      const categoria = (body.querySelector("#tarea-new-categoria") as HTMLInputElement)?.value.trim() || undefined;
+      const categoriaRaw =
+        (body.querySelector("#tarea-new-categoria") as HTMLSelectElement | null)?.value ?? "";
+      const categoriaTareaId = categoriaRaw ? Number(categoriaRaw) : null;
       const es_complemento = (body.querySelector("#tarea-new-complemento") as HTMLInputElement)?.checked ?? false;
 
       if (!nombre) {
@@ -856,7 +965,12 @@ export function mountEditarTareasModal(
       btn.textContent = "Creando...";
 
       try {
-        const created = await createTareaCatalogo({ nombre, descripcion, categoria, es_complemento });
+        const created = await createTareaCatalogo({
+          nombre,
+          descripcion,
+          categoria_tarea_id: categoriaTareaId,
+          es_complemento,
+        });
         categoriasOpciones = mergeCategoria(categoriasOpciones, created.categoria);
 
         const orden = nextOrden();
@@ -864,6 +978,8 @@ export function mountEditarTareasModal(
           orden,
           tarea_catalogo_id: created.id,
           grado_id: resolveGradoId(),
+          categoria_tarea_id: categoriaTareaId,
+          ...leerAtributos(),
         });
 
         showCreateNew = false;

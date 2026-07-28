@@ -4,6 +4,9 @@ export type TareaCatalogo = {
   id: number;
   nombre: string;
   descripcion: string | undefined;
+  categoria_tarea_id: number | null;
+  categoria_tarea_nombre: string | null;
+  /** Texto libre legacy, de solo lectura mientras quedan filas sin migrar. */
   categoria: string | undefined;
   es_complemento: boolean;
   activa: boolean;
@@ -13,14 +16,15 @@ export type TareaCatalogo = {
 export type TareaCatalogoCreatePayload = {
   nombre: string;
   descripcion?: string;
-  categoria?: string;
+  categoria_tarea_id?: number | null;
   es_complemento?: boolean;
 };
 
 export type TareaCatalogoUpdatePayload = {
   nombre?: string;
   descripcion?: string | null;
-  categoria?: string | null;
+  /** null quita la categoría; omitir la deja como está. */
+  categoria_tarea_id?: number | null;
   es_complemento?: boolean;
 };
 
@@ -42,6 +46,8 @@ function mapTareaCatalogo(t: Record<string, unknown>): TareaCatalogo {
     id: t.id as number,
     nombre: (t.nombre ?? "") as string,
     descripcion: (t.descripcion ?? undefined) as string | undefined,
+    categoria_tarea_id: (t.categoria_tarea_id ?? null) as number | null,
+    categoria_tarea_nombre: (t.categoria_tarea_nombre ?? null) as string | null,
     categoria: (t.categoria ?? undefined) as string | undefined,
     es_complemento: (t.es_complemento ?? false) as boolean,
     activa: (t.activo ?? true) as boolean,
@@ -69,6 +75,7 @@ export async function getTareasCatalogo(opts?: {
   page_size?: number;
   busqueda?: string;
   categoria?: string;
+  categoria_tarea_id?: number;
   signal?: AbortSignal;
 }): Promise<TareaCatalogo[]> {
   const qs = new URLSearchParams();
@@ -76,6 +83,9 @@ export async function getTareasCatalogo(opts?: {
   if (opts?.page_size) qs.set("page_size", String(opts.page_size));
   if (opts?.busqueda?.trim()) qs.set("busqueda", opts.busqueda.trim());
   if (opts?.categoria?.trim()) qs.set("categoria", opts.categoria.trim());
+  if (opts?.categoria_tarea_id) {
+    qs.set("categoria_tarea_id", String(opts.categoria_tarea_id));
+  }
   const url = `/api/v1/tareas-catalogo${qs.toString() ? `?${qs}` : ""}`;
   const res = await fetchWithAuth(url, { signal: opts?.signal });
   if (!res.ok) {
@@ -91,7 +101,8 @@ export async function getTareasCatalogo(opts?: {
 export function extractCategoriasFromCatalogo(items: TareaCatalogo[]): string[] {
   const seen = new Map<string, string>();
   for (const t of items) {
-    const label = t.categoria?.trim();
+    // Prefiere el nombre del catálogo; el texto libre es el fallback legacy.
+    const label = (t.categoria_tarea_nombre ?? t.categoria)?.trim();
     if (label) {
       const key = label.toLowerCase();
       if (!seen.has(key)) seen.set(key, label);
@@ -108,7 +119,9 @@ export async function createTareaCatalogo(
     nombre: payload.nombre,
   };
   if (payload.descripcion?.trim()) body.descripcion = payload.descripcion.trim();
-  if (payload.categoria) body.categoria = payload.categoria;
+  if (payload.categoria_tarea_id !== undefined) {
+    body.categoria_tarea_id = payload.categoria_tarea_id;
+  }
   if (payload.es_complemento !== undefined) body.es_complemento = payload.es_complemento;
   const res = await fetchWithAuth("/api/v1/tareas-catalogo", {
     method: "POST",

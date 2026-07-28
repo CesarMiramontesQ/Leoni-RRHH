@@ -2,6 +2,7 @@ import {
   getPerfilCompetencias,
   syncPerfilCompetencias,
   createPerfilCompetencia,
+  type PerfilCompetenciaSyncItem,
 } from "../../api/puestos.ts";
 import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
 import { getTiposCompetencia } from "../../api/tiposCompetencia.ts";
@@ -45,7 +46,10 @@ type AssignedItem = {
   tipo_nombre: string | null;
   nivel_requerido: number;
   es_general: boolean;
+  evidencia: string | null;
 };
+
+const ICON_EVIDENCIA = `<svg viewBox="0 0 20 20" fill="currentColor" class="size-3" aria-hidden="true"><path fill-rule="evenodd" d="M4.25 2A2.25 2.25 0 0 0 2 4.25v11.5A2.25 2.25 0 0 0 4.25 18h11.5A2.25 2.25 0 0 0 18 15.75V4.25A2.25 2.25 0 0 0 15.75 2H4.25ZM6 6.75A.75.75 0 0 1 6.75 6h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 6 6.75ZM6.75 9a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5ZM6 12.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd"/></svg>`;
 
 function badgeGeneralReadonly(): string {
   return `<span class="inline-flex items-center rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-800 ring-1 ring-violet-200/80" title="Se edita en alcance General">General</span>`;
@@ -144,6 +148,10 @@ export function mountEditarCompetenciasModal(
   let pendingRemovals: Set<number> = new Set();
   let pendingAdds: Map<number, number> = new Map();
   let pendingNivelUpdates: Map<number, number> = new Map();
+  // Evidencia editada pero aun sin guardar, por requisito.
+  let pendingEvidencia: Map<number, string> = new Map();
+  // Requisito cuyo editor de evidencia esta abierto (uno a la vez).
+  let editandoEvidenciaReqId: number | null = null;
   let saving = false;
   let searchQuery = "";
   let searchSubcategoria = "";
@@ -222,6 +230,7 @@ export function mountEditarCompetenciasModal(
           tipo_competencia_id: c.tipo_competencia_id,
           tipo_nombre: c.tipo_nombre,
           nivel_requerido: c.nivel_requerido ?? 0,
+          evidencia: c.evidencia ?? null,
           es_general: Boolean(c.es_general || c.grado_id == null),
         }));
 
@@ -238,6 +247,8 @@ export function mountEditarCompetenciasModal(
       pendingRemovals = new Set();
       pendingAdds = new Map();
       pendingNivelUpdates = new Map();
+      pendingEvidencia = new Map();
+      editandoEvidenciaReqId = null;
       pickNivelCompId = null;
       saveError = "";
       showSearch = false;
@@ -260,6 +271,35 @@ export function mountEditarCompetenciasModal(
   function getVisiblePendingAdds(): CatalogoItem[] {
     const assignedIds = new Set(assigned.map((a) => a.competencia_id));
     return catalogo.filter((c) => pendingAdds.has(c.id) && !assignedIds.has(c.id));
+  }
+
+  /** Evidencia efectiva: la editada sin guardar, o la que ya estaba. */
+  function evidenciaActual(a: AssignedItem): string {
+    return pendingEvidencia.get(a.requisito_id) ?? a.evidencia ?? "";
+  }
+
+  function evidenciaBoton(a: AssignedItem): string {
+    const valor = evidenciaActual(a).trim();
+    const tiene = valor.length > 0;
+    const abierto = editandoEvidenciaReqId === a.requisito_id;
+    const title = tiene ? `Evidencia: ${valor}` : "Agregar evidencia (opcional)";
+    return `<button type="button" data-evidencia-toggle="${a.requisito_id}"
+      class="rounded p-0.5 transition ${tiene ? "text-accent" : "text-current opacity-40 hover:opacity-100"} ${abierto ? "bg-white/70" : ""}"
+      title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" aria-pressed="${abierto}">${ICON_EVIDENCIA}</button>`;
+  }
+
+  function evidenciaEditor(a: AssignedItem): string {
+    return `<div class="mt-1.5 w-full rounded-lg border border-slate-200 bg-white p-2">
+      <label for="evidencia-${a.requisito_id}" class="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+        Evidencia · ${escapeHtml(a.nombre)}
+      </label>
+      <textarea id="evidencia-${a.requisito_id}" data-evidencia-input="${a.requisito_id}" rows="2"
+        class="mt-1 block w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs text-text-primary ${FIELD_FOCUS}"
+        placeholder="Qué acredita este nivel en el puesto (certificado, evaluación práctica…)">${escapeHtml(evidenciaActual(a))}</textarea>
+      <div class="mt-1.5 flex justify-end">
+        <button type="button" data-evidencia-cerrar class="${RH_LISTADO_BTN_GHOST} text-[11px]">Listo</button>
+      </div>
+    </div>`;
   }
 
   function effectiveNivel(a: AssignedItem): number {
@@ -293,7 +333,10 @@ export function mountEditarCompetenciasModal(
     }
 
     const hasChanges =
-      pendingRemovals.size > 0 || pendingAdds.size > 0 || pendingNivelUpdates.size > 0;
+      pendingRemovals.size > 0 ||
+      pendingAdds.size > 0 ||
+      pendingNivelUpdates.size > 0 ||
+      pendingEvidencia.size > 0;
     const totalCount = visible.length + adding.length;
 
     const sections = tiposCatalogo.map((sub) => {
@@ -311,8 +354,10 @@ export function mountEditarCompetenciasModal(
             <span class="truncate max-w-[10rem]">${escapeHtml(a.nombre)}</span>
             ${alcanceBadge}
             ${compactNivelSelect(resolveNivelForSelect(nivel), `data-nivel-assigned="${a.requisito_id}"`)}
+            ${evidenciaBoton(a)}
             <button type="button" data-remove-req="${a.requisito_id}" class="text-current opacity-50 hover:opacity-100" aria-label="Quitar">×</button>
-          </span>`;
+          </span>
+          ${editandoEvidenciaReqId === a.requisito_id ? evidenciaEditor(a) : ""}`;
         }),
         ...g.adding.map((a) => {
           const nivel = effectiveNivelAdd(a.id);
@@ -412,7 +457,10 @@ export function mountEditarCompetenciasModal(
     }
 
     const hasChanges =
-      pendingRemovals.size > 0 || pendingAdds.size > 0 || pendingNivelUpdates.size > 0;
+      pendingRemovals.size > 0 ||
+      pendingAdds.size > 0 ||
+      pendingNivelUpdates.size > 0 ||
+      pendingEvidencia.size > 0;
     const footerHtml = hasChanges
       ? `<div data-comp-save-footer class="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
           <span class="text-xs text-slate-500">
@@ -553,6 +601,26 @@ export function mountEditarCompetenciasModal(
 
     const target = e.target as HTMLElement;
 
+    const evidenciaBtn = target.closest<HTMLElement>("[data-evidencia-toggle]");
+    if (evidenciaBtn && !saving) {
+      const reqId = Number(evidenciaBtn.dataset.evidenciaToggle);
+      // Un editor a la vez: volver a pulsar el mismo lo cierra.
+      editandoEvidenciaReqId = editandoEvidenciaReqId === reqId ? null : reqId;
+      render();
+      if (editandoEvidenciaReqId != null) {
+        body
+          .querySelector<HTMLTextAreaElement>(`[data-evidencia-input="${editandoEvidenciaReqId}"]`)
+          ?.focus();
+      }
+      return;
+    }
+
+    if (target.closest("[data-evidencia-cerrar]") && !saving) {
+      editandoEvidenciaReqId = null;
+      render();
+      return;
+    }
+
     const removeBtn = target.closest<HTMLElement>("[data-remove-req]");
     if (removeBtn && !saving) {
       pendingRemovals.add(Number(removeBtn.dataset.removeReq));
@@ -646,6 +714,8 @@ export function mountEditarCompetenciasModal(
       pendingRemovals = new Set();
       pendingAdds = new Map();
       pendingNivelUpdates = new Map();
+      pendingEvidencia = new Map();
+      editandoEvidenciaReqId = null;
       pickNivelCompId = null;
       saveError = "";
       render();
@@ -690,6 +760,17 @@ export function mountEditarCompetenciasModal(
     if (target.matches("[data-search-subcat]")) {
       searchSubcategoria = (target as HTMLSelectElement).value;
       render();
+      return;
+    }
+    if (target.matches("[data-evidencia-input]")) {
+      const reqId = Number.parseInt(target.getAttribute("data-evidencia-input") ?? "", 10);
+      if (!Number.isFinite(reqId)) return;
+      const valor = (target as HTMLTextAreaElement).value;
+      const original = assigned.find((a) => a.requisito_id === reqId)?.evidencia ?? "";
+      if (valor === original) pendingEvidencia.delete(reqId);
+      else pendingEvidencia.set(reqId, valor);
+      saveError = "";
+      paintSaveFooter();
       return;
     }
     if (target.matches("[data-nivel-assigned], [data-nivel-pending-add], [data-pick-nivel-select], [data-create-nivel]")) {
@@ -778,9 +859,14 @@ export function mountEditarCompetenciasModal(
           return c?.tipo_competencia_id === sub.id;
         });
         const hasNivelEdits = currentInSub.some((a) => pendingNivelUpdates.has(a.requisito_id));
-        if (!hasRemovals && addsInSub.length === 0 && !hasNivelEdits) continue;
+        const hasEvidenciaEdits = currentInSub.some((a) =>
+          pendingEvidencia.has(a.requisito_id),
+        );
+        if (!hasRemovals && addsInSub.length === 0 && !hasNivelEdits && !hasEvidenciaEdits) {
+          continue;
+        }
 
-        const competencias: { competencia_id: number; nivel_requerido: number }[] = [];
+        const competencias: PerfilCompetenciaSyncItem[] = [];
 
         for (const a of currentInSub) {
           if (pendingRemovals.has(a.requisito_id)) continue;
@@ -791,7 +877,13 @@ export function mountEditarCompetenciasModal(
             render();
             return;
           }
-          competencias.push({ competencia_id: a.competencia_id, nivel_requerido: nivel });
+          // La evidencia solo se manda si cambió: omitirla conserva la guardada.
+          const evidenciaEditada = pendingEvidencia.get(a.requisito_id);
+          competencias.push({
+            competencia_id: a.competencia_id,
+            nivel_requerido: nivel,
+            ...(evidenciaEditada !== undefined ? { evidencia: evidenciaEditada } : {}),
+          });
         }
 
         for (const compId of addsInSub) {

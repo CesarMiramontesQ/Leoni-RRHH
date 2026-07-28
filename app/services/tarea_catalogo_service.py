@@ -9,6 +9,7 @@ from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import PerfilTarea, TareaCatalogo
 from app.repositories.tarea_catalogo_repository import TareaCatalogoRepository
+from app.services.categoria_tarea_service import CategoriaTareaService
 from app.schemas.tareas_catalogo import (
     TareaCatalogoCreate,
     TareaCatalogoListResponse,
@@ -21,6 +22,7 @@ class TareaCatalogoService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.repo = TareaCatalogoRepository(db)
+        self.categoria_service = CategoriaTareaService(db)
 
     @staticmethod
     def _display_text(tarea: TareaCatalogo) -> str:
@@ -37,6 +39,10 @@ class TareaCatalogoService:
             id=tarea.id,
             nombre=tarea.nombre,
             descripcion=tarea.descripcion,
+            categoria_tarea_id=tarea.categoria_tarea_id,
+            categoria_tarea_nombre=(
+                tarea.categoria_tarea.nombre if tarea.categoria_tarea else None
+            ),
             categoria=tarea.categoria,
             es_complemento=tarea.es_complemento,
             activo=tarea.activo,
@@ -50,6 +56,7 @@ class TareaCatalogoService:
         page_size: int,
         categoria: str | None = None,
         busqueda: str | None = None,
+        categoria_tarea_id: int | None = None,
     ) -> TareaCatalogoListResponse:
         offset = (page - 1) * page_size
         items, total = await self.repo.list_filtered(
@@ -57,6 +64,7 @@ class TareaCatalogoService:
             limit=page_size,
             categoria=categoria,
             busqueda=busqueda,
+            categoria_tarea_id=categoria_tarea_id,
         )
         return TareaCatalogoListResponse(
             items=[self._to_response(i) for i in items],
@@ -66,7 +74,7 @@ class TareaCatalogoService:
         )
 
     async def obtener(self, id: int) -> TareaCatalogoResponse:
-        tarea = await self.repo.get(id)
+        tarea = await self.repo.get_with_categoria(id)
         if not tarea or not tarea.activo:
             raise NotFoundError(entidad="TareaCatalogo", id=id)
         return self._to_response(tarea)
@@ -80,14 +88,17 @@ class TareaCatalogoService:
         if await self.repo.exists_by_nombre(data.nombre):
             raise ConflictError(detail=f"Ya existe una tarea '{data.nombre}' en el catalogo")
 
+        if data.categoria_tarea_id is not None:
+            await self.categoria_service.validar_activa(data.categoria_tarea_id)
+
         tarea = await self.repo.create({
             "nombre": data.nombre,
             "descripcion": data.descripcion,
-            "categoria": data.categoria,
+            "categoria_tarea_id": data.categoria_tarea_id,
             "es_complemento": data.es_complemento,
             "activo": True,
         })
-        return self._to_response(tarea)
+        return self._to_response(await self.repo.get_with_categoria(tarea.id))
 
     async def actualizar(
         self, id: int, data: TareaCatalogoUpdate, current_user: Empleado
@@ -108,8 +119,11 @@ class TareaCatalogoService:
             update_data["nombre"] = data.nombre
         if data.descripcion is not None:
             update_data["descripcion"] = data.descripcion
-        if data.categoria is not None:
-            update_data["categoria"] = data.categoria
+        # Null explicito quita la categoria; omitirla la deja como esta.
+        if "categoria_tarea_id" in data.model_fields_set:
+            if data.categoria_tarea_id is not None:
+                await self.categoria_service.validar_activa(data.categoria_tarea_id)
+            update_data["categoria_tarea_id"] = data.categoria_tarea_id
         if data.es_complemento is not None:
             update_data["es_complemento"] = data.es_complemento
 
@@ -117,8 +131,7 @@ class TareaCatalogoService:
             await self.repo.update(id, update_data)
             await self._propagar_cambios_a_perfiles(id, update_data)
 
-        tarea = await self.repo.get(id)
-        return self._to_response(tarea)
+        return self._to_response(await self.repo.get_with_categoria(id))
 
     async def _propagar_cambios_a_perfiles(
         self, catalogo_id: int, update_data: dict

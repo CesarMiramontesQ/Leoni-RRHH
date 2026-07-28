@@ -71,6 +71,14 @@ class EmpleadoDisponibleResponse(BaseModel):
 # ── Perfil Tareas ───────────────────────────────────────────────────────────
 
 
+# Valores fijos validados en backend (no son catalogo editable: cargan logica y
+# el repo usa el patron String + validacion para este tipo de campo).
+PrioridadTarea = Literal["alta", "media", "baja"]
+FrecuenciaTarea = Literal[
+    "diaria", "semanal", "mensual", "trimestral", "anual", "eventual"
+]
+
+
 class PerfilTareaCreate(BaseModel):
     model_config = {"str_strip_whitespace": True}
 
@@ -80,6 +88,18 @@ class PerfilTareaCreate(BaseModel):
     es_complemento: bool = False
     grado_id: Optional[int] = Field(
         None, gt=0, description="Null = tarea general (todos los grados del perfil)"
+    )
+    categoria_tarea_id: Optional[int] = Field(None, gt=0)
+    prioridad: Optional[PrioridadTarea] = None
+    frecuencia: Optional[FrecuenciaTarea] = None
+    porcentaje_dedicacion: Optional[int] = Field(
+        None,
+        ge=0,
+        le=100,
+        description=(
+            "Porcentaje del tiempo del puesto. Alimenta el analisis de la carga; "
+            "la suma no se valida de forma bloqueante."
+        ),
     )
 
     @model_validator(mode="after")
@@ -99,6 +119,12 @@ class PerfilTareaUpdate(BaseModel):
         None,
         description="Null = general; omitir para no cambiar; >0 = grado específico",
     )
+    categoria_tarea_id: Optional[int] = Field(
+        None, description="Null = quitar la categoria; omitir para no cambiarla"
+    )
+    prioridad: Optional[PrioridadTarea] = None
+    frecuencia: Optional[FrecuenciaTarea] = None
+    porcentaje_dedicacion: Optional[int] = Field(None, ge=0, le=100)
 
     @model_validator(mode="after")
     def check_grado_id(self) -> "PerfilTareaUpdate":
@@ -120,8 +146,28 @@ class PerfilTareaResponse(BaseModel):
     grado_id: Optional[int] = None
     grado_nombre: Optional[str] = None
     es_general: bool = True
+    categoria_tarea_id: Optional[int] = None
+    categoria_tarea_nombre: Optional[str] = None
+    prioridad: Optional[str] = None
+    frecuencia: Optional[str] = None
+    porcentaje_dedicacion: Optional[int] = None
     created_at: datetime
     updated_at: datetime
+
+
+class DedicacionAlcance(BaseModel):
+    """
+    Suma de dedicacion de un alcance del perfil (general o un global level).
+
+    Es informativa: la UI avisa cuando no llega a 100%, pero nada bloquea guardar.
+    """
+
+    grado_id: Optional[int] = None
+    grado_nombre: Optional[str] = None
+    es_general: bool = False
+    total_porcentaje: int = 0
+    tareas_con_porcentaje: int = 0
+    tareas_sin_porcentaje: int = 0
 
 
 # ── Perfil Cualificaciones ──────────────────────────────────────────────────
@@ -163,15 +209,23 @@ class PerfilCualificacionResponse(BaseModel):
 
 
 class PerfilCompetenciaCreate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
     competencia_id: int
     grado_id: Optional[int] = Field(
         None, gt=0, description="Null = competencia general (todos los grados del perfil)"
     )
     nivel_requerido: int = Field(..., ge=1, description="Nivel mínimo requerido (valor del catálogo)")
+    evidencia: Optional[str] = Field(
+        None, description="Que acredita el nivel requerido en este puesto (opcional)"
+    )
 
 
 class PerfilCompetenciaUpdate(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
     nivel_requerido: int = Field(..., ge=1, description="Nivel mínimo requerido (valor del catálogo)")
+    evidencia: Optional[str] = None
 
 
 class PerfilCompetenciaResponse(BaseModel):
@@ -188,6 +242,7 @@ class PerfilCompetenciaResponse(BaseModel):
     grado_nombre: Optional[str] = None
     es_general: bool = False
     nivel_requerido: int = 0
+    evidencia: Optional[str] = None
     orden: Optional[int] = None
 
 
@@ -311,8 +366,11 @@ class PerfilFuncionesCompetenciaResponse(BaseModel):
 
 
 class PerfilCompetenciaSyncItem(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
     competencia_id: int
     nivel_requerido: int = Field(..., ge=1)
+    evidencia: Optional[str] = None
 
 
 class PerfilCompetenciaSyncBody(BaseModel):

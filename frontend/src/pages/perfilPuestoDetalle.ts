@@ -46,6 +46,13 @@ import {
   globalGradeBadge,
   globalLevelChips,
 } from "../talento/clasificacionPuestoUi.ts";
+import {
+  categoriaTareaBadge,
+  dedicacionBadge,
+  dedicacionResumen,
+  frecuenciaBadge,
+  prioridadBadge,
+} from "../talento/tareaAtributosUi.ts";
 import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
 
@@ -90,11 +97,18 @@ interface Tarea {
   grado_id?: number | null;
   grado_nombre?: string | null;
   es_general?: boolean;
+  categoria_tarea_id?: number | null;
+  categoria_tarea_nombre?: string | null;
+  prioridad?: string | null;
+  frecuencia?: string | null;
+  porcentaje_dedicacion?: number | null;
 }
 
 interface Competencia {
   id: number;
   competencia_id: number;
+  /** Qué acredita el nivel requerido en este puesto. Opcional. */
+  evidencia?: string | null;
   competencia_nombre: string;
   tipo_competencia_id: number | null;
   tipo_nombre: string | null;
@@ -525,6 +539,16 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
   const fechaMeta = updatedAt ? ` · Actualizado ${escapeHtml(updatedAt)}` : "";
   const manyTasks = tareas.length > 12;
 
+  // El resumen solo aparece si RH empezó a repartir la dedicación; si nadie ha
+  // capturado porcentajes, un aviso de "faltan 100%" sería ruido.
+  const conPorcentaje = tareas.filter((t) => t.porcentaje_dedicacion != null);
+  const resumenDedicacion = conPorcentaje.length
+    ? dedicacionResumen({
+        total: conPorcentaje.reduce((s, t) => s + (t.porcentaje_dedicacion ?? 0), 0),
+        sinPorcentaje: tareas.length - conPorcentaje.length,
+      })
+    : "";
+
   if (tareas.length === 0) {
     return sectionShell(
       "ppd-tareas",
@@ -556,6 +580,16 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
             : t.grado_nombre
               ? badgeAlcanceGrado(t.grado_nombre)
               : "";
+        // Atributos de la responsabilidad: solo se pinta lo que RH capturó.
+        const atributos = [
+          categoriaTareaBadge(t.categoria_tarea_nombre),
+          prioridadBadge(t.prioridad),
+          frecuenciaBadge(t.frecuencia),
+          dedicacionBadge(t.porcentaje_dedicacion),
+        ].filter(Boolean);
+        const atributosHtml = atributos.length
+          ? `<div class="mt-1.5 flex flex-wrap items-center gap-1.5">${atributos.join("")}</div>`
+          : "";
         return `
       <li class="ppd-task-item group flex gap-3 rounded-lg border border-transparent px-2 py-2.5 transition hover:border-slate-200/90 hover:bg-slate-50/80">
         <span class="ppd-task-orden flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 font-mono text-xs font-bold text-blue-800 ring-1 ring-blue-200/60" aria-hidden="true">${t.orden}</span>
@@ -565,12 +599,14 @@ function renderTareas(tareas: Tarea[], updatedAt: string | null): string {
             ${alcanceBadge}
           </div>
           ${subtituloHtml}
+          ${atributosHtml}
         </div>
       </li>`;
       })
       .join("");
 
   const body = `
+    ${resumenDedicacion ? `<div class="mb-3">${resumenDedicacion}</div>` : ""}
     <div class="ppd-tareas-scroll ${manyTasks ? "ppd-tareas-scroll--tall" : ""}">
       <ol class="flex flex-col gap-0.5">${renderList(principales)}</ol>
       ${
@@ -663,15 +699,26 @@ function renderCualificaciones(cualificaciones: PerfilCualificacion[]): string {
 }
 
 /** Celda de nivel requerido dentro de la matriz (badge coloreado o guion si no aplica). */
-function nivelMatrixCell(nivel: number | null | undefined): string {
+function nivelMatrixCell(
+  nivel: number | null | undefined,
+  evidencia?: string | null,
+): string {
   if (nivel == null || nivel <= 0) {
     return `<span class="ppd-matrix-empty" aria-hidden="true">—</span><span class="sr-only">No requerido</span>`;
   }
   const nv = nivelVisual(nivel);
   const label = nv.title.split("—").pop()?.trim() ?? nv.title;
-  return `<span class="${nv.cls} ppd-matrix-nivel" title="${escapeHtml(nv.title)}" aria-label="Nivel ${nv.short}: ${escapeHtml(label)}">
+  // La evidencia se lee en el tooltip y se marca con un punto: es un dato de
+  // apoyo, no debe competir visualmente con el nivel.
+  const evi = (evidencia ?? "").trim();
+  const title = evi ? `${nv.title} · Evidencia: ${evi}` : nv.title;
+  const marca = evi
+    ? `<span class="ml-1 inline-block size-1.5 rounded-full bg-accent align-middle" aria-hidden="true"></span>`
+    : "";
+  const ariaEvi = evi ? `. Evidencia: ${evi}` : "";
+  return `<span class="${nv.cls} ppd-matrix-nivel" title="${escapeHtml(title)}" aria-label="Nivel ${nv.short}: ${escapeHtml(label)}${escapeHtml(ariaEvi)}">
     <span class="ppd-nivel-short" aria-hidden="true">${nv.short}</span>
-    <span class="ppd-matrix-nivel-label">${escapeHtml(label)}</span>
+    <span class="ppd-matrix-nivel-label">${escapeHtml(label)}</span>${marca}
   </span>`;
 }
 
@@ -691,6 +738,9 @@ function renderCompetenciasLegend(maxNivel: number): string {
 type CompMatrixEntry = {
   nombre: string;
   niveles: Map<number, number>;
+  /** Evidencia por alcance, para el tooltip de la celda. */
+  evidencias: Map<number, string>;
+  evidencia_general: string | null;
   es_general: boolean;
   nivel_general: number | null;
 };
@@ -772,7 +822,14 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
       }
       let entry = grupo.comps.get(c.competencia_id);
       if (!entry) {
-        entry = { nombre: c.competencia_nombre, niveles: new Map(), es_general: false, nivel_general: null };
+        entry = {
+          nombre: c.competencia_nombre,
+          niveles: new Map(),
+          evidencias: new Map(),
+          es_general: false,
+          nivel_general: null,
+          evidencia_general: null,
+        };
         grupo.comps.set(c.competencia_id, entry);
       } else if (c.competencia_nombre) {
         entry.nombre = c.competencia_nombre;
@@ -781,9 +838,11 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
         entry.es_general = true;
         if (c.nivel_requerido != null && c.nivel_requerido > 0) {
           entry.nivel_general = c.nivel_requerido;
+          entry.evidencia_general = c.evidencia ?? null;
         }
       } else if (c.nivel_requerido != null && c.nivel_requerido > 0) {
         entry.niveles.set(grado.id, c.nivel_requerido);
+        if (c.evidencia) entry.evidencias.set(grado.id, c.evidencia);
       }
     }
   }
@@ -847,8 +906,11 @@ function renderCompetencias(porGrado: CompetenciasPorGrado[]): string {
             ? `<span class="ml-1.5 align-middle">${badgeAlcanceGeneral()}</span>`
             : "";
           const cells = [
-            `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.nivel_general)}</td>`,
-            ...grados.map((g) => `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.niveles.get(g.id) ?? null)}</td>`),
+            `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.nivel_general, entry.evidencia_general)}</td>`,
+            ...grados.map(
+              (g) =>
+                `<td class="ppd-matrix-cell">${nivelMatrixCell(entry.niveles.get(g.id) ?? null, entry.evidencias.get(g.id) ?? null)}</td>`,
+            ),
           ].join("");
           return `
           <tr class="ppd-matrix-row">
