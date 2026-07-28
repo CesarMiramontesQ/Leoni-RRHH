@@ -35,7 +35,7 @@ function mapGrado(raw: Record<string, unknown>): GradoPuesto {
   };
 }
 
-/** GET /api/v1/grados-puesto */
+/** GET /api/v1/career-levels */
 export async function getGradosPuesto(opts?: {
   page?: number;
   page_size?: number;
@@ -47,7 +47,7 @@ export async function getGradosPuesto(opts?: {
   qs.set("page_size", String(opts?.page_size ?? 200));
   if (opts?.busqueda?.trim()) qs.set("busqueda", opts.busqueda.trim());
   if (opts?.career_path_id) qs.set("career_path_id", String(opts.career_path_id));
-  const res = await fetchWithAuth(`/api/v1/grados-puesto?${qs}`);
+  const res = await fetchWithAuth(`/api/v1/career-levels?${qs}`);
   if (!res.ok) {
     throw { status: res.status, detail: await readErrorDetail(res) } as GradoPuestoFetchError;
   }
@@ -64,9 +64,9 @@ export async function getGradosPuesto(opts?: {
     );
 }
 
-/** POST /api/v1/grados-puesto */
+/** POST /api/v1/career-levels */
 export async function createGradoPuesto(payload: GradoPuestoCreatePayload): Promise<GradoPuesto> {
-  const res = await fetchWithAuth("/api/v1/grados-puesto", {
+  const res = await fetchWithAuth("/api/v1/career-levels", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -77,12 +77,12 @@ export async function createGradoPuesto(payload: GradoPuestoCreatePayload): Prom
   return mapGrado(await res.json());
 }
 
-/** PATCH /api/v1/grados-puesto/:id */
+/** PATCH /api/v1/career-levels/:id */
 export async function updateGradoPuesto(
   id: number,
   payload: GradoPuestoUpdatePayload,
 ): Promise<GradoPuesto> {
-  const res = await fetchWithAuth(`/api/v1/grados-puesto/${id}`, {
+  const res = await fetchWithAuth(`/api/v1/career-levels/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -93,9 +93,9 @@ export async function updateGradoPuesto(
   return mapGrado(await res.json());
 }
 
-/** DELETE /api/v1/grados-puesto/:id */
+/** DELETE /api/v1/career-levels/:id */
 export async function deleteGradoPuesto(id: number): Promise<void> {
-  const res = await fetchWithAuth(`/api/v1/grados-puesto/${id}`, { method: "DELETE" });
+  const res = await fetchWithAuth(`/api/v1/career-levels/${id}`, { method: "DELETE" });
   if (!res.ok) {
     throw { status: res.status, detail: await readErrorDetail(res) } as GradoPuestoFetchError;
   }

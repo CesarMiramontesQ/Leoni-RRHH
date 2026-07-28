@@ -6,13 +6,13 @@ Create Date: 2026-07-28
 
 Contexto: la clasificacion WTW de un puesto se completa con el Global Grade (GG),
 que RH define fuera del sistema junto con el resto de la clasificacion. Falta el
-catalogo y la equivalencia configurable Global Level -> Global Grade.
+catalogo y la equivalencia configurable Career Level -> Global Grade.
 
 Esta migracion:
   1. crea `levelup_global_grades` (codigo, nombre, descripcion, orden, activo),
-  2. crea `levelup_global_level_grade_mappings`, con unicidad POR global level: un
+  2. crea `levelup_global_level_grade_mappings`, con unicidad POR career level: un
      nivel equivale a un solo grado. El career path no se guarda aqui porque ya
-     cuelga del global level y duplicarlo permitiria que las copias se contradigan,
+     cuelga del career level y duplicarlo permitiria que las copias se contradigan,
   3. agrega `global_grade_id` a `levelup_puestos_perfil` (nullable: los perfiles sin
      clasificar se marcan como pendientes en la UI, no se bloquean),
   4. agrega `global_grade_id` y `cambios` (JSONB) a la bitacora de clasificacion,
@@ -123,7 +123,7 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint("id"),
             sa.ForeignKeyConstraint(["global_level_id"], [f"{T_NIVELES}.id"]),
             sa.ForeignKeyConstraint(["global_grade_id"], [f"{T_GRADES}.id"]),
-            # Un global level equivale a un solo global grade.
+            # Un career level equivale a un solo global grade.
             sa.UniqueConstraint("global_level_id", name=UQ_MAPPING_LEVEL),
         )
 

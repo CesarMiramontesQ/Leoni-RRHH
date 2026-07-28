@@ -232,14 +232,14 @@ export async function deleteGlobalGrade(id: number): Promise<void> {
   return eliminar(`${BASE}/global-grades/${id}`);
 }
 
-// ── Equivalencias Global Level ↔ Global Grade ───────────────────────────────
+// ── Equivalencias Career Level ↔ Global Grade ───────────────────────────────
 
 function mapEquivalencia(raw: Record<string, unknown>): Equivalencia {
   return {
     id: raw.id as number,
-    global_level_id: (raw.global_level_id ?? 0) as number,
-    global_level_codigo: (raw.global_level_codigo ?? null) as string | null,
-    global_level_nombre: (raw.global_level_nombre ?? null) as string | null,
+    career_level_id: (raw.career_level_id ?? 0) as number,
+    career_level_codigo: (raw.career_level_codigo ?? null) as string | null,
+    career_level_nombre: (raw.career_level_nombre ?? null) as string | null,
     career_path_id: (raw.career_path_id ?? null) as number | null,
     career_path_codigo: (raw.career_path_codigo ?? null) as string | null,
     career_path_nombre: (raw.career_path_nombre ?? null) as string | null,
@@ -262,7 +262,7 @@ export async function getEquivalencias(opts?: {
 }
 
 /**
- * Equivalencia configurada para un global level, o `null` si RH no la definió.
+ * Equivalencia configurada para un career level, o `null` si RH no la definió.
  *
  * `null` no es un error: significa que el global grade debe elegirse a mano.
  */
@@ -270,7 +270,7 @@ export async function resolverEquivalencia(
   globalLevelId: number,
 ): Promise<Equivalencia | null> {
   const res = await fetchWithAuth(
-    `${BASE}/equivalencias/resolver?global_level_id=${globalLevelId}`,
+    `${BASE}/equivalencias/resolver?career_level_id=${globalLevelId}`,
   );
   if (!res.ok) fail(res, await readErrorDetail(res));
   const data = (await res.json()) as Record<string, unknown> | null;

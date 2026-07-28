@@ -201,7 +201,7 @@ async def test_categoria_inactiva_no_se_puede_asignar(client: AsyncClient, db):
 @pytest.mark.asyncio
 async def test_resumen_dedicacion_suma_por_alcance(client: AsyncClient, db):
     """
-    El total de un global level incluye las tareas generales.
+    El total de un career level incluye las tareas generales.
 
     Una tarea general la ejecuta también ese nivel, así que cuenta para su carga.
     """

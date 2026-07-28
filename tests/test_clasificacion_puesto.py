@@ -66,7 +66,7 @@ async def test_listar_career_paths(client, db):
 
 
 @pytest.mark.asyncio
-async def test_eliminar_career_path_con_global_levels_409(client, db):
+async def test_eliminar_career_path_con_career_levels_409(client, db):
     rh = await make_empleado(db, rol="rh", email="cp_del@leoni.test")
     career_path = await make_career_path(db, codigo="P")
     await make_grado_puesto(db, nombre="P1", orden=1, career_path_id=career_path.id)

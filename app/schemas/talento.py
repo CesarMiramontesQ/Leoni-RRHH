@@ -19,7 +19,7 @@ TipoPuestoPerfil = Literal["administrativo", "operativo"]
 
 
 class GradoPerfilItem(BaseModel):
-    """Global Level del perfil (P10, M3)."""
+    """Career Level del perfil (P10, M3)."""
 
     id: int
     nombre: str
@@ -40,7 +40,7 @@ class PuestoPerfilCreate(BaseModel):
     grado_ids: list[int] = Field(
         ...,
         min_length=1,
-        description="Global levels consecutivos del perfil, todos del mismo career path",
+        description="Career levels consecutivos del perfil, todos del mismo career path",
     )
     # ── Clasificacion organizacional (obligatoria al crear) ───────────────────
     career_path_id: int = Field(..., gt=0)
@@ -50,7 +50,7 @@ class PuestoPerfilCreate(BaseModel):
         None,
         gt=0,
         description=(
-            "Se toma de la equivalencia configurada para el global level inicial. "
+            "Se toma de la equivalencia configurada para el career level inicial. "
             "Solo hay que enviarlo si no existe equivalencia."
         ),
     )

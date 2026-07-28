@@ -3697,7 +3697,7 @@ components:
             $ref: "#/components/schemas/BrechaItem"
 
     # ── Talento — Puestos Perfil ──────────────────────
-    # Global Level del perfil (P10, M3).
+    # Career Level del perfil (P10, M3).
     GradoPerfilItem:
       type: object
       required: [id, nombre, orden]
@@ -3737,7 +3737,7 @@ components:
           items:
             type: integer
           description: >-
-            Global levels consecutivos del perfil, todos del mismo career path
+            Career levels consecutivos del perfil, todos del mismo career path
         career_path_id:
           type: integer
           minimum: 1
@@ -3753,7 +3753,7 @@ components:
           type: [integer, "null"]
           minimum: 1
           description: >-
-            Se toma de la equivalencia configurada para el global level inicial.
+            Se toma de la equivalencia configurada para el career level inicial.
             Solo hay que enviarlo si no existe equivalencia.
         estado:
           type: string
@@ -3851,7 +3851,7 @@ components:
           items:
             $ref: "#/components/schemas/PerfilTarjetaItem"
 
-    # Global Level de la clasificacion Willis Towers Watson. El recurso conserva
+    # Career Level de la clasificacion Willis Towers Watson. El recurso conserva
     # el nombre `grados-puesto`; codigo, nombre y orden son unicos DENTRO del
     # career path (P1 y M1 conviven).
     GradoPuestoCreate:
@@ -3948,7 +3948,7 @@ components:
           type: string
           minLength: 1
           maxLength: 10
-          description: Prefijo del global level (P, M).
+          description: Prefijo del career level (P, M).
         nombre:
           type: string
           minLength: 2
@@ -4171,13 +4171,13 @@ components:
         page_size:
           type: integer
 
-    # Equivalencia configurable Global Level -> Global Grade. La define RH; el
+    # Equivalencia configurable Career Level -> Global Grade. La define RH; el
     # sistema nunca la deduce (P10 puede equivaler a GG08).
     EquivalenciaCreate:
       type: object
-      required: [global_level_id, global_grade_id]
+      required: [career_level_id, global_grade_id]
       properties:
-        global_level_id:
+        career_level_id:
           type: integer
           minimum: 1
         global_grade_id:
@@ -4189,16 +4189,16 @@ components:
 
     EquivalenciaResponse:
       type: object
-      required: [id, global_level_id, global_grade_id, activo, created_at, updated_at]
+      required: [id, career_level_id, global_grade_id, activo, created_at, updated_at]
       properties:
         id:
           type: integer
-        global_level_id:
+        career_level_id:
           type: integer
-        global_level_codigo:
+        career_level_codigo:
           type: string
           nullable: true
-        global_level_nombre:
+        career_level_nombre:
           type: string
           nullable: true
         career_path_id:
@@ -11400,7 +11400,7 @@ paths:
     delete:
       tags: [Talento - Clasificacion de Puesto]
       summary: Desactivar career path (soft delete)
-      description: Solo RH. Falla si tiene global levels o perfiles asociados.
+      description: Solo RH. Falla si tiene career levels o perfiles asociados.
       operationId: career_paths_delete
       security:
         - BearerAuth: []
@@ -11809,7 +11809,7 @@ paths:
   /api/v1/clasificacion-puesto/equivalencias:
     get:
       tags: [Talento - Clasificacion de Puesto]
-      summary: Listar equivalencias Global Level - Global Grade
+      summary: Listar equivalencias Career Level - Global Grade
       operationId: equivalencias_list
       security:
         - BearerAuth: []
@@ -11846,8 +11846,8 @@ paths:
                 $ref: "#/components/schemas/EquivalenciaListResponse"
     post:
       tags: [Talento - Clasificacion de Puesto]
-      summary: Configurar la equivalencia de un global level
-      description: Solo RH. Un global level solo puede tener una equivalencia.
+      summary: Configurar la equivalencia de un career level
+      description: Solo RH. Un career level solo puede tener una equivalencia.
       operationId: equivalencias_create
       security:
         - BearerAuth: []
@@ -11865,12 +11865,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/EquivalenciaResponse"
         "409":
-          description: El global level ya tiene equivalencia
+          description: El career level ya tiene equivalencia
 
   /api/v1/clasificacion-puesto/equivalencias/resolver:
     get:
       tags: [Talento - Clasificacion de Puesto]
-      summary: Resolver el global grade de un global level
+      summary: Resolver el global grade de un career level
       description: >-
         Devuelve la equivalencia configurada por RH, o `null` si no existe.
         `null` NO es un error: significa que el global grade debe capturarse a
@@ -11879,7 +11879,7 @@ paths:
       security:
         - BearerAuth: []
       parameters:
-        - name: global_level_id
+        - name: career_level_id
           in: query
           required: true
           schema:
@@ -12090,10 +12090,10 @@ paths:
         "409":
           description: En uso
 
-  # ── Talento — Grados Puesto (Global Levels) ──────────────────────────
-  /api/v1/grados-puesto:
+  # ── Talento — Career Levels (Career Levels) ──────────────────────────
+  /api/v1/career-levels:
     get:
-      tags: [Talento - Grados Puesto]
+      tags: [Talento - Career Levels]
       summary: Listar grados de puesto (paginado)
       operationId: grados_puesto_list
       security:
@@ -12119,19 +12119,19 @@ paths:
             type: string
         - name: career_path_id
           in: query
-          description: Acota los global levels a un career path
+          description: Acota los career levels a un career path
           schema:
             type: integer
             minimum: 1
       responses:
         "200":
-          description: Pagina de global levels
+          description: Pagina de career levels
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GradoPuestoListResponse"
     post:
-      tags: [Talento - Grados Puesto]
+      tags: [Talento - Career Levels]
       summary: Crear grado de puesto
       operationId: grados_puesto_create
       security:
@@ -12150,9 +12150,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/GradoPuestoResponse"
 
-  /api/v1/grados-puesto/{id}:
+  /api/v1/career-levels/{id}:
     get:
-      tags: [Talento - Grados Puesto]
+      tags: [Talento - Career Levels]
       summary: Obtener grado de puesto
       operationId: grados_puesto_get
       security:
@@ -12171,7 +12171,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GradoPuestoResponse"
     patch:
-      tags: [Talento - Grados Puesto]
+      tags: [Talento - Career Levels]
       summary: Actualizar grado de puesto
       operationId: grados_puesto_update
       security:
@@ -12196,7 +12196,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GradoPuestoResponse"
     delete:
-      tags: [Talento - Grados Puesto]
+      tags: [Talento - Career Levels]
       summary: Eliminar grado de puesto (soft delete)
       operationId: grados_puesto_delete
       security:

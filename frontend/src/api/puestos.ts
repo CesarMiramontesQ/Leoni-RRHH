@@ -197,7 +197,7 @@ export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<
     funcion_id: payload.funcion_id,
     disciplina_id: payload.disciplina_id,
   };
-  // Solo se envía si el global level no tiene equivalencia configurada: si la
+  // Solo se envía si el career level no tiene equivalencia configurada: si la
   // tiene, el backend lo resuelve desde ahí.
   if (payload.global_grade_id) body.global_grade_id = payload.global_grade_id;
   if (payload.estado) body.estado = payload.estado;
@@ -289,7 +289,7 @@ export type PerfilTarea = {
   porcentaje_dedicacion: number | null;
 };
 
-/** Suma de dedicación de un alcance del perfil (general o un global level). */
+/** Suma de dedicación de un alcance del perfil (general o un career level). */
 export type DedicacionAlcance = {
   grado_id: number | null;
   grado_nombre: string | null;

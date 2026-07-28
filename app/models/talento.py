@@ -92,7 +92,7 @@ class PuestoPerfil(Base):
         ForeignKey("levelup_disciplinas_puesto.id"), nullable=True
     )
     # Clasificacion organizacional oficial (no tiene relacion con compensaciones).
-    # Se autocompleta desde la equivalencia configurada para el global level, pero
+    # Se autocompleta desde la equivalencia configurada para el career level, pero
     # RH puede fijarlo a mano si no hay equivalencia.
     global_grade_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_global_grades.id"), nullable=True
@@ -616,7 +616,7 @@ class CualificacionCatalogo(Base):
 
 class GradoPuesto(Base):
     """
-    Global Level de la metodologia Willis Towers Watson (P1..Pn / M1..Mn).
+    Career Level de la metodologia Willis Towers Watson (P1..Pn / M1..Mn).
 
     Cada nivel pertenece a un Career Path, asi que `codigo` y `orden` son unicos
     *dentro* del career path, no globalmente: P1 y M1 coexisten. La tabla conserva

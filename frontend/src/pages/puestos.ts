@@ -32,9 +32,9 @@ import {
   ESTADOS_PERFIL,
   estadoPerfilBadge,
   estadoPerfilLabel,
-  formatGlobalLevelRango,
+  formatCareerLevelRango,
   globalGradeBadge,
-  globalLevelLabel,
+  careerLevelLabel,
   GLOBAL_GRADE_TOOLTIP,
 } from "../talento/clasificacionPuestoUi.ts";
 import {
@@ -117,7 +117,7 @@ const VALORES_MODAL_VACIOS: ModalValues = {
 
 // El formato del rango vive en `talento/clasificacionPuestoUi.ts`: se lee igual
 // aqui, en el detalle y en el modal.
-const formatGradosLabel = formatGlobalLevelRango;
+const formatGradosLabel = formatCareerLevelRango;
 
 function gradosMinMaxIds(grados: GradoPerfilItem[]): { desde: string; hasta: string } {
   if (!grados.length) return { desde: "", hasta: "" };
@@ -138,18 +138,18 @@ function resolveGradoRango(
 function renderGradoRangoPreview(grados: GradoPuesto[]): string {
   if (!grados.length) {
     return `<div id="puestos-modal-grado-preview" class="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-3 py-3 text-sm text-text-muted" role="status">
-      Selecciona el global level inicial y final. Deben ser consecutivos y del mismo career path (ej. P10 → P11 → P12).
+      Selecciona el career level inicial y final. Deben ser consecutivos y del mismo career path (ej. P10 → P11 → P12).
     </div>`;
   }
   const chips = grados
     .map(
       (g, i) => `
       ${i > 0 ? `<span class="text-slate-300" aria-hidden="true">→</span>` : ""}
-      <span class="inline-flex items-center rounded-lg border border-accent/20 bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent" title="${escapeHtml(g.nombre)}">${escapeHtml(globalLevelLabel(g))}</span>`,
+      <span class="inline-flex items-center rounded-lg border border-accent/20 bg-accent-light px-2.5 py-1 text-xs font-semibold text-accent" title="${escapeHtml(g.nombre)}">${escapeHtml(careerLevelLabel(g))}</span>`,
     )
     .join("");
   const countLabel =
-    grados.length === 1 ? "1 global level" : `${grados.length} global levels`;
+    grados.length === 1 ? "1 career level" : `${grados.length} career levels`;
   return `<div id="puestos-modal-grado-preview" class="rounded-xl border border-accent/15 bg-accent-light/40 px-3 py-3" role="status">
     <div class="flex flex-wrap items-center gap-1.5">${chips}</div>
     <p class="mt-2 text-xs text-text-secondary"><span class="font-semibold text-text-primary">${countLabel}</span> · rango consecutivo listo para el perfil</p>
@@ -413,7 +413,7 @@ function renderFilterActiveChips(
   if (filters.area) chips.push(`Área: ${escapeHtml(filters.area)}`);
   if (filters.grado_id) {
     const g = gradosCatalog.find((x) => String(x.id) === filters.grado_id);
-    chips.push(`Global level: ${escapeHtml(g ? globalLevelLabel(g) : filters.grado_id)}`);
+    chips.push(`Career level: ${escapeHtml(g ? careerLevelLabel(g) : filters.grado_id)}`);
   }
   if (filters.career_path_id) {
     chips.push(
@@ -564,11 +564,11 @@ function renderFilterBar(
       ${renderSelectFiltro(
         "puestos-filter-grado",
         "filter-grado",
-        "Global level",
+        "Career level",
         "Todos",
         gradosCatalog.map((g) => ({
           value: String(g.id),
-          label: `${g.career_path_codigo ?? "?"} · ${globalLevelLabel(g)}`,
+          label: `${g.career_path_codigo ?? "?"} · ${careerLevelLabel(g)}`,
         })),
         filters.grado_id,
       )}
@@ -727,7 +727,7 @@ function renderTable(items: PerfilPuestoListItem[], totalSource: number): string
             <th scope="col" class="px-4 py-3.5 text-left">Career path</th>
             <th scope="col" class="px-4 py-3.5 text-left">Función</th>
             <th scope="col" class="px-4 py-3.5 text-left">Disciplina</th>
-            <th scope="col" class="px-4 py-3.5 text-left">Global level</th>
+            <th scope="col" class="px-4 py-3.5 text-left">Career level</th>
             <th scope="col" class="px-4 py-3.5 text-left">Global grade</th>
             <th scope="col" class="px-4 py-3.5 text-left">Estado</th>
             <th scope="col" class="px-3 py-3.5 text-right"><span class="sr-only">Acciones</span></th>
@@ -767,8 +767,8 @@ function renderModal(
   const title = mode === "create" ? "Nuevo perfil de puesto" : "Editar perfil de puesto";
   const subtitle =
     mode === "create"
-      ? "Crea la ficha base: identidad, clasificación organizacional y rango de global levels."
-      : "Actualiza los datos base del perfil. Los global levels en uso no se pueden quitar.";
+      ? "Crea la ficha base: identidad, clasificación organizacional y rango de career levels."
+      : "Actualiza los datos base del perfil. Los career levels en uso no se pueden quitar.";
   const submitLabel = saving ? "Guardando…" : mode === "create" ? "Crear perfil" : "Guardar cambios";
   const rangoPreview = resolveGradoRango(gradosCatalog, values.grado_desde_id, values.grado_hasta_id);
   // El rango solo puede moverse dentro del career path elegido.
@@ -779,7 +779,7 @@ function renderModal(
     nivelesDelPath
       .map(
         (g) =>
-          `<option value="${g.id}" ${selectedId === String(g.id) ? "selected" : ""}>${escapeHtml(globalLevelLabel(g))} — ${escapeHtml(g.nombre)}</option>`,
+          `<option value="${g.id}" ${selectedId === String(g.id) ? "selected" : ""}>${escapeHtml(careerLevelLabel(g))} — ${escapeHtml(g.nombre)}</option>`,
       )
       .join("");
   const sinGrados = gradosCatalog.length === 0;
@@ -866,7 +866,7 @@ function renderModal(
 
         ${renderModalSection(
           3,
-          "Global level y global grade",
+          "Career level y global grade",
           sinGrados
             ? `<div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900" role="alert">
                 No hay grados configurados. Créalos primero en <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes de puesto</a>.
@@ -894,7 +894,7 @@ function renderModal(
                 </div>
               </div>
               <div class="mt-3">${renderGradoRangoPreview(rangoPreview)}</div>
-              <p class="mt-2 text-xs leading-relaxed text-text-muted">El rango debe ser consecutivo y del mismo career path. Varios puestos pueden compartir el mismo global level.</p>
+              <p class="mt-2 text-xs leading-relaxed text-text-muted">El rango debe ser consecutivo y del mismo career path. Varios puestos pueden compartir el mismo career level.</p>
 
               <div class="mt-4 border-t border-slate-100 pt-4">
                 <label for="puestos-modal-global-grade" class="${RH_LISTADO_LABEL}">
@@ -911,11 +911,11 @@ function renderModal(
                 ${
                   values.global_grade_sin_equivalencia
                     ? `<p class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900" role="status">
-                        Este global level no tiene una equivalencia configurada. Selecciona el global grade manualmente o define la equivalencia en <a href="#/puestos/ajustes" class="font-semibold underline">Ajustes</a>.
+                        Este career level no tiene una equivalencia configurada. Selecciona el global grade manualmente o define la equivalencia en <a href="#/puestos/ajustes" class="font-semibold underline">Ajustes</a>.
                       </p>`
                     : values.global_grade_autocompletado
-                      ? `<p class="mt-2 text-xs text-text-muted" role="status">Autocompletado desde la equivalencia configurada para el global level inicial. Puedes cambiarlo.</p>`
-                      : `<p class="mt-2 text-xs text-text-muted">Se autocompleta al elegir el global level inicial, si hay equivalencia configurada.</p>`
+                      ? `<p class="mt-2 text-xs text-text-muted" role="status">Autocompletado desde la equivalencia configurada para el career level inicial. Puedes cambiarlo.</p>`
+                      : `<p class="mt-2 text-xs text-text-muted">Se autocompleta al elegir el career level inicial, si hay equivalencia configurada.</p>`
                 }
               </div>`,
           "Nivel del puesto y su clasificación organizacional.",
@@ -1180,7 +1180,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   }
 
   /**
-   * Resuelve el global grade desde la equivalencia del global level inicial.
+   * Resuelve el global grade desde la equivalencia del career level inicial.
    *
    * Nunca lo calcula: consulta el catálogo de equivalencias. Si RH no configuró
    * ninguna, deja el campo libre y marca el aviso para capturarlo a mano.
@@ -1494,7 +1494,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     }
     if (!desdeRaw || !hastaRaw || Number.isNaN(desdeId) || Number.isNaN(hastaId) || grado_ids.length === 0) {
       showModalError(
-        "Selecciona un rango de global levels válido: consecutivo y del mismo career path.",
+        "Selecciona un rango de career levels válido: consecutivo y del mismo career path.",
       );
       return;
     }
@@ -1504,7 +1504,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
     }
     if (!globalGradeId) {
       showModalError(
-        "Selecciona el global grade. Si el global level no tiene equivalencia configurada, elígelo manualmente.",
+        "Selecciona el global grade. Si el career level no tiene equivalencia configurada, elígelo manualmente.",
       );
       return;
     }

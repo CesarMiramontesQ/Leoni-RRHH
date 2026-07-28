@@ -1,6 +1,6 @@
 # app/repositories/grado_puesto_repository.py
 """
-Repositorio de GradoPuesto (Global Level) — acceso a datos async.
+Repositorio de GradoPuesto (Career Level) — acceso a datos async.
 
 La unicidad de `codigo`, `nombre` y `orden` es POR career path, no global: P1 y M1
 conviven. Toda comprobacion de duplicados recibe el career path.

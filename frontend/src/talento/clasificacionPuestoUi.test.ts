@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   clasificacionPendienteBadge,
   estadoPerfilLabel,
-  formatGlobalLevelRango,
+  formatCareerLevelRango,
   globalGradeBadge,
-  globalLevelChips,
-  globalLevelLabel,
-  globalLevelsEntre,
-  globalLevelsSonConsecutivos,
+  careerLevelChips,
+  careerLevelLabel,
+  careerLevelsEntre,
+  careerLevelsSonConsecutivos,
   GLOBAL_GRADE_TOOLTIP,
 } from "./clasificacionPuestoUi.ts";
 
@@ -27,76 +27,76 @@ const M = (orden: number) => ({
   career_path_codigo: "M",
 });
 
-describe("formatGlobalLevelRango", () => {
+describe("formatCareerLevelRango", () => {
   it("devuelve un guion largo cuando no hay niveles", () => {
-    expect(formatGlobalLevelRango([])).toBe("—");
+    expect(formatCareerLevelRango([])).toBe("—");
   });
 
   it("muestra el codigo solo cuando hay un unico nivel", () => {
-    expect(formatGlobalLevelRango([P(10)])).toBe("P10");
+    expect(formatCareerLevelRango([P(10)])).toBe("P10");
   });
 
   it("condensa el rango del menor al mayor", () => {
-    expect(formatGlobalLevelRango([P(12), P(10), P(11)])).toBe("P10 → P12");
+    expect(formatCareerLevelRango([P(12), P(10), P(11)])).toBe("P10 → P12");
   });
 
   it("cae al nombre cuando el nivel no tiene codigo", () => {
     expect(
-      formatGlobalLevelRango([{ id: 1, nombre: "Grado 1", orden: 1, codigo: null }]),
+      formatCareerLevelRango([{ id: 1, nombre: "Grado 1", orden: 1, codigo: null }]),
     ).toBe("Grado 1");
   });
 });
 
-describe("globalLevelLabel", () => {
+describe("careerLevelLabel", () => {
   it("prefiere el codigo sobre el nombre", () => {
-    expect(globalLevelLabel(P(10))).toBe("P10");
+    expect(careerLevelLabel(P(10))).toBe("P10");
   });
 
   it("ignora un codigo en blanco", () => {
-    expect(globalLevelLabel({ id: 1, nombre: "Grado 1", orden: 1, codigo: "   " })).toBe(
+    expect(careerLevelLabel({ id: 1, nombre: "Grado 1", orden: 1, codigo: "   " })).toBe(
       "Grado 1",
     );
   });
 });
 
-describe("globalLevelsEntre", () => {
+describe("careerLevelsEntre", () => {
   const catalogo = [P(10), P(11), P(12), M(1)];
 
   it("devuelve el rango inclusivo ordenado", () => {
-    expect(globalLevelsEntre(catalogo, 10, 12)).toEqual([10, 11, 12]);
+    expect(careerLevelsEntre(catalogo, 10, 12)).toEqual([10, 11, 12]);
   });
 
   it("acepta los extremos invertidos", () => {
-    expect(globalLevelsEntre(catalogo, 12, 10)).toEqual([10, 11, 12]);
+    expect(careerLevelsEntre(catalogo, 12, 10)).toEqual([10, 11, 12]);
   });
 
   it("no cruza career paths: un rango solo vive dentro de uno", () => {
-    expect(globalLevelsEntre(catalogo, 10, 101)).toEqual([]);
+    expect(careerLevelsEntre(catalogo, 10, 101)).toEqual([]);
   });
 
   it("devuelve vacio si falta algun extremo", () => {
-    expect(globalLevelsEntre(catalogo, null, 12)).toEqual([]);
-    expect(globalLevelsEntre(catalogo, 10, 999)).toEqual([]);
+    expect(careerLevelsEntre(catalogo, null, 12)).toEqual([]);
+    expect(careerLevelsEntre(catalogo, 10, 999)).toEqual([]);
   });
 });
 
-describe("globalLevelsSonConsecutivos", () => {
+describe("careerLevelsSonConsecutivos", () => {
   const catalogo = [P(7), P(8), P(9), P(11)];
 
   it("acepta un rango consecutivo", () => {
-    expect(globalLevelsSonConsecutivos(catalogo, [7, 8, 9])).toBe(true);
+    expect(careerLevelsSonConsecutivos(catalogo, [7, 8, 9])).toBe(true);
   });
 
   it("rechaza un hueco", () => {
-    expect(globalLevelsSonConsecutivos(catalogo, [9, 11])).toBe(false);
+    expect(careerLevelsSonConsecutivos(catalogo, [9, 11])).toBe(false);
   });
 
   it("rechaza la lista vacia", () => {
-    expect(globalLevelsSonConsecutivos(catalogo, [])).toBe(false);
+    expect(careerLevelsSonConsecutivos(catalogo, [])).toBe(false);
   });
 
   it("rechaza ids que no estan en el catalogo", () => {
-    expect(globalLevelsSonConsecutivos(catalogo, [7, 999])).toBe(false);
+    expect(careerLevelsSonConsecutivos(catalogo, [7, 999])).toBe(false);
   });
 });
 
@@ -123,16 +123,16 @@ describe("globalGradeBadge", () => {
   });
 });
 
-describe("globalLevelChips", () => {
+describe("careerLevelChips", () => {
   it("pinta un chip por nivel con flechas entre ellos", () => {
-    const html = globalLevelChips([P(10), P(11)]);
+    const html = careerLevelChips([P(10), P(11)]);
     expect(html).toContain("P10");
     expect(html).toContain("P11");
     expect(html).toContain("→");
   });
 
   it("devuelve cadena vacia sin niveles", () => {
-    expect(globalLevelChips([])).toBe("");
+    expect(careerLevelChips([])).toBe("");
   });
 });
 

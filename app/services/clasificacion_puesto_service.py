@@ -20,7 +20,7 @@ from app.models.clasificacion_puesto import (
     DisciplinaPuesto,
     FuncionPuesto,
     GlobalGrade,
-    GlobalLevelGradeMapping,
+    CareerLevelGradeMapping,
 )
 from app.models.empleados import Empleado
 from app.repositories.clasificacion_puesto_repository import (
@@ -28,7 +28,7 @@ from app.repositories.clasificacion_puesto_repository import (
     DisciplinaPuestoRepository,
     FuncionPuestoRepository,
     GlobalGradeRepository,
-    GlobalLevelGradeMappingRepository,
+    CareerLevelGradeMappingRepository,
 )
 from app.repositories.grado_puesto_repository import GradoPuestoRepository
 from app.schemas.clasificacion_puesto import (
@@ -161,7 +161,7 @@ class CareerPathService:
             raise ConflictError(
                 detail=(
                     f"No se puede eliminar el career path '{item.nombre}' porque esta "
-                    f"en uso ({grados} global level(es), {perfiles} perfil(es))"
+                    f"en uso ({grados} career level(es), {perfiles} perfil(es))"
                 )
             )
         await self.repo.update(id, {"activo": False})
@@ -526,7 +526,7 @@ class GlobalGradeService:
 
 class EquivalenciaService:
     """
-    Equivalencias Global Level → Global Grade.
+    Equivalencias Career Level → Global Grade.
 
     Las define RH; el sistema nunca las calcula. Se usan para autocompletar el
     global grade del perfil, pero no lo imponen: si no hay equivalencia, RH lo
@@ -535,20 +535,20 @@ class EquivalenciaService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.repo = GlobalLevelGradeMappingRepository(db)
+        self.repo = CareerLevelGradeMappingRepository(db)
         self.grade_repo = GlobalGradeRepository(db)
         self.grado_repo = GradoPuestoRepository(db)
 
     @staticmethod
-    def _to_response(item: GlobalLevelGradeMapping) -> EquivalenciaResponse:
-        nivel = item.global_level
+    def _to_response(item: CareerLevelGradeMapping) -> EquivalenciaResponse:
+        nivel = item.career_level
         career_path = nivel.career_path if nivel else None
         grade = item.global_grade
         return EquivalenciaResponse(
             id=item.id,
-            global_level_id=item.global_level_id,
-            global_level_codigo=nivel.codigo if nivel else None,
-            global_level_nombre=nivel.nombre if nivel else None,
+            career_level_id=item.career_level_id,
+            career_level_codigo=nivel.codigo if nivel else None,
+            career_level_nombre=nivel.nombre if nivel else None,
             career_path_id=career_path.id if career_path else None,
             career_path_codigo=career_path.codigo if career_path else None,
             career_path_nombre=career_path.nombre if career_path else None,
@@ -583,7 +583,7 @@ class EquivalenciaService:
     async def obtener(self, id: int) -> EquivalenciaResponse:
         item = await self.repo.get_with_relaciones(id)
         if not item or not item.activo:
-            raise NotFoundError(entidad="GlobalLevelGradeMapping", id=id)
+            raise NotFoundError(entidad="CareerLevelGradeMapping", id=id)
         return self._to_response(item)
 
     async def _validar(
@@ -591,8 +591,8 @@ class EquivalenciaService:
         data: EquivalenciaCreate | EquivalenciaUpdate,
         exclude_id: int | None = None,
     ) -> None:
-        if not await self.grado_repo.get_activo(data.global_level_id):
-            raise NotFoundError(entidad="GradoPuesto", id=data.global_level_id)
+        if not await self.grado_repo.get_activo(data.career_level_id):
+            raise NotFoundError(entidad="GradoPuesto", id=data.career_level_id)
         grade = await self.grade_repo.get(data.global_grade_id)
         if not grade:
             raise NotFoundError(entidad="GlobalGrade", id=data.global_grade_id)
@@ -601,14 +601,14 @@ class EquivalenciaService:
                 f"El global grade '{grade.codigo}' esta inactivo y no se puede "
                 "usar en una equivalencia"
             )
-        existente = await self.repo.get_by_global_level(
-            data.global_level_id, exclude_id=exclude_id
+        existente = await self.repo.get_by_career_level(
+            data.career_level_id, exclude_id=exclude_id
         )
         if existente:
-            nivel = existente.global_level
+            nivel = existente.career_level
             raise ConflictError(
                 detail=(
-                    f"El global level '{nivel.codigo if nivel else data.global_level_id}' "
+                    f"El career level '{nivel.codigo if nivel else data.career_level_id}' "
                     "ya tiene una equivalencia configurada"
                 )
             )
@@ -620,7 +620,7 @@ class EquivalenciaService:
         await self._validar(data)
         item = await self.repo.create(
             {
-                "global_level_id": data.global_level_id,
+                "career_level_id": data.career_level_id,
                 "global_grade_id": data.global_grade_id,
                 "activo": True,
             }
@@ -633,13 +633,13 @@ class EquivalenciaService:
         _require_modulo(current_user, "actualizar equivalencias")
         item = await self.repo.get(id)
         if not item or not item.activo:
-            raise NotFoundError(entidad="GlobalLevelGradeMapping", id=id)
+            raise NotFoundError(entidad="CareerLevelGradeMapping", id=id)
 
         await self._validar(data, exclude_id=id)
         await self.repo.update(
             id,
             {
-                "global_level_id": data.global_level_id,
+                "career_level_id": data.career_level_id,
                 "global_grade_id": data.global_grade_id,
             },
         )
@@ -649,12 +649,12 @@ class EquivalenciaService:
         _require_modulo(current_user, "eliminar equivalencias")
         item = await self.repo.get(id)
         if not item or not item.activo:
-            raise NotFoundError(entidad="GlobalLevelGradeMapping", id=id)
+            raise NotFoundError(entidad="CareerLevelGradeMapping", id=id)
         # Borrar una equivalencia no toca los perfiles que ya la usaron: su global
         # grade quedo grabado en el perfil, no se deriva en cada lectura.
         await self.repo.update(id, {"activo": False})
 
-    async def resolver(self, global_level_id: int) -> EquivalenciaResponse | None:
+    async def resolver(self, career_level_id: int) -> EquivalenciaResponse | None:
         """Equivalencia activa del nivel, o None si RH no la ha configurado."""
-        item = await self.repo.get_activa_por_global_level(global_level_id)
+        item = await self.repo.get_activa_por_career_level(career_level_id)
         return self._to_response(item) if item else None

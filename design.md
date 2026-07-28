@@ -1516,7 +1516,7 @@ Filas de resultados como `<label>` clickeable: checkbox/radio + avatar `size-9` 
 
 ## 15.6 Catálogos de Ajustes — Sección reutilizable
 
-Los catálogos de `#/puestos/ajustes` (career paths, funciones, disciplinas, global levels,
+Los catálogos de `#/puestos/ajustes` (career paths, funciones, disciplinas, career levels,
 categorías de tarea, grupos y tipos de competencia) son **la misma pantalla**: card con
 header + tabla + modal de alta/edición + confirmación de borrado. Ese comportamiento vive en
 `frontend/src/components/puestos/ajustes/catalogoSection.ts` (`mountCatalogoSection`), y los
@@ -1545,7 +1545,7 @@ mountCatalogoSection<MiEntidad>(sectionEl, signal, {
   `ancho: "medio"` se emparejan en `sm:grid-cols-2`; el resto ocupa el ancho completo.
   El chevron de los `select` sale de `SELECT_CHEVRON`, nunca se dibuja a mano.
 - **Dependencias entre catálogos**: cuando un catálogo no puede existir sin otro
-  (una disciplina necesita una función; un global level necesita un career path), se usa
+  (una disciplina necesita una función; un career level necesita un career path), se usa
   `bloqueo()`. Devuelve un mensaje y la sección muestra un empty state explicativo **y oculta
   el botón de alta**, en vez de dejar al usuario abrir un formulario que va a fallar.
 - **Sincronía entre cards**: si dar de alta en una card cambia el select de otra, se emite un
@@ -1585,7 +1585,7 @@ un repintado completo recrearía el input y el foco saltaría al primer carácte
 ### 15.6.3 Tabs de la página de ajustes
 
 `#/puestos/ajustes` agrupa los catálogos por dominio, no por tabla: **Clasificación**
-(career paths · funciones · disciplinas · global levels), **Competencias**, **Tareas**,
+(career paths · funciones · disciplinas · career levels), **Competencias**, **Tareas**,
 **Cualificaciones**. La primera tab es la que define la identidad del puesto.
 
 Las tabs de esta página usan píldoras (`tabButtonClass` local), no el subrayado de §8.9 —
@@ -1599,7 +1599,7 @@ que ordena):
 
 | Qué es el puesto | Cuánto pesa el puesto |
 |---|---|
-| Función → Disciplina | Career Path → Global Level → Global Grade → Equivalencia |
+| Función → Disciplina | Career Path → Career Level → Global Grade → Equivalencia |
 
 Cada columna se lee de arriba abajo en el mismo orden en que se captura.
 
@@ -1607,7 +1607,7 @@ Cada columna se lee de arriba abajo en el mismo orden en que se captura.
 
 ## 15.7 Clasificación de puesto — Presentación
 
-La clasificación WTW de un puesto (**Career Path · Función · Disciplina · Global Level ·
+La clasificación WTW de un puesto (**Career Path · Función · Disciplina · Career Level ·
 Global Grade**) se lee igual en listado, detalle y formulario. Todo lo visual sale de
 `frontend/src/talento/clasificacionPuestoUi.ts`; **no** se re-implementa por pantalla.
 
@@ -1620,9 +1620,15 @@ Global Grade**) se lee igual en listado, detalle y formulario. Todo lo visual sa
 | Estado | `estadoPerfilBadge` | verde activo · azul en revisión · gris inactivo |
 | Clasificación incompleta | `clasificacionPendienteBadge` | pill ámbar con texto |
 
+> **Vocabulario.** El nivel se llama **Career Level** (P10, M3), no "Global Level":
+> compartir prefijo con el **Global Grade** los hacía confundibles, y "Career" lo ata
+> al Career Path del que cuelga. En código el modelo y la tabla conservan el nombre
+> legacy en español (`GradoPuesto`, `levelup_grados_puesto`, `grado_id`) — es una
+> limpieza aparte, no debe aparecer en texto visible.
+
 ### 15.7.1 Reglas
 
-- **El código manda sobre el nombre.** Un global level se muestra por su `codigo`
+- **El código manda sobre el nombre.** Un career level se muestra por su `codigo`
   (`P10`); el `nombre` va en el `title`. Los códigos llevan `tabular-nums` para que las
   columnas no bailen.
 - **El Global Grade siempre lleva tooltip** (`GLOBAL_GRADE_TOOLTIP`): explica que es la
@@ -1634,8 +1640,8 @@ Global Grade**) se lee igual en listado, detalle y formulario. Todo lo visual sa
 - **Los badges llevan texto, nunca solo color** (§8.9). El de "Clasificación pendiente" es
   ámbar informativo, no un error: el perfil se puede seguir editando.
 - **Cascadas**: Función → Disciplina en filtros y formulario; al cambiar la función se
-  invalida la disciplina. Career Path → Global Level en el formulario.
-- **Autocompletado del Global Grade**: al elegir el global level inicial se consulta la
+  invalida la disciplina. Career Path → Career Level en el formulario.
+- **Autocompletado del Global Grade**: al elegir el career level inicial se consulta la
   equivalencia configurada. Si existe, se rellena y se avisa con un texto discreto
   ("Autocompletado desde la equivalencia…"); si no, se muestra un aviso ámbar que enlaza a
   Ajustes y el campo queda libre. El valor **nunca** se calcula.
@@ -1646,7 +1652,7 @@ Cuatro pasos numerados (`renderModalSection`), en este orden:
 
 1. **Identidad del puesto** — código y nombre.
 2. **Clasificación del puesto** — Career Path · Función · Disciplina.
-3. **Global level y global grade** — rango desde/hasta con preview de chips, y el GG.
+3. **Career level y global grade** — rango desde/hasta con preview de chips, y el GG.
 4. **Organización y estado** — Área y Estado.
 
 ---
@@ -1681,7 +1687,7 @@ La presentación vive en `frontend/src/talento/tareaAtributosUi.ts`.
 - El resumen **solo aparece si alguien empezó a repartir**: sin ningún porcentaje
   capturado, un "faltan 100%" sería ruido.
 - En el modal, el resumen corresponde **al alcance seleccionado**: si RH está trabajando
-  en un global level, muestra el total de ese nivel (que incluye las generales, porque ese
+  en un career level, muestra el total de ese nivel (que incluye las generales, porque ese
   nivel también las ejecuta).
 
 ### 15.8.2 Evidencia de competencia

@@ -5,7 +5,7 @@ Revises: d1r2o3p4t5i6
 Create Date: 2026-07-27
 
 Contexto: Leoni clasifica sus puestos con la metodologia Willis Towers Watson
-(Career Path + Funcion + Disciplina + Global Level). La evaluacion se hace fuera
+(Career Path + Funcion + Disciplina + Career Level). La evaluacion se hace fuera
 del sistema; aqui solo se registra y administra el resultado.
 
 El modelo actual no lo soporta: `levelup_grados_puesto` es un catalogo plano con
@@ -15,7 +15,7 @@ Esta migracion:
   1. crea los catalogos `levelup_career_paths`, `levelup_funciones_puesto`,
      `levelup_disciplinas_puesto`, `levelup_categorias_tarea` y la bitacora
      `levelup_puesto_perfil_clasificacion_historial`,
-  2. convierte `levelup_grados_puesto` en el Global Level: agrega `career_path_id`
+  2. convierte `levelup_grados_puesto` en el Career Level: agrega `career_path_id`
      y `codigo`, cambia la unicidad de global a "por career path" y hace backfill
      de todo lo existente a Professional con codigo P<orden> (los `id` no cambian,
      asi que ninguna FK se rompe),
@@ -320,7 +320,7 @@ def _sembrar_catalogos() -> dict[str, int]:
     }
 
 
-# ── 2. Grados de puesto -> Global Level ──────────────────────────────────────
+# ── 2. Grados de puesto -> Career Level ──────────────────────────────────────
 
 
 def _migrar_grados(career_paths: dict[str, int]) -> None:

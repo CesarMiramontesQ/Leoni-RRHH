@@ -272,7 +272,7 @@ class PerfilFuncionesService:
 
     async def resumen_dedicacion(self, perfil_id: int) -> list[DedicacionAlcance]:
         """
-        Suma del porcentaje de dedicacion por alcance (general y cada global level).
+        Suma del porcentaje de dedicacion por alcance (general y cada career level).
 
         Las tareas generales aplican a todos los niveles, asi que se suman dentro
         de cada uno; el alcance "general" se reporta ademas por separado para que

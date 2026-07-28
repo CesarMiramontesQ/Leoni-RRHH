@@ -10,7 +10,7 @@ from app.models.clasificacion_puesto import (
     DisciplinaPuesto,
     FuncionPuesto,
     GlobalGrade,
-    GlobalLevelGradeMapping,
+    CareerLevelGradeMapping,
 )
 from app.models.talento import GradoPuesto, PuestoPerfil
 from app.repositories.base import BaseRepository
@@ -277,8 +277,8 @@ class GlobalGradeRepository(BaseRepository[GlobalGrade]):
         return await self.db.scalar(query) or 0
 
     async def count_equivalencias_usando(self, global_grade_id: int) -> int:
-        query = select(func.count()).select_from(GlobalLevelGradeMapping).where(
-            GlobalLevelGradeMapping.global_grade_id == global_grade_id
+        query = select(func.count()).select_from(CareerLevelGradeMapping).where(
+            CareerLevelGradeMapping.global_grade_id == global_grade_id
         )
         return await self.db.scalar(query) or 0
 
@@ -294,20 +294,20 @@ class GlobalGradeRepository(BaseRepository[GlobalGrade]):
         return await self.db.scalar(select(func.max(GlobalGrade.orden))) or 0
 
 
-class GlobalLevelGradeMappingRepository(BaseRepository[GlobalLevelGradeMapping]):
-    """Equivalencias Global Level → Global Grade. Unicidad por global level."""
+class CareerLevelGradeMappingRepository(BaseRepository[CareerLevelGradeMapping]):
+    """Equivalencias Career Level → Global Grade. Unicidad por career level."""
 
     def __init__(self, db: AsyncSession):
-        super().__init__(GlobalLevelGradeMapping, db)
+        super().__init__(CareerLevelGradeMapping, db)
 
     def _con_relaciones(self):
         # El response denormaliza nivel, career path y grade; leerlos en lazy dentro
         # de una sesion async revienta con MissingGreenlet.
-        return select(GlobalLevelGradeMapping).options(
-            selectinload(GlobalLevelGradeMapping.global_level).selectinload(
+        return select(CareerLevelGradeMapping).options(
+            selectinload(CareerLevelGradeMapping.career_level).selectinload(
                 GradoPuesto.career_path
             ),
-            selectinload(GlobalLevelGradeMapping.global_grade),
+            selectinload(CareerLevelGradeMapping.global_grade),
         )
 
     async def list_filtered(
@@ -316,25 +316,25 @@ class GlobalLevelGradeMappingRepository(BaseRepository[GlobalLevelGradeMapping])
         limit: int,
         career_path_id: int | None = None,
         solo_activos: bool = True,
-    ) -> tuple[list[GlobalLevelGradeMapping], int]:
+    ) -> tuple[list[CareerLevelGradeMapping], int]:
         query = self._con_relaciones()
         if solo_activos:
-            query = query.where(GlobalLevelGradeMapping.activo.is_(True))
+            query = query.where(CareerLevelGradeMapping.activo.is_(True))
         if career_path_id:
             query = query.join(
-                GradoPuesto, GradoPuesto.id == GlobalLevelGradeMapping.global_level_id
+                GradoPuesto, GradoPuesto.id == CareerLevelGradeMapping.career_level_id
             ).where(GradoPuesto.career_path_id == career_path_id)
 
         total = await self.db.scalar(
             select(func.count()).select_from(
-                query.with_only_columns(GlobalLevelGradeMapping.id).subquery()
+                query.with_only_columns(CareerLevelGradeMapping.id).subquery()
             )
         )
 
         # Orden estable: por career path y luego por nivel, como se leen en la UI.
         query = (
             query.join(
-                GradoPuesto, GradoPuesto.id == GlobalLevelGradeMapping.global_level_id
+                GradoPuesto, GradoPuesto.id == CareerLevelGradeMapping.career_level_id
             )
             .join(CareerPath, CareerPath.id == GradoPuesto.career_path_id)
             .order_by(CareerPath.orden, GradoPuesto.orden)
@@ -344,30 +344,30 @@ class GlobalLevelGradeMappingRepository(BaseRepository[GlobalLevelGradeMapping])
         result = await self.db.execute(query)
         return list(result.scalars().unique().all()), total or 0
 
-    async def get_with_relaciones(self, id: int) -> GlobalLevelGradeMapping | None:
+    async def get_with_relaciones(self, id: int) -> CareerLevelGradeMapping | None:
         result = await self.db.execute(
-            self._con_relaciones().where(GlobalLevelGradeMapping.id == id)
+            self._con_relaciones().where(CareerLevelGradeMapping.id == id)
         )
         return result.scalar_one_or_none()
 
-    async def get_by_global_level(
-        self, global_level_id: int, exclude_id: int | None = None
-    ) -> GlobalLevelGradeMapping | None:
+    async def get_by_career_level(
+        self, career_level_id: int, exclude_id: int | None = None
+    ) -> CareerLevelGradeMapping | None:
         query = self._con_relaciones().where(
-            GlobalLevelGradeMapping.global_level_id == global_level_id
+            CareerLevelGradeMapping.career_level_id == career_level_id
         )
         if exclude_id:
-            query = query.where(GlobalLevelGradeMapping.id != exclude_id)
+            query = query.where(CareerLevelGradeMapping.id != exclude_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_activa_por_global_level(
-        self, global_level_id: int
-    ) -> GlobalLevelGradeMapping | None:
+    async def get_activa_por_career_level(
+        self, career_level_id: int
+    ) -> CareerLevelGradeMapping | None:
         result = await self.db.execute(
             self._con_relaciones().where(
-                GlobalLevelGradeMapping.global_level_id == global_level_id,
-                GlobalLevelGradeMapping.activo.is_(True),
+                CareerLevelGradeMapping.career_level_id == career_level_id,
+                CareerLevelGradeMapping.activo.is_(True),
             )
         )
         return result.scalar_one_or_none()

@@ -1,8 +1,8 @@
 /**
- * Global Level (Willis Towers Watson).
+ * Career Level (Willis Towers Watson).
  *
  * El recurso se sigue llamando `grados-puesto` por compatibilidad, pero el
- * concepto es el Global Level: P1..Pn / M1..Mn, unico DENTRO de su career path.
+ * concepto es el Career Level: P1..Pn / M1..Mn, unico DENTRO de su career path.
  */
 export type GradoPuesto = {
   id: number;

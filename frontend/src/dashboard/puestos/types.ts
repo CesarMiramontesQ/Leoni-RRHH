@@ -3,7 +3,7 @@ export type NivelCompetencia = 1 | 2 | 3 | 4;
 
 export type TipoPuestoPerfil = "administrativo" | "operativo";
 
-/** Global Level del perfil (P10, M3). */
+/** Career Level del perfil (P10, M3). */
 export type GradoPerfilItem = {
   id: number;
   nombre: string;
@@ -126,7 +126,7 @@ export type PerfilPuestoCreatePayload = {
   career_path_id: number;
   funcion_id: number;
   disciplina_id: number;
-  /** Solo si el global level no tiene equivalencia configurada. */
+  /** Solo si el career level no tiene equivalencia configurada. */
   global_grade_id?: number | null;
   estado?: EstadoPuestoPerfil;
   motivo_clasificacion?: string | null;
@@ -170,11 +170,11 @@ export type PuestosFilterState = {
 };
 
 // `gradosSonConsecutivos` y `gradoIdsEntre` vivían aquí, en un archivo de tipos.
-// Se movieron a `talento/clasificacionPuestoUi.ts` como `globalLevelsSonConsecutivos`
-// y `globalLevelsEntre`, junto al resto de la presentación de la clasificación:
+// Se movieron a `talento/clasificacionPuestoUi.ts` como `careerLevelsSonConsecutivos`
+// y `careerLevelsEntre`, junto al resto de la presentación de la clasificación:
 // un rango solo es válido dentro de un mismo career path, y esa regla debe estar
 // donde se dibuja el rango.
 export {
-  globalLevelsEntre as gradoIdsEntre,
-  globalLevelsSonConsecutivos as gradosSonConsecutivos,
+  careerLevelsEntre as gradoIdsEntre,
+  careerLevelsSonConsecutivos as gradosSonConsecutivos,
 } from "../../talento/clasificacionPuestoUi.ts";

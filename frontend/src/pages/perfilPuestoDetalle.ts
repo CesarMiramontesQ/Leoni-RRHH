@@ -42,9 +42,9 @@ import {
   careerPathBadge,
   clasificacionPendienteBadge,
   estadoPerfilBadge,
-  formatGlobalLevelRango,
+  formatCareerLevelRango,
   globalGradeBadge,
-  globalLevelChips,
+  careerLevelChips,
 } from "../talento/clasificacionPuestoUi.ts";
 import {
   categoriaTareaBadge,
@@ -218,9 +218,9 @@ async function loadCompetenciasPorGrado(perfilId: number, grados: GradoPerfilIte
 }
 
 function gradosLabel(grados: GradoPerfilItem[]): string {
-  if (!grados.length) return "Sin global levels";
+  if (!grados.length) return "Sin career levels";
   // Mismo formato que el listado y el modal: "P10 → P12".
-  return formatGlobalLevelRango(grados);
+  return formatCareerLevelRango(grados);
 }
 
 /**
@@ -264,12 +264,12 @@ function renderClasificacionOrganizacional(puesto: PuestoPerfilInfo): string {
       ${dato("Career Path", puesto.career_path_nombre, careerPathBadge(puesto.career_path_codigo, puesto.career_path_nombre))}
       ${dato("Función", puesto.funcion_nombre)}
       ${dato("Disciplina", puesto.disciplina_nombre)}
-      ${dato("Global Level", null, `<span class="tabular-nums">${escapeHtml(formatGlobalLevelRango(puesto.grados ?? []))}</span>`)}
+      ${dato("Career Level", null, `<span class="tabular-nums">${escapeHtml(formatCareerLevelRango(puesto.grados ?? []))}</span>`)}
       ${dato("Global Grade", null, globalGradeBadge(puesto.global_grade_codigo, { nombre: puesto.global_grade_nombre }))}
     </dl>
     <div class="border-t border-slate-100/90 px-4 py-3 sm:px-5">
       <dt class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Rango de niveles</dt>
-      <dd class="mt-1.5 flex flex-wrap items-center gap-1.5">${globalLevelChips(puesto.grados ?? []) || '<span class="text-sm text-text-muted">Sin global levels</span>'}</dd>
+      <dd class="mt-1.5 flex flex-wrap items-center gap-1.5">${careerLevelChips(puesto.grados ?? []) || '<span class="text-sm text-text-muted">Sin career levels</span>'}</dd>
     </div>
     ${firma}
   </section>`;

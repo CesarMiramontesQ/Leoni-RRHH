@@ -9,7 +9,7 @@
 
 import { escapeHtml } from "../ui/uiUtils.ts";
 
-export type GlobalLevelLike = {
+export type CareerLevelLike = {
   id: number;
   nombre: string;
   orden: number;
@@ -18,32 +18,32 @@ export type GlobalLevelLike = {
 };
 
 /** Texto que identifica al nivel: su código (P10) o, si falta, su nombre. */
-export function globalLevelLabel(nivel: GlobalLevelLike): string {
+export function careerLevelLabel(nivel: CareerLevelLike): string {
   return (nivel.codigo ?? "").trim() || nivel.nombre;
 }
 
 /**
- * Rango condensado de global levels: "P10 → P12" (o "P10" si es uno solo).
+ * Rango condensado de career levels: "P10 → P12" (o "P10" si es uno solo).
  *
  * Los niveles solo son comparables dentro de su career path, así que se asume
  * que la lista ya viene de un mismo perfil.
  */
-export function formatGlobalLevelRango(niveles: GlobalLevelLike[]): string {
+export function formatCareerLevelRango(niveles: CareerLevelLike[]): string {
   if (!niveles.length) return "—";
   const ordenados = [...niveles].sort((a, b) => a.orden - b.orden);
-  const primero = globalLevelLabel(ordenados[0]);
+  const primero = careerLevelLabel(ordenados[0]);
   if (ordenados.length === 1) return primero;
-  return `${primero} → ${globalLevelLabel(ordenados[ordenados.length - 1])}`;
+  return `${primero} → ${careerLevelLabel(ordenados[ordenados.length - 1])}`;
 }
 
 /** Chips del rango completo, para el preview del formulario: P10 → P11 → P12. */
-export function globalLevelChips(niveles: GlobalLevelLike[]): string {
+export function careerLevelChips(niveles: CareerLevelLike[]): string {
   if (!niveles.length) return "";
   const ordenados = [...niveles].sort((a, b) => a.orden - b.orden);
   return ordenados
     .map(
       (n) =>
-        `<span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-semibold tabular-nums text-text-primary">${escapeHtml(globalLevelLabel(n))}</span>`,
+        `<span class="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-semibold tabular-nums text-text-primary">${escapeHtml(careerLevelLabel(n))}</span>`,
     )
     .join(
       `<span class="mx-1 text-text-muted" aria-hidden="true">→</span>`,
@@ -133,8 +133,8 @@ export const ESTADOS_PERFIL: { value: string; label: string }[] = [
  *
  * Vivía en `dashboard/puestos/types.ts`, que es un archivo de tipos.
  */
-export function globalLevelsSonConsecutivos(
-  catalogo: GlobalLevelLike[],
+export function careerLevelsSonConsecutivos(
+  catalogo: CareerLevelLike[],
   ids: number[],
 ): boolean {
   if (ids.length === 0) return false;
@@ -147,8 +147,8 @@ export function globalLevelsSonConsecutivos(
 }
 
 /** Ids de los niveles entre `desdeId` y `hastaId`, ambos incluidos. */
-export function globalLevelsEntre(
-  catalogo: GlobalLevelLike[],
+export function careerLevelsEntre(
+  catalogo: CareerLevelLike[],
   desdeId: number | null,
   hastaId: number | null,
 ): number[] {

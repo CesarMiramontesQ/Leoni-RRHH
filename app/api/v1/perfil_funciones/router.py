@@ -124,7 +124,7 @@ async def resumen_dedicacion(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Suma del porcentaje de dedicacion por alcance (general y cada global level).
+    Suma del porcentaje de dedicacion por alcance (general y cada career level).
 
     Informativo: alimenta el aviso de la UI cuando la carga no llega a 100%.
     """

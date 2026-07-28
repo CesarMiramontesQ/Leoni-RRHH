@@ -1,6 +1,6 @@
 /**
  * Secciones de Ajustes del Global Grade: el catálogo y las equivalencias
- * Global Level ↔ Global Grade.
+ * Career Level ↔ Global Grade.
  *
  * El Global Grade clasifica el puesto dentro de la estructura organizacional.
  * No expresa sueldo, banda salarial ni compensación.
@@ -139,8 +139,8 @@ export function mountEquivalenciasSection(
   function nivelesDisponibles(actualId?: number): GradoPuesto[] {
     const ocupados = new Set(
       equivalencias
-        .filter((e) => e.global_level_id !== actualId)
-        .map((e) => e.global_level_id),
+        .filter((e) => e.career_level_id !== actualId)
+        .map((e) => e.career_level_id),
     );
     return niveles.filter((n) => !ocupados.has(n.id));
   }
@@ -148,22 +148,22 @@ export function mountEquivalenciasSection(
   const seccion = mountCatalogoSection<Equivalencia>(sectionEl, signal, {
     key: "equivalencia",
     titleId: "equivalencias-section-title",
-    title: "Equivalencias Global Level ↔ Global Grade",
+    title: "Equivalencias Career Level ↔ Global Grade",
     description:
-      "Define qué global grade corresponde a cada global level. Es lo que autocompleta el perfil al elegir el nivel; el sistema nunca lo deduce por número.",
+      "Define qué global grade corresponde a cada career level. Es lo que autocompleta el perfil al elegir el nivel; el sistema nunca lo deduce por número.",
     iconHtml: AJUSTES_ICON_SCALE,
     singular: "equivalencia",
     emptyMessage:
       "No hay equivalencias configuradas. Sin ellas, el global grade del perfil se captura a mano.",
     bloqueo: () => {
       if (niveles.length === 0) {
-        return "Primero crea global levels: la equivalencia parte de un nivel.";
+        return "Primero crea career levels: la equivalencia parte de un nivel.";
       }
       if (grades.length === 0) {
         return "Primero crea global grades: la equivalencia apunta a uno.";
       }
       if (nivelesDisponibles().length === 0 && equivalencias.length > 0) {
-        return "Todos los global levels ya tienen equivalencia configurada.";
+        return "Todos los career levels ya tienen equivalencia configurada.";
       }
       return null;
     },
@@ -174,8 +174,8 @@ export function mountEquivalenciasSection(
         clase: "text-text-secondary",
       },
       {
-        header: "Global level",
-        valor: (i) => i.global_level_codigo ?? String(i.global_level_id),
+        header: "Career level",
+        valor: (i) => i.career_level_codigo ?? String(i.career_level_id),
         clase: "font-medium tabular-nums",
       },
       {
@@ -187,8 +187,8 @@ export function mountEquivalenciasSection(
     campos: [
       {
         tipo: "select",
-        name: "global_level_id",
-        label: "Global level",
+        name: "career_level_id",
+        label: "Career level",
         opciones: () =>
           nivelesDisponibles().map((n) => ({
             value: String(n.id),
@@ -209,16 +209,16 @@ export function mountEquivalenciasSection(
     valoresNuevo: () => {
       const disponibles = nivelesDisponibles();
       return {
-        global_level_id: disponibles[0] ? String(disponibles[0].id) : "",
+        career_level_id: disponibles[0] ? String(disponibles[0].id) : "",
         global_grade_id: grades[0] ? String(grades[0].id) : "",
       };
     },
     valoresEdicion: (i) => ({
-      global_level_id: String(i.global_level_id),
+      career_level_id: String(i.career_level_id),
       global_grade_id: String(i.global_grade_id),
     }),
     etiqueta: (i) =>
-      `${i.global_level_codigo ?? i.global_level_id} → ${i.global_grade_codigo ?? i.global_grade_id}`,
+      `${i.career_level_codigo ?? i.career_level_id} → ${i.global_grade_codigo ?? i.global_grade_id}`,
     cargar: async () => {
       const [eqs, nivs, ggs] = await Promise.all([
         getEquivalencias(),
@@ -232,17 +232,17 @@ export function mountEquivalenciasSection(
     },
     crear: (v) =>
       createEquivalencia({
-        global_level_id: Number(v.global_level_id),
+        career_level_id: Number(v.career_level_id),
         global_grade_id: Number(v.global_grade_id),
       }),
     actualizar: (id, v) =>
       updateEquivalencia(id, {
-        global_level_id: Number(v.global_level_id),
+        career_level_id: Number(v.career_level_id),
         global_grade_id: Number(v.global_grade_id),
       }),
     eliminar: deleteEquivalencia,
     validar: (v) => {
-      if (!Number(v.global_level_id)) return "Selecciona un global level.";
+      if (!Number(v.career_level_id)) return "Selecciona un career level.";
       if (!Number(v.global_grade_id)) return "Selecciona un global grade.";
       return null;
     },

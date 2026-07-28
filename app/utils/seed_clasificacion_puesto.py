@@ -11,7 +11,7 @@ Ajustes > Perfiles de puesto > Clasificacion.
 """
 
 # ── Career Paths ─────────────────────────────────────────────────────────────
-# El codigo es el prefijo del Global Level: Professional -> P10, Management -> M3.
+# El codigo es el prefijo del Career Level: Professional -> P10, Management -> M3.
 CAREER_PATHS_SEED: list[dict] = [
     {"codigo": "P", "nombre": "Professional", "orden": 1},
     {"codigo": "M", "nombre": "Management", "orden": 2},

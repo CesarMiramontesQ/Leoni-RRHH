@@ -362,7 +362,7 @@ class CompetenciaService:
         if not user_has_module(current_user, "competencias"):
             raise ForbiddenError(detail="Solo RH puede actualizar la matriz de competencias")
 
-        # La matriz por area no distingue global level, asi que escribe el requisito
+        # La matriz por area no distingue career level, asi que escribe el requisito
         # GENERAL del perfil (grado_id NULL), que es el mecanismo que introdujo la
         # migracion g2r3a4d5o6s7 y que el indice parcial unico ya soporta.
         # Antes fijaba el grado de orden 1; con Career Paths ese orden dejo de ser

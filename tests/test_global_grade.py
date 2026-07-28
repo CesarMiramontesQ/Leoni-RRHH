@@ -1,6 +1,6 @@
 # tests/test_global_grade.py
 """
-Tests del Global Grade: catalogo, equivalencias Global Level ↔ Global Grade,
+Tests del Global Grade: catalogo, equivalencias Career Level ↔ Global Grade,
 autocompletado en el perfil e historial de clasificacion.
 """
 
@@ -132,7 +132,7 @@ async def test_crear_equivalencia_success(client: AsyncClient, db):
 
     response = await client.post(
         f"{BASE}/equivalencias",
-        json={"global_level_id": grados[0].id, "global_grade_id": grade.id},
+        json={"career_level_id": grados[0].id, "global_grade_id": grade.id},
         headers=headers,
     )
 
@@ -144,16 +144,16 @@ async def test_crear_equivalencia_success(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_equivalencia_duplicada_por_nivel_409(client: AsyncClient, db):
-    """Un global level solo puede tener una equivalencia."""
+    """Un career level solo puede tener una equivalencia."""
     rh = await make_empleado(db, rol="rh", email="eq_dup@leoni.test")
     grados = await make_grados_consecutivos(db, ordenes=[10])
-    await make_equivalencia(db, global_level_id=grados[0].id)
+    await make_equivalencia(db, career_level_id=grados[0].id)
     otro_grade = await make_global_grade(db, codigo="GG20", orden=20)
     headers = await auth_headers(client, rh)
 
     response = await client.post(
         f"{BASE}/equivalencias",
-        json={"global_level_id": grados[0].id, "global_grade_id": otro_grade.id},
+        json={"career_level_id": grados[0].id, "global_grade_id": otro_grade.id},
         headers=headers,
     )
 
@@ -170,7 +170,7 @@ async def test_equivalencia_con_global_grade_inactivo_falla(client: AsyncClient,
 
     response = await client.post(
         f"{BASE}/equivalencias",
-        json={"global_level_id": grados[0].id, "global_grade_id": grade.id},
+        json={"career_level_id": grados[0].id, "global_grade_id": grade.id},
         headers=headers,
     )
 
@@ -190,13 +190,13 @@ async def test_la_equivalencia_no_asume_correspondencia_por_numero(
 
     creada = await client.post(
         f"{BASE}/equivalencias",
-        json={"global_level_id": grados[0].id, "global_grade_id": grade.id},
+        json={"career_level_id": grados[0].id, "global_grade_id": grade.id},
         headers=headers,
     )
     assert creada.status_code == 201
 
     resuelta = await client.get(
-        f"{BASE}/equivalencias/resolver?global_level_id={grados[0].id}",
+        f"{BASE}/equivalencias/resolver?career_level_id={grados[0].id}",
         headers=headers,
     )
     assert resuelta.status_code == 200
@@ -211,7 +211,7 @@ async def test_resolver_sin_equivalencia_devuelve_null(client: AsyncClient, db):
     headers = await auth_headers(client, rh)
 
     response = await client.get(
-        f"{BASE}/equivalencias/resolver?global_level_id={grados[0].id}",
+        f"{BASE}/equivalencias/resolver?career_level_id={grados[0].id}",
         headers=headers,
     )
 
@@ -231,7 +231,7 @@ async def test_alta_autocompleta_global_grade_desde_la_equivalencia(
     grados = await make_grados_consecutivos(db, ordenes=[10, 11])
     grade = await make_global_grade(db, codigo="GG10", orden=10)
     await make_equivalencia(
-        db, global_level_id=grados[0].id, global_grade_id=grade.id
+        db, career_level_id=grados[0].id, global_grade_id=grade.id
     )
     funcion = await make_funcion_puesto(db)
     disciplina = await make_disciplina_puesto(db, funcion_id=funcion.id)
@@ -374,7 +374,7 @@ async def test_disciplina_de_otra_funcion_falla(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_global_levels_de_otro_career_path_falla(client: AsyncClient, db):
+async def test_career_levels_de_otro_career_path_falla(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="pp_path_malo@leoni.test")
     area = await make_area(db, descripcion="Area Path Malo")
     clasificacion = await make_clasificacion_payload(db, ordenes=[1, 2])
@@ -577,9 +577,9 @@ async def test_listado_filtra_por_global_grade_y_clasificacion_pendiente(
 
 
 @pytest.mark.asyncio
-async def test_editar_perfil_legacy_sin_global_levels(client: AsyncClient, db):
+async def test_editar_perfil_legacy_sin_career_levels(client: AsyncClient, db):
     """
-    Un perfil sin ningún global level se puede seguir editando.
+    Un perfil sin ningún career level se puede seguir editando.
 
     La factory `make_puesto_perfil` siempre asigna un grado por defecto, así que
     este caso solo aparece con datos reales: perfiles anteriores a la metodología

@@ -1,9 +1,10 @@
 # app/schemas/grados_puesto.py
 """
-Schemas Pydantic del catalogo de Global Levels (Willis Towers Watson).
+Schemas Pydantic del catalogo de Career Levels (Willis Towers Watson).
 
-La tabla se sigue llamando `levelup_grados_puesto` y el recurso `/grados-puesto`
-por compatibilidad; el concepto de negocio es el Global Level (P1..Pn / M1..Mn).
+El recurso es `/api/v1/career-levels`. La tabla conserva el nombre
+`levelup_grados_puesto`: cuatro tablas la referencian por FK y renombrarla es
+parte de la limpieza del vocabulario legacy en espanol, no de este cambio.
 """
 
 from datetime import datetime
