@@ -11,6 +11,7 @@ import { LABORALES_SIDEBAR_ITEM, LABORALES_NAV_ITEMS } from "./laboralesNav.ts";
 
 import { NOMINAS_NAV_ITEMS, NOMINAS_SIDEBAR_ITEM } from "./nominasNav.ts";
 import { DESEMPENO_SIDEBAR_ITEM, getVisibleDesempenoNavItems } from "./desempenoNav.ts";
+import { PUESTOS_SIDEBAR_ITEM, getVisiblePuestosNavItems } from "./puestosNav.ts";
 import { TALENTO_SIDEBAR_ITEM, getVisibleTalentoNavItems } from "./talentoNav.ts";
 
 export type RhNavKey =
@@ -120,6 +121,19 @@ export function getVisibleRhNavSections(rol: string | null): RhNavSection[] {
       sectionKey: "comedor",
       iconSvgPaths: COMEDOR_SIDEBAR_ITEM.svgPaths,
       items: comedorItems,
+    });
+  }
+
+  // Puestos antes que Talento: primero se define el puesto, después se mide a
+  // la gente frente a esa definición.
+  const puestosItems = getVisiblePuestosNavItems(rol);
+  if (puestosItems.length > 0) {
+    sections.push({
+      id: "puestos",
+      title: PUESTOS_SIDEBAR_ITEM.label,
+      sectionKey: "puestos",
+      iconSvgPaths: PUESTOS_SIDEBAR_ITEM.svgPaths,
+      items: puestosItems,
     });
   }
 

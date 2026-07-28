@@ -1,5 +1,12 @@
 /**
- * Navegación agrupada de Puestos para sidebar RH operativo.
+ * Sección «Puestos» del sidebar RH: cómo está definido el puesto.
+ *
+ * Perfiles, las competencias que el perfil exige, el catálogo de tareas y la
+ * configuración de todo ello. Es la definición; lo que se mide sobre la gente
+ * frente a esa definición vive en `talentoNav.ts`.
+ *
+ * Los ítems salen de `LEVEL_UP_PUESTOS` para que el hub `#/level-up` y el menú
+ * no puedan divergir.
  */
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";

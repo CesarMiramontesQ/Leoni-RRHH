@@ -103,15 +103,15 @@ describe("rhNav sections", () => {
     expect(cursosSection?.items.some((item) => item.key === "cursos-vencimientos")).toBe(false);
   });
 
-  it("agrupa el menú por dominio: Talento, Desempeño y Desarrollo", async () => {
+  it("agrupa el menú por dominio: Puestos, Talento, Desempeño y Desarrollo", async () => {
     const { getVisibleRhNavSections } = await import("./rhNav.ts");
     const sectionIds = getVisibleRhNavSections("supervisor").map((section) => section.id);
 
-    // Ya no hay sección «Level Up»: era un nombre de fase, no un dominio, y sus
-    // ítems se repartieron entre las tres secciones de abajo.
-    expect(sectionIds).toEqual(["talento", "desempeno", "cursos"]);
+    // Ya no hay sección «Level Up»: era un nombre de fase, no un dominio.
+    // Puestos va antes que Talento: primero se define el puesto, después se
+    // mide a la gente frente a esa definición.
+    expect(sectionIds).toEqual(["puestos", "talento", "desempeno", "cursos"]);
     expect(sectionIds).not.toContain("level-up");
-    expect(sectionIds).not.toContain("puestos");
   });
 
   it("ningún ítem aparece en dos secciones", async () => {
@@ -129,7 +129,20 @@ describe("rhNav sections", () => {
     expect(keys).toHaveLength(new Set(keys).size);
   });
 
-  it("Talento reúne el perfil de puesto y todo lo que se mide sobre él", async () => {
+  it("Puestos reúne cómo está definido el puesto", async () => {
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const puestos = getVisibleRhNavSections("supervisor").find((s) => s.id === "puestos");
+
+    expect(puestos?.title).toBe("Puestos");
+    expect(puestos?.items.map((item) => item.key)).toEqual([
+      "puestos",
+      "competencias",
+      "tareas-catalogo",
+      "puestos-ajustes",
+    ]);
+  });
+
+  it("Talento reúne lo que se mide sobre la gente, no la definición del puesto", async () => {
     allowedModules.add("dashboard-talento");
     allowedModules.add("operaciones");
     allowedModules.add("encuestas-rh");
@@ -138,19 +151,16 @@ describe("rhNav sections", () => {
     const talento = getVisibleRhNavSections("supervisor").find((s) => s.id === "talento");
 
     expect(talento?.title).toBe("Talento");
-    // Competencias y Matriz de multihabilidades leen la misma tabla, y
-    // Cobertura y polivalencia es el building block del propio dashboard:
-    // estaban en tres secciones distintas.
     expect(talento?.items.map((item) => item.key)).toEqual([
       "dashboard-talento",
-      "puestos",
-      "competencias",
       "capacidades",
       "operaciones",
-      "tareas-catalogo",
-      "puestos-ajustes",
       "encuestas-rh",
     ]);
+    // La definición del puesto se fue a su propia sección.
+    for (const key of ["puestos", "tareas-catalogo", "puestos-ajustes"]) {
+      expect(talento?.items.some((item) => item.key === key)).toBe(false);
+    }
   });
 
   it("Desempeño reúne las señales que el ciclo pondera", async () => {
@@ -210,8 +220,31 @@ describe("rhNav sections", () => {
     expect(getVisibleRhNavSections("supervisor").some((s) => s.id === "cursos")).toBe(false);
   });
 
-  it("omite Talento cuando no hay ninguno de sus módulos", async () => {
+  it("omite Puestos cuando no hay ninguno de sus módulos", async () => {
     for (const key of ["puestos", "competencias", "tareas-catalogo", "puestos-ajustes"]) {
+      allowedModules.delete(key);
+    }
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    expect(getVisibleRhNavSections("supervisor").some((s) => s.id === "puestos")).toBe(false);
+  });
+
+  it("Talento sobrevive solo con el módulo competencias, por la Matriz de multihabilidades", async () => {
+    // `competencias` es UN permiso sobre DOS pantallas: Competencias (sección
+    // Puestos) y Matriz de multihabilidades (sección Talento). Separar el menú
+    // no separó el permiso, así que conceder `competencias` sigue abriendo un
+    // ítem en cada sección. Sorprende si no está escrito.
+    for (const key of ["dashboard-talento", "operaciones", "encuestas-rh"]) {
+      allowedModules.delete(key);
+    }
+
+    const { getVisibleRhNavSections } = await import("./rhNav.ts");
+    const talento = getVisibleRhNavSections("supervisor").find((s) => s.id === "talento");
+    expect(talento?.items.map((item) => item.key)).toEqual(["capacidades"]);
+  });
+
+  it("omite Talento cuando no hay ninguno de sus módulos", async () => {
+    for (const key of ["dashboard-talento", "competencias", "operaciones", "encuestas-rh"]) {
       allowedModules.delete(key);
     }
 

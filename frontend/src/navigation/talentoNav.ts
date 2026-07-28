@@ -1,11 +1,12 @@
 /**
- * Sección «Talento» del sidebar RH: quién es quién y qué sabe hacer.
+ * Sección «Talento» del sidebar RH: qué sabe hacer la gente.
  *
- * Reúne el dashboard, los perfiles de puesto y todo lo que se mide sobre
- * competencias. Antes estaba repartido entre tres secciones —«Puestos»,
- * «Level Up» y «Talento»— aunque Matriz de multihabilidades y Competencias
- * leen la misma tabla y Cobertura y polivalencia es el building block del
- * propio dashboard.
+ * Reúne el dashboard y lo que se **mide sobre las personas** — cobertura,
+ * polivalencia, multihabilidades, encuestas. La definición del puesto en sí
+ * (perfiles, competencias del perfil, tareas y sus ajustes) vive en su propia
+ * sección, `puestosNav.ts`: son dos preguntas distintas, «cómo está definido el
+ * puesto» y «cómo está la gente frente a él», y mezclarlas hacía una sección de
+ * ocho ítems donde no se distinguía la configuración del análisis.
  *
  * Lo que se evalúa por ciclo vive en `desempenoNav.ts`; la capacitación, en
  * `cursosNav.ts`.
@@ -13,16 +14,12 @@
 
 import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
-import { LEVEL_UP_CAPACIDADES, LEVEL_UP_OPERACIONES, LEVEL_UP_PUESTOS } from "./levelUpNav.ts";
+import { LEVEL_UP_CAPACIDADES, LEVEL_UP_OPERACIONES } from "./levelUpNav.ts";
 
 export type TalentoNavKey =
   | "dashboard-talento"
-  | "puestos"
-  | "competencias"
   | "capacidades"
   | "operaciones"
-  | "tareas-catalogo"
-  | "puestos-ajustes"
   | "encuestas-rh";
 
 export type TalentoNavItem = {
@@ -57,14 +54,11 @@ const desde = (item: { id: AppShellNavItemId; key: string; href: string; label: 
   svgPaths: item.svgPaths,
 });
 
-/** El dashboard primero (es la entrada), luego el perfil de puesto y lo que se
- * mide sobre él, y al final la configuración. */
+/** El dashboard primero (es la entrada), luego lo que se mide sobre la gente. */
 export const TALENTO_NAV_ITEMS: readonly TalentoNavItem[] = [
   DASHBOARD_TALENTO,
-  ...LEVEL_UP_PUESTOS.filter((item) => item.key === "puestos" || item.key === "competencias").map(desde),
   desde(LEVEL_UP_CAPACIDADES),
   desde(LEVEL_UP_OPERACIONES),
-  ...LEVEL_UP_PUESTOS.filter((item) => item.key === "tareas-catalogo" || item.key === "puestos-ajustes").map(desde),
   ENCUESTAS_RH,
 ];
 
