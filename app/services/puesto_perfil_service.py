@@ -170,6 +170,11 @@ class PuestoPerfilService:
     async def _validar_grados_consecutivos(
         self, grado_ids: list[int]
     ) -> list[GradoPuesto]:
+        # Sin niveles no hay nada que validar. El alta los exige por schema, pero
+        # al editar un perfil anterior a la metodologia puede no tener ninguno, y
+        # eso no debe impedir corregirle el nombre.
+        if not grado_ids:
+            return []
         if len(set(grado_ids)) != len(grado_ids):
             raise DomainValidationError("La lista de grados contiene duplicados")
         grados = await self.grado_repo.get_activos_by_ids(grado_ids)

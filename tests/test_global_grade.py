@@ -574,3 +574,42 @@ async def test_listado_filtra_por_global_grade_y_clasificacion_pendiente(
     nombres = [i["nombre"] for i in pendientes.json()["items"]]
     assert "Perfil Legacy Filtro" in nombres
     assert "Perfil Clasificado Filtro" not in nombres
+
+
+@pytest.mark.asyncio
+async def test_editar_perfil_legacy_sin_global_levels(client: AsyncClient, db):
+    """
+    Un perfil sin ningún global level se puede seguir editando.
+
+    La factory `make_puesto_perfil` siempre asigna un grado por defecto, así que
+    este caso solo aparece con datos reales: perfiles anteriores a la metodología
+    que nunca tuvieron rango. La validación de consecutividad reventaba con
+    IndexError sobre la lista vacía.
+    """
+    from app.models.talento import PuestoPerfil, PuestoPerfilGrado
+    from sqlalchemy import delete
+
+    rh = await make_empleado(db, rol="rh", email="pp_sin_niveles@leoni.test")
+    area = await make_area(db, descripcion="Area Sin Niveles")
+    perfil = await make_puesto_perfil(
+        db, codigo="LEGACY-SN", nombre="Perfil Sin Niveles", area_id=area.area_id
+    )
+    await db.execute(
+        delete(PuestoPerfilGrado).where(
+            PuestoPerfilGrado.puesto_perfil_id == perfil.id
+        )
+    )
+    await db.flush()
+    headers = await auth_headers(client, rh)
+
+    response = await client.put(
+        f"/api/v1/puestos-perfil/{perfil.id}",
+        json={"nombre": "Perfil Sin Niveles Renombrado"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["nombre"] == "Perfil Sin Niveles Renombrado"
+    assert body["grados"] == []
+    assert body["clasificacion_completa"] is False
