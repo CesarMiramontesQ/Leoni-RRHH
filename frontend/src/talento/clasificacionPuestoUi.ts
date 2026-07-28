@@ -202,3 +202,46 @@ export function careerLevelsEntre(
     .sort(compararCareerLevels)
     .map((g) => g.id);
 }
+
+// ---------------------------------------------------------------------------
+// Código del career level: el del career path + un número (P1, P10, M3).
+// Espejo de `app/utils/career_level_codigo.py`; la validación que manda es la
+// del backend, esto evita el viaje y permite proponer el siguiente número.
+// ---------------------------------------------------------------------------
+
+/** Límite de `levelup_grados_puesto.codigo`. */
+export const MAX_LONGITUD_CODIGO_CAREER_LEVEL = 10;
+
+/** Parte numérica de un código que cumple la regla; `null` si no la cumple. */
+export function numeroDeCareerLevel(prefijo: string, codigo: string): number | null {
+  const pre = (prefijo ?? "").trim();
+  const cod = (codigo ?? "").trim();
+  if (!pre || cod.length <= pre.length) return null;
+  if (cod.slice(0, pre.length).toLowerCase() !== pre.toLowerCase()) return null;
+  const resto = cod.slice(pre.length);
+  // Entero ≥ 1 sin ceros a la izquierda: 'P01' sería ambiguo con 'P1'.
+  return /^[1-9]\d*$/.test(resto) ? Number(resto) : null;
+}
+
+/** Compone el código a partir del número capturado. `null` si el número no sirve. */
+export function componerCodigoCareerLevel(
+  prefijo: string,
+  numero: string,
+): string | null {
+  const pre = (prefijo ?? "").trim();
+  const num = (numero ?? "").trim();
+  if (!pre || !/^[1-9]\d*$/.test(num)) return null;
+  const codigo = `${pre}${num}`;
+  return codigo.length > MAX_LONGITUD_CODIGO_CAREER_LEVEL ? null : codigo;
+}
+
+/** Primer número por encima del mayor en uso; 1 si no hay ninguno válido. */
+export function siguienteNumeroCareerLevel(
+  prefijo: string,
+  codigos: string[],
+): number {
+  const numeros = codigos
+    .map((c) => numeroDeCareerLevel(prefijo, c))
+    .filter((n): n is number => n != null);
+  return numeros.length ? Math.max(...numeros) + 1 : 1;
+}

@@ -9,6 +9,9 @@ import {
   careerLevelsEntre,
   careerLevelsSonConsecutivos,
   GLOBAL_GRADE_TOOLTIP,
+  componerCodigoCareerLevel,
+  numeroDeCareerLevel,
+  siguienteNumeroCareerLevel,
 } from "./clasificacionPuestoUi.ts";
 
 const P = (orden: number, codigo = `P${orden}`) => ({
@@ -145,5 +148,48 @@ describe("estados y badges", () => {
 
   it("el badge de pendiente siempre lleva texto, no solo color", () => {
     expect(clasificacionPendienteBadge()).toContain("Clasificación pendiente");
+  });
+});
+
+describe("código del career level", () => {
+  it("compone el código con el prefijo del career path", () => {
+    expect(componerCodigoCareerLevel("P", "10")).toBe("P10");
+    expect(componerCodigoCareerLevel("M", "3")).toBe("M3");
+  });
+
+  it("rechaza lo que el backend rechazaría, para no gastar el viaje", () => {
+    // Cero y ceros a la izquierda: 'P01' sería otra fila con el mismo significado.
+    expect(componerCodigoCareerLevel("P", "0")).toBeNull();
+    expect(componerCodigoCareerLevel("P", "01")).toBeNull();
+    expect(componerCodigoCareerLevel("P", "")).toBeNull();
+    expect(componerCodigoCareerLevel("P", "1.5")).toBeNull();
+    expect(componerCodigoCareerLevel("", "10")).toBeNull();
+  });
+
+  it("no compone un código que no cabe en la columna", () => {
+    expect(componerCodigoCareerLevel("PROFESSION", "1")).toBeNull();
+  });
+
+  it("extrae el número de un código existente para precargar el campo", () => {
+    expect(numeroDeCareerLevel("P", "P10")).toBe(10);
+    expect(numeroDeCareerLevel("P", "p10")).toBe(10);
+  });
+
+  it("devuelve null cuando el código es de otro career path", () => {
+    expect(numeroDeCareerLevel("P", "M10")).toBeNull();
+    expect(numeroDeCareerLevel("P", "Nivel 3")).toBeNull();
+  });
+
+  it("sugiere por encima del mayor, no por el conteo", () => {
+    // Con un hueco (falta P2) reusar el 2 chocaría con un nivel desactivado.
+    expect(siguienteNumeroCareerLevel("P", ["P1", "P3"])).toBe(4);
+  });
+
+  it("ignora los códigos de otro career path al sugerir", () => {
+    expect(siguienteNumeroCareerLevel("M", ["P1", "P2", "P9"])).toBe(1);
+  });
+
+  it("empieza en 1 cuando el career path no tiene niveles", () => {
+    expect(siguienteNumeroCareerLevel("P", [])).toBe(1);
   });
 });

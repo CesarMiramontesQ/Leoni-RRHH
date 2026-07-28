@@ -133,6 +133,23 @@ class CareerPathService:
             raise NotFoundError(entidad="CareerPath", id=id)
 
         await self._validar_unicidad(data, exclude_id=id)
+
+        # El codigo del path es el prefijo del codigo de sus career levels, asi
+        # que cambiarlo dejaria a todos fuera de la regla. Renombrarlos en
+        # cascada tampoco sirve: esos codigos ya quedaron escritos en el
+        # historial de clasificacion y dejarian de coincidir con el catalogo.
+        if data.codigo != item.codigo:
+            grados = await self.repo.count_grados_usando(id)
+            if grados:
+                raise ConflictError(
+                    detail=(
+                        f"No se puede cambiar el codigo del career path "
+                        f"'{item.nombre}' a '{data.codigo}' porque tiene {grados} "
+                        f"career level(es) cuyo codigo empieza con '{item.codigo}' "
+                        f"({item.codigo}1, {item.codigo}10). Desactivalos primero."
+                    )
+                )
+
         await self.repo.update(
             id, {"codigo": data.codigo, "nombre": data.nombre}
         )

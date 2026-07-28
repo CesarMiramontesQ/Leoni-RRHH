@@ -233,3 +233,58 @@ async def test_actualizar_disciplina_cambia_de_funcion(client, db):
 
     assert response.status_code == 200
     assert response.json()["funcion_id"] == funcion_b.id
+
+
+@pytest.mark.asyncio
+async def test_no_se_puede_cambiar_el_codigo_de_un_path_con_niveles_409(client, db):
+    """
+    El codigo del path es el prefijo del codigo de sus career levels.
+
+    Cambiarlo dejaria a todos fuera de la regla, y renombrarlos en cascada
+    tampoco sirve: esos codigos ya quedaron escritos en el historial de
+    clasificacion y dejarian de coincidir con el catalogo.
+    """
+    rh = await make_empleado(db, rol="rh", email="cp_cod_bloq@leoni.test")
+    path = await make_career_path(db, codigo="P")
+    await make_grado_puesto(db, codigo="P1", nombre="P1", orden=1, career_path_id=path.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.patch(
+        f"{BASE}/career-paths/{path.id}",
+        json={"codigo": "PR", "nombre": "Professional"},
+        headers=headers,
+    )
+    assert response.status_code == 409, response.text
+    assert "P1" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_el_nombre_de_un_path_con_niveles_si_se_puede_cambiar(client, db):
+    """Solo el codigo esta atado a los niveles; el nombre es libre."""
+    rh = await make_empleado(db, rol="rh", email="cp_nom_libre@leoni.test")
+    path = await make_career_path(db, codigo="P", nombre="Professional")
+    await make_grado_puesto(db, codigo="P1", nombre="P1", orden=1, career_path_id=path.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.patch(
+        f"{BASE}/career-paths/{path.id}",
+        json={"codigo": "P", "nombre": "Profesional / IC"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["nombre"] == "Profesional / IC"
+
+
+@pytest.mark.asyncio
+async def test_un_path_sin_niveles_si_puede_cambiar_de_codigo(client, db):
+    rh = await make_empleado(db, rol="rh", email="cp_cod_libre@leoni.test")
+    path = await make_career_path(db, codigo="X", nombre="Sin niveles")
+    headers = await auth_headers(client, rh)
+
+    response = await client.patch(
+        f"{BASE}/career-paths/{path.id}",
+        json={"codigo": "T", "nombre": "Sin niveles"},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["codigo"] == "T"

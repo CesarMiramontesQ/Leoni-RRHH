@@ -44,6 +44,44 @@ export const AJUSTES_MODAL_PANEL_LG = `${MODAL_PANEL} max-w-lg p-6 max-h-[90vh] 
 export const AJUSTES_INPUT = FIELD_INPUT;
 export const AJUSTES_TEXTAREA = FIELD_TEXTAREA;
 
+/**
+ * Campo cuyo valor lleva un prefijo que el usuario no elige ni escribe.
+ *
+ * El prefijo se pinta adosado dentro del mismo borde para que se lea como un
+ * único campo, pero vive fuera del `<input>`: no se envía ni se puede editar.
+ * Se usa donde el prefijo lo dicta otro dato del formulario — el código de un
+ * career level, que es el de su career path más un número.
+ */
+export function ajustesInputConPrefijo(opts: {
+  id: string;
+  name: string;
+  prefijo: string;
+  value: string;
+  placeholder?: string;
+  inputMode?: "numeric" | "text";
+  maxlength?: number;
+  required?: boolean;
+}): string {
+  const {
+    id,
+    name,
+    prefijo,
+    value,
+    placeholder = "",
+    inputMode = "text",
+    maxlength,
+    required = false,
+  } = opts;
+  return `<div class="flex w-full items-stretch overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
+    <span class="flex select-none items-center border-r border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-text-secondary" aria-hidden="true">${escapeHtml(prefijo)}</span>
+    <input id="${escapeHtml(id)}" name="${escapeHtml(name)}" type="text"
+      inputmode="${inputMode}" ${required ? "required" : ""}
+      ${maxlength ? `maxlength="${maxlength}"` : ""}
+      value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"
+      class="block w-full border-0 bg-transparent px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-0" />
+  </div>`;
+}
+
 export function ajustesLoadingState(message: string): string {
   return `<p class="px-4 py-8 text-center text-sm text-text-muted">${escapeHtml(message)}</p>`;
 }

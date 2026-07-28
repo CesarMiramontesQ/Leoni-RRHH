@@ -28,6 +28,7 @@ from app.utils.demo_residuo import (
     REFERENTES_TIPO,
     ids_libres,
 )
+from app.models.clasificacion_puesto import CareerLevelGradeMapping, GlobalGrade
 from app.models.talento import (
     Competencia,
     CompetenciaRequisito,
@@ -235,6 +236,31 @@ async def cleanup_evaluacion_demo(*, execute: bool) -> None:
         logger.info("Modo simulación (--cleanup sin --execute). No se modificó la BD.")
 
 
+async def _asegurar_equivalencia(s, grado: GradoPuesto, orden: int) -> None:
+    """Da posicion al career level: global grade `GG<orden>` + su equivalencia."""
+    codigo = f"GG{orden:02d}"
+    r = await s.execute(select(GlobalGrade).where(GlobalGrade.codigo == codigo))
+    grade = r.scalar_one_or_none()
+    if not grade:
+        grade = GlobalGrade(codigo=codigo, nombre=f"Global Grade {orden}", orden=orden)
+        s.add(grade)
+        await s.flush()
+
+    r = await s.execute(
+        select(CareerLevelGradeMapping).where(
+            CareerLevelGradeMapping.career_level_id == grado.id
+        )
+    )
+    if r.scalar_one_or_none():
+        return
+    s.add(
+        CareerLevelGradeMapping(
+            career_level_id=grado.id, global_grade_id=grade.id, activo=True
+        )
+    )
+    await s.flush()
+
+
 async def seed():
     async with AsyncSessionLocal() as s:
         # Check idempotency
@@ -261,11 +287,14 @@ async def seed():
                     career_path_id=career_path.id,
                     codigo=f"{career_path.codigo}{i}",
                     nombre=nombre,
-                    orden=i,
                 )
                 s.add(grado)
                 await s.flush()
             grado_map[nombre] = grado
+            # El nivel no tiene orden propio: su posicion la da el global grade
+            # al que equivale. Sin equivalencia el rango del perfil demo queda
+            # sin ordenar y el backend lo rechazaria.
+            await _asegurar_equivalencia(s, grado, orden=i)
         logger.info("Grados: %d", len(grado_map))
 
         # 3. Create grupos and tipos
