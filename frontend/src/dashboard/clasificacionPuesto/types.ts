@@ -1,13 +1,13 @@
 /**
  * Tipos de los catalogos de clasificacion de puesto (Willis Towers Watson).
  *
- * Career Path + Funcion + Disciplina + Global Level son la identidad oficial del
+ * Career Path + Funcion + Disciplina + Career Level son la identidad oficial del
  * puesto. La Disciplina siempre depende de la Funcion.
  */
 
 export type CareerPath = {
   id: number;
-  /** Prefijo del Global Level: "P" -> P10, "M" -> M3. */
+  /** Prefijo del Career Level: "P" -> P10, "M" -> M3. */
   codigo: string;
   nombre: string;
   orden: number;
@@ -90,12 +90,12 @@ export type GlobalGradeCreatePayload = {
 
 export type GlobalGradeUpdatePayload = GlobalGradeCreatePayload;
 
-/** Equivalencia configurable Global Level → Global Grade. Única por nivel. */
+/** Equivalencia configurable Career Level → Global Grade. Única por nivel. */
 export type Equivalencia = {
   id: number;
-  global_level_id: number;
-  global_level_codigo: string | null;
-  global_level_nombre: string | null;
+  career_level_id: number;
+  career_level_codigo: string | null;
+  career_level_nombre: string | null;
   career_path_id: number | null;
   career_path_codigo: string | null;
   career_path_nombre: string | null;
@@ -108,7 +108,7 @@ export type Equivalencia = {
 };
 
 export type EquivalenciaCreatePayload = {
-  global_level_id: number;
+  career_level_id: number;
   global_grade_id: number;
 };
 

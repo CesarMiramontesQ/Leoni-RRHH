@@ -1,6 +1,6 @@
 # app/services/grado_puesto_service.py
 """
-Logica de negocio del catalogo de Global Levels (Willis Towers Watson).
+Logica de negocio del catalogo de Career Levels (Willis Towers Watson).
 
 Cada nivel pertenece a un career path y su codigo/nombre/orden son unicos DENTRO
 de ese path, no en toda la tabla: P1 y M1 conviven.
@@ -90,20 +90,20 @@ class GradoPuestoService:
             data.career_path_id, data.codigo, exclude_id=exclude_id
         ):
             raise ConflictError(
-                detail=f"Ya existe el global level '{data.codigo}' en ese career path"
+                detail=f"Ya existe el career level '{data.codigo}' en ese career path"
             )
         if await self.repo.exists_by_nombre(
             data.career_path_id, data.nombre, exclude_id=exclude_id
         ):
             raise ConflictError(
-                detail=f"Ya existe un global level '{data.nombre}' en ese career path"
+                detail=f"Ya existe un career level '{data.nombre}' en ese career path"
             )
         if await self.repo.exists_by_orden(
             data.career_path_id, data.orden, exclude_id=exclude_id
         ):
             raise ConflictError(
                 detail=(
-                    f"Ya existe un global level con orden {data.orden} "
+                    f"Ya existe un career level con orden {data.orden} "
                     "en ese career path"
                 )
             )
@@ -112,7 +112,7 @@ class GradoPuestoService:
         self, data: GradoPuestoCreate, current_user: Empleado
     ) -> GradoPuestoResponse:
         if not user_has_module(current_user, "puestos"):
-            raise ForbiddenError(detail="Solo RH puede crear global levels")
+            raise ForbiddenError(detail="Solo RH puede crear career levels")
 
         await self._validar_career_path(data.career_path_id)
         await self._validar_unicidad(data)
@@ -130,7 +130,7 @@ class GradoPuestoService:
         self, id: int, data: GradoPuestoUpdate, current_user: Empleado
     ) -> GradoPuestoResponse:
         if not user_has_module(current_user, "puestos"):
-            raise ForbiddenError(detail="Solo RH puede actualizar global levels")
+            raise ForbiddenError(detail="Solo RH puede actualizar career levels")
 
         grado = await self.repo.get(id)
         if not grado or not grado.activo:
@@ -166,7 +166,7 @@ class GradoPuestoService:
 
     async def eliminar(self, id: int, current_user: Empleado) -> None:
         if not user_has_module(current_user, "puestos"):
-            raise ForbiddenError(detail="Solo RH puede eliminar global levels")
+            raise ForbiddenError(detail="Solo RH puede eliminar career levels")
 
         grado = await self.repo.get(id)
         if not grado or not grado.activo:
@@ -177,7 +177,7 @@ class GradoPuestoService:
         if requisitos > 0 or asignaciones > 0:
             raise ConflictError(
                 detail=(
-                    f"No se puede eliminar el global level '{grado.nombre}' "
+                    f"No se puede eliminar el career level '{grado.nombre}' "
                     f"porque esta en uso ({requisitos} requisito(s), "
                     f"{asignaciones} asignacion(es) activa(s))"
                 )

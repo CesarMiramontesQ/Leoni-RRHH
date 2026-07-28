@@ -32,7 +32,7 @@ from app.repositories.clasificacion_puesto_repository import (
     DisciplinaPuestoRepository,
     FuncionPuestoRepository,
     GlobalGradeRepository,
-    GlobalLevelGradeMappingRepository,
+    CareerLevelGradeMappingRepository,
 )
 from app.repositories.grado_puesto_repository import GradoPuestoRepository
 from app.repositories.puesto_perfil_repository import (
@@ -62,7 +62,7 @@ CAMPOS_CLASIFICACION: tuple[tuple[str, str], ...] = (
     ("career_path", "Career Path"),
     ("funcion", "Funcion"),
     ("disciplina", "Disciplina"),
-    ("global_level", "Global Level"),
+    ("career_level", "Career Level"),
     ("global_grade", "Global Grade"),
     ("estado", "Estado"),
 )
@@ -79,7 +79,7 @@ class PuestoPerfilService:
         self.funcion_repo = FuncionPuestoRepository(db)
         self.disciplina_repo = DisciplinaPuestoRepository(db)
         self.grade_repo = GlobalGradeRepository(db)
-        self.equivalencia_repo = GlobalLevelGradeMappingRepository(db)
+        self.equivalencia_repo = CareerLevelGradeMappingRepository(db)
         self.historial_repo = ClasificacionHistorialRepository(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ class PuestoPerfilService:
             if fuera:
                 codigos = ", ".join(g.codigo for g in fuera)
                 raise DomainValidationError(
-                    f"Los global levels {codigos} no pertenecen al career path "
+                    f"Los career levels {codigos} no pertenecen al career path "
                     "seleccionado"
                 )
 
@@ -245,7 +245,7 @@ class PuestoPerfilService:
         if not grados:
             return None
         # El nivel inicial del rango es el que define la clasificacion del puesto.
-        equivalencia = await self.equivalencia_repo.get_activa_por_global_level(
+        equivalencia = await self.equivalencia_repo.get_activa_por_career_level(
             grados[0].id
         )
         return equivalencia.global_grade_id if equivalencia else None
@@ -283,7 +283,7 @@ class PuestoPerfilService:
                 perfil.disciplina_id,
                 perfil.disciplina.nombre if perfil.disciplina else None,
             ),
-            "global_level": (tuple(g.id for g in grados), rango or None),
+            "career_level": (tuple(g.id for g in grados), rango or None),
             "global_grade": (
                 perfil.global_grade_id,
                 perfil.global_grade.codigo if perfil.global_grade else None,
@@ -331,8 +331,8 @@ class PuestoPerfilService:
                 "career_path_id": perfil.career_path_id,
                 "funcion_id": perfil.funcion_id,
                 "disciplina_id": perfil.disciplina_id,
-                "global_level_desde_id": grados[0].id if grados else None,
-                "global_level_hasta_id": grados[-1].id if grados else None,
+                "career_level_desde_id": grados[0].id if grados else None,
+                "career_level_hasta_id": grados[-1].id if grados else None,
                 "global_grade_id": perfil.global_grade_id,
                 "estado": perfil.estado,
                 "version": perfil.version,
@@ -469,7 +469,7 @@ class PuestoPerfilService:
         global_grade_id = await self._resolver_global_grade(data.global_grade_id, grados)
         if global_grade_id is None:
             raise DomainValidationError(
-                f"El global level '{grados[0].codigo}' no tiene una equivalencia de "
+                f"El career level '{grados[0].codigo}' no tiene una equivalencia de "
                 "global grade configurada. Configurala en Ajustes o selecciona el "
                 "global grade manualmente."
             )

@@ -96,7 +96,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             query = query.where(PuestoPerfil.estado == estado)
         if clasificacion_pendiente is not None:
             # Un perfil esta clasificado cuando tiene los cuatro campos; el rango de
-            # global levels ya es obligatorio desde el alta.
+            # career levels ya es obligatorio desde el alta.
             completa = (
                 PuestoPerfil.career_path_id.isnot(None)
                 & PuestoPerfil.funcion_id.isnot(None)
@@ -166,7 +166,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
 
     # ── Grados por perfil ─────────────────────────────────────────────────────
     #
-    # Aqui vivia `grados_ocupados_en_area`, que sostenia la regla "un global level
+    # Aqui vivia `grados_ocupados_en_area`, que sostenia la regla "un career level
     # no puede repetirse en otro perfil de la misma area". Con la metodologia WTW
     # esa regla es invalida: el nivel mide el tamano del puesto, no lo ocupa en
     # exclusiva, y varios puestos distintos de Ingenieria pueden estar en P10.

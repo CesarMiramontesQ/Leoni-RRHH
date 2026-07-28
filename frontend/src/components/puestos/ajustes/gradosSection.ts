@@ -89,7 +89,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   function renderBuscador(): string {
     if (items.length < FILAS_PARA_BUSCADOR) return "";
     return `<div class="border-b border-slate-100 px-4 py-2.5 sm:px-5">
-      <label for="grado-filtro" class="sr-only">Buscar global level</label>
+      <label for="grado-filtro" class="sr-only">Buscar career level</label>
       <input id="grado-filtro" type="search" data-grado-filtro value="${escapeHtml(filtro)}"
         autocomplete="off" placeholder="Buscar entre ${items.length}…"
         class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted ${FIELD_FOCUS}" />
@@ -97,17 +97,17 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   }
 
   function renderTable(): string {
-    if (loading) return ajustesLoadingState("Cargando global levels…");
+    if (loading) return ajustesLoadingState("Cargando career levels…");
     if (error) return ajustesErrorAlert(error);
     if (careerPaths.length === 0) {
       return ajustesEmptyState(
-        "Primero crea un career path: cada global level pertenece a uno (P10 es Professional, M3 es Management).",
+        "Primero crea un career path: cada career level pertenece a uno (P10 es Professional, M3 es Management).",
       );
     }
     if (items.length === 0)
       return ajustesEmptyState(
-        "No hay global levels registrados. Crea el primero.",
-        `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY}">${AJUSTES_ICON_PLUS}<span>Nuevo global level</span></button>`,
+        "No hay career levels registrados. Crea el primero.",
+        `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY}">${AJUSTES_ICON_PLUS}<span>Nuevo career level</span></button>`,
       );
     const visibles = itemsVisibles();
     if (visibles.length === 0) {
@@ -166,7 +166,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       return `
         <div id="grado-modal-overlay" class="${AJUSTES_MODAL_OVERLAY}" role="presentation">
           <div class="${AJUSTES_MODAL_PANEL}" role="dialog" aria-modal="true" aria-labelledby="grado-modal-delete-title">
-            <h3 id="grado-modal-delete-title" class="text-lg font-semibold text-text-primary">Eliminar global level</h3>
+            <h3 id="grado-modal-delete-title" class="text-lg font-semibold text-text-primary">Eliminar career level</h3>
             <p class="mt-2 text-sm text-text-secondary">¿Eliminar <strong>${escapeHtml(deletingItem.codigo)} · ${escapeHtml(deletingItem.nombre)}</strong>? No podrás eliminarlo si hay requisitos o asignaciones que lo usen.</p>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -176,7 +176,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
           </div>
         </div>`;
     }
-    const title = modalMode === "create" ? "Nuevo global level" : "Editar global level";
+    const title = modalMode === "create" ? "Nuevo career level" : "Editar career level";
     return `
       <div id="grado-modal-overlay" class="${AJUSTES_MODAL_OVERLAY}" role="presentation">
         <div class="${AJUSTES_MODAL_PANEL}" role="dialog" aria-modal="true" aria-labelledby="grado-modal-form-title">
@@ -228,14 +228,14 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     sectionEl.innerHTML =
       ajustesSectionCard({
         titleId: "grados-section-title",
-        title: "Global levels",
+        title: "Career levels",
         description:
           "Niveles de la clasificación Towers Watson. Cada uno pertenece a un career path (P1…Pn, M1…Mn) y cada perfil se asocia a un rango consecutivo.",
         iconHtml: AJUSTES_ICON_GRADES,
         badgeHtml: loading ? ajustesCountBadge(0, true) : ajustesCountBadge(items.length),
         actionButtonHtml: sinCareerPaths
           ? ""
-          : `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo global level</span></button>`,
+          : `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo career level</span></button>`,
         bodyHtml: `<div data-grados-body>${renderTable()}</div>`,
       }) + renderModal();
   }
@@ -255,7 +255,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       paint();
     } catch (e) {
       loading = false;
-      error = (e as GradoPuestoFetchError).detail ?? "No se pudieron cargar los global levels.";
+      error = (e as GradoPuestoFetchError).detail ?? "No se pudieron cargar los career levels.";
       paint();
     }
   }

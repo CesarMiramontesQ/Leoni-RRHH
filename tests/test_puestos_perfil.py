@@ -130,17 +130,17 @@ async def test_create_perfil_sin_area_422(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_varios_perfiles_comparten_global_level_en_la_misma_area(
+async def test_varios_perfiles_comparten_career_level_en_la_misma_area(
     client: AsyncClient, db
 ):
     """
-    Dos puestos distintos de la misma area pueden estar en el mismo global level.
+    Dos puestos distintos de la misma area pueden estar en el mismo career level.
 
     Antes habia una regla que lo bloqueaba con 409. Con la metodologia Towers
     Watson es invalida: el nivel mide el tamano del puesto, no lo ocupa en
     exclusiva, y en Ingenieria puede haber varios puestos en P10.
     """
-    area = await make_area(db, descripcion="Area Global Level Compartido")
+    area = await make_area(db, descripcion="Area Career Level Compartido")
     clasificacion = await make_clasificacion_payload(db, ordenes=[1, 2, 3])
     grado_ids = clasificacion["grado_ids"]
     rh = await make_empleado(db, rol="rh", email="pp_grado_dup@leoni.test")
@@ -160,7 +160,7 @@ async def test_varios_perfiles_comparten_global_level_en_la_misma_area(
 
     # El segundo perfil arranca en el nivel intermedio, asi que necesita su propia
     # equivalencia: el global grade se resuelve por el nivel inicial del rango.
-    await make_equivalencia(db, global_level_id=grado_ids[1])
+    await make_equivalencia(db, career_level_id=grado_ids[1])
 
     # Otro perfil de la MISMA area reusando el mismo nivel intermedio.
     r1 = await client.post(

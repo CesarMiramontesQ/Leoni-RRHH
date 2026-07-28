@@ -26,7 +26,7 @@ from app.models.clasificacion_puesto import (
     DisciplinaPuesto,
     FuncionPuesto,
     GlobalGrade,
-    GlobalLevelGradeMapping,
+    CareerLevelGradeMapping,
 )
 from app.models.talento import (
     Competencia,
@@ -185,7 +185,7 @@ async def make_grado_puesto(
     activo: bool = True,
 ) -> GradoPuesto:
     """
-    Factory para crear un GradoPuesto (Global Level) en el catalogo.
+    Factory para crear un GradoPuesto (Career Level) en el catalogo.
 
     Si no se pasa career path se usa (o crea) el Professional por defecto: el
     codigo y el orden son unicos DENTRO del career path, no globalmente.
@@ -216,7 +216,7 @@ async def make_grado_puesto(
 
 
 async def get_default_grado(db: AsyncSession) -> GradoPuesto:
-    """Obtiene o crea el global level de orden 1 del career path por defecto."""
+    """Obtiene o crea el career level de orden 1 del career path por defecto."""
     await ensure_metodos_calificacion_competencia(db)
     career_path = await make_career_path(db)
 
@@ -242,7 +242,7 @@ async def make_grados_consecutivos(
     career_path_codigo: str = "P",
 ) -> list[GradoPuesto]:
     """
-    Factory para crear (o reusar) global levels activos con los `orden` indicados,
+    Factory para crear (o reusar) career levels activos con los `orden` indicados,
     todos dentro del mismo career path.
 
     Si ya existe uno con ese `orden` en el career path se reusa. Devuelve la lista
@@ -640,15 +640,15 @@ async def make_global_grade(
 async def make_equivalencia(
     db: AsyncSession,
     *,
-    global_level_id: int,
+    career_level_id: int,
     global_grade_id: int | None = None,
     activo: bool = True,
-) -> GlobalLevelGradeMapping:
-    """Equivalencia Global Level → Global Grade (unica por nivel)."""
+) -> CareerLevelGradeMapping:
+    """Equivalencia Career Level → Global Grade (unica por nivel)."""
     if global_grade_id is None:
         global_grade_id = (await make_global_grade(db)).id
-    mapping = GlobalLevelGradeMapping(
-        global_level_id=global_level_id,
+    mapping = CareerLevelGradeMapping(
+        career_level_id=career_level_id,
         global_grade_id=global_grade_id,
         activo=activo,
     )
@@ -666,7 +666,7 @@ async def make_clasificacion_payload(
 ) -> dict:
     """
     Crea los catalogos de clasificacion y devuelve el fragmento de payload que el
-    alta de perfil exige: career path, funcion, disciplina y global levels.
+    alta de perfil exige: career path, funcion, disciplina y career levels.
 
     Con `con_equivalencia=True` (por defecto) tambien configura la equivalencia del
     nivel inicial, de modo que el global grade se autocompleta y no hay que enviarlo.
@@ -675,7 +675,7 @@ async def make_clasificacion_payload(
     funcion = await make_funcion_puesto(db)
     disciplina = await make_disciplina_puesto(db, funcion_id=funcion.id)
     if con_equivalencia:
-        await make_equivalencia(db, global_level_id=grados[0].id)
+        await make_equivalencia(db, career_level_id=grados[0].id)
     return {
         "career_path_id": grados[0].career_path_id,
         "funcion_id": funcion.id,

@@ -38,7 +38,7 @@ async def listar_puestos_perfil(
     page: int = Query(1, ge=1, description="Numero de pagina"),
     page_size: int = Query(10, ge=1, le=100, description="Items por pagina"),
     area_id: int | None = Query(None, description="Filtrar por area"),
-    grado_id: int | None = Query(None, description="Filtrar por global level"),
+    grado_id: int | None = Query(None, description="Filtrar por career level"),
     busqueda: str | None = Query(None, description="Buscar por nombre"),
     career_path_id: int | None = Query(None, description="Filtrar por career path"),
     funcion_id: int | None = Query(None, description="Filtrar por funcion"),

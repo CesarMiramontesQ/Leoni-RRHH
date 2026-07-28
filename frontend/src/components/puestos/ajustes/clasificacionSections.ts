@@ -50,7 +50,7 @@ export function mountCareerPathsSection(sectionEl: HTMLElement, signal: AbortSig
     titleId: "career-paths-section-title",
     title: "Career paths",
     description:
-      "Trayectorias de la clasificación Towers Watson. El código es el prefijo del global level: P → P10, M → M3.",
+      "Trayectorias de la clasificación Towers Watson. El código es el prefijo del career level: P → P10, M → M3.",
     iconHtml: AJUSTES_ICON_GRADES,
     singular: "career path",
     emptyMessage: "No hay career paths registrados. Crea Professional y Management para empezar.",
@@ -66,7 +66,7 @@ export function mountCareerPathsSection(sectionEl: HTMLElement, signal: AbortSig
         label: "Código",
         maxLength: 10,
         ancho: "medio",
-        hint: "Prefijo del global level (P, M).",
+        hint: "Prefijo del career level (P, M).",
       },
       { tipo: "numero", name: "orden", label: "Orden", min: 1, max: 99, ancho: "medio" },
       { tipo: "texto", name: "nombre", label: "Nombre", minLength: 2, maxLength: 100 },

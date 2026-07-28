@@ -1,13 +1,13 @@
 # app/api/v1/grados_puesto/router.py
 """
-Router de Grados de Puesto — CRUD del catalogo global de grados.
+Router de Career Levels — CRUD del catalogo de niveles de carrera.
 
 Endpoints:
-  GET    /api/v1/grados-puesto          — Listar (paginado, filtros)
-  POST   /api/v1/grados-puesto          — Crear (RH)
-  GET    /api/v1/grados-puesto/{id}     — Detalle
-  PATCH  /api/v1/grados-puesto/{id}     — Actualizar (RH)
-  DELETE /api/v1/grados-puesto/{id}     — Eliminar soft (RH)
+  GET    /api/v1/career-levels          — Listar (paginado, filtros)
+  POST   /api/v1/career-levels          — Crear (RH)
+  GET    /api/v1/career-levels/{id}     — Detalle
+  PATCH  /api/v1/career-levels/{id}     — Actualizar (RH)
+  DELETE /api/v1/career-levels/{id}     — Eliminar soft (RH)
 """
 
 from fastapi import APIRouter, Depends, Query, status
@@ -24,7 +24,7 @@ from app.schemas.grados_puesto import (
 )
 from app.services.grado_puesto_service import GradoPuestoService
 
-router = APIRouter(prefix="/api/v1/grados-puesto", tags=["Grados Puesto"])
+router = APIRouter(prefix="/api/v1/career-levels", tags=["Career Levels"])
 
 
 @router.get("", response_model=GradoPuestoListResponse)
@@ -38,7 +38,7 @@ async def listar_grados_puesto(
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista los global levels del catalogo con paginacion y filtros."""
+    """Lista los career levels del catalogo con paginacion y filtros."""
     service = GradoPuestoService(db)
     return await service.listar(
         page=page,

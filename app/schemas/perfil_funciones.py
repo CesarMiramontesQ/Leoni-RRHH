@@ -157,7 +157,7 @@ class PerfilTareaResponse(BaseModel):
 
 class DedicacionAlcance(BaseModel):
     """
-    Suma de dedicacion de un alcance del perfil (general o un global level).
+    Suma de dedicacion de un alcance del perfil (general o un career level).
 
     Es informativa: la UI avisa cuando no llega a 100%, pero nada bloquea guardar.
     """

@@ -165,16 +165,16 @@ class GlobalGradeListResponse(BaseModel):
     page_size: int
 
 
-# ── Equivalencia Global Level ↔ Global Grade ─────────────────────────────────
+# ── Equivalencia Career Level ↔ Global Grade ─────────────────────────────────
 
 
 class EquivalenciaCreate(BaseModel):
-    global_level_id: int = Field(..., gt=0)
+    career_level_id: int = Field(..., gt=0)
     global_grade_id: int = Field(..., gt=0)
 
 
 class EquivalenciaUpdate(BaseModel):
-    global_level_id: int = Field(..., gt=0)
+    career_level_id: int = Field(..., gt=0)
     global_grade_id: int = Field(..., gt=0)
 
 
@@ -182,9 +182,9 @@ class EquivalenciaResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
-    global_level_id: int
-    global_level_codigo: str | None = None
-    global_level_nombre: str | None = None
+    career_level_id: int
+    career_level_codigo: str | None = None
+    career_level_nombre: str | None = None
     career_path_id: int | None = None
     career_path_codigo: str | None = None
     career_path_nombre: str | None = None

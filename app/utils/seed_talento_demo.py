@@ -231,7 +231,7 @@ async def _get_or_create(s: AsyncSession, modelo, filtros: dict, defaults: dict 
 
 async def _grados_activos(s: AsyncSession, cuantos: int) -> list[GradoPuesto]:
     """
-    Los primeros global levels activos por `orden` de UN career path.
+    Los primeros career levels activos por `orden` de UN career path.
 
     Se acota a un career path porque el perfil exige que su rango sea consecutivo
     dentro del mismo path: mezclar P1 con M2 daria un rango invalido. La BD real
@@ -249,7 +249,7 @@ async def _grados_activos(s: AsyncSession, cuantos: int) -> list[GradoPuesto]:
     grados = list(result.scalars().all())[:cuantos]
     if len(grados) < cuantos:
         raise RuntimeError(
-            f"Se necesitan {cuantos} global levels activos del career path "
+            f"Se necesitan {cuantos} career levels activos del career path "
             f"'{career_path.codigo}' en levelup_grados_puesto y hay {len(grados)}."
         )
     return grados

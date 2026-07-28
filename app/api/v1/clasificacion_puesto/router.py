@@ -15,7 +15,7 @@ Endpoints:
   GET/POST      /api/v1/clasificacion-puesto/global-grades
   GET/PATCH/DEL /api/v1/clasificacion-puesto/global-grades/{id}
   GET/POST      /api/v1/clasificacion-puesto/equivalencias
-  GET           /api/v1/clasificacion-puesto/equivalencias/resolver?global_level_id=
+  GET           /api/v1/clasificacion-puesto/equivalencias/resolver?career_level_id=
   GET/PATCH/DEL /api/v1/clasificacion-puesto/equivalencias/{id}
 """
 
@@ -327,7 +327,7 @@ async def eliminar_global_grade(
     await GlobalGradeService(db).eliminar(id=id, current_user=current_user)
 
 
-# ── Equivalencias Global Level ↔ Global Grade ────────────────────────────────
+# ── Equivalencias Career Level ↔ Global Grade ────────────────────────────────
 
 
 @router.get("/equivalencias", response_model=EquivalenciaListResponse)
@@ -350,18 +350,18 @@ async def listar_equivalencias(
 
 @router.get("/equivalencias/resolver", response_model=EquivalenciaResponse | None)
 async def resolver_equivalencia(
-    global_level_id: int = Query(..., gt=0),
+    career_level_id: int = Query(..., gt=0),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Equivalencia configurada para un global level, o `null` si no hay ninguna.
+    Equivalencia configurada para un career level, o `null` si no hay ninguna.
 
     Alimenta el autocompletado del global grade en el formulario de perfil. Devolver
     `null` no es un error: significa que RH aun no configuro esa equivalencia y el
     global grade debe elegirse a mano.
     """
-    return await EquivalenciaService(db).resolver(global_level_id=global_level_id)
+    return await EquivalenciaService(db).resolver(career_level_id=career_level_id)
 
 
 @router.post(
@@ -374,7 +374,7 @@ async def crear_equivalencia(
     current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Configura la equivalencia de un global level. Solo RH."""
+    """Configura la equivalencia de un career level. Solo RH."""
     return await EquivalenciaService(db).crear(data=body, current_user=current_user)
 
 

@@ -2,7 +2,7 @@
 """
 Helpers de arranque de la clasificacion de puestos (WTW).
 
-Los usan los seeds y los scripts de demo: un Global Level no puede existir sin
+Los usan los seeds y los scripts de demo: un Career Level no puede existir sin
 career path, asi que necesitan poder obtener el de por defecto sin duplicar la
 logica de get-or-create.
 """

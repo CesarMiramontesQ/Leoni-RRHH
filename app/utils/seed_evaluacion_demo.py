@@ -245,7 +245,7 @@ async def seed():
             logger.info("Demo data already exists (puesto %s). Skipping.", DEMO_PUESTO_CODIGO)
             return
 
-        # 1. Create grados (global levels del career path por defecto)
+        # 1. Create grados (career levels del career path por defecto)
         career_path = await get_or_create_career_path(s)
         grado_map = {}
         for i, nombre in enumerate(GRADOS, 1):

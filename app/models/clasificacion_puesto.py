@@ -3,24 +3,24 @@
 Modelos SQLAlchemy de la clasificacion de puestos (metodologia Willis Towers Watson).
 
 Un puesto oficialmente clasificado por RH se identifica por:
-    Career Path (Professional / Management) + Funcion + Disciplina + Global Level
+    Career Path (Professional / Management) + Funcion + Disciplina + Career Level
 
 La evaluacion que asigna esos valores se realiza FUERA del sistema; aqui solo se
 registran, administran y mantienen.
 
 Un puesto oficialmente clasificado por RH se identifica por:
-    Career Path + Funcion + Disciplina + Global Level + Global Grade
+    Career Path + Funcion + Disciplina + Career Level + Global Grade
 
 Entidades:
   - CareerPath: catalogo de trayectorias (Professional, Management)
   - FuncionPuesto: catalogo de funciones / job families (Ingenieria, Calidad, ...)
   - DisciplinaPuesto: catalogo de disciplinas, dependiente de la funcion
   - GlobalGrade: catalogo de grados organizacionales (GG01..GGnn)
-  - GlobalLevelGradeMapping: equivalencia configurable Global Level -> Global Grade
+  - CareerLevelGradeMapping: equivalencia configurable Career Level -> Global Grade
   - CategoriaTarea: catalogo de categorias para las responsabilidades del puesto
   - PuestoPerfilClasificacionHistorial: bitacora append-only de la clasificacion
 
-El Global Level vive en `GradoPuesto` (`levelup_grados_puesto`, en `app/models/talento.py`),
+El Career Level vive en `GradoPuesto` (`levelup_grados_puesto`, en `app/models/talento.py`),
 que gana `career_path_id` y `codigo`: la tabla no se renombra porque cuatro tablas la
 referencian por FK.
 
@@ -161,36 +161,36 @@ class GlobalGrade(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    equivalencias: Mapped[List["GlobalLevelGradeMapping"]] = relationship(
-        "GlobalLevelGradeMapping", back_populates="global_grade"
+    equivalencias: Mapped[List["CareerLevelGradeMapping"]] = relationship(
+        "CareerLevelGradeMapping", back_populates="global_grade"
     )
 
     def __repr__(self) -> str:
         return f"<GlobalGrade id={self.id} codigo={self.codigo} orden={self.orden}>"
 
 
-class GlobalLevelGradeMapping(Base):
+class CareerLevelGradeMapping(Base):
     """
-    Equivalencia configurable entre un Global Level y un Global Grade.
+    Equivalencia configurable entre un Career Level y un Global Grade.
 
-    RH la define; el sistema nunca la calcula. La unicidad es por global level: un
+    RH la define; el sistema nunca la calcula. La unicidad es por career level: un
     nivel equivale a un solo grado. El career path no se guarda aqui porque ya
-    cuelga del global level (`GradoPuesto.career_path_id`) y duplicarlo permitiria
+    cuelga del career level (`GradoPuesto.career_path_id`) y duplicarlo permitiria
     que las dos copias se contradigan.
 
     No se asume ninguna correspondencia por defecto: P10 puede equivaler a GG09 y
     M1 a GG10 si asi lo define la organizacion.
     """
 
-    __tablename__ = "levelup_global_level_grade_mappings"
+    __tablename__ = "levelup_career_level_grade_mappings"
     __table_args__ = (
         UniqueConstraint(
-            "global_level_id", name="uq_levelup_global_level_grade_mapping_level"
+            "career_level_id", name="uq_levelup_career_level_grade_mapping_level"
         ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    global_level_id: Mapped[int] = mapped_column(
+    career_level_id: Mapped[int] = mapped_column(
         ForeignKey("levelup_grados_puesto.id"), nullable=False
     )
     global_grade_id: Mapped[int] = mapped_column(
@@ -204,14 +204,14 @@ class GlobalLevelGradeMapping(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    global_level: Mapped["GradoPuesto"] = relationship("GradoPuesto")
+    career_level: Mapped["GradoPuesto"] = relationship("GradoPuesto")
     global_grade: Mapped["GlobalGrade"] = relationship(
         "GlobalGrade", back_populates="equivalencias"
     )
 
     def __repr__(self) -> str:
         return (
-            f"<GlobalLevelGradeMapping global_level_id={self.global_level_id} "
+            f"<CareerLevelGradeMapping career_level_id={self.career_level_id} "
             f"global_grade_id={self.global_grade_id}>"
         )
 
@@ -247,7 +247,7 @@ class PuestoPerfilClasificacionHistorial(Base):
     Bitacora append-only de la clasificacion de un perfil.
 
     Se escribe una fila al crear el perfil y cada vez que cambia cualquier campo de
-    clasificacion (career path, funcion, disciplina, rango de global level, global
+    clasificacion (career path, funcion, disciplina, rango de career level, global
     grade o estado). Nunca se actualiza ni se borra.
 
     Cada fila guarda dos cosas complementarias:
@@ -280,10 +280,10 @@ class PuestoPerfilClasificacionHistorial(Base):
     disciplina_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_disciplinas_puesto.id"), nullable=True
     )
-    global_level_desde_id: Mapped[Optional[int]] = mapped_column(
+    career_level_desde_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_grados_puesto.id"), nullable=True
     )
-    global_level_hasta_id: Mapped[Optional[int]] = mapped_column(
+    career_level_hasta_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_grados_puesto.id"), nullable=True
     )
     global_grade_id: Mapped[Optional[int]] = mapped_column(
@@ -315,11 +315,11 @@ class PuestoPerfilClasificacionHistorial(Base):
     career_path: Mapped[Optional["CareerPath"]] = relationship("CareerPath")
     funcion: Mapped[Optional["FuncionPuesto"]] = relationship("FuncionPuesto")
     disciplina: Mapped[Optional["DisciplinaPuesto"]] = relationship("DisciplinaPuesto")
-    global_level_desde: Mapped[Optional["GradoPuesto"]] = relationship(
-        "GradoPuesto", foreign_keys=[global_level_desde_id]
+    career_level_desde: Mapped[Optional["GradoPuesto"]] = relationship(
+        "GradoPuesto", foreign_keys=[career_level_desde_id]
     )
-    global_level_hasta: Mapped[Optional["GradoPuesto"]] = relationship(
-        "GradoPuesto", foreign_keys=[global_level_hasta_id]
+    career_level_hasta: Mapped[Optional["GradoPuesto"]] = relationship(
+        "GradoPuesto", foreign_keys=[career_level_hasta_id]
     )
     global_grade: Mapped[Optional["GlobalGrade"]] = relationship("GlobalGrade")
 

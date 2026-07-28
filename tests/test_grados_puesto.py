@@ -23,7 +23,7 @@ async def test_crear_grado_puesto_success(client, db):
     headers = await auth_headers(client, rh)
 
     response = await client.post(
-        "/api/v1/grados-puesto",
+        "/api/v1/career-levels",
         json={
             "career_path_id": career_path.id,
             "codigo": "P10",
@@ -53,7 +53,7 @@ async def test_crear_grado_puesto_duplicado_nombre(client, db):
     headers = await auth_headers(client, rh)
 
     response = await client.post(
-        "/api/v1/grados-puesto",
+        "/api/v1/career-levels",
         json={
             "career_path_id": career_path.id,
             "codigo": "P12",
@@ -78,7 +78,7 @@ async def test_mismo_orden_en_career_paths_distintos_convive(client, db):
     headers = await auth_headers(client, rh)
 
     response = await client.post(
-        "/api/v1/grados-puesto",
+        "/api/v1/career-levels",
         json={
             "career_path_id": management.id,
             "codigo": "M1",
@@ -93,7 +93,7 @@ async def test_mismo_orden_en_career_paths_distintos_convive(client, db):
 
     # Dentro del mismo career path el orden sigue siendo unico.
     duplicado = await client.post(
-        "/api/v1/grados-puesto",
+        "/api/v1/career-levels",
         json={
             "career_path_id": management.id,
             "codigo": "M1-bis",
@@ -115,7 +115,7 @@ async def test_listar_grados_puesto_filtra_por_career_path(client, db):
     headers = await auth_headers(client, rh)
 
     response = await client.get(
-        f"/api/v1/grados-puesto?career_path_id={management.id}", headers=headers
+        f"/api/v1/career-levels?career_path_id={management.id}", headers=headers
     )
 
     assert response.status_code == 200
@@ -131,7 +131,7 @@ async def test_listar_grados_puesto(client, db):
     await make_grado_puesto(db, nombre="Grado List B", orden=22)
     headers = await auth_headers(client, rh)
 
-    response = await client.get("/api/v1/grados-puesto", headers=headers)
+    response = await client.get("/api/v1/career-levels", headers=headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -153,7 +153,7 @@ async def test_eliminar_grado_puesto_en_uso(client, db):
     headers = await auth_headers(client, rh)
 
     response = await client.delete(
-        f"/api/v1/grados-puesto/{grado.id}",
+        f"/api/v1/career-levels/{grado.id}",
         headers=headers,
     )
 
@@ -167,7 +167,7 @@ async def test_eliminar_grado_puesto_success(client, db):
     headers = await auth_headers(client, rh)
 
     response = await client.delete(
-        f"/api/v1/grados-puesto/{grado.id}",
+        f"/api/v1/career-levels/{grado.id}",
         headers=headers,
     )
 

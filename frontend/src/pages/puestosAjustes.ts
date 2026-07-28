@@ -42,7 +42,7 @@ const TABS: {
     eyebrow: "Towers Watson",
     title: "Clasificación del puesto",
     description:
-      "Career path, función, disciplina, global levels y global grades. Es la identidad oficial del puesto y la base de competencias, tareas y planes de carrera.",
+      "Career path, función, disciplina, career levels y global grades. Es la identidad oficial del puesto y la base de competencias, tareas y planes de carrera.",
     icon: AJUSTES_ICON_GRADES,
   },
   {
@@ -126,7 +126,7 @@ function renderPanel(tabId: TabId, activeTab: TabId): string {
   if (tabId === "clasificacion") {
     // Los seis catálogos son dos cadenas independientes, y la pantalla lo dice:
     //   qué es el puesto   → Función → Disciplina
-    //   cuánto pesa        → Career Path → Global Level → Global Grade → equivalencia
+    //   cuánto pesa        → Career Path → Career Level → Global Grade → equivalencia
     // Cada columna se lee de arriba abajo en el orden en que se captura, y en
     // pantallas anchas dejan de apilarse seis cards a lo largo.
     body = `<div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
