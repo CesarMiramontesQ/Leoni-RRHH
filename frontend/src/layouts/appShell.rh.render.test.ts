@@ -68,7 +68,7 @@ function detailsBlocks(html: string): string[] {
 describe("renderRhStructuredSidebarSections", () => {
   it("pinta las secciones de RH como <details>", () => {
     const html = renderRhStructuredSidebarSections(undefined, "rh");
-    // "solicitudes" vive en Laborales, "puestos" en Talento: dos secciones.
+    // "solicitudes" vive en Laborales, "puestos" en Puestos: dos secciones.
     expect(detailsBlocks(html)).toHaveLength(2);
   });
 
@@ -76,17 +76,17 @@ describe("renderRhStructuredSidebarSections", () => {
     const html = renderRhStructuredSidebarSections("solicitudes", "rh");
     const blocks = detailsBlocks(html);
     const laboralesBlock = blocks.find((b) => b.includes('href="#/solicitudes"'));
-    const talentoBlock = blocks.find((b) => b.includes('href="#/puestos"'));
+    const puestosBlock = blocks.find((b) => b.includes('href="#/puestos"'));
 
     expect(laboralesBlock).toMatch(/<details[^>]*\bopen\b/);
-    expect(talentoBlock).not.toMatch(/<details[^>]*\bopen\b/);
+    expect(puestosBlock).not.toMatch(/<details[^>]*\bopen\b/);
   });
 
   it("conserva el prefijo shell-rh-nav-panel- en el panelId de cada sección", () => {
     const html = renderRhStructuredSidebarSections(undefined, "rh");
     expect(html).toContain('id="shell-rh-nav-panel-laborales"');
-    expect(html).toContain('id="shell-rh-nav-panel-talento"');
+    expect(html).toContain('id="shell-rh-nav-panel-puestos"');
     expect(html).toContain('aria-controls="shell-rh-nav-panel-laborales"');
-    expect(html).toContain('aria-controls="shell-rh-nav-panel-talento"');
+    expect(html).toContain('aria-controls="shell-rh-nav-panel-puestos"');
   });
 });

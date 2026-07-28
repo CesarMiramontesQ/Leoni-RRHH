@@ -1438,25 +1438,46 @@ Compara la distribución **actual** de una banda contra su **objetivo** (p. ej. 
 
 ## 15. Level Up — Navigation Structure
 
-El modulo Level Up se integra al sidebar existente extendiendo la seccion "Talento" y agregando una seccion "Cumplimiento".
+El sidebar RH agrupa **por dominio**, no por fase del proyecto ni por tabla. Cada sección
+responde una pregunta distinta, y ese es el criterio para decidir dónde entra una pantalla
+nueva.
 
-### Sidebar (extension de NAV_TALENTO + nueva seccion)
+### Sidebar RH operativo (`navigation/rhNav.ts`)
 
 ```
-TALENTO
-  Perfiles de Puesto          → #/puestos
-  Matriz de Competencias      → #/competencias      (renombrar: "Requisitos por puesto")
-  Matriz de Capacidades       → #/capacidades       (NUEVO — heatmap por colaborador)
-  Matriz de Habilidades       → #/habilidades       (NUEVO)
-  Capacitaciones         [84] → #/capacitaciones
-  Manejo de Cursos       [42] → #/cursos            (NUEVO)
-  Manejo de OPLs        [127] → #/opls              (NUEVO)
+Dashboard · Organigrama                              (sueltos, fuera de sección)
 
-CUMPLIMIENTO                                         (NUEVA SECCION)
-  Motor de Evidencias    [18] → #/evidencias        (NUEVO)
-  Motor de Sugerencias   [11] → #/sugerencias       (NUEVO)
-  Encuestas Post Curso        → #/encuestas         (NUEVO)
+PUESTOS            ¿cómo está definido el puesto?
+  Perfiles de puesto           → #/puestos
+  Competencias                 → #/competencias
+  Tareas                       → #/tareas-catalogo
+  Ajustes perfil de puesto     → #/puestos/ajustes
+
+TALENTO            ¿cómo está la gente frente a esa definición?
+  Dashboard de Talento         → #/talento/dashboard
+  Matriz de multihabilidades   → #/capacidades
+  Cobertura y polivalencia     → #/operaciones
+  Encuestas                    → #/talento/encuestas
+
+DESEMPEÑO          ¿qué pondera el ciclo?
+DESARROLLO         ¿cómo se capacita?
+PERSONAL EXTERNO · NÓMINAS · LABORALES · COMEDOR
 ```
+
+**Puestos va antes que Talento**: primero se define el puesto, después se mide a la gente
+frente a esa definición. Estuvieron fundidos en una sola sección de ocho ítems (PR #137) y
+no se distinguía la configuración del análisis.
+
+Reglas al tocar el menú:
+- Los ítems de Puestos salen de `LEVEL_UP_PUESTOS` (`levelUpNav.ts`), de donde también sale
+  la categoría del hub `#/level-up`: si el menú y el hub agruparan distinto, cada uno
+  contaría una historia diferente del mismo producto. Hay un test que lo ata.
+- El `group=` de `app/core/rh_module_registry.py` (pantalla de Permisos RH) se mantiene
+  alineado **a mano** con estas secciones, y el grupo nuevo debe agregarse además a
+  `RH_MODULE_GROUP_ORDER` — lo que no esté ahí no se muestra.
+- Un permiso puede abrir pantallas de **dos** secciones: `competencias` habilita
+  Competencias (Puestos) y Matriz de multihabilidades (Talento). Separar el menú no separa
+  el permiso.
 
 ### Rutas nuevas
 

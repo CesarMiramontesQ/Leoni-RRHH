@@ -595,11 +595,28 @@ async def test_catalog_covers_all_rh_modules(client: AsyncClient, db):
     catalog_keys = {m["key"] for m in res.json()}
     assert catalog_keys == set(all_module_keys())
     # Los grupos siguen el mismo reparto por dominio que el sidebar
-    # (frontend/src/navigation/*Nav.ts). "Cumplimiento", "Cursos", "Puestos" y
-    # "Level Up" se fusionaron en Talento / Desempeño / Desarrollo.
+    # (frontend/src/navigation/*Nav.ts). "Cumplimiento", "Cursos" y "Level Up"
+    # eran nombres de fase o de tabla, no dominios, y desaparecieron.
     grupos = {m["group"] for m in catalog_for_api()}
-    assert grupos >= {"Talento", "Desempeño", "Desarrollo", "Personal Externo"}
-    assert not grupos & {"Cumplimiento", "Cursos", "Puestos", "Level Up"}
+    assert grupos >= {"Puestos", "Talento", "Desempeño", "Desarrollo", "Personal Externo"}
+    assert not grupos & {"Cumplimiento", "Cursos", "Level Up"}
+
+
+def test_todo_grupo_del_catalogo_esta_en_el_orden_declarado():
+    """
+    `catalog_for_api` recorre `RH_MODULE_GROUP_ORDER`: un modulo cuyo grupo no
+    este ahi desaparece en silencio de la pantalla de Permisos RH, sin error.
+    """
+    from app.core.rh_module_registry import (
+        RH_MODULES,
+        RH_MODULE_GROUP_ORDER,
+        catalog_for_api,
+    )
+
+    fuera = {m.key: m.group for m in RH_MODULES.values() if m.group not in RH_MODULE_GROUP_ORDER}
+    assert not fuera, f"grupos no declarados en RH_MODULE_GROUP_ORDER: {fuera}"
+    # Y al reves: el catalogo expone todos los modulos, ninguno se pierde.
+    assert len(catalog_for_api()) == len(RH_MODULES)
 
 
 def test_resolve_module_from_api_path_pdi_empleado():

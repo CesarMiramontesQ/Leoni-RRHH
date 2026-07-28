@@ -267,7 +267,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "puestos": RhModuleDef(
         key="puestos",
         label="Perfiles de puesto",
-        group="Talento",
+        group="Puestos",
         nav_item_ids=("puestos",),
         hash_prefixes=("#/puestos",),
         api_prefixes=(
@@ -285,7 +285,10 @@ RH_MODULES: dict[str, RhModuleDef] = {
         # (`levelup_perfil_funciones_competencia`). Las dos pantallas siguen
         # existiendo por separado; lo que se unifico es el permiso.
         label="Competencias y multihabilidades",
-        group="Talento",
+        # Agrupado en Puestos porque su pantalla principal (Competencias) define
+        # el perfil; la Matriz de multihabilidades, que este mismo permiso abre,
+        # sigue viviendo en la seccion Talento del menu.
+        group="Puestos",
         nav_item_ids=("competencias", "capacidades"),
         hash_prefixes=("#/competencias", "#/capacidades"),
         api_prefixes=("/api/v1/competencias",),
@@ -293,7 +296,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "tareas-catalogo": RhModuleDef(
         key="tareas-catalogo",
         label="Tareas",
-        group="Talento",
+        group="Puestos",
         nav_item_ids=("tareas-catalogo",),
         hash_prefixes=("#/tareas-catalogo",),
         api_prefixes=("/api/v1/tareas-catalogo", "/api/v1/categorias-tarea"),
@@ -301,7 +304,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     "puestos-ajustes": RhModuleDef(
         key="puestos-ajustes",
         label="Ajustes perfil de puesto",
-        group="Talento",
+        group="Puestos",
         nav_item_ids=("puestos-ajustes",),
         hash_prefixes=("#/puestos/ajustes",),
         api_prefixes=(
@@ -431,6 +434,9 @@ RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
     "Laborales",
     "Comedor",
     "Nóminas",
+    # Mismo orden que el sidebar (`rhNav.ts`): primero se define el puesto,
+    # despues se mide a la gente frente a esa definicion.
+    "Puestos",
     "Talento",
     "Desempeño",
     "Desarrollo",

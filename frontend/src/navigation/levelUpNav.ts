@@ -39,7 +39,7 @@ export type LevelUpAccessItem = {
 };
 
 export type LevelUpCategory = {
-  id: "talento" | "desempeno" | "desarrollo";
+  id: "puestos" | "talento" | "desempeno" | "desarrollo";
   title: string;
   items: readonly LevelUpAccessItem[];
 };
@@ -208,9 +208,14 @@ export const LEVEL_UP_CUMPLIMIENTO: readonly LevelUpAccessItem[] = [
  */
 export const LEVEL_UP_CATEGORIES: readonly LevelUpCategory[] = [
   {
+    id: "puestos",
+    title: "Puestos",
+    items: LEVEL_UP_PUESTOS,
+  },
+  {
     id: "talento",
     title: "Talento",
-    items: [...LEVEL_UP_PUESTOS, LEVEL_UP_CAPACIDADES, LEVEL_UP_OPERACIONES],
+    items: [LEVEL_UP_CAPACIDADES, LEVEL_UP_OPERACIONES],
   },
   {
     id: "desempeno",
