@@ -43,21 +43,18 @@ export function notifyAjustesClasificacionChanged(): void {
 }
 
 export function mountCareerPathsSection(sectionEl: HTMLElement, signal: AbortSignal): void {
-  let items: CareerPath[] = [];
-
   mountCatalogoSection<CareerPath>(sectionEl, signal, {
     key: "career-path",
     titleId: "career-paths-section-title",
     title: "Career paths",
     description:
-      "Trayectorias de la clasificación Towers Watson. El código es el prefijo del career level: P → P10, M → M3.",
+      "Trayectorias de la clasificación Towers Watson. El código es el prefijo del career level: P → P10, M → M3. Son alternativas, no una escala: quien ordena es el global grade.",
     iconHtml: AJUSTES_ICON_GRADES,
     singular: "career path",
     emptyMessage: "No hay career paths registrados. Crea Professional y Management para empezar.",
     columnas: [
       { header: "Código", valor: (i) => i.codigo, clase: "font-medium" },
       { header: "Nombre", valor: (i) => i.nombre },
-      { header: "Orden", valor: (i) => String(i.orden), clase: "tabular-nums text-text-secondary" },
     ],
     campos: [
       {
@@ -68,34 +65,25 @@ export function mountCareerPathsSection(sectionEl: HTMLElement, signal: AbortSig
         ancho: "medio",
         hint: "Prefijo del career level (P, M).",
       },
-      { tipo: "numero", name: "orden", label: "Orden", min: 1, max: 99, ancho: "medio" },
-      { tipo: "texto", name: "nombre", label: "Nombre", minLength: 2, maxLength: 100 },
+      {
+        tipo: "texto",
+        name: "nombre",
+        label: "Nombre",
+        minLength: 2,
+        maxLength: 100,
+        ancho: "medio",
+      },
     ],
-    valoresNuevo: () => ({
-      codigo: "",
-      nombre: "",
-      orden: String((items.length ? Math.max(...items.map((i) => i.orden)) : 0) + 1),
-    }),
-    valoresEdicion: (i) => ({
-      codigo: i.codigo,
-      nombre: i.nombre,
-      orden: String(i.orden),
-    }),
+    valoresNuevo: () => ({ codigo: "", nombre: "" }),
+    valoresEdicion: (i) => ({ codigo: i.codigo, nombre: i.nombre }),
     etiqueta: (i) => `${i.nombre} (${i.codigo})`,
-    cargar: async () => {
-      items = await getCareerPaths();
-      return items;
-    },
-    crear: (v) =>
-      createCareerPath({ codigo: v.codigo, nombre: v.nombre, orden: Number(v.orden) }),
-    actualizar: (id, v) =>
-      updateCareerPath(id, { codigo: v.codigo, nombre: v.nombre, orden: Number(v.orden) }),
+    cargar: () => getCareerPaths(),
+    crear: (v) => createCareerPath({ codigo: v.codigo, nombre: v.nombre }),
+    actualizar: (id, v) => updateCareerPath(id, { codigo: v.codigo, nombre: v.nombre }),
     eliminar: deleteCareerPath,
     validar: (v) => {
       if (!v.codigo) return "El código es obligatorio.";
       if (v.nombre.length < 2) return "El nombre debe tener al menos 2 caracteres.";
-      const orden = Number(v.orden);
-      if (!Number.isFinite(orden) || orden < 1) return "El orden debe ser mayor o igual a 1.";
       return null;
     },
     alCambiar: notifyAjustesClasificacionChanged,

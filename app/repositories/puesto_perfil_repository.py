@@ -7,7 +7,10 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.clasificacion_puesto import PuestoPerfilClasificacionHistorial
+from app.models.clasificacion_puesto import (
+    CareerLevelGradeMapping,
+    PuestoPerfilClasificacionHistorial,
+)
 from app.models.empleados import Empleado
 from app.models.level_up import CursoPuesto
 from app.models.talento import (
@@ -45,6 +48,13 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             selectinload(PuestoPerfil.grados_config)
             .selectinload(PuestoPerfilGrado.grado)
             .selectinload(GradoPuesto.career_path),
+            # La posicion del nivel sale de su equivalencia con el global grade;
+            # sin precargarla, el rango del perfil se calcularia como si ninguno
+            # tuviera posicion.
+            selectinload(PuestoPerfil.grados_config)
+            .selectinload(PuestoPerfilGrado.grado)
+            .selectinload(GradoPuesto.equivalencia)
+            .selectinload(CareerLevelGradeMapping.global_grade),
         )
 
     async def get_with_relations(self, id: int) -> PuestoPerfil | None:
@@ -128,11 +138,10 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         """Lista todos los puestos perfil activos de un area."""
         result = await self.db.execute(
             select(PuestoPerfil)
-            .options(
-                selectinload(PuestoPerfil.grados_config).selectinload(
-                    PuestoPerfilGrado.grado
-                )
-            )
+            # Carga completa: la matriz por area ordena los niveles por la
+            # posicion que da su global grade, y sin precargar la equivalencia
+            # se cae con MissingGreenlet.
+            .options(*self._carga_clasificacion())
             .where(PuestoPerfil.area_id == area_id, PuestoPerfil.activo.is_(True))
             .order_by(PuestoPerfil.nombre)
         )
@@ -360,6 +369,8 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                     selectinload(PuestoPerfil.area),
                     selectinload(PuestoPerfil.grados_config).selectinload(
                         PuestoPerfilGrado.grado
+                    ).selectinload(GradoPuesto.equivalencia).selectinload(
+                        CareerLevelGradeMapping.global_grade
                     ),
                 )
                 .where(PuestoPerfil.id.in_(perfil_ids))
@@ -368,13 +379,25 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             for item in items:
                 perfil = perfiles_map.get(item["id"])
                 item["area_nombre"] = perfil.area.descripcion if perfil and perfil.area else None
+                # La posicion del nivel es la de su global grade; los que no
+                # tienen equivalencia van al final.
                 item["grados"] = sorted(
                     (
-                        {"id": g.grado.id, "nombre": g.grado.nombre, "orden": g.grado.orden}
+                        {
+                            "id": g.grado.id,
+                            "nombre": g.grado.nombre,
+                            "codigo": g.grado.codigo,
+                            "orden": (
+                                g.grado.equivalencia.global_grade.orden
+                                if g.grado.equivalencia
+                                and g.grado.equivalencia.global_grade
+                                else None
+                            ),
+                        }
                         for g in (perfil.grados_config if perfil else [])
                         if g.grado
                     ),
-                    key=lambda x: x["orden"],
+                    key=lambda x: (x["orden"] is None, x["orden"] or 0, x["codigo"]),
                 )
 
         return items

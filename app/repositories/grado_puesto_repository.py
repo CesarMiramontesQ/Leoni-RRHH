@@ -2,15 +2,23 @@
 """
 Repositorio de GradoPuesto (Career Level) — acceso a datos async.
 
-La unicidad de `codigo`, `nombre` y `orden` es POR career path, no global: P1 y M1
-conviven. Toda comprobacion de duplicados recibe el career path.
+La unicidad de `codigo` y `nombre` es POR career path, no global: P1 y M1 conviven.
+Toda comprobacion de duplicados recibe el career path.
+
+El nivel no tiene orden propio: se ordena por el `orden` del Global Grade al que
+equivale. Los niveles sin equivalencia van al final (`NULLS LAST`) y, dentro del
+mismo grado, se desempata por codigo para que el listado sea estable.
 """
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.clasificacion_puesto import CareerPath
+from app.models.clasificacion_puesto import (
+    CareerLevelGradeMapping,
+    CareerPath,
+    GlobalGrade,
+)
 from app.models.talento import CompetenciaRequisito, GradoPuesto, PerfilFunciones
 from app.repositories.base import BaseRepository
 
@@ -18,6 +26,16 @@ from app.repositories.base import BaseRepository
 class GradoPuestoRepository(BaseRepository[GradoPuesto]):
     def __init__(self, db: AsyncSession):
         super().__init__(GradoPuesto, db)
+
+    @staticmethod
+    def _carga_completa() -> tuple:
+        """Career path y equivalencia: sin ellos el nivel no sabe su posicion."""
+        return (
+            selectinload(GradoPuesto.career_path),
+            selectinload(GradoPuesto.equivalencia).selectinload(
+                CareerLevelGradeMapping.global_grade
+            ),
+        )
 
     async def list_filtered(
         self,
@@ -41,17 +59,35 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query)
 
-        # El career path se precarga: el response lo denormaliza y leerlo en lazy
-        # dentro de una sesion async revienta con MissingGreenlet.
+        # El career path y la equivalencia se precargan: el response los
+        # denormaliza y leerlos en lazy dentro de una sesion async revienta con
+        # MissingGreenlet.
         query = (
-            query.options(selectinload(GradoPuesto.career_path))
+            query.options(
+                selectinload(GradoPuesto.career_path),
+                selectinload(GradoPuesto.equivalencia).selectinload(
+                    CareerLevelGradeMapping.global_grade
+                ),
+            )
             .join(CareerPath, CareerPath.id == GradoPuesto.career_path_id)
-            .order_by(CareerPath.orden, GradoPuesto.orden)
+            .outerjoin(
+                CareerLevelGradeMapping,
+                (CareerLevelGradeMapping.career_level_id == GradoPuesto.id)
+                & CareerLevelGradeMapping.activo.is_(True),
+            )
+            .outerjoin(
+                GlobalGrade, GlobalGrade.id == CareerLevelGradeMapping.global_grade_id
+            )
+            .order_by(
+                CareerPath.codigo,
+                GlobalGrade.orden.nulls_last(),
+                GradoPuesto.codigo,
+            )
             .offset(offset)
             .limit(limit)
         )
         result = await self.db.execute(query)
-        return list(result.scalars().all()), total or 0
+        return list(result.scalars().unique().all()), total or 0
 
     async def exists_by_nombre(
         self, career_path_id: int, nombre: str, exclude_id: int | None = None
@@ -72,19 +108,6 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
         query = select(func.count()).select_from(GradoPuesto).where(
             GradoPuesto.career_path_id == career_path_id,
             GradoPuesto.codigo.ilike(codigo),
-            GradoPuesto.activo.is_(True),
-        )
-        if exclude_id:
-            query = query.where(GradoPuesto.id != exclude_id)
-        count = await self.db.scalar(query)
-        return (count or 0) > 0
-
-    async def exists_by_orden(
-        self, career_path_id: int, orden: int, exclude_id: int | None = None
-    ) -> bool:
-        query = select(func.count()).select_from(GradoPuesto).where(
-            GradoPuesto.career_path_id == career_path_id,
-            GradoPuesto.orden == orden,
             GradoPuesto.activo.is_(True),
         )
         if exclude_id:
@@ -113,7 +136,7 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
             return []
         result = await self.db.execute(
             select(GradoPuesto)
-            .options(selectinload(GradoPuesto.career_path))
+            .options(*self._carga_completa())
             .where(
                 GradoPuesto.id.in_(ids),
                 GradoPuesto.activo.is_(True),
@@ -124,7 +147,7 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
     async def get_activo(self, id: int) -> GradoPuesto | None:
         result = await self.db.execute(
             select(GradoPuesto)
-            .options(selectinload(GradoPuesto.career_path))
+            .options(*self._carga_completa())
             .where(
                 GradoPuesto.id == id,
                 GradoPuesto.activo.is_(True),
@@ -135,14 +158,8 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
     async def get_with_career_path(self, id: int) -> GradoPuesto | None:
         result = await self.db.execute(
             select(GradoPuesto)
-            .options(selectinload(GradoPuesto.career_path))
+            .options(*self._carga_completa())
             .where(GradoPuesto.id == id)
         )
         return result.scalar_one_or_none()
 
-    async def max_orden(self, career_path_id: int) -> int:
-        """Mayor `orden` dentro del career path; 0 si aun no hay niveles."""
-        query = select(func.max(GradoPuesto.orden)).where(
-            GradoPuesto.career_path_id == career_path_id
-        )
-        return await self.db.scalar(query) or 0

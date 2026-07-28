@@ -40,6 +40,7 @@ import type { CriterioRequerido } from "../dashboard/cualificaciones/types.ts";
 import { getGradosPuesto } from "../api/gradosPuesto.ts";
 import {
   careerPathBadge,
+  compararCareerLevels,
   clasificacionPendienteBadge,
   estadoPerfilBadge,
   formatCareerLevelRango,
@@ -1249,7 +1250,7 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
     }
 
     const gradosPerfil: GradoPerfilItem[] = Array.isArray(puesto.grados)
-      ? [...puesto.grados].sort((a, b) => a.orden - b.orden)
+      ? [...puesto.grados].sort(compararCareerLevels)
       : [];
     puesto.grados = gradosPerfil;
 
@@ -1533,7 +1534,7 @@ async function openEditBaseModal(
   document.body.style.overflow = "hidden";
 
   let areas: AreaOption[] = [];
-  let gradosCatalogo: { id: number; nombre: string; orden: number }[] = [];
+  let gradosCatalogo: { id: number; nombre: string; orden: number | null }[] = [];
   try {
     const [areasRes, gradosRes] = await Promise.all([
       getAreasOptions(),
@@ -1542,8 +1543,8 @@ async function openEditBaseModal(
     areas = areasRes;
     gradosCatalogo = gradosRes
       .filter((g) => g.activo)
-      .sort((a, b) => a.orden - b.orden)
-      .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.orden }));
+      .sort(compararCareerLevels)
+      .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.global_grade_orden }));
   } catch {
     host.innerHTML = "";
     document.body.style.overflow = "";
@@ -1552,7 +1553,7 @@ async function openEditBaseModal(
 
   const areaId = puesto.area_id != null ? String(puesto.area_id) : "";
   const tipo = puesto.tipo === "operativo" ? "operativo" : "administrativo";
-  const gradosActuales = [...(puesto.grados ?? [])].sort((a, b) => a.orden - b.orden);
+  const gradosActuales = [...(puesto.grados ?? [])].sort(compararCareerLevels);
   const gradoDesdeId = gradosActuales[0]?.id != null ? String(gradosActuales[0].id) : "";
   const gradoHastaId =
     gradosActuales.length > 0 ? String(gradosActuales[gradosActuales.length - 1].id) : "";

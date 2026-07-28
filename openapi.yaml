@@ -3697,17 +3697,20 @@ components:
             $ref: "#/components/schemas/BrechaItem"
 
     # ── Talento — Puestos Perfil ──────────────────────
-    # Career Level del perfil (P10, M3).
+    # Career Level del perfil (P10, M3). `orden` es el del Global Grade
+    # equivalente: el nivel no tiene escala propia.
     GradoPerfilItem:
       type: object
-      required: [id, nombre, orden]
+      required: [id, nombre]
       properties:
         id:
           type: integer
         nombre:
           type: string
         orden:
-          type: integer
+          type: [integer, "null"]
+        global_grade_codigo:
+          type: [string, "null"]
         codigo:
           type: [string, "null"]
           description: Etiqueta corta del nivel (P10, M3)
@@ -3854,9 +3857,12 @@ components:
     # Career Level de la clasificacion Willis Towers Watson. El recurso conserva
     # el nombre `grados-puesto`; codigo, nombre y orden son unicos DENTRO del
     # career path (P1 y M1 conviven).
+    # El career level no tiene orden propio: lo posiciona el Global Grade al que
+    # equivale. Sin equivalencia configurada no puede formar parte del rango de
+    # un perfil.
     GradoPuestoCreate:
       type: object
-      required: [career_path_id, codigo, nombre, orden]
+      required: [career_path_id, codigo, nombre]
       properties:
         career_path_id:
           type: integer
@@ -3870,14 +3876,10 @@ components:
           type: string
           minLength: 2
           maxLength: 100
-        orden:
-          type: integer
-          minimum: 1
-          maximum: 99
 
     GradoPuestoUpdate:
       type: object
-      required: [career_path_id, codigo, nombre, orden]
+      required: [career_path_id, codigo, nombre]
       properties:
         career_path_id:
           type: integer
@@ -3890,14 +3892,10 @@ components:
           type: string
           minLength: 2
           maxLength: 100
-        orden:
-          type: integer
-          minimum: 1
-          maximum: 99
 
     GradoPuestoResponse:
       type: object
-      required: [id, career_path_id, codigo, nombre, orden, activo, created_at, updated_at]
+      required: [id, career_path_id, codigo, nombre, activo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -3913,8 +3911,15 @@ components:
           type: string
         nombre:
           type: string
-        orden:
-          type: integer
+        global_grade_id:
+          type: [integer, "null"]
+        global_grade_codigo:
+          type: [string, "null"]
+        global_grade_orden:
+          type: [integer, "null"]
+          description: >-
+            Posicion del nivel, tomada de su Global Grade. Null cuando no hay
+            equivalencia configurada.
         activo:
           type: boolean
         created_at:
@@ -3940,9 +3945,11 @@ components:
           type: integer
 
     # ── Clasificacion de puesto (Willis Towers Watson) ──────────────────────
+    # Los career paths son alternativas, no una escala: no llevan orden. Quien
+    # ordena es el Global Grade, por eso un P10 y un M1 pueden pesar lo mismo.
     CareerPathCreate:
       type: object
-      required: [codigo, nombre, orden]
+      required: [codigo, nombre]
       properties:
         codigo:
           type: string
@@ -3953,17 +3960,13 @@ components:
           type: string
           minLength: 2
           maxLength: 100
-        orden:
-          type: integer
-          minimum: 1
-          maximum: 99
 
     CareerPathUpdate:
       $ref: "#/components/schemas/CareerPathCreate"
 
     CareerPathResponse:
       type: object
-      required: [id, codigo, nombre, orden, activo, created_at, updated_at]
+      required: [id, codigo, nombre, activo, created_at, updated_at]
       properties:
         id:
           type: integer
@@ -3971,8 +3974,6 @@ components:
           type: string
         nombre:
           type: string
-        orden:
-          type: integer
         activo:
           type: boolean
         created_at:

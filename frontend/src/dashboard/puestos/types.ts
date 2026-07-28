@@ -7,7 +7,8 @@ export type TipoPuestoPerfil = "administrativo" | "operativo";
 export type GradoPerfilItem = {
   id: number;
   nombre: string;
-  orden: number;
+  /** Orden del Global Grade equivalente; null si no hay equivalencia. */
+  orden: number | null;
   codigo?: string | null;
   career_path_codigo?: string | null;
 };

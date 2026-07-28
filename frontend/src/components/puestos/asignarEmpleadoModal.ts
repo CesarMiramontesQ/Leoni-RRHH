@@ -1,6 +1,7 @@
 import { getGradosPuesto } from "../../api/gradosPuesto.ts";
 import { createPerfilAsignacion, buscarEmpleadosDisponiblesPerfil, getPerfilById } from "../../api/puestos.ts";
 import type { GradoPerfilItem } from "../../dashboard/puestos/types.ts";
+import { compararCareerLevels } from "../../talento/clasificacionPuestoUi.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { MODAL_OVERLAY, MODAL_PANEL, FIELD_INPUT, FIELD_FOCUS, RH_LISTADO_LABEL, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
 
@@ -109,7 +110,7 @@ export function mountAsignarEmpleadoModal(
   }
 
   function fillGradoSelect(grados: GradoPerfilItem[]): void {
-    const sorted = [...grados].sort((a, b) => a.orden - b.orden);
+    const sorted = [...grados].sort(compararCareerLevels);
     if (sorted.length === 0) {
       gradoSelect.innerHTML = `<option value="">Sin grados en el perfil</option>`;
       return;
@@ -126,14 +127,14 @@ export function mountAsignarEmpleadoModal(
   async function loadGrados(): Promise<void> {
     try {
       if (options.grados && options.grados.length > 0) {
-        gradosPerfil = [...options.grados].sort((a, b) => a.orden - b.orden);
+        gradosPerfil = [...options.grados].sort(compararCareerLevels);
         fillGradoSelect(gradosPerfil);
         return;
       }
 
       const perfil = await getPerfilById(options.perfilId);
       if (perfil.grados?.length) {
-        gradosPerfil = [...perfil.grados].sort((a, b) => a.orden - b.orden);
+        gradosPerfil = [...perfil.grados].sort(compararCareerLevels);
         fillGradoSelect(gradosPerfil);
         return;
       }
@@ -145,8 +146,8 @@ export function mountAsignarEmpleadoModal(
         ? catalogo.filter((g) => perfilIds.has(g.id))
         : catalogo.filter((g) => g.activo);
       gradosPerfil = filtrados
-        .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.orden }))
-        .sort((a, b) => a.orden - b.orden);
+        .sort(compararCareerLevels)
+        .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.global_grade_orden }));
       fillGradoSelect(gradosPerfil);
     } catch {
       gradoSelect.innerHTML = `<option value="">No se pudieron cargar grados</option>`;

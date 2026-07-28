@@ -52,14 +52,18 @@ if TYPE_CHECKING:
 
 
 class CareerPath(Base):
-    """Catalogo de trayectorias de carrera (Professional / Management)."""
+    """
+    Catalogo de trayectorias de carrera (Professional / Management).
+
+    No tiene orden propio: los career paths son alternativas, no una escala. Se
+    listan por codigo, que es estable y corto.
+    """
 
     __tablename__ = "levelup_career_paths"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
     nombre: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    orden: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

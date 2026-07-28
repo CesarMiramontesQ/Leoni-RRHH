@@ -1,8 +1,9 @@
 /**
- * Career Level (Willis Towers Watson).
+ * Career Level (Willis Towers Watson): P1..Pn / M1..Mn, único dentro de su
+ * career path.
  *
- * El recurso se sigue llamando `grados-puesto` por compatibilidad, pero el
- * concepto es el Career Level: P1..Pn / M1..Mn, unico DENTRO de su career path.
+ * No tiene orden propio: lo posiciona el Global Grade al que equivale, que es el
+ * ordenador real del sistema Towers — por eso un P10 y un M1 pueden pesar lo mismo.
  */
 export type GradoPuesto = {
   id: number;
@@ -12,7 +13,15 @@ export type GradoPuesto = {
   /** Etiqueta corta del nivel: "P10", "M3". */
   codigo: string;
   nombre: string;
-  orden: number;
+  /**
+   * Posición del nivel, que viene de su Global Grade.
+   *
+   * `null` cuando no tiene equivalencia configurada: ese nivel no se puede
+   * ubicar en el rango de un perfil.
+   */
+  global_grade_id: number | null;
+  global_grade_codigo: string | null;
+  global_grade_orden: number | null;
   activo: boolean;
   created_at: string;
   updated_at: string;
@@ -22,7 +31,6 @@ export type GradoPuestoCreatePayload = {
   career_path_id: number;
   codigo: string;
   nombre: string;
-  orden: number;
 };
 
 export type GradoPuestoUpdatePayload = GradoPuestoCreatePayload;

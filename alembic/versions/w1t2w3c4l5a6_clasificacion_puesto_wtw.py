@@ -259,7 +259,11 @@ def _sembrar_catalogos() -> dict[str, int]:
     """Siembra career paths, funciones y disciplinas. Devuelve {codigo: id} de paths."""
     bind = op.get_bind()
 
-    for cp in CAREER_PATHS_SEED:
+    # `orden` se deriva de la posicion en la semilla y NO se lee del dict: la
+    # revision `o1r2d3e4n5g6` quito esa columna y con ella el campo del modulo de
+    # datos. Una migracion no puede depender de la forma actual de codigo vivo, o
+    # deja de correr desde cero en cuanto alguien lo cambia.
+    for posicion, cp in enumerate(CAREER_PATHS_SEED, start=1):
         existe = bind.execute(
             sa.text(f"SELECT id FROM {T_CAREER_PATHS} WHERE codigo = :codigo"),
             {"codigo": cp["codigo"]},
@@ -270,7 +274,7 @@ def _sembrar_catalogos() -> dict[str, int]:
                     f"INSERT INTO {T_CAREER_PATHS} (codigo, nombre, orden, activo) "
                     "VALUES (:codigo, :nombre, :orden, true)"
                 ),
-                cp,
+                {"codigo": cp["codigo"], "nombre": cp["nombre"], "orden": posicion},
             )
 
     for fn in FUNCIONES_SEED:

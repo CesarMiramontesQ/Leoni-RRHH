@@ -35,6 +35,8 @@ class GradoPuestoService:
     @staticmethod
     def _to_response(grado: GradoPuesto) -> GradoPuestoResponse:
         career_path = grado.career_path
+        equivalencia = grado.equivalencia
+        grade = equivalencia.global_grade if equivalencia else None
         return GradoPuestoResponse(
             id=grado.id,
             career_path_id=grado.career_path_id,
@@ -42,7 +44,9 @@ class GradoPuestoService:
             career_path_nombre=career_path.nombre if career_path else None,
             codigo=grado.codigo,
             nombre=grado.nombre,
-            orden=grado.orden,
+            global_grade_id=grade.id if grade else None,
+            global_grade_codigo=grade.codigo if grade else None,
+            global_grade_orden=grade.orden if grade else None,
             activo=grado.activo,
             created_at=grado.created_at,
             updated_at=grado.updated_at,
@@ -98,15 +102,6 @@ class GradoPuestoService:
             raise ConflictError(
                 detail=f"Ya existe un career level '{data.nombre}' en ese career path"
             )
-        if await self.repo.exists_by_orden(
-            data.career_path_id, data.orden, exclude_id=exclude_id
-        ):
-            raise ConflictError(
-                detail=(
-                    f"Ya existe un career level con orden {data.orden} "
-                    "en ese career path"
-                )
-            )
 
     async def crear(
         self, data: GradoPuestoCreate, current_user: Empleado
@@ -121,7 +116,6 @@ class GradoPuestoService:
             "career_path_id": data.career_path_id,
             "codigo": data.codigo,
             "nombre": data.nombre,
-            "orden": data.orden,
             "activo": True,
         })
         return self._to_response(await self.repo.get_with_career_path(grado.id))
@@ -159,7 +153,6 @@ class GradoPuestoService:
                 "career_path_id": data.career_path_id,
                 "codigo": data.codigo,
                 "nombre": data.nombre,
-                "orden": data.orden,
             },
         )
         return self._to_response(await self.repo.get_with_career_path(id))

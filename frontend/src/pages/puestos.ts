@@ -36,6 +36,7 @@ import {
   globalGradeBadge,
   careerLevelLabel,
   GLOBAL_GRADE_TOOLTIP,
+  compararCareerLevels,
 } from "../talento/clasificacionPuestoUi.ts";
 import {
   gradoIdsEntre,
@@ -121,7 +122,7 @@ const formatGradosLabel = formatCareerLevelRango;
 
 function gradosMinMaxIds(grados: GradoPerfilItem[]): { desde: string; hasta: string } {
   if (!grados.length) return { desde: "", hasta: "" };
-  const sorted = [...grados].sort((a, b) => a.orden - b.orden);
+  const sorted = [...grados].sort(compararCareerLevels);
   return { desde: String(sorted[0].id), hasta: String(sorted[sorted.length - 1].id) };
 }
 
@@ -132,7 +133,7 @@ function resolveGradoRango(
 ): GradoPuesto[] {
   const ids = gradoIdsEntre(catalog, Number(desdeId), Number(hastaId));
   if (!ids.length) return [];
-  return catalog.filter((g) => ids.includes(g.id)).sort((a, b) => a.orden - b.orden);
+  return catalog.filter((g) => ids.includes(g.id)).sort(compararCareerLevels);
 }
 
 function renderGradoRangoPreview(grados: GradoPuesto[]): string {
@@ -1398,7 +1399,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
           // Si "hasta" queda antes que "desde" por orden, igualar.
           const desdeG = gradosCatalog.find((g) => String(g.id) === desdeEl.value);
           const hastaG = gradosCatalog.find((g) => String(g.id) === hastaEl.value);
-          if (desdeG && hastaG && hastaG.orden < desdeG.orden) {
+          if (desdeG && hastaG && compararCareerLevels(hastaG, desdeG) < 0) {
             if (t.id === "puestos-modal-grado-desde") hastaEl.value = desdeEl.value;
             else desdeEl.value = hastaEl.value;
           }

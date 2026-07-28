@@ -12,10 +12,33 @@ import { escapeHtml } from "../ui/uiUtils.ts";
 export type CareerLevelLike = {
   id: number;
   nombre: string;
-  orden: number;
   codigo?: string | null;
   career_path_codigo?: string | null;
+  /**
+   * Posición del nivel. El catálogo la expone como `global_grade_orden` y el
+   * perfil como `orden` ya resuelto; ambos son el orden del Global Grade, que es
+   * lo único que ubica al nivel. `null` = sin equivalencia configurada.
+   */
+  orden?: number | null;
+  global_grade_orden?: number | null;
 };
+
+/** Posición del nivel, venga del catálogo o del perfil. */
+export function posicionCareerLevel(nivel: CareerLevelLike): number | null {
+  return nivel.global_grade_orden ?? nivel.orden ?? null;
+}
+
+/** Comparador estable: sin posición van al final, y se desempata por código. */
+export function compararCareerLevels(a: CareerLevelLike, b: CareerLevelLike): number {
+  const pa = posicionCareerLevel(a);
+  const pb = posicionCareerLevel(b);
+  if (pa == null && pb == null) {
+    return (a.codigo ?? a.nombre).localeCompare(b.codigo ?? b.nombre);
+  }
+  if (pa == null) return 1;
+  if (pb == null) return -1;
+  return pa - pb;
+}
 
 /** Texto que identifica al nivel: su código (P10) o, si falta, su nombre. */
 export function careerLevelLabel(nivel: CareerLevelLike): string {
@@ -30,7 +53,7 @@ export function careerLevelLabel(nivel: CareerLevelLike): string {
  */
 export function formatCareerLevelRango(niveles: CareerLevelLike[]): string {
   if (!niveles.length) return "—";
-  const ordenados = [...niveles].sort((a, b) => a.orden - b.orden);
+  const ordenados = [...niveles].sort(compararCareerLevels);
   const primero = careerLevelLabel(ordenados[0]);
   if (ordenados.length === 1) return primero;
   return `${primero} → ${careerLevelLabel(ordenados[ordenados.length - 1])}`;
@@ -39,7 +62,7 @@ export function formatCareerLevelRango(niveles: CareerLevelLike[]): string {
 /** Chips del rango completo, para el preview del formulario: P10 → P11 → P12. */
 export function careerLevelChips(niveles: CareerLevelLike[]): string {
   if (!niveles.length) return "";
-  const ordenados = [...niveles].sort((a, b) => a.orden - b.orden);
+  const ordenados = [...niveles].sort(compararCareerLevels);
   return ordenados
     .map(
       (n) =>
@@ -138,12 +161,19 @@ export function careerLevelsSonConsecutivos(
   ids: number[],
 ): boolean {
   if (ids.length === 0) return false;
-  const ordenes = ids
-    .map((id) => catalogo.find((g) => g.id === id)?.orden)
-    .filter((o): o is number => typeof o === "number")
-    .sort((a, b) => a - b);
-  if (ordenes.length !== ids.length) return false;
-  return ordenes[ordenes.length - 1] - ordenes[0] + 1 === ordenes.length;
+  const posiciones = ids
+    .map((id) => {
+      const nivel = catalogo.find((g) => g.id === id);
+      return nivel ? posicionCareerLevel(nivel) : null;
+    })
+    .filter((o): o is number => typeof o === "number");
+  // Un nivel sin equivalencia no tiene posición, así que el rango no se puede
+  // validar: el backend lo rechaza con un mensaje que apunta a Ajustes.
+  if (posiciones.length !== ids.length) return false;
+  // Deduplicado: dos niveles pueden equivaler al mismo global grade y eso no
+  // rompe la contigüidad.
+  const unicas = [...new Set(posiciones)].sort((a, b) => a - b);
+  return unicas[unicas.length - 1] - unicas[0] + 1 === unicas.length;
 }
 
 /** Ids de los niveles entre `desdeId` y `hastaId`, ambos incluidos. */
@@ -158,15 +188,17 @@ export function careerLevelsEntre(
   if (!desde || !hasta) return [];
   // Un rango solo tiene sentido dentro de un mismo career path.
   if (desde.career_path_codigo !== hasta.career_path_codigo) return [];
-  const [min, max] =
-    desde.orden <= hasta.orden ? [desde.orden, hasta.orden] : [hasta.orden, desde.orden];
+  const pDesde = posicionCareerLevel(desde);
+  const pHasta = posicionCareerLevel(hasta);
+  // Sin equivalencia no hay posición y no se puede delimitar el rango.
+  if (pDesde == null || pHasta == null) return [];
+  const [min, max] = pDesde <= pHasta ? [pDesde, pHasta] : [pHasta, pDesde];
   return catalogo
-    .filter(
-      (g) =>
-        g.orden >= min &&
-        g.orden <= max &&
-        g.career_path_codigo === desde.career_path_codigo,
-    )
-    .sort((a, b) => a.orden - b.orden)
+    .filter((g) => {
+      if (g.career_path_codigo !== desde.career_path_codigo) return false;
+      const p = posicionCareerLevel(g);
+      return p != null && p >= min && p <= max;
+    })
+    .sort(compararCareerLevels)
     .map((g) => g.id);
 }

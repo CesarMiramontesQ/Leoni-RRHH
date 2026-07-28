@@ -7,7 +7,7 @@ career path, asi que necesitan poder obtener el de por defecto sin duplicar la
 logica de get-or-create.
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.clasificacion_puesto import CareerPath
@@ -30,17 +30,10 @@ async def get_or_create_career_path(
 
     semilla = next(
         (cp for cp in CAREER_PATHS_SEED if cp["codigo"] == codigo),
-        {"codigo": codigo, "nombre": codigo, "orden": None},
+        {"codigo": codigo, "nombre": codigo},
     )
-    orden = semilla["orden"]
-    if orden is None:
-        orden = (await session.scalar(select(func.max(CareerPath.orden))) or 0) + 1
-
     career_path = CareerPath(
-        codigo=semilla["codigo"],
-        nombre=semilla["nombre"],
-        orden=orden,
-        activo=True,
+        codigo=semilla["codigo"], nombre=semilla["nombre"], activo=True
     )
     session.add(career_path)
     await session.flush()

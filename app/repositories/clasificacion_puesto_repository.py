@@ -35,7 +35,7 @@ class CareerPathRepository(BaseRepository[CareerPath]):
 
         total = await self.db.scalar(select(func.count()).select_from(query.subquery()))
 
-        query = query.order_by(CareerPath.orden).offset(offset).limit(limit)
+        query = query.order_by(CareerPath.codigo).offset(offset).limit(limit)
         result = await self.db.execute(query)
         return list(result.scalars().all()), total or 0
 
@@ -51,15 +51,6 @@ class CareerPathRepository(BaseRepository[CareerPath]):
     async def exists_by_codigo(self, codigo: str, exclude_id: int | None = None) -> bool:
         query = select(func.count()).select_from(CareerPath).where(
             CareerPath.codigo.ilike(codigo),
-            CareerPath.activo.is_(True),
-        )
-        if exclude_id:
-            query = query.where(CareerPath.id != exclude_id)
-        return (await self.db.scalar(query) or 0) > 0
-
-    async def exists_by_orden(self, orden: int, exclude_id: int | None = None) -> bool:
-        query = select(func.count()).select_from(CareerPath).where(
-            CareerPath.orden == orden,
             CareerPath.activo.is_(True),
         )
         if exclude_id:
@@ -337,7 +328,8 @@ class CareerLevelGradeMappingRepository(BaseRepository[CareerLevelGradeMapping])
                 GradoPuesto, GradoPuesto.id == CareerLevelGradeMapping.career_level_id
             )
             .join(CareerPath, CareerPath.id == GradoPuesto.career_path_id)
-            .order_by(CareerPath.orden, GradoPuesto.orden)
+            .join(GlobalGrade, GlobalGrade.id == CareerLevelGradeMapping.global_grade_id)
+            .order_by(CareerPath.codigo, GlobalGrade.orden)
             .offset(offset)
             .limit(limit)
         )

@@ -1,5 +1,4 @@
 import { updateMatrizBulk, type CompetenciasFetchError } from "../../api/competencias.ts";
-import { getGradosPuesto } from "../../api/gradosPuesto.ts";
 import {
   getAreasOptions,
   getPerfilCompetencias,
@@ -243,14 +242,12 @@ export async function loadCompetenciasPuesto(model: MatrizRequisitosModel): Prom
   model.saveMessage = null;
   try {
     await ensureMetodosCalificacionCompetenciaLoaded();
-    const grados = await getGradosPuesto({ page_size: 200 });
-    const gradoId = (grados.find((g) => g.orden === 1) ?? grados[0])?.id;
-    if (!gradoId) {
-      model.competencias = [];
-      model.status = "ready";
-      return;
-    }
-    model.competencias = await getPerfilCompetencias(id, gradoId);
+    // La matriz por área no distingue career level: escribe el requisito GENERAL
+    // del perfil, así que lee exactamente eso. Antes tomaba "el nivel de orden 1"
+    // como representante, una suposición que dejó de tener sentido cuando el
+    // nivel dejó de tener orden propio — y que ya era frágil con dos career paths.
+    const competencias = await getPerfilCompetencias(id);
+    model.competencias = competencias.filter((c) => c.es_general);
     model.pending.clear();
     model.status = "ready";
   } catch (e: unknown) {

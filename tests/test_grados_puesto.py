@@ -7,6 +7,7 @@ from httpx import AsyncClient
 from tests.conftest import auth_headers, make_empleado
 from tests.conftest_talento import (
     get_default_grado,
+    make_global_grade,
     make_career_path,
     make_competencia,
     make_competencia_requisito,
@@ -28,7 +29,6 @@ async def test_crear_grado_puesto_success(client, db):
             "career_path_id": career_path.id,
             "codigo": "P10",
             "nombre": "Grado Especial",
-            "orden": 10,
         },
         headers=headers,
     )
@@ -37,7 +37,8 @@ async def test_crear_grado_puesto_success(client, db):
     data = response.json()
     assert data["nombre"] == "Grado Especial"
     assert data["codigo"] == "P10"
-    assert data["orden"] == 10
+    # El nivel nace sin posicion: se la da la equivalencia con el global grade.
+    assert data["global_grade_orden"] is None
     assert data["career_path_id"] == career_path.id
     assert data["career_path_codigo"] == "P"
     assert data["activo"] is True
@@ -58,7 +59,6 @@ async def test_crear_grado_puesto_duplicado_nombre(client, db):
             "career_path_id": career_path.id,
             "codigo": "P12",
             "nombre": "Grado Dup Test",
-            "orden": 12,
         },
         headers=headers,
     )
@@ -67,42 +67,58 @@ async def test_crear_grado_puesto_duplicado_nombre(client, db):
 
 
 @pytest.mark.asyncio
-async def test_mismo_orden_en_career_paths_distintos_convive(client, db):
-    """P1 y M1 comparten `orden`: la unicidad es por career path, no global."""
+async def test_un_p10_y_un_m1_pueden_pesar_lo_mismo(client, db):
+    """
+    Dos career levels de paths distintos pueden equivaler al mismo global grade.
+
+    Es la razon de ser de la equivalencia: el ordenador del sistema Towers es el
+    global grade, no una escala interna de cada career path. Por eso el nivel ya
+    no lleva `orden` propio.
+    """
     rh = await make_empleado(db, rol="rh", email="gp_paths@leoni.test")
     professional = await make_career_path(db, codigo="P")
     management = await make_career_path(db, codigo="M", nombre="Management")
-    await make_grado_puesto(
-        db, nombre="P1", codigo="P1", orden=1, career_path_id=professional.id
-    )
+    grade = await make_global_grade(db, codigo="GG10", orden=10)
+    headers = await auth_headers(client, rh)
+
+    creados = []
+    for path, codigo in ((professional, "P10"), (management, "M1")):
+        r = await client.post(
+            "/api/v1/career-levels",
+            json={"career_path_id": path.id, "codigo": codigo, "nombre": codigo},
+            headers=headers,
+        )
+        assert r.status_code == 201, r.text
+        creados.append(r.json()["id"])
+
+    # Ambos apuntan al MISMO global grade.
+    for nivel_id in creados:
+        eq = await client.post(
+            "/api/v1/clasificacion-puesto/equivalencias",
+            json={"career_level_id": nivel_id, "global_grade_id": grade.id},
+            headers=headers,
+        )
+        assert eq.status_code == 201, eq.text
+
+    listado = await client.get("/api/v1/career-levels", headers=headers)
+    por_codigo = {i["codigo"]: i for i in listado.json()["items"]}
+    assert por_codigo["P10"]["global_grade_orden"] == 10
+    assert por_codigo["M1"]["global_grade_orden"] == 10
+
+
+@pytest.mark.asyncio
+async def test_codigo_duplicado_en_el_mismo_career_path_409(client, db):
+    rh = await make_empleado(db, rol="rh", email="gp_cod_dup@leoni.test")
+    path = await make_career_path(db, codigo="P")
+    await make_grado_puesto(db, codigo="P7", nombre="P7", orden=7, career_path_id=path.id)
     headers = await auth_headers(client, rh)
 
     response = await client.post(
         "/api/v1/career-levels",
-        json={
-            "career_path_id": management.id,
-            "codigo": "M1",
-            "nombre": "M1",
-            "orden": 1,
-        },
+        json={"career_path_id": path.id, "codigo": "P7", "nombre": "Otro"},
         headers=headers,
     )
-
-    assert response.status_code == 201
-    assert response.json()["orden"] == 1
-
-    # Dentro del mismo career path el orden sigue siendo unico.
-    duplicado = await client.post(
-        "/api/v1/career-levels",
-        json={
-            "career_path_id": management.id,
-            "codigo": "M1-bis",
-            "nombre": "M1 bis",
-            "orden": 1,
-        },
-        headers=headers,
-    )
-    assert duplicado.status_code == 409
+    assert response.status_code == 409
 
 
 @pytest.mark.asyncio

@@ -85,14 +85,13 @@ async def make_career_path(
     *,
     codigo: str = "P",
     nombre: str | None = None,
-    orden: int | None = None,
     activo: bool = True,
 ) -> CareerPath:
     """
     Factory get-or-create de CareerPath por codigo.
 
     Casi todos los tests necesitan "el career path", no uno nuevo, asi que
-    repetir la llamada devuelve la misma fila (codigo y orden son unicos).
+    repetir la llamada devuelve la misma fila (el codigo es unico).
     """
     existente = await db.execute(select(CareerPath).where(CareerPath.codigo == codigo))
     career_path = existente.scalar_one_or_none()
@@ -100,12 +99,7 @@ async def make_career_path(
         return career_path
 
     _nombre = nombre or ("Professional" if codigo == "P" else f"Career Path {codigo}")
-    if orden is None:
-        maximo = await db.scalar(select(func.max(CareerPath.orden)))
-        orden = (maximo or 0) + 1
-    career_path = CareerPath(
-        codigo=codigo, nombre=_nombre, orden=orden, activo=activo
-    )
+    career_path = CareerPath(codigo=codigo, nombre=_nombre, activo=activo)
     db.add(career_path)
     await db.flush()
     await db.refresh(career_path)
@@ -182,13 +176,19 @@ async def make_grado_puesto(
     orden: int | None = None,
     career_path_id: int | None = None,
     career_path_codigo: str = "P",
+    con_equivalencia: bool = True,
     activo: bool = True,
 ) -> GradoPuesto:
     """
     Factory para crear un GradoPuesto (Career Level) en el catalogo.
 
-    Si no se pasa career path se usa (o crea) el Professional por defecto: el
-    codigo y el orden son unicos DENTRO del career path, no globalmente.
+    El nivel ya no tiene orden propio: su posicion la da el Global Grade al que
+    equivale. `orden` se conserva en la firma porque es como los tests expresan
+    "el nivel que va en la posicion N", y se traduce a un GG de ese orden mas su
+    equivalencia.
+
+    Con `con_equivalencia=False` el nivel queda sin posicion, que es el estado
+    que el backend rechaza al armar el rango de un perfil.
     """
     uid = uuid.uuid4().hex[:6]
     if career_path_id is None:
@@ -206,12 +206,18 @@ async def make_grado_puesto(
         career_path_id=career_path_id,
         codigo=_codigo,
         nombre=_nombre,
-        orden=_orden,
         activo=activo,
     )
     db.add(grado)
     await db.flush()
     await db.refresh(grado)
+
+    if con_equivalencia:
+        grade = await make_global_grade(db, codigo=f"GG{_orden:02d}", orden=_orden)
+        await make_equivalencia(
+            db, career_level_id=grado.id, global_grade_id=grade.id
+        )
+        await db.refresh(grado)
     return grado
 
 
@@ -223,7 +229,7 @@ async def get_default_grado(db: AsyncSession) -> GradoPuesto:
     result = await db.execute(
         select(GradoPuesto).where(
             GradoPuesto.career_path_id == career_path.id,
-            GradoPuesto.orden == 1,
+            GradoPuesto.codigo == f"{career_path.codigo}1",
             GradoPuesto.activo.is_(True),
         )
     )
@@ -240,22 +246,25 @@ async def make_grados_consecutivos(
     *,
     ordenes: list[int],
     career_path_codigo: str = "P",
+    con_equivalencia: bool = True,
 ) -> list[GradoPuesto]:
     """
-    Factory para crear (o reusar) career levels activos con los `orden` indicados,
-    todos dentro del mismo career path.
+    Factory para crear (o reusar) career levels activos en las posiciones
+    indicadas, todos dentro del mismo career path.
 
-    Si ya existe uno con ese `orden` en el career path se reusa. Devuelve la lista
-    ordenada por `orden`.
+    `ordenes` ya no es una columna del nivel: es la posicion del global grade al
+    que equivale, que es lo que ubica al nivel. Cada uno se crea con codigo
+    `<path><orden>` y su equivalencia. Devuelve la lista ordenada por posicion.
     """
     career_path = await make_career_path(db, codigo=career_path_codigo)
 
-    grados: list[GradoPuesto] = []
+    creados: list[tuple[int, GradoPuesto]] = []
     for orden in ordenes:
+        # Se identifica por codigo: el nivel ya no lleva orden propio.
         result = await db.execute(
             select(GradoPuesto).where(
                 GradoPuesto.career_path_id == career_path.id,
-                GradoPuesto.orden == orden,
+                GradoPuesto.codigo == f"{career_path.codigo}{orden}",
                 GradoPuesto.activo.is_(True),
             )
         )
@@ -267,9 +276,10 @@ async def make_grados_consecutivos(
                 nombre=f"Grado O{orden} {uid}",
                 orden=orden,
                 career_path_id=career_path.id,
+                con_equivalencia=con_equivalencia,
             )
-        grados.append(grado)
-    return sorted(grados, key=lambda g: g.orden)
+        creados.append((orden, grado))
+    return [g for _, g in sorted(creados, key=lambda par: par[0])]
 
 
 METODOS_CALIFICACION_COMPETENCIA_SEED = [
@@ -668,14 +678,18 @@ async def make_clasificacion_payload(
     Crea los catalogos de clasificacion y devuelve el fragmento de payload que el
     alta de perfil exige: career path, funcion, disciplina y career levels.
 
-    Con `con_equivalencia=True` (por defecto) tambien configura la equivalencia del
-    nivel inicial, de modo que el global grade se autocompleta y no hay que enviarlo.
+    Con `con_equivalencia=True` (por defecto) los niveles llevan su equivalencia, de
+    modo que tienen posicion y el global grade del perfil se autocompleta. Con
+    `False` quedan sin posicion, que es el estado que el backend rechaza al armar
+    el rango.
     """
-    grados = await make_grados_consecutivos(db, ordenes=ordenes or [1, 2])
+    # Los niveles ya nacen con su equivalencia (es lo que los posiciona), asi que
+    # `con_equivalencia` se propaga al factory en vez de crear una aparte.
+    grados = await make_grados_consecutivos(
+        db, ordenes=ordenes or [1, 2], con_equivalencia=con_equivalencia
+    )
     funcion = await make_funcion_puesto(db)
     disciplina = await make_disciplina_puesto(db, funcion_id=funcion.id)
-    if con_equivalencia:
-        await make_equivalencia(db, career_level_id=grados[0].id)
     return {
         "career_path_id": grados[0].career_path_id,
         "funcion_id": funcion.id,

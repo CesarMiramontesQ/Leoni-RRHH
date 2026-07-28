@@ -73,7 +73,6 @@ class CareerPathService:
             id=item.id,
             codigo=item.codigo,
             nombre=item.nombre,
-            orden=item.orden,
             activo=item.activo,
             created_at=item.created_at,
             updated_at=item.updated_at,
@@ -114,10 +113,6 @@ class CareerPathService:
             )
         if await self.repo.exists_by_nombre(data.nombre, exclude_id=exclude_id):
             raise ConflictError(detail=f"Ya existe un career path '{data.nombre}'")
-        if await self.repo.exists_by_orden(data.orden, exclude_id=exclude_id):
-            raise ConflictError(
-                detail=f"Ya existe un career path con orden {data.orden}"
-            )
 
     async def crear(
         self, data: CareerPathCreate, current_user: Empleado
@@ -125,12 +120,7 @@ class CareerPathService:
         _require_modulo(current_user, "crear career paths")
         await self._validar_unicidad(data)
         item = await self.repo.create(
-            {
-                "codigo": data.codigo,
-                "nombre": data.nombre,
-                "orden": data.orden,
-                "activo": True,
-            }
+            {"codigo": data.codigo, "nombre": data.nombre, "activo": True}
         )
         return self._to_response(item)
 
@@ -144,7 +134,7 @@ class CareerPathService:
 
         await self._validar_unicidad(data, exclude_id=id)
         await self.repo.update(
-            id, {"codigo": data.codigo, "nombre": data.nombre, "orden": data.orden}
+            id, {"codigo": data.codigo, "nombre": data.nombre}
         )
         item = await self.repo.get(id)
         return self._to_response(item)

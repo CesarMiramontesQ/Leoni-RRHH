@@ -60,7 +60,9 @@ class EvaluacionBulkCreate(BaseModel):
 class GradoNivelInfo(BaseModel):
     grado_id: int
     grado_nombre: str
-    orden: int
+    # Posicion del career level: la del global grade equivalente. Null si el
+    # nivel no tiene equivalencia configurada.
+    orden: int | None = None
 
 
 class EmpleadoCompetenciaResumen(BaseModel):

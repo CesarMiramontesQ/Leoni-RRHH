@@ -12,9 +12,11 @@ Ajustes > Perfiles de puesto > Clasificacion.
 
 # ── Career Paths ─────────────────────────────────────────────────────────────
 # El codigo es el prefijo del Career Level: Professional -> P10, Management -> M3.
+# No llevan orden: los career paths son alternativas, no una escala. Quien ordena
+# es el Global Grade, y por eso un P10 y un M1 pueden pesar lo mismo.
 CAREER_PATHS_SEED: list[dict] = [
-    {"codigo": "P", "nombre": "Professional", "orden": 1},
-    {"codigo": "M", "nombre": "Management", "orden": 2},
+    {"codigo": "P", "nombre": "Professional"},
+    {"codigo": "M", "nombre": "Management"},
 ]
 
 CAREER_PATH_DEFAULT_CODIGO = "P"

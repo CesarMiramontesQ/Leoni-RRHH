@@ -1625,6 +1625,18 @@ Global Grade**) se lee igual en listado, detalle y formulario. Todo lo visual sa
 > al Career Path del que cuelga. En código el modelo y la tabla conservan el nombre
 > legacy en español (`GradoPuesto`, `levelup_grados_puesto`, `grado_id`) — es una
 > limpieza aparte, no debe aparecer en texto visible.
+>
+> **Quién ordena.** El Career Level **no tiene orden propio**: lo posiciona el Global
+> Grade al que equivale. Por eso un P10 y un M1 pueden pesar lo mismo — es el GG el
+> ordenador del sistema Towers, y los career paths son alternativas, no escalas.
+> Consecuencias en la UI:
+> - Un nivel **sin equivalencia configurada no tiene posición**: la tabla de Ajustes lo
+>   marca en ámbar como *Sin equivalencia*, y el formulario de perfil lo rechaza con un
+>   mensaje que apunta a Ajustes. No se puede usar en un rango.
+> - Todo orden de niveles pasa por `compararCareerLevels`: los que no tienen posición
+>   van al final y se desempata por código, para que el listado no baile.
+> - El rango sigue exigiéndose contiguo, pero **sobre el orden del GG y deduplicado**:
+>   dos niveles que equivalen al mismo grado no rompen la contigüidad.
 
 ### 15.7.1 Reglas
 

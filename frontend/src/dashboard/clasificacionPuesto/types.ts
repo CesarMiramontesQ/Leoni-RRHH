@@ -10,7 +10,6 @@ export type CareerPath = {
   /** Prefijo del Career Level: "P" -> P10, "M" -> M3. */
   codigo: string;
   nombre: string;
-  orden: number;
   activo: boolean;
   created_at: string;
   updated_at: string;
@@ -19,7 +18,6 @@ export type CareerPath = {
 export type CareerPathCreatePayload = {
   codigo: string;
   nombre: string;
-  orden: number;
 };
 
 export type CareerPathUpdatePayload = CareerPathCreatePayload;

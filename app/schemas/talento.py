@@ -19,13 +19,19 @@ TipoPuestoPerfil = Literal["administrativo", "operativo"]
 
 
 class GradoPerfilItem(BaseModel):
-    """Career Level del perfil (P10, M3)."""
+    """
+    Career Level del perfil (P10, M3).
+
+    `orden` no es del nivel: es el del Global Grade al que equivale, que es lo
+    que lo posiciona. Null cuando el nivel no tiene equivalencia configurada.
+    """
 
     id: int
     nombre: str
-    orden: int
+    orden: Optional[int] = None
     codigo: Optional[str] = None
     career_path_codigo: Optional[str] = None
+    global_grade_codigo: Optional[str] = None
 
 
 EstadoPuestoPerfil = Literal["activo", "inactivo", "en_revision"]

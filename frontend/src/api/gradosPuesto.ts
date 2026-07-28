@@ -28,7 +28,9 @@ function mapGrado(raw: Record<string, unknown>): GradoPuesto {
     career_path_nombre: (raw.career_path_nombre ?? null) as string | null,
     codigo: (raw.codigo ?? "") as string,
     nombre: (raw.nombre ?? "") as string,
-    orden: (raw.orden ?? 0) as number,
+    global_grade_id: (raw.global_grade_id ?? null) as number | null,
+    global_grade_codigo: (raw.global_grade_codigo ?? null) as string | null,
+    global_grade_orden: (raw.global_grade_orden ?? null) as number | null,
     activo: (raw.activo ?? true) as boolean,
     created_at: (raw.created_at ?? "") as string,
     updated_at: (raw.updated_at ?? "") as string,
@@ -53,15 +55,20 @@ export async function getGradosPuesto(opts?: {
   }
   const data = await res.json();
   const items = (data.items ?? data) as Record<string, unknown>[];
-  // Los niveles solo son comparables dentro de su career path: primero se agrupa
-  // por path y dentro de cada uno se ordena por `orden`.
-  return items
-    .map(mapGrado)
-    .sort(
-      (a, b) =>
-        (a.career_path_codigo ?? "").localeCompare(b.career_path_codigo ?? "") ||
-        a.orden - b.orden,
+  // Se agrupa por career path y dentro de cada uno se ordena por la posición que
+  // da el global grade. Los que no tienen equivalencia van al final.
+  return items.map(mapGrado).sort((a, b) => {
+    const porPath = (a.career_path_codigo ?? "").localeCompare(
+      b.career_path_codigo ?? "",
     );
+    if (porPath !== 0) return porPath;
+    const oa = a.global_grade_orden;
+    const ob = b.global_grade_orden;
+    if (oa == null && ob == null) return a.codigo.localeCompare(b.codigo);
+    if (oa == null) return 1;
+    if (ob == null) return -1;
+    return oa - ob;
+  });
 }
 
 /** POST /api/v1/career-levels */

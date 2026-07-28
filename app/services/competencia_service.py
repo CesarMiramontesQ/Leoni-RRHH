@@ -45,6 +45,7 @@ from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
 from app.services.metodo_calificacion_competencia_service import (
     MetodoCalificacionCompetenciaService,
 )
+from app.services.puesto_perfil_service import PuestoPerfilService
 from app.services.tipo_competencia_service import TipoCompetenciaService
 from app.schemas.talento import (
     BrechaItem,
@@ -323,14 +324,10 @@ class CompetenciaService:
         # Convertir puestos a response
         puestos_response = []
         for p in puestos:
-            grados = sorted(
-                (
-                    GradoPerfilItem(id=g.grado.id, nombre=g.grado.nombre, orden=g.grado.orden)
-                    for g in p.grados_config
-                    if g.grado
-                ),
-                key=lambda x: x.orden,
-            )
+            # La posicion del nivel es la de su global grade; reutiliza el mismo
+            # criterio que el servicio de perfiles para que la matriz y el detalle
+            # ordenen igual.
+            grados = PuestoPerfilService._grados_ordenados(p)
             puestos_response.append(PuestoPerfilResponse(
                 id=p.id,
                 codigo=p.codigo,

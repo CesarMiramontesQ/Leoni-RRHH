@@ -7,6 +7,7 @@ import {
 import { getCompetencias, createCompetencia } from "../../api/competencias.ts";
 import { getTiposCompetencia } from "../../api/tiposCompetencia.ts";
 import type { TipoCompetencia } from "../../dashboard/tiposCompetencia/types.ts";
+import { compararCareerLevels } from "../../talento/clasificacionPuestoUi.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { getNivelRequeridoOptions, ensureMetodosCalificacionCompetenciaLoaded } from "../../ui/nivelCompetencia.ts";
 import { MODAL_OVERLAY, MODAL_PANEL, FIELD_FOCUS, RH_LISTADO_SELECT, SELECT_CHEVRON, RH_LISTADO_BTN_PRIMARY, RH_LISTADO_BTN_GHOST } from "../../ui/uiTokens.ts";
@@ -24,7 +25,7 @@ export type EditarCompetenciasModalHandle = {
 
 export type EditarCompetenciasModalOptions = {
   perfilId: number;
-  grados?: { id: number; nombre: string; orden: number }[];
+  grados?: { id: number; nombre: string; orden: number | null }[];
   onSuccess: () => void;
 };
 
@@ -138,7 +139,7 @@ export function mountEditarCompetenciasModal(
   /** null = alcance general */
   let gradoId: number | null = null;
   let gradoNombre: string | undefined;
-  const gradosPerfil = [...(options.grados ?? [])].sort((a, b) => a.orden - b.orden);
+  const gradosPerfil = [...(options.grados ?? [])].sort(compararCareerLevels);
 
   let catalogo: CatalogoItem[] = [];
   let tiposCatalogo: TipoCompetencia[] = [];
