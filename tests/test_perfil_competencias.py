@@ -355,10 +355,18 @@ async def test_actualizar_tipo_competencia_propaga_grupo_a_perfil(
 
 
 @pytest.mark.asyncio
-async def test_actualizar_grupo_competencia_propaga_categoria_a_perfil(
+async def test_renombrar_grupo_competencia_no_reclasifica_competencias(
     client: AsyncClient, db: AsyncSession
 ):
-    """Renombrar grupo recalcula categoria de competencias y se refleja en el perfil."""
+    """
+    Renombrar una categoria cambia su nombre, no la clasificacion.
+
+    Antes la categoria de cada competencia se adivinaba del nombre del grupo, asi
+    que renombrar "Habilidad blanda" a algo con "tecnica" reclasificaba en silencio
+    todas sus competencias. Ahora la identidad es el `codigo` del grupo, que se fija
+    al crearlo y no cambia: con categorias reales (Tecnicas, Conductuales, Liderazgo,
+    Digitales) inferir del texto ya no tiene sentido.
+    """
     rh = await make_empleado(db, rol="rh", email="pc_prop_grupo@leoni.test")
     headers = await auth_headers(client, rh)
     grado_id = await _grado_id(db)
@@ -390,7 +398,7 @@ async def test_actualizar_grupo_competencia_propaga_categoria_a_perfil(
     assert resp.status_code == 200
     item = resp.json()[0]
     assert item["grupo_nombre"] == "Técnica Grupo Renombrado"
-    assert item["categoria"] == "tecnica"
+    assert item["categoria"] == "blanda"
 
 
 @pytest.mark.asyncio

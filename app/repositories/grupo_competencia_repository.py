@@ -44,6 +44,14 @@ class GrupoCompetenciaRepository(BaseRepository[GrupoCompetencia]):
         count = await self.db.scalar(query)
         return (count or 0) > 0
 
+    async def exists_by_codigo(self, codigo: str) -> bool:
+        """Incluye inactivos: `codigo` es unico en toda la tabla, no solo entre activos."""
+        query = select(func.count()).select_from(GrupoCompetencia).where(
+            GrupoCompetencia.codigo == codigo
+        )
+        count = await self.db.scalar(query)
+        return (count or 0) > 0
+
     async def count_tipos_usando(self, grupo_id: int) -> int:
         query = select(func.count()).select_from(TipoCompetencia).where(
             TipoCompetencia.grupo_competencia_id == grupo_id,

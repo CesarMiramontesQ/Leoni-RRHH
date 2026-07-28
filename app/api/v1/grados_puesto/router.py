@@ -31,13 +31,21 @@ router = APIRouter(prefix="/api/v1/grados-puesto", tags=["Grados Puesto"])
 async def listar_grados_puesto(
     page: int = Query(1, ge=1, description="Numero de pagina"),
     page_size: int = Query(50, ge=1, le=200, description="Items por pagina"),
-    busqueda: str | None = Query(None, description="Buscar por nombre"),
+    busqueda: str | None = Query(None, description="Buscar por nombre o codigo"),
+    career_path_id: int | None = Query(
+        None, gt=0, description="Filtrar por career path"
+    ),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lista grados del catalogo con paginacion y filtros."""
+    """Lista los global levels del catalogo con paginacion y filtros."""
     service = GradoPuestoService(db)
-    return await service.listar(page=page, page_size=page_size, busqueda=busqueda)
+    return await service.listar(
+        page=page,
+        page_size=page_size,
+        busqueda=busqueda,
+        career_path_id=career_path_id,
+    )
 
 
 @router.post(

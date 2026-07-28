@@ -20,6 +20,8 @@ import logging
 from sqlalchemy import select, delete
 
 from app.core.database import AsyncSessionLocal
+from app.utils.clasificacion_bootstrap import get_or_create_career_path
+from app.utils.competencia_categoria import slug_codigo_grupo
 from app.utils.demo_residuo import (
     REFERENTES_COMPETENCIA,
     REFERENTES_GRUPO,
@@ -243,13 +245,24 @@ async def seed():
             logger.info("Demo data already exists (puesto %s). Skipping.", DEMO_PUESTO_CODIGO)
             return
 
-        # 1. Create grados
+        # 1. Create grados (global levels del career path por defecto)
+        career_path = await get_or_create_career_path(s)
         grado_map = {}
         for i, nombre in enumerate(GRADOS, 1):
-            r = await s.execute(select(GradoPuesto).where(GradoPuesto.nombre == nombre))
+            r = await s.execute(
+                select(GradoPuesto).where(
+                    GradoPuesto.career_path_id == career_path.id,
+                    GradoPuesto.nombre == nombre,
+                )
+            )
             grado = r.scalar_one_or_none()
             if not grado:
-                grado = GradoPuesto(nombre=nombre, orden=i)
+                grado = GradoPuesto(
+                    career_path_id=career_path.id,
+                    codigo=f"{career_path.codigo}{i}",
+                    nombre=nombre,
+                    orden=i,
+                )
                 s.add(grado)
                 await s.flush()
             grado_map[nombre] = grado
@@ -261,7 +274,9 @@ async def seed():
             r = await s.execute(select(GrupoCompetencia).where(GrupoCompetencia.nombre == grupo_nombre))
             grupo = r.scalar_one_or_none()
             if not grupo:
-                grupo = GrupoCompetencia(nombre=grupo_nombre)
+                grupo = GrupoCompetencia(
+                    nombre=grupo_nombre, codigo=slug_codigo_grupo(grupo_nombre)
+                )
                 s.add(grupo)
                 await s.flush()
             for tipo_nombre in tipos:

@@ -16,9 +16,16 @@ Nota sobre JSONB:
 import uuid
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.catalogos import Area
+from app.models.clasificacion_puesto import (
+    CareerPath,
+    CategoriaTarea,
+    DisciplinaPuesto,
+    FuncionPuesto,
+)
 from app.models.talento import (
     Competencia,
     CompetenciaRequisito,
@@ -34,6 +41,7 @@ from app.models.talento import (
     TipoCualificacionCatalogo,
     TipoCompetencia,
 )
+from app.utils.competencia_categoria import slug_codigo_grupo
 from app.utils.seed_cualificaciones_catalogo import (
     LEGACY_TIPOS,
     LEGACY_TIPO_METODO,
@@ -70,18 +78,135 @@ async def make_area(
     return area
 
 
+async def make_career_path(
+    db: AsyncSession,
+    *,
+    codigo: str = "P",
+    nombre: str | None = None,
+    orden: int | None = None,
+    activo: bool = True,
+) -> CareerPath:
+    """
+    Factory get-or-create de CareerPath por codigo.
+
+    Casi todos los tests necesitan "el career path", no uno nuevo, asi que
+    repetir la llamada devuelve la misma fila (codigo y orden son unicos).
+    """
+    existente = await db.execute(select(CareerPath).where(CareerPath.codigo == codigo))
+    career_path = existente.scalar_one_or_none()
+    if career_path:
+        return career_path
+
+    _nombre = nombre or ("Professional" if codigo == "P" else f"Career Path {codigo}")
+    if orden is None:
+        maximo = await db.scalar(select(func.max(CareerPath.orden)))
+        orden = (maximo or 0) + 1
+    career_path = CareerPath(
+        codigo=codigo, nombre=_nombre, orden=orden, activo=activo
+    )
+    db.add(career_path)
+    await db.flush()
+    await db.refresh(career_path)
+    return career_path
+
+
+async def make_funcion_puesto(
+    db: AsyncSession,
+    *,
+    codigo: str | None = None,
+    nombre: str | None = None,
+    activo: bool = True,
+) -> FuncionPuesto:
+    """Factory para crear una FuncionPuesto en el catalogo."""
+    uid = uuid.uuid4().hex[:6]
+    funcion = FuncionPuesto(
+        codigo=codigo or f"F{uid}",
+        nombre=nombre or f"Funcion Test {uid}",
+        activo=activo,
+    )
+    db.add(funcion)
+    await db.flush()
+    await db.refresh(funcion)
+    return funcion
+
+
+async def make_disciplina_puesto(
+    db: AsyncSession,
+    *,
+    funcion_id: int | None = None,
+    nombre: str | None = None,
+    codigo: str | None = None,
+    activo: bool = True,
+) -> DisciplinaPuesto:
+    """Factory para crear una DisciplinaPuesto (crea su funcion si no se pasa)."""
+    uid = uuid.uuid4().hex[:6]
+    if funcion_id is None:
+        funcion = await make_funcion_puesto(db)
+        funcion_id = funcion.id
+    disciplina = DisciplinaPuesto(
+        funcion_id=funcion_id,
+        nombre=nombre or f"Disciplina Test {uid}",
+        codigo=codigo,
+        activo=activo,
+    )
+    db.add(disciplina)
+    await db.flush()
+    await db.refresh(disciplina)
+    return disciplina
+
+
+async def make_categoria_tarea(
+    db: AsyncSession,
+    *,
+    nombre: str | None = None,
+    activo: bool = True,
+) -> CategoriaTarea:
+    """Factory para crear una CategoriaTarea en el catalogo."""
+    uid = uuid.uuid4().hex[:6]
+    categoria = CategoriaTarea(
+        nombre=nombre or f"Categoria Test {uid}", activo=activo
+    )
+    db.add(categoria)
+    await db.flush()
+    await db.refresh(categoria)
+    return categoria
+
+
 async def make_grado_puesto(
     db: AsyncSession,
     *,
     nombre: str | None = None,
+    codigo: str | None = None,
     orden: int | None = None,
+    career_path_id: int | None = None,
+    career_path_codigo: str = "P",
     activo: bool = True,
 ) -> GradoPuesto:
-    """Factory para crear un GradoPuesto en el catalogo."""
+    """
+    Factory para crear un GradoPuesto (Global Level) en el catalogo.
+
+    Si no se pasa career path se usa (o crea) el Professional por defecto: el
+    codigo y el orden son unicos DENTRO del career path, no globalmente.
+    """
     uid = uuid.uuid4().hex[:6]
+    if career_path_id is None:
+        career_path = await make_career_path(db, codigo=career_path_codigo)
+        career_path_id = career_path.id
+        _prefijo = career_path.codigo
+    else:
+        career_path = await db.get(CareerPath, career_path_id)
+        _prefijo = career_path.codigo if career_path else "P"
+
     _orden = orden if orden is not None else abs(hash(uid)) % 90 + 10
     _nombre = nombre or f"Grado Test {uid}"
-    grado = GradoPuesto(nombre=_nombre, orden=_orden, activo=activo)
+    _codigo = codigo or f"{_prefijo}{_orden}"
+    grado = GradoPuesto(
+        career_path_id=career_path_id,
+        codigo=_codigo,
+        nombre=_nombre,
+        orden=_orden,
+        activo=activo,
+    )
     db.add(grado)
     await db.flush()
     await db.refresh(grado)
@@ -89,44 +214,58 @@ async def make_grado_puesto(
 
 
 async def get_default_grado(db: AsyncSession) -> GradoPuesto:
-    """Obtiene o crea el Grado 1 por defecto para tests."""
-    from sqlalchemy import select
-
+    """Obtiene o crea el global level de orden 1 del career path por defecto."""
     await ensure_metodos_calificacion_competencia(db)
+    career_path = await make_career_path(db)
 
     result = await db.execute(
-        select(GradoPuesto).where(GradoPuesto.orden == 1, GradoPuesto.activo.is_(True))
+        select(GradoPuesto).where(
+            GradoPuesto.career_path_id == career_path.id,
+            GradoPuesto.orden == 1,
+            GradoPuesto.activo.is_(True),
+        )
     )
     grado = result.scalar_one_or_none()
     if grado:
         return grado
-    return await make_grado_puesto(db, nombre="Grado 1", orden=1)
+    return await make_grado_puesto(
+        db, nombre="Grado 1", orden=1, career_path_id=career_path.id
+    )
 
 
 async def make_grados_consecutivos(
     db: AsyncSession,
     *,
     ordenes: list[int],
+    career_path_codigo: str = "P",
 ) -> list[GradoPuesto]:
     """
-    Factory para crear (o reusar) un conjunto de GradoPuesto activos con los
-    valores de `orden` exactos indicados.
+    Factory para crear (o reusar) global levels activos con los `orden` indicados,
+    todos dentro del mismo career path.
 
-    Si ya existe un grado activo con un `orden` dado se reusa; si no, se crea
-    uno nuevo con nombre unico (nombre es unique en el catalogo). Devuelve la
-    lista ordenada por `orden`.
+    Si ya existe uno con ese `orden` en el career path se reusa. Devuelve la lista
+    ordenada por `orden`.
     """
-    from sqlalchemy import select
+    career_path = await make_career_path(db, codigo=career_path_codigo)
 
     grados: list[GradoPuesto] = []
     for orden in ordenes:
         result = await db.execute(
-            select(GradoPuesto).where(GradoPuesto.orden == orden, GradoPuesto.activo.is_(True))
+            select(GradoPuesto).where(
+                GradoPuesto.career_path_id == career_path.id,
+                GradoPuesto.orden == orden,
+                GradoPuesto.activo.is_(True),
+            )
         )
         grado = result.scalar_one_or_none()
         if grado is None:
             uid = uuid.uuid4().hex[:6]
-            grado = await make_grado_puesto(db, nombre=f"Grado O{orden} {uid}", orden=orden)
+            grado = await make_grado_puesto(
+                db,
+                nombre=f"Grado O{orden} {uid}",
+                orden=orden,
+                career_path_id=career_path.id,
+            )
         grados.append(grado)
     return sorted(grados, key=lambda g: g.orden)
 
@@ -237,12 +376,28 @@ async def make_grupo_competencia(
     db: AsyncSession,
     *,
     nombre: str | None = None,
+    codigo: str | None = None,
     activo: bool = True,
 ) -> GrupoCompetencia:
-    """Factory para crear un GrupoCompetencia en el catalogo."""
+    """
+    Factory para crear una categoria de competencia (GrupoCompetencia).
+
+    Es get-or-create por `codigo`: el codigo se deriva del nombre y es unico, asi
+    que dos llamadas que pidan la misma categoria ("Tecnica X" y "Tecnica Y")
+    devuelven la misma fila, igual que en produccion — una categoria, una fila.
+    """
     uid = uuid.uuid4().hex[:6]
     _nombre = nombre or f"Grupo Test {uid}"
-    grupo = GrupoCompetencia(nombre=_nombre, activo=activo)
+    _codigo = codigo or slug_codigo_grupo(_nombre)
+
+    existente = await db.execute(
+        select(GrupoCompetencia).where(GrupoCompetencia.codigo == _codigo)
+    )
+    grupo = existente.scalar_one_or_none()
+    if grupo:
+        return grupo
+
+    grupo = GrupoCompetencia(nombre=_nombre, codigo=_codigo, activo=activo)
     db.add(grupo)
     await db.flush()
     await db.refresh(grupo)

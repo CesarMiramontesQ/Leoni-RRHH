@@ -52,6 +52,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.utils.clasificacion_bootstrap import get_or_create_career_path
+from app.utils.competencia_categoria import slug_codigo_grupo
 from app.models.actas import ActaAdministrativa
 from app.models.catalogos import Area
 from app.models.ciclo_desempeno import CicloDesempeno, CicloDesempenoResultado
@@ -228,15 +230,27 @@ async def _get_or_create(s: AsyncSession, modelo, filtros: dict, defaults: dict 
 
 
 async def _grados_activos(s: AsyncSession, cuantos: int) -> list[GradoPuesto]:
-    """Los primeros grados activos por `orden`. La BD real trae duplicados de
-    nombre con `activo=False`, asi que se filtra explicitamente."""
+    """
+    Los primeros global levels activos por `orden` de UN career path.
+
+    Se acota a un career path porque el perfil exige que su rango sea consecutivo
+    dentro del mismo path: mezclar P1 con M2 daria un rango invalido. La BD real
+    trae duplicados de nombre con `activo=False`, asi que se filtra explicitamente.
+    """
+    career_path = await get_or_create_career_path(s)
     result = await s.execute(
-        select(GradoPuesto).where(GradoPuesto.activo.is_(True)).order_by(GradoPuesto.orden)
+        select(GradoPuesto)
+        .where(
+            GradoPuesto.activo.is_(True),
+            GradoPuesto.career_path_id == career_path.id,
+        )
+        .order_by(GradoPuesto.orden)
     )
     grados = list(result.scalars().all())[:cuantos]
     if len(grados) < cuantos:
         raise RuntimeError(
-            f"Se necesitan {cuantos} grados activos en levelup_grados_puesto y hay {len(grados)}."
+            f"Se necesitan {cuantos} global levels activos del career path "
+            f"'{career_path.codigo}' en levelup_grados_puesto y hay {len(grados)}."
         )
     return grados
 
@@ -319,7 +333,10 @@ async def seed_talento_demo(
         grupos: dict[str, GrupoCompetencia] = {}
         for grupo_nombre in GRUPOS_DEMO:
             grupos[grupo_nombre] = await _get_or_create(
-                s, GrupoCompetencia, {"nombre": grupo_nombre}, {"activo": True}
+                s,
+                GrupoCompetencia,
+                {"nombre": grupo_nombre},
+                {"activo": True, "codigo": slug_codigo_grupo(grupo_nombre)},
             )
         tipos: dict[str, TipoCompetencia] = {}
         for tipo_nombre, grupo_nombre in TIPOS_POR_GRUPO:

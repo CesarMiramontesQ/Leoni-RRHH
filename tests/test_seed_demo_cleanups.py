@@ -38,7 +38,7 @@ async def _competencia(db: AsyncSession, nombre: str) -> Competencia:
         await db.execute(select(GrupoCompetencia).where(GrupoCompetencia.nombre == "G"))
     ).scalar_one_or_none()
     if grupo is None:
-        grupo = GrupoCompetencia(nombre="G", activo=True)
+        grupo = GrupoCompetencia(nombre="G", codigo="g", activo=True)
         db.add(grupo)
         await db.flush()
     tipo = (

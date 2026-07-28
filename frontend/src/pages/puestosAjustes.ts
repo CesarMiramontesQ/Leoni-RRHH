@@ -7,15 +7,22 @@ import { mountGradosSection } from "../components/puestos/ajustes/gradosSection.
 import { mountTiposCompetenciaSection } from "../components/puestos/ajustes/tiposCompetenciaSection.ts";
 import { mountTiposCualificacionSection } from "../components/puestos/ajustes/tiposCualificacionSection.ts";
 import {
+  mountCareerPathsSection,
+  mountDisciplinasSection,
+  mountFuncionesSection,
+} from "../components/puestos/ajustes/clasificacionSections.ts";
+import { mountCategoriasTareaSection } from "../components/puestos/ajustes/categoriasTareaSection.ts";
+import {
   AJUSTES_ICON_COMPETENCY,
   AJUSTES_ICON_GRADES,
   AJUSTES_ICON_QUAL,
+  AJUSTES_ICON_TYPE,
 } from "../components/puestos/ajustes/ajustesSectionUi.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
 import { pageHeading, RH_LISTADO_PAGE_OUTER_GRADIENT, RH_LISTADO_SURFACE } from "../ui/uiTokens.ts";
 import { talentoEyebrow } from "../talento/pageKit.ts";
 
-type TabId = "estructura" | "competencias" | "cualificaciones";
+type TabId = "clasificacion" | "competencias" | "tareas" | "cualificaciones";
 
 const TABS: {
   id: TabId;
@@ -26,12 +33,12 @@ const TABS: {
   icon: string;
 }[] = [
   {
-    id: "estructura",
-    label: "Estructura",
-    eyebrow: "Progresión",
-    title: "Grados de puesto",
+    id: "clasificacion",
+    label: "Clasificación",
+    eyebrow: "Towers Watson",
+    title: "Clasificación del puesto",
     description:
-      "Define el catálogo global de grados. Cada perfil usa un rango consecutivo de estos valores.",
+      "Career path, función, disciplina y global levels. Es la identidad oficial del puesto y la base de competencias, tareas y planes de carrera.",
     icon: AJUSTES_ICON_GRADES,
   },
   {
@@ -42,6 +49,15 @@ const TABS: {
     description:
       "Grupos, tipos y escala de dominio que alimentan la matriz de multihabilidad y los perfiles.",
     icon: AJUSTES_ICON_COMPETENCY,
+  },
+  {
+    id: "tareas",
+    label: "Tareas",
+    eyebrow: "Responsabilidades",
+    title: "Catálogos de tareas",
+    description:
+      "Categorías con las que se clasifican las responsabilidades de cada puesto.",
+    icon: AJUSTES_ICON_TYPE,
   },
   {
     id: "cualificaciones",
@@ -90,8 +106,17 @@ function renderTabIntro(tab: (typeof TABS)[number]): string {
 function renderPanel(tabId: TabId, activeTab: TabId): string {
   const tab = TABS.find((t) => t.id === tabId)!;
   let body = "";
-  if (tabId === "estructura") {
-    body = `<div id="puestos-ajustes-grados" class="min-w-0"></div>`;
+  if (tabId === "clasificacion") {
+    body = `<div class="flex flex-col gap-5">
+      <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <div id="puestos-ajustes-career-paths" class="min-w-0"></div>
+        <div id="puestos-ajustes-funciones" class="min-w-0"></div>
+      </div>
+      <div id="puestos-ajustes-disciplinas" class="min-w-0"></div>
+      <div id="puestos-ajustes-grados" class="min-w-0"></div>
+    </div>`;
+  } else if (tabId === "tareas") {
+    body = `<div id="puestos-ajustes-categorias-tarea" class="min-w-0"></div>`;
   } else if (tabId === "competencias") {
     body = `<div class="flex flex-col gap-5">
       <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -115,16 +140,34 @@ function renderPanel(tabId: TabId, activeTab: TabId): string {
 }
 
 export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal): void {
-  let activeTab: TabId = "estructura";
+  let activeTab: TabId = "clasificacion";
   const mounted = new Set<TabId>();
 
   function mountTabSections(tabId: TabId): void {
     if (mounted.has(tabId)) return;
     mounted.add(tabId);
 
-    if (tabId === "estructura") {
+    if (tabId === "clasificacion") {
+      const careerPathsHost = container.querySelector("#puestos-ajustes-career-paths");
+      if (careerPathsHost instanceof HTMLElement) {
+        mountCareerPathsSection(careerPathsHost, signal);
+      }
+      const funcionesHost = container.querySelector("#puestos-ajustes-funciones");
+      if (funcionesHost instanceof HTMLElement) mountFuncionesSection(funcionesHost, signal);
+      const disciplinasHost = container.querySelector("#puestos-ajustes-disciplinas");
+      if (disciplinasHost instanceof HTMLElement) {
+        mountDisciplinasSection(disciplinasHost, signal);
+      }
       const gradosHost = container.querySelector("#puestos-ajustes-grados");
       if (gradosHost instanceof HTMLElement) mountGradosSection(gradosHost, signal);
+      return;
+    }
+
+    if (tabId === "tareas") {
+      const categoriasHost = container.querySelector("#puestos-ajustes-categorias-tarea");
+      if (categoriasHost instanceof HTMLElement) {
+        mountCategoriasTareaSection(categoriasHost, signal);
+      }
       return;
     }
 
@@ -168,8 +211,9 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
           ${renderTabs(activeTab)}
         </div>
         <div id="puestos-ajustes-panels" class="flex flex-col gap-5">
-          ${renderPanel("estructura", activeTab)}
+          ${renderPanel("clasificacion", activeTab)}
           ${renderPanel("competencias", activeTab)}
+          ${renderPanel("tareas", activeTab)}
           ${renderPanel("cualificaciones", activeTab)}
         </div>
       </div>`,

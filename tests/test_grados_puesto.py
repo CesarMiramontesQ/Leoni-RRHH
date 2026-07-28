@@ -7,6 +7,7 @@ from httpx import AsyncClient
 from tests.conftest import auth_headers, make_empleado
 from tests.conftest_talento import (
     get_default_grado,
+    make_career_path,
     make_competencia,
     make_competencia_requisito,
     make_grado_puesto,
@@ -18,34 +19,109 @@ from tests.conftest_talento import (
 @pytest.mark.asyncio
 async def test_crear_grado_puesto_success(client, db):
     rh = await make_empleado(db, rol="rh", email="gp_crear@leoni.test")
+    career_path = await make_career_path(db)
     headers = await auth_headers(client, rh)
 
     response = await client.post(
         "/api/v1/grados-puesto",
-        json={"nombre": "Grado Especial", "orden": 10},
+        json={
+            "career_path_id": career_path.id,
+            "codigo": "P10",
+            "nombre": "Grado Especial",
+            "orden": 10,
+        },
         headers=headers,
     )
 
     assert response.status_code == 201
     data = response.json()
     assert data["nombre"] == "Grado Especial"
+    assert data["codigo"] == "P10"
     assert data["orden"] == 10
+    assert data["career_path_id"] == career_path.id
+    assert data["career_path_codigo"] == "P"
     assert data["activo"] is True
 
 
 @pytest.mark.asyncio
 async def test_crear_grado_puesto_duplicado_nombre(client, db):
     rh = await make_empleado(db, rol="rh", email="gp_dup@leoni.test")
-    await make_grado_puesto(db, nombre="Grado Dup Test", orden=11)
+    career_path = await make_career_path(db)
+    await make_grado_puesto(
+        db, nombre="Grado Dup Test", orden=11, career_path_id=career_path.id
+    )
     headers = await auth_headers(client, rh)
 
     response = await client.post(
         "/api/v1/grados-puesto",
-        json={"nombre": "Grado Dup Test", "orden": 12},
+        json={
+            "career_path_id": career_path.id,
+            "codigo": "P12",
+            "nombre": "Grado Dup Test",
+            "orden": 12,
+        },
         headers=headers,
     )
 
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_mismo_orden_en_career_paths_distintos_convive(client, db):
+    """P1 y M1 comparten `orden`: la unicidad es por career path, no global."""
+    rh = await make_empleado(db, rol="rh", email="gp_paths@leoni.test")
+    professional = await make_career_path(db, codigo="P")
+    management = await make_career_path(db, codigo="M", nombre="Management")
+    await make_grado_puesto(
+        db, nombre="P1", codigo="P1", orden=1, career_path_id=professional.id
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/grados-puesto",
+        json={
+            "career_path_id": management.id,
+            "codigo": "M1",
+            "nombre": "M1",
+            "orden": 1,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["orden"] == 1
+
+    # Dentro del mismo career path el orden sigue siendo unico.
+    duplicado = await client.post(
+        "/api/v1/grados-puesto",
+        json={
+            "career_path_id": management.id,
+            "codigo": "M1-bis",
+            "nombre": "M1 bis",
+            "orden": 1,
+        },
+        headers=headers,
+    )
+    assert duplicado.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_listar_grados_puesto_filtra_por_career_path(client, db):
+    rh = await make_empleado(db, rol="rh", email="gp_filtro_path@leoni.test")
+    professional = await make_career_path(db, codigo="P")
+    management = await make_career_path(db, codigo="M", nombre="Management")
+    await make_grado_puesto(db, nombre="P5", orden=5, career_path_id=professional.id)
+    await make_grado_puesto(db, nombre="M5", orden=5, career_path_id=management.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.get(
+        f"/api/v1/grados-puesto?career_path_id={management.id}", headers=headers
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert items
+    assert all(i["career_path_id"] == management.id for i in items)
 
 
 @pytest.mark.asyncio

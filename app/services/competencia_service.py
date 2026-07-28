@@ -46,7 +46,6 @@ from app.services.metodo_calificacion_competencia_service import (
     MetodoCalificacionCompetenciaService,
 )
 from app.services.tipo_competencia_service import TipoCompetenciaService
-from app.utils.competencia_categoria import categoria_desde_grupo_nombre
 from app.schemas.talento import (
     BrechaItem,
     BrechasResponse,
@@ -93,9 +92,7 @@ class CompetenciaService:
         tipo_nombre = comp.tipo_competencia.nombre if comp.tipo_competencia else ""
         tipo_grupo = ""
         if comp.tipo_competencia and comp.tipo_competencia.grupo_competencia:
-            tipo_grupo = categoria_desde_grupo_nombre(
-                comp.tipo_competencia.grupo_competencia.nombre
-            )
+            tipo_grupo = comp.tipo_competencia.grupo_competencia.codigo
         return CompetenciaResponse(
             id=comp.id,
             nombre=comp.nombre,
@@ -182,7 +179,7 @@ class CompetenciaService:
 
         tipo_service = TipoCompetenciaService(self.db)
         tipo = await tipo_service.validar_tipo_activo(data.tipo_competencia_id)
-        categoria = categoria_desde_grupo_nombre(tipo.grupo_competencia.nombre)
+        categoria = tipo.grupo_competencia.codigo
 
         if await self.repo.exists_by_nombre_categoria(data.nombre, categoria):
             raise ConflictError(
@@ -216,7 +213,7 @@ class CompetenciaService:
         tipo_service = TipoCompetenciaService(self.db)
         nuevo_tipo_id = data.tipo_competencia_id or comp.tipo_competencia_id
         tipo = await tipo_service.validar_tipo_activo(nuevo_tipo_id)
-        categoria_check = categoria_desde_grupo_nombre(tipo.grupo_competencia.nombre)
+        categoria_check = tipo.grupo_competencia.codigo
 
         nombre_check = data.nombre or comp.nombre
         if nombre_check != comp.nombre or categoria_check != comp.categoria:
@@ -234,9 +231,7 @@ class CompetenciaService:
             update_data["descripcion"] = data.descripcion
         if data.tipo_competencia_id is not None:
             update_data["tipo_competencia_id"] = tipo.id
-            update_data["categoria"] = categoria_desde_grupo_nombre(
-                tipo.grupo_competencia.nombre
-            )
+            update_data["categoria"] = tipo.grupo_competencia.codigo
         if data.area_id is not None:
             update_data["area_id"] = data.area_id
 
@@ -367,10 +362,11 @@ class CompetenciaService:
         if not user_has_module(current_user, "competencias"):
             raise ForbiddenError(detail="Solo RH puede actualizar la matriz de competencias")
 
-        grado_default = await self.grado_repo.get_by_orden(1)
-        if not grado_default:
-            raise NotFoundError(entidad="GradoPuesto", id=0)
-
+        # La matriz por area no distingue global level, asi que escribe el requisito
+        # GENERAL del perfil (grado_id NULL), que es el mecanismo que introdujo la
+        # migracion g2r3a4d5o6s7 y que el indice parcial unico ya soporta.
+        # Antes fijaba el grado de orden 1; con Career Paths ese orden dejo de ser
+        # unico (P1 y M1 comparten orden) y la consulta era ambigua.
         actualizados = 0
         errores: list[str] = []
 
@@ -413,7 +409,7 @@ class CompetenciaService:
             await self.requisito_repo.upsert(
                 competencia_id=celda.competencia_id,
                 puesto_perfil_id=celda.puesto_perfil_id,
-                grado_id=grado_default.id,
+                grado_id=None,
                 nivel_requerido=celda.nivel_requerido,
             )
             actualizados += 1
