@@ -8,16 +8,24 @@ Un puesto oficialmente clasificado por RH se identifica por:
 La evaluacion que asigna esos valores se realiza FUERA del sistema; aqui solo se
 registran, administran y mantienen.
 
+Un puesto oficialmente clasificado por RH se identifica por:
+    Career Path + Funcion + Disciplina + Global Level + Global Grade
+
 Entidades:
   - CareerPath: catalogo de trayectorias (Professional, Management)
   - FuncionPuesto: catalogo de funciones / job families (Ingenieria, Calidad, ...)
   - DisciplinaPuesto: catalogo de disciplinas, dependiente de la funcion
+  - GlobalGrade: catalogo de grados organizacionales (GG01..GGnn)
+  - GlobalLevelGradeMapping: equivalencia configurable Global Level -> Global Grade
   - CategoriaTarea: catalogo de categorias para las responsabilidades del puesto
   - PuestoPerfilClasificacionHistorial: bitacora append-only de la clasificacion
 
 El Global Level vive en `GradoPuesto` (`levelup_grados_puesto`, en `app/models/talento.py`),
 que gana `career_path_id` y `codigo`: la tabla no se renombra porque cuatro tablas la
 referencian por FK.
+
+El Global Grade clasifica el puesto dentro de la estructura organizacional. NO representa
+sueldo, banda salarial ni compensacion: este sistema no administra nada de eso.
 """
 
 from datetime import datetime
@@ -34,6 +42,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -126,6 +135,87 @@ class DisciplinaPuesto(Base):
         )
 
 
+class GlobalGrade(Base):
+    """
+    Catalogo de Global Grades (GG01, GG02, ...).
+
+    Es la clasificacion organizacional oficial del puesto. El formato del codigo lo
+    define RH desde el catalogo: no hay valores fijos en codigo.
+
+    No tiene ninguna relacion con sueldos, bandas salariales ni compensaciones; este
+    sistema no administra esos conceptos.
+    """
+
+    __tablename__ = "levelup_global_grades"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    nombre: Mapped[str] = mapped_column(String(100), nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    orden: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    equivalencias: Mapped[List["GlobalLevelGradeMapping"]] = relationship(
+        "GlobalLevelGradeMapping", back_populates="global_grade"
+    )
+
+    def __repr__(self) -> str:
+        return f"<GlobalGrade id={self.id} codigo={self.codigo} orden={self.orden}>"
+
+
+class GlobalLevelGradeMapping(Base):
+    """
+    Equivalencia configurable entre un Global Level y un Global Grade.
+
+    RH la define; el sistema nunca la calcula. La unicidad es por global level: un
+    nivel equivale a un solo grado. El career path no se guarda aqui porque ya
+    cuelga del global level (`GradoPuesto.career_path_id`) y duplicarlo permitiria
+    que las dos copias se contradigan.
+
+    No se asume ninguna correspondencia por defecto: P10 puede equivaler a GG09 y
+    M1 a GG10 si asi lo define la organizacion.
+    """
+
+    __tablename__ = "levelup_global_level_grade_mappings"
+    __table_args__ = (
+        UniqueConstraint(
+            "global_level_id", name="uq_levelup_global_level_grade_mapping_level"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    global_level_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_grados_puesto.id"), nullable=False
+    )
+    global_grade_id: Mapped[int] = mapped_column(
+        ForeignKey("levelup_global_grades.id"), nullable=False
+    )
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    global_level: Mapped["GradoPuesto"] = relationship("GradoPuesto")
+    global_grade: Mapped["GlobalGrade"] = relationship(
+        "GlobalGrade", back_populates="equivalencias"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<GlobalLevelGradeMapping global_level_id={self.global_level_id} "
+            f"global_grade_id={self.global_grade_id}>"
+        )
+
+
 class CategoriaTarea(Base):
     """Catalogo de categorias para las responsabilidades del puesto."""
 
@@ -157,9 +247,15 @@ class PuestoPerfilClasificacionHistorial(Base):
     Bitacora append-only de la clasificacion de un perfil.
 
     Se escribe una fila al crear el perfil y cada vez que cambia cualquier campo de
-    clasificacion (career path, funcion, disciplina, rango de global level o estado).
-    Es la base de "historial de clasificacion" y de los modulos futuros de planes de
-    carrera y matrices de sucesion: nunca se actualiza ni se borra.
+    clasificacion (career path, funcion, disciplina, rango de global level, global
+    grade o estado). Nunca se actualiza ni se borra.
+
+    Cada fila guarda dos cosas complementarias:
+      - la FOTO del estado resultante (columnas `*_id`, `estado`, `version`), que
+        responde "que clasificacion tenia este puesto en tal fecha" — lo que van a
+        necesitar planes de carrera y matrices de sucesion;
+      - el DIFF en `cambios`, con el valor anterior y el nuevo de cada campo que se
+        movio, para pintar la bitacora sin tener que leer la fila previa.
     """
 
     __tablename__ = "levelup_puesto_perfil_clasificacion_historial"
@@ -190,10 +286,21 @@ class PuestoPerfilClasificacionHistorial(Base):
     global_level_hasta_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_grados_puesto.id"), nullable=True
     )
+    global_grade_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_global_grades.id"), nullable=True
+    )
     estado: Mapped[Optional[str]] = mapped_column(
         String(20), nullable=True, comment="activo|inactivo|en_revision"
     )
     version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    cambios: Mapped[Optional[list]] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment=(
+            "Diff del evento: [{campo, etiqueta, anterior, nuevo}] con los valores "
+            "ya resueltos a texto legible"
+        ),
+    )
     motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     changed_by: Mapped[Optional[int]] = mapped_column(
         ForeignKey("empleados.empleado_id"), nullable=True
@@ -214,6 +321,7 @@ class PuestoPerfilClasificacionHistorial(Base):
     global_level_hasta: Mapped[Optional["GradoPuesto"]] = relationship(
         "GradoPuesto", foreign_keys=[global_level_hasta_id]
     )
+    global_grade: Mapped[Optional["GlobalGrade"]] = relationship("GlobalGrade")
 
     def __repr__(self) -> str:
         return (

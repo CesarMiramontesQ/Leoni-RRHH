@@ -18,6 +18,8 @@ from httpx import AsyncClient
 
 from tests.conftest import auth_headers, make_empleado
 from tests.conftest_talento import (
+    make_clasificacion_payload,
+    make_equivalencia,
     make_area,
     make_grados_consecutivos,
     make_perfil_funciones,
@@ -38,7 +40,8 @@ async def _grado_ids(db, *, ordenes):
 async def test_create_perfil_con_grados_consecutivos_success(client: AsyncClient, db):
     """RH crea perfil con grados consecutivos → 201, grados ordenados por orden."""
     area = await make_area(db, descripcion="Manufactura")
-    grados = await make_grados_consecutivos(db, ordenes=[7, 8, 9])
+    clasificacion = await make_clasificacion_payload(db, ordenes=[7, 8, 9])
+    grados = clasificacion["grado_ids"]
     rh = await make_empleado(db, rol="rh", email="pp_create_ok@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -47,7 +50,7 @@ async def test_create_perfil_con_grados_consecutivos_success(client: AsyncClient
         "nombre": "Ingeniero de Procesos",
         "descripcion": "Optimizar procesos",
         "area_id": area.area_id,
-        "grado_ids": [g.id for g in grados],
+        **clasificacion,
     }
     response = await client.post("/api/v1/puestos-perfil", json=payload, headers=headers)
 
@@ -62,14 +65,14 @@ async def test_create_perfil_con_grados_consecutivos_success(client: AsyncClient
     assert body["created_by"] == rh.id
     ordenes = [g["orden"] for g in body["grados"]]
     assert ordenes == [7, 8, 9]
-    assert [g["id"] for g in body["grados"]] == [g.id for g in grados]
+    assert [g["id"] for g in body["grados"]] == grados
 
 
 @pytest.mark.asyncio
 async def test_create_perfil_grados_no_consecutivos_error(client: AsyncClient, db):
     """Grados no consecutivos (7,9,10) → 400/422 con mensaje 'consecutivos'."""
     area = await make_area(db, descripcion="Area NoConsec")
-    grados = await make_grados_consecutivos(db, ordenes=[7, 9, 10])
+    clasificacion = await make_clasificacion_payload(db, ordenes=[7, 9, 10])
     rh = await make_empleado(db, rol="rh", email="pp_noconsec@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -79,7 +82,7 @@ async def test_create_perfil_grados_no_consecutivos_error(client: AsyncClient, d
             "codigo": "NC-01",
             "nombre": "Perfil NoConsec",
             "area_id": area.area_id,
-            "grado_ids": [g.id for g in grados],
+            **clasificacion,
         },
         headers=headers,
     )
@@ -127,53 +130,51 @@ async def test_create_perfil_sin_area_422(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_create_perfil_grado_duplicado_en_area_409(client: AsyncClient, db):
-    """Grado ya usado en la misma area → 409; el mismo grado en otra area → 201."""
-    area_a = await make_area(db, descripcion="Area A Grado")
-    area_b = await make_area(db, descripcion="Area B Grado")
-    grados = await make_grados_consecutivos(db, ordenes=[1, 2, 3])
+async def test_varios_perfiles_comparten_global_level_en_la_misma_area(
+    client: AsyncClient, db
+):
+    """
+    Dos puestos distintos de la misma area pueden estar en el mismo global level.
+
+    Antes habia una regla que lo bloqueaba con 409. Con la metodologia Towers
+    Watson es invalida: el nivel mide el tamano del puesto, no lo ocupa en
+    exclusiva, y en Ingenieria puede haber varios puestos en P10.
+    """
+    area = await make_area(db, descripcion="Area Global Level Compartido")
+    clasificacion = await make_clasificacion_payload(db, ordenes=[1, 2, 3])
+    grado_ids = clasificacion["grado_ids"]
     rh = await make_empleado(db, rol="rh", email="pp_grado_dup@leoni.test")
     headers = await auth_headers(client, rh)
 
-    # Perfil base en area A con grados 1,2,3
     r0 = await client.post(
         "/api/v1/puestos-perfil",
         json={
             "codigo": "GD-BASE",
             "nombre": "Perfil Base Grado",
-            "area_id": area_a.area_id,
-            "grado_ids": [g.id for g in grados],
+            "area_id": area.area_id,
+            **clasificacion,
         },
         headers=headers,
     )
     assert r0.status_code == 201, r0.text
 
-    # Otro perfil en area A reusando grado 2 → 409
+    # El segundo perfil arranca en el nivel intermedio, asi que necesita su propia
+    # equivalencia: el global grade se resuelve por el nivel inicial del rango.
+    await make_equivalencia(db, global_level_id=grado_ids[1])
+
+    # Otro perfil de la MISMA area reusando el mismo nivel intermedio.
     r1 = await client.post(
         "/api/v1/puestos-perfil",
         json={
             "codigo": "GD-DUP",
             "nombre": "Perfil Dup Grado",
-            "area_id": area_a.area_id,
-            "grado_ids": [grados[1].id],
+            "area_id": area.area_id,
+            **{**clasificacion, "grado_ids": [grado_ids[1]]},
         },
         headers=headers,
     )
-    assert r1.status_code == 409
-    assert "grado" in r1.json()["detail"].lower()
-
-    # Mismo grado 2 pero en area B → 201
-    r2 = await client.post(
-        "/api/v1/puestos-perfil",
-        json={
-            "codigo": "GD-OTRA",
-            "nombre": "Perfil Otra Area Grado",
-            "area_id": area_b.area_id,
-            "grado_ids": [grados[1].id],
-        },
-        headers=headers,
-    )
-    assert r2.status_code == 201, r2.text
+    assert r1.status_code == 201, r1.text
+    assert [g["id"] for g in r1.json()["grados"]] == [grado_ids[1]]
 
 
 # ---------------------------------------------------------------------------
@@ -244,8 +245,8 @@ async def test_update_perfil_no_permite_quitar_grado_en_uso_409(client: AsyncCli
 async def test_nombre_duplicado_misma_area_409(client: AsyncClient, db):
     """Mismo nombre en la misma area → 409."""
     area = await make_area(db, descripcion="Area Nombre Dup")
-    grados_a = await make_grados_consecutivos(db, ordenes=[1, 2])
-    grados_b = await make_grados_consecutivos(db, ordenes=[3, 4])
+    clasif_a = await make_clasificacion_payload(db, ordenes=[1, 2])
+    clasif_b = await make_clasificacion_payload(db, ordenes=[3, 4])
     rh = await make_empleado(db, rol="rh", email="pp_nom_dup@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -253,7 +254,7 @@ async def test_nombre_duplicado_misma_area_409(client: AsyncClient, db):
     r1 = await client.post(
         "/api/v1/puestos-perfil",
         json={"codigo": "NOM-1", "nombre": nombre, "area_id": area.area_id,
-              "grado_ids": [g.id for g in grados_a]},
+              **clasif_a},
         headers=headers,
     )
     assert r1.status_code == 201, r1.text
@@ -261,7 +262,7 @@ async def test_nombre_duplicado_misma_area_409(client: AsyncClient, db):
     r2 = await client.post(
         "/api/v1/puestos-perfil",
         json={"codigo": "NOM-2", "nombre": nombre, "area_id": area.area_id,
-              "grado_ids": [g.id for g in grados_b]},
+              **clasif_b},
         headers=headers,
     )
     assert r2.status_code == 409
@@ -273,7 +274,7 @@ async def test_nombre_duplicado_otra_area_ok(client: AsyncClient, db):
     """Mismo nombre en otra area → 201."""
     area_a = await make_area(db, descripcion="Area Nom A")
     area_b = await make_area(db, descripcion="Area Nom B")
-    grados = await make_grados_consecutivos(db, ordenes=[1, 2])
+    clasificacion = await make_clasificacion_payload(db, ordenes=[1, 2])
     rh = await make_empleado(db, rol="rh", email="pp_nom_otra@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -281,7 +282,7 @@ async def test_nombre_duplicado_otra_area_ok(client: AsyncClient, db):
     r1 = await client.post(
         "/api/v1/puestos-perfil",
         json={"codigo": "NOMA-1", "nombre": nombre, "area_id": area_a.area_id,
-              "grado_ids": [g.id for g in grados]},
+              **clasificacion},
         headers=headers,
     )
     assert r1.status_code == 201, r1.text
@@ -289,7 +290,7 @@ async def test_nombre_duplicado_otra_area_ok(client: AsyncClient, db):
     r2 = await client.post(
         "/api/v1/puestos-perfil",
         json={"codigo": "NOMA-2", "nombre": nombre, "area_id": area_b.area_id,
-              "grado_ids": [g.id for g in grados]},
+              **clasificacion},
         headers=headers,
     )
     assert r2.status_code == 201, r2.text
@@ -353,7 +354,7 @@ async def test_resumen_tarjetas_incluye_grados(client: AsyncClient, db):
 async def test_create_puesto_perfil_tipo_operativo(client: AsyncClient, db):
     """Crear perfil con tipo operativo explícito → 201."""
     area = await make_area(db, descripcion="Area Tipo Op")
-    grados = await _grado_ids(db, ordenes=[1, 2])
+    clasificacion = await make_clasificacion_payload(db, ordenes=[1, 2])
     rh = await make_empleado(db, rol="rh", email="pp_tipo_op@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -363,8 +364,8 @@ async def test_create_puesto_perfil_tipo_operativo(client: AsyncClient, db):
             "codigo": "OP-LINEA-01",
             "nombre": "Operador de Linea",
             "area_id": area.area_id,
-            "grado_ids": grados,
             "tipo": "operativo",
+            **clasificacion,
         },
         headers=headers,
     )
@@ -453,7 +454,7 @@ async def test_list_puestos_perfil_filter_area(client: AsyncClient, db):
 async def test_create_puesto_perfil_duplicate_codigo(client: AsyncClient, db):
     """Crear perfil con codigo duplicado → 409."""
     area = await make_area(db, descripcion="Area Cod Dup")
-    grados = await _grado_ids(db, ordenes=[3, 4])
+    clasificacion = await make_clasificacion_payload(db, ordenes=[3, 4])
     rh = await make_empleado(db, rol="rh", email="pp_dup_cod@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -462,7 +463,7 @@ async def test_create_puesto_perfil_duplicate_codigo(client: AsyncClient, db):
     response = await client.post(
         "/api/v1/puestos-perfil",
         json={"codigo": "DUP-COD-01", "nombre": "Otro Perfil",
-              "area_id": area.area_id, "grado_ids": grados},
+              "area_id": area.area_id, **clasificacion},
         headers=headers,
     )
     assert response.status_code == 409

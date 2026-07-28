@@ -7,9 +7,15 @@ import type {
   DisciplinaPuesto,
   DisciplinaPuestoCreatePayload,
   DisciplinaPuestoUpdatePayload,
+  Equivalencia,
+  EquivalenciaCreatePayload,
+  EquivalenciaUpdatePayload,
   FuncionPuesto,
   FuncionPuestoCreatePayload,
   FuncionPuestoUpdatePayload,
+  GlobalGrade,
+  GlobalGradeCreatePayload,
+  GlobalGradeUpdatePayload,
 } from "../dashboard/clasificacionPuesto/types.ts";
 
 const BASE = "/api/v1/clasificacion-puesto";
@@ -183,4 +189,107 @@ export async function updateDisciplinaPuesto(
 
 export async function deleteDisciplinaPuesto(id: number): Promise<void> {
   return eliminar(`${BASE}/disciplinas/${id}`);
+}
+
+// ── Global Grades ───────────────────────────────────────────────────────────
+
+function mapGlobalGrade(raw: Record<string, unknown>): GlobalGrade {
+  return {
+    id: raw.id as number,
+    codigo: (raw.codigo ?? "") as string,
+    nombre: (raw.nombre ?? "") as string,
+    descripcion: (raw.descripcion ?? null) as string | null,
+    orden: (raw.orden ?? 0) as number,
+    activo: (raw.activo ?? true) as boolean,
+    created_at: (raw.created_at ?? "") as string,
+    updated_at: (raw.updated_at ?? "") as string,
+  };
+}
+
+/** GET /api/v1/clasificacion-puesto/global-grades */
+export async function getGlobalGrades(opts?: {
+  busqueda?: string;
+}): Promise<GlobalGrade[]> {
+  const qs = new URLSearchParams({ page: "1", page_size: "200" });
+  if (opts?.busqueda?.trim()) qs.set("busqueda", opts.busqueda.trim());
+  return listar(`${BASE}/global-grades?${qs}`, mapGlobalGrade);
+}
+
+export async function createGlobalGrade(
+  payload: GlobalGradeCreatePayload,
+): Promise<GlobalGrade> {
+  return mutar(`${BASE}/global-grades`, "POST", payload, mapGlobalGrade);
+}
+
+export async function updateGlobalGrade(
+  id: number,
+  payload: GlobalGradeUpdatePayload,
+): Promise<GlobalGrade> {
+  return mutar(`${BASE}/global-grades/${id}`, "PATCH", payload, mapGlobalGrade);
+}
+
+export async function deleteGlobalGrade(id: number): Promise<void> {
+  return eliminar(`${BASE}/global-grades/${id}`);
+}
+
+// ── Equivalencias Global Level ↔ Global Grade ───────────────────────────────
+
+function mapEquivalencia(raw: Record<string, unknown>): Equivalencia {
+  return {
+    id: raw.id as number,
+    global_level_id: (raw.global_level_id ?? 0) as number,
+    global_level_codigo: (raw.global_level_codigo ?? null) as string | null,
+    global_level_nombre: (raw.global_level_nombre ?? null) as string | null,
+    career_path_id: (raw.career_path_id ?? null) as number | null,
+    career_path_codigo: (raw.career_path_codigo ?? null) as string | null,
+    career_path_nombre: (raw.career_path_nombre ?? null) as string | null,
+    global_grade_id: (raw.global_grade_id ?? 0) as number,
+    global_grade_codigo: (raw.global_grade_codigo ?? null) as string | null,
+    global_grade_nombre: (raw.global_grade_nombre ?? null) as string | null,
+    activo: (raw.activo ?? true) as boolean,
+    created_at: (raw.created_at ?? "") as string,
+    updated_at: (raw.updated_at ?? "") as string,
+  };
+}
+
+/** GET /api/v1/clasificacion-puesto/equivalencias */
+export async function getEquivalencias(opts?: {
+  career_path_id?: number;
+}): Promise<Equivalencia[]> {
+  const qs = new URLSearchParams({ page: "1", page_size: "500" });
+  if (opts?.career_path_id) qs.set("career_path_id", String(opts.career_path_id));
+  return listar(`${BASE}/equivalencias?${qs}`, mapEquivalencia);
+}
+
+/**
+ * Equivalencia configurada para un global level, o `null` si RH no la definió.
+ *
+ * `null` no es un error: significa que el global grade debe elegirse a mano.
+ */
+export async function resolverEquivalencia(
+  globalLevelId: number,
+): Promise<Equivalencia | null> {
+  const res = await fetchWithAuth(
+    `${BASE}/equivalencias/resolver?global_level_id=${globalLevelId}`,
+  );
+  if (!res.ok) fail(res, await readErrorDetail(res));
+  const data = (await res.json()) as Record<string, unknown> | null;
+  return data ? mapEquivalencia(data) : null;
+}
+
+export async function createEquivalencia(
+  payload: EquivalenciaCreatePayload,
+): Promise<Equivalencia> {
+  return mutar(`${BASE}/equivalencias`, "POST", payload, mapEquivalencia);
+}
+
+export async function updateEquivalencia(
+  id: number,
+  payload: EquivalenciaUpdatePayload,
+): Promise<Equivalencia> {
+  return mutar(`${BASE}/equivalencias/${id}`, "PATCH", payload, mapEquivalencia);
+}
+
+export async function deleteEquivalencia(id: number): Promise<void> {
+  return eliminar(`${BASE}/equivalencias/${id}`);
 }

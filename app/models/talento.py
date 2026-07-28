@@ -46,6 +46,7 @@ if TYPE_CHECKING:
         CategoriaTarea,
         DisciplinaPuesto,
         FuncionPuesto,
+        GlobalGrade,
         PuestoPerfilClasificacionHistorial,
     )
     from app.models.empleados import Empleado
@@ -89,6 +90,12 @@ class PuestoPerfil(Base):
     )
     disciplina_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("levelup_disciplinas_puesto.id"), nullable=True
+    )
+    # Clasificacion organizacional oficial (no tiene relacion con compensaciones).
+    # Se autocompleta desde la equivalencia configurada para el global level, pero
+    # RH puede fijarlo a mano si no hay equivalencia.
+    global_grade_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("levelup_global_grades.id"), nullable=True
     )
     # `activo` sigue siendo el soft-delete; el servicio mantiene la invariante
     # activo == (estado != 'inactivo') para no romper los filtros existentes.
@@ -142,6 +149,9 @@ class PuestoPerfil(Base):
     )
     disciplina: Mapped[Optional["DisciplinaPuesto"]] = relationship(
         "DisciplinaPuesto", foreign_keys=[disciplina_id]
+    )
+    global_grade: Mapped[Optional["GlobalGrade"]] = relationship(
+        "GlobalGrade", foreign_keys=[global_grade_id]
     )
     clasificacion_historial: Mapped[List["PuestoPerfilClasificacionHistorial"]] = relationship(
         "PuestoPerfilClasificacionHistorial",

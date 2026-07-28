@@ -27,9 +27,22 @@ from app.core.exceptions import (
 from app.core.rh_module_registry import user_has_module
 from app.models.empleados import Empleado
 from app.models.talento import GradoPuesto, PuestoPerfil
+from app.repositories.clasificacion_puesto_repository import (
+    CareerPathRepository,
+    DisciplinaPuestoRepository,
+    FuncionPuestoRepository,
+    GlobalGradeRepository,
+    GlobalLevelGradeMappingRepository,
+)
 from app.repositories.grado_puesto_repository import GradoPuestoRepository
-from app.repositories.puesto_perfil_repository import PuestoPerfilRepository
+from app.repositories.puesto_perfil_repository import (
+    ClasificacionHistorialRepository,
+    PuestoPerfilRepository,
+)
 from app.schemas.talento import (
+    ClasificacionCambioItem,
+    ClasificacionHistorialItem,
+    ClasificacionHistorialResponse,
     GenerarPerfilIARequest,
     GenerarPerfilIAResponse,
     GradoPerfilItem,
@@ -41,6 +54,19 @@ from app.schemas.talento import (
     ResumenTarjetasResponse,
 )
 
+ESTADOS_PERFIL = ("activo", "inactivo", "en_revision")
+
+# Campos que componen la clasificacion organizacional, con la etiqueta que se
+# muestra en el historial.
+CAMPOS_CLASIFICACION: tuple[tuple[str, str], ...] = (
+    ("career_path", "Career Path"),
+    ("funcion", "Funcion"),
+    ("disciplina", "Disciplina"),
+    ("global_level", "Global Level"),
+    ("global_grade", "Global Grade"),
+    ("estado", "Estado"),
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,33 +75,86 @@ class PuestoPerfilService:
         self.db = db
         self.repo = PuestoPerfilRepository(db)
         self.grado_repo = GradoPuestoRepository(db)
+        self.career_path_repo = CareerPathRepository(db)
+        self.funcion_repo = FuncionPuestoRepository(db)
+        self.disciplina_repo = DisciplinaPuestoRepository(db)
+        self.grade_repo = GlobalGradeRepository(db)
+        self.equivalencia_repo = GlobalLevelGradeMappingRepository(db)
+        self.historial_repo = ClasificacionHistorialRepository(db)
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _to_response(perfil: PuestoPerfil) -> PuestoPerfilResponse:
-        area_nombre = None
-        if perfil.area:
-            area_nombre = perfil.area.descripcion
-        grados = sorted(
+    def _grados_ordenados(perfil: PuestoPerfil) -> list[GradoPerfilItem]:
+        return sorted(
             (
-                GradoPerfilItem(id=g.grado.id, nombre=g.grado.nombre, orden=g.grado.orden)
+                GradoPerfilItem(
+                    id=g.grado.id,
+                    nombre=g.grado.nombre,
+                    orden=g.grado.orden,
+                    codigo=g.grado.codigo,
+                    career_path_codigo=(
+                        g.grado.career_path.codigo if g.grado.career_path else None
+                    ),
+                )
                 for g in perfil.grados_config
                 if g.grado
             ),
             key=lambda x: x.orden,
         )
+
+    @staticmethod
+    def _clasificacion_completa(perfil: PuestoPerfil) -> bool:
+        return all(
+            (
+                perfil.career_path_id,
+                perfil.funcion_id,
+                perfil.disciplina_id,
+                perfil.global_grade_id,
+            )
+        )
+
+    @classmethod
+    def _to_response(
+        cls,
+        perfil: PuestoPerfil,
+        clasificado_por: str | None = None,
+        clasificado_en=None,
+    ) -> PuestoPerfilResponse:
+        area_nombre = perfil.area.descripcion if perfil.area else None
         return PuestoPerfilResponse(
             id=perfil.id,
             codigo=perfil.codigo,
             nombre=perfil.nombre,
             area_id=perfil.area_id,
             area_nombre=area_nombre,
-            grados=grados,
+            grados=cls._grados_ordenados(perfil),
             tipo=perfil.tipo,
             descripcion=perfil.descripcion,
             version=perfil.version,
             activo=perfil.activo,
+            career_path_id=perfil.career_path_id,
+            career_path_codigo=(
+                perfil.career_path.codigo if perfil.career_path else None
+            ),
+            career_path_nombre=(
+                perfil.career_path.nombre if perfil.career_path else None
+            ),
+            funcion_id=perfil.funcion_id,
+            funcion_nombre=perfil.funcion.nombre if perfil.funcion else None,
+            disciplina_id=perfil.disciplina_id,
+            disciplina_nombre=perfil.disciplina.nombre if perfil.disciplina else None,
+            global_grade_id=perfil.global_grade_id,
+            global_grade_codigo=(
+                perfil.global_grade.codigo if perfil.global_grade else None
+            ),
+            global_grade_nombre=(
+                perfil.global_grade.nombre if perfil.global_grade else None
+            ),
+            estado=perfil.estado,
+            clasificacion_completa=cls._clasificacion_completa(perfil),
+            clasificado_por=clasificado_por,
+            clasificado_en=clasificado_en,
             created_by=perfil.created_by,
             updated_by=perfil.updated_by,
             created_at=perfil.created_at,
@@ -104,15 +183,159 @@ class PuestoPerfilService:
             )
         return sorted(grados, key=lambda g: g.orden)
 
-    async def _validar_grados_libres_en_area(
-        self, area_id: int, grado_ids: list[int], exclude_id: int | None = None
+    # ── Clasificacion organizacional ─────────────────────────────────────────
+
+    async def _validar_clasificacion(
+        self,
+        career_path_id: int | None,
+        funcion_id: int | None,
+        disciplina_id: int | None,
+        grados: list[GradoPuesto],
     ) -> None:
-        ocupados = await self.repo.grados_ocupados_en_area(area_id, grado_ids, exclude_id)
-        if ocupados:
-            detalle = "; ".join(
-                f"'{g}' ya pertenece al perfil '{p}'" for g, p in ocupados
+        """Coherencia entre los catalogos: disciplina∈funcion, niveles∈career path."""
+        if career_path_id is not None:
+            if not await self.career_path_repo.get_activo(career_path_id):
+                raise NotFoundError(entidad="CareerPath", id=career_path_id)
+            fuera = [g for g in grados if g.career_path_id != career_path_id]
+            if fuera:
+                codigos = ", ".join(g.codigo for g in fuera)
+                raise DomainValidationError(
+                    f"Los global levels {codigos} no pertenecen al career path "
+                    "seleccionado"
+                )
+
+        if funcion_id is not None and not await self.funcion_repo.get_activo(funcion_id):
+            raise NotFoundError(entidad="FuncionPuesto", id=funcion_id)
+
+        if disciplina_id is not None:
+            disciplina = await self.disciplina_repo.get_activo(disciplina_id)
+            if not disciplina:
+                raise NotFoundError(entidad="DisciplinaPuesto", id=disciplina_id)
+            if funcion_id is not None and disciplina.funcion_id != funcion_id:
+                raise DomainValidationError(
+                    f"La disciplina '{disciplina.nombre}' no pertenece a la funcion "
+                    "seleccionada"
+                )
+
+    async def _resolver_global_grade(
+        self, global_grade_id: int | None, grados: list[GradoPuesto]
+    ) -> int | None:
+        """
+        Global grade a guardar: el enviado, o el de la equivalencia del nivel inicial.
+
+        Nunca se calcula: si RH no configuro la equivalencia y no mando uno, se
+        devuelve None y el llamador decide si eso es un error.
+        """
+        if global_grade_id is not None:
+            grade = await self.grade_repo.get(global_grade_id)
+            if not grade:
+                raise NotFoundError(entidad="GlobalGrade", id=global_grade_id)
+            if not grade.activo:
+                raise DomainValidationError(
+                    f"El global grade '{grade.codigo}' esta inactivo y no se puede "
+                    "asignar"
+                )
+            return grade.id
+
+        if not grados:
+            return None
+        # El nivel inicial del rango es el que define la clasificacion del puesto.
+        equivalencia = await self.equivalencia_repo.get_activa_por_global_level(
+            grados[0].id
+        )
+        return equivalencia.global_grade_id if equivalencia else None
+
+    @staticmethod
+    def _validar_estado(estado: str | None) -> None:
+        if estado is not None and estado not in ESTADOS_PERFIL:
+            raise DomainValidationError(
+                f"Estado invalido '{estado}'. Valores validos: {', '.join(ESTADOS_PERFIL)}"
             )
-            raise ConflictError(detail=f"Grados ya usados en esta área: {detalle}")
+
+    async def _snapshot_clasificacion(self, perfil: PuestoPerfil) -> dict:
+        """Valores de clasificacion con su etiqueta legible, para comparar y registrar."""
+        grados = sorted(
+            (g.grado for g in perfil.grados_config if g.grado),
+            key=lambda g: g.orden,
+        )
+        rango = ""
+        if grados:
+            rango = (
+                grados[0].codigo
+                if len(grados) == 1
+                else f"{grados[0].codigo} → {grados[-1].codigo}"
+            )
+        return {
+            "career_path": (
+                perfil.career_path_id,
+                perfil.career_path.nombre if perfil.career_path else None,
+            ),
+            "funcion": (
+                perfil.funcion_id,
+                perfil.funcion.nombre if perfil.funcion else None,
+            ),
+            "disciplina": (
+                perfil.disciplina_id,
+                perfil.disciplina.nombre if perfil.disciplina else None,
+            ),
+            "global_level": (tuple(g.id for g in grados), rango or None),
+            "global_grade": (
+                perfil.global_grade_id,
+                perfil.global_grade.codigo if perfil.global_grade else None,
+            ),
+            "estado": (perfil.estado, perfil.estado),
+            "_grados": grados,
+        }
+
+    async def _registrar_clasificacion(
+        self,
+        perfil: PuestoPerfil,
+        anterior: dict | None,
+        current_user: Empleado,
+        motivo: str | None,
+    ) -> None:
+        """
+        Escribe una fila en la bitacora si algo de la clasificacion cambio.
+
+        La fila guarda la foto del estado resultante y el diff del evento, para que
+        la UI pueda pintar la bitacora sin leer la fila previa.
+        """
+        actual = await self._snapshot_clasificacion(perfil)
+
+        cambios: list[dict] = []
+        for campo, etiqueta in CAMPOS_CLASIFICACION:
+            valor_anterior = anterior[campo] if anterior else (None, None)
+            if valor_anterior[0] == actual[campo][0]:
+                continue
+            cambios.append(
+                {
+                    "campo": campo,
+                    "etiqueta": etiqueta,
+                    "anterior": valor_anterior[1],
+                    "nuevo": actual[campo][1],
+                }
+            )
+
+        if not cambios:
+            return
+
+        grados = actual["_grados"]
+        await self.historial_repo.create(
+            {
+                "puesto_perfil_id": perfil.id,
+                "career_path_id": perfil.career_path_id,
+                "funcion_id": perfil.funcion_id,
+                "disciplina_id": perfil.disciplina_id,
+                "global_level_desde_id": grados[0].id if grados else None,
+                "global_level_hasta_id": grados[-1].id if grados else None,
+                "global_grade_id": perfil.global_grade_id,
+                "estado": perfil.estado,
+                "version": perfil.version,
+                "cambios": cambios,
+                "motivo": motivo,
+                "changed_by": current_user.id,
+            }
+        )
 
     # ── Resumen Tarjetas ────────────────────────────────────────────────────
 
@@ -144,7 +367,14 @@ class PuestoPerfilService:
         area_id: int | None = None,
         grado_id: int | None = None,
         busqueda: str | None = None,
+        career_path_id: int | None = None,
+        funcion_id: int | None = None,
+        disciplina_id: int | None = None,
+        global_grade_id: int | None = None,
+        estado: str | None = None,
+        clasificacion_pendiente: bool | None = None,
     ) -> PuestoPerfilListResponse:
+        self._validar_estado(estado)
         offset = (page - 1) * page_size
         items, total = await self.repo.list_filtered(
             offset=offset,
@@ -152,6 +382,12 @@ class PuestoPerfilService:
             area_id=area_id,
             grado_id=grado_id,
             busqueda=busqueda,
+            career_path_id=career_path_id,
+            funcion_id=funcion_id,
+            disciplina_id=disciplina_id,
+            global_grade_id=global_grade_id,
+            estado=estado,
+            clasificacion_pendiente=clasificacion_pendiente,
         )
         return PuestoPerfilListResponse(
             items=[self._to_response(i) for i in items],
@@ -166,7 +402,39 @@ class PuestoPerfilService:
         perfil = await self.repo.get_with_relations(id)
         if not perfil:
             raise NotFoundError(entidad="PuestoPerfil", id=id)
-        return self._to_response(perfil)
+        # Quien y cuando registro la clasificacion sale del ultimo evento de la
+        # bitacora; solo se resuelve en el detalle para no hacer una consulta por
+        # fila en el listado.
+        ultimo = await self.historial_repo.ultimo_de_perfil(id)
+        clasificado_por = ultimo[1] if ultimo else None
+        clasificado_en = ultimo[0].created_at if ultimo else None
+        return self._to_response(perfil, clasificado_por, clasificado_en)
+
+    # ── Historial de clasificacion ───────────────────────────────────────────
+
+    async def historial_clasificacion(
+        self, id: int, limit: int = 100
+    ) -> ClasificacionHistorialResponse:
+        perfil = await self.repo.get_with_relations(id)
+        if not perfil:
+            raise NotFoundError(entidad="PuestoPerfil", id=id)
+
+        filas = await self.historial_repo.list_by_perfil(id, limit=limit)
+        items = [
+            ClasificacionHistorialItem(
+                id=fila.id,
+                version=fila.version,
+                cambios=[
+                    ClasificacionCambioItem(**cambio) for cambio in (fila.cambios or [])
+                ],
+                motivo=fila.motivo,
+                changed_by=fila.changed_by,
+                changed_by_nombre=nombre,
+                created_at=fila.created_at,
+            )
+            for fila, nombre in filas
+        ]
+        return ClasificacionHistorialResponse(items=items, total=len(items))
 
     # ── Crear ────────────────────────────────────────────────────────────────
 
@@ -187,17 +455,35 @@ class PuestoPerfilService:
                 detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}' en esa área"
             )
 
-        await self._validar_grados_consecutivos(data.grado_ids)
-        await self._validar_grados_libres_en_area(data.area_id, data.grado_ids)
+        grados = await self._validar_grados_consecutivos(data.grado_ids)
+        self._validar_estado(data.estado)
+        await self._validar_clasificacion(
+            data.career_path_id, data.funcion_id, data.disciplina_id, grados
+        )
 
+        global_grade_id = await self._resolver_global_grade(data.global_grade_id, grados)
+        if global_grade_id is None:
+            raise DomainValidationError(
+                f"El global level '{grados[0].codigo}' no tiene una equivalencia de "
+                "global grade configurada. Configurala en Ajustes o selecciona el "
+                "global grade manualmente."
+            )
+
+        estado = data.estado or "activo"
         perfil = await self.repo.create({
             "codigo": data.codigo,
             "nombre": data.nombre,
             "area_id": data.area_id,
             "tipo": data.tipo,
             "descripcion": data.descripcion,
+            "career_path_id": data.career_path_id,
+            "funcion_id": data.funcion_id,
+            "disciplina_id": data.disciplina_id,
+            "global_grade_id": global_grade_id,
+            "estado": estado,
+            # `activo` sigue siendo el soft-delete y se mantiene alineado con el estado.
+            "activo": estado != "inactivo",
             "version": 1,
-            "activo": True,
             "created_by": current_user.id,
             "updated_by": current_user.id,
         })
@@ -205,6 +491,10 @@ class PuestoPerfilService:
 
         # Reload with relations
         perfil = await self.repo.get_with_relations(perfil.id)
+        await self._registrar_clasificacion(
+            perfil, anterior=None, current_user=current_user,
+            motivo=data.motivo_clasificacion or "Alta del perfil",
+        )
         return self._to_response(perfil)
 
     # ── Actualizar ───────────────────────────────────────────────────────────
@@ -235,18 +525,44 @@ class PuestoPerfilService:
                 detail=f"Ya existe un perfil de puesto con el nombre '{new_nombre}' en esa área"
             )
 
-        area_cambio = data.area_id is not None and data.area_id != perfil.area_id
         grados_cambio = data.grado_ids is not None
 
-        # Validar consecutividad si cambian los grados
-        if grados_cambio:
-            await self._validar_grados_consecutivos(new_grado_ids)
+        # Foto de la clasificacion ANTES de tocar nada, para el diff del historial.
+        clasificacion_previa = await self._snapshot_clasificacion(perfil)
 
-        # Validar grados libres en el area efectiva si cambian grados o area
-        if (grados_cambio or area_cambio) and new_area_id is not None:
-            await self._validar_grados_libres_en_area(
-                new_area_id, new_grado_ids, exclude_id=id
+        # Validar consecutividad si cambian los grados
+        grados = await self._validar_grados_consecutivos(new_grado_ids)
+
+        # ── Clasificacion: opcional al editar, pero coherente si se toca ──────
+        self._validar_estado(data.estado)
+        new_career_path_id = (
+            data.career_path_id
+            if data.career_path_id is not None
+            else perfil.career_path_id
+        )
+        new_funcion_id = (
+            data.funcion_id if data.funcion_id is not None else perfil.funcion_id
+        )
+        new_disciplina_id = (
+            data.disciplina_id
+            if data.disciplina_id is not None
+            else perfil.disciplina_id
+        )
+        await self._validar_clasificacion(
+            new_career_path_id, new_funcion_id, new_disciplina_id, grados
+        )
+
+        # El global grade se re-resuelve cuando cambia el rango de niveles o el
+        # career path: seguir con el anterior dejaria una clasificacion incoherente.
+        new_global_grade_id = perfil.global_grade_id
+        if data.global_grade_id is not None:
+            new_global_grade_id = await self._resolver_global_grade(
+                data.global_grade_id, grados
             )
+        elif grados_cambio or data.career_path_id is not None:
+            resuelto = await self._resolver_global_grade(None, grados)
+            if resuelto is not None:
+                new_global_grade_id = resuelto
 
         # No permitir quitar grados en uso (requisitos/tareas/asignaciones activas)
         removidos = list(set(current_grado_ids) - set(new_grado_ids))
@@ -276,6 +592,14 @@ class PuestoPerfilService:
         if data.descripcion is not None:
             update_data["descripcion"] = data.descripcion
 
+        update_data["career_path_id"] = new_career_path_id
+        update_data["funcion_id"] = new_funcion_id
+        update_data["disciplina_id"] = new_disciplina_id
+        update_data["global_grade_id"] = new_global_grade_id
+        if data.estado is not None:
+            update_data["estado"] = data.estado
+            update_data["activo"] = data.estado != "inactivo"
+
         # Incrementar version
         update_data["version"] = perfil.version + 1
 
@@ -286,6 +610,12 @@ class PuestoPerfilService:
 
         # Reload
         perfil = await self.repo.get_with_relations(id)
+        await self._registrar_clasificacion(
+            perfil,
+            anterior=clasificacion_previa,
+            current_user=current_user,
+            motivo=data.motivo_clasificacion,
+        )
         return self._to_response(perfil)
 
     # ── Eliminar ─────────────────────────────────────────────────────────────

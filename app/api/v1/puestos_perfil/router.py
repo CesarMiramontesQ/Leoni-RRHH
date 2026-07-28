@@ -9,6 +9,7 @@ Endpoints:
   PUT  /api/v1/puestos-perfil/{id}      — Actualizar (RH)
   DELETE /api/v1/puestos-perfil/{id}    — Eliminar (RH)
   POST /api/v1/puestos-perfil/{id}/generar-ia — Generar con IA (RH)
+  GET  /api/v1/puestos-perfil/{id}/clasificacion-historial — Bitacora de clasificacion
 """
 
 from fastapi import APIRouter, Depends, Query, status
@@ -18,6 +19,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.models.empleados import Empleado
 from app.schemas.talento import (
+    ClasificacionHistorialResponse,
     GenerarPerfilIARequest,
     GenerarPerfilIAResponse,
     PuestoPerfilCreate,
@@ -36,8 +38,18 @@ async def listar_puestos_perfil(
     page: int = Query(1, ge=1, description="Numero de pagina"),
     page_size: int = Query(10, ge=1, le=100, description="Items por pagina"),
     area_id: int | None = Query(None, description="Filtrar por area"),
-    grado_id: int | None = Query(None, description="Filtrar por grado"),
+    grado_id: int | None = Query(None, description="Filtrar por global level"),
     busqueda: str | None = Query(None, description="Buscar por nombre"),
+    career_path_id: int | None = Query(None, description="Filtrar por career path"),
+    funcion_id: int | None = Query(None, description="Filtrar por funcion"),
+    disciplina_id: int | None = Query(None, description="Filtrar por disciplina"),
+    global_grade_id: int | None = Query(None, description="Filtrar por global grade"),
+    estado: str | None = Query(
+        None, description="activo | inactivo | en_revision"
+    ),
+    clasificacion_pendiente: bool | None = Query(
+        None, description="true = solo perfiles con clasificacion incompleta"
+    ),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -49,6 +61,12 @@ async def listar_puestos_perfil(
         area_id=area_id,
         grado_id=grado_id,
         busqueda=busqueda,
+        career_path_id=career_path_id,
+        funcion_id=funcion_id,
+        disciplina_id=disciplina_id,
+        global_grade_id=global_grade_id,
+        estado=estado,
+        clasificacion_pendiente=clasificacion_pendiente,
     )
 
 
@@ -125,3 +143,22 @@ async def generar_perfil_ia(
     """
     service = PuestoPerfilService(db)
     return await service.generar_con_ia(id=id, data=body, current_user=current_user)
+
+
+@router.get(
+    "/{id}/clasificacion-historial", response_model=ClasificacionHistorialResponse
+)
+async def historial_clasificacion(
+    id: int,
+    limit: int = Query(100, ge=1, le=500),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Bitacora de la clasificacion organizacional del perfil.
+
+    Cada evento trae el diff (campo, valor anterior, valor nuevo), el motivo, el
+    usuario y la fecha, del mas reciente al mas antiguo.
+    """
+    service = PuestoPerfilService(db)
+    return await service.historial_clasificacion(id=id, limit=limit)

@@ -12,6 +12,11 @@ Endpoints:
   GET/PATCH/DEL /api/v1/clasificacion-puesto/funciones/{id}
   GET/POST      /api/v1/clasificacion-puesto/disciplinas      (filtro ?funcion_id=)
   GET/PATCH/DEL /api/v1/clasificacion-puesto/disciplinas/{id}
+  GET/POST      /api/v1/clasificacion-puesto/global-grades
+  GET/PATCH/DEL /api/v1/clasificacion-puesto/global-grades/{id}
+  GET/POST      /api/v1/clasificacion-puesto/equivalencias
+  GET           /api/v1/clasificacion-puesto/equivalencias/resolver?global_level_id=
+  GET/PATCH/DEL /api/v1/clasificacion-puesto/equivalencias/{id}
 """
 
 from fastapi import APIRouter, Depends, Query, status
@@ -29,15 +34,25 @@ from app.schemas.clasificacion_puesto import (
     DisciplinaPuestoListResponse,
     DisciplinaPuestoResponse,
     DisciplinaPuestoUpdate,
+    EquivalenciaCreate,
+    EquivalenciaListResponse,
+    EquivalenciaResponse,
+    EquivalenciaUpdate,
     FuncionPuestoCreate,
     FuncionPuestoListResponse,
     FuncionPuestoResponse,
     FuncionPuestoUpdate,
+    GlobalGradeCreate,
+    GlobalGradeListResponse,
+    GlobalGradeResponse,
+    GlobalGradeUpdate,
 )
 from app.services.clasificacion_puesto_service import (
     CareerPathService,
     DisciplinaPuestoService,
+    EquivalenciaService,
     FuncionPuestoService,
+    GlobalGradeService,
 )
 
 router = APIRouter(
@@ -245,3 +260,157 @@ async def eliminar_disciplina(
 ):
     """Desactiva una disciplina (soft delete). Solo RH."""
     await DisciplinaPuestoService(db).eliminar(id=id, current_user=current_user)
+
+
+# ── Global Grades ────────────────────────────────────────────────────────────
+
+
+@router.get("/global-grades", response_model=GlobalGradeListResponse)
+async def listar_global_grades(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=200),
+    busqueda: str | None = Query(None, description="Buscar por codigo o nombre"),
+    solo_activos: bool = Query(True),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista los global grades del catalogo."""
+    return await GlobalGradeService(db).listar(
+        page=page, page_size=page_size, busqueda=busqueda, solo_activos=solo_activos
+    )
+
+
+@router.post(
+    "/global-grades",
+    response_model=GlobalGradeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def crear_global_grade(
+    body: GlobalGradeCreate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Crea un global grade. Solo RH."""
+    return await GlobalGradeService(db).crear(data=body, current_user=current_user)
+
+
+@router.get("/global-grades/{id}", response_model=GlobalGradeResponse)
+async def obtener_global_grade(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Detalle de un global grade."""
+    return await GlobalGradeService(db).obtener(id=id)
+
+
+@router.patch("/global-grades/{id}", response_model=GlobalGradeResponse)
+async def actualizar_global_grade(
+    id: int,
+    body: GlobalGradeUpdate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza un global grade. Solo RH."""
+    return await GlobalGradeService(db).actualizar(
+        id=id, data=body, current_user=current_user
+    )
+
+
+@router.delete("/global-grades/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_global_grade(
+    id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Desactiva un global grade (soft delete). Solo RH. Falla si esta asignado."""
+    await GlobalGradeService(db).eliminar(id=id, current_user=current_user)
+
+
+# ── Equivalencias Global Level ↔ Global Grade ────────────────────────────────
+
+
+@router.get("/equivalencias", response_model=EquivalenciaListResponse)
+async def listar_equivalencias(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    career_path_id: int | None = Query(None, gt=0),
+    solo_activos: bool = Query(True),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lista las equivalencias configuradas por RH."""
+    return await EquivalenciaService(db).listar(
+        page=page,
+        page_size=page_size,
+        career_path_id=career_path_id,
+        solo_activos=solo_activos,
+    )
+
+
+@router.get("/equivalencias/resolver", response_model=EquivalenciaResponse | None)
+async def resolver_equivalencia(
+    global_level_id: int = Query(..., gt=0),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Equivalencia configurada para un global level, o `null` si no hay ninguna.
+
+    Alimenta el autocompletado del global grade en el formulario de perfil. Devolver
+    `null` no es un error: significa que RH aun no configuro esa equivalencia y el
+    global grade debe elegirse a mano.
+    """
+    return await EquivalenciaService(db).resolver(global_level_id=global_level_id)
+
+
+@router.post(
+    "/equivalencias",
+    response_model=EquivalenciaResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def crear_equivalencia(
+    body: EquivalenciaCreate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Configura la equivalencia de un global level. Solo RH."""
+    return await EquivalenciaService(db).crear(data=body, current_user=current_user)
+
+
+@router.get("/equivalencias/{id}", response_model=EquivalenciaResponse)
+async def obtener_equivalencia(
+    id: int,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Detalle de una equivalencia."""
+    return await EquivalenciaService(db).obtener(id=id)
+
+
+@router.patch("/equivalencias/{id}", response_model=EquivalenciaResponse)
+async def actualizar_equivalencia(
+    id: int,
+    body: EquivalenciaUpdate,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Actualiza una equivalencia. Solo RH."""
+    return await EquivalenciaService(db).actualizar(
+        id=id, data=body, current_user=current_user
+    )
+
+
+@router.delete("/equivalencias/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_equivalencia(
+    id: int,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Desactiva una equivalencia. Solo RH.
+
+    No toca los perfiles que ya la usaron: su global grade quedo grabado en el
+    perfil, no se deriva en cada lectura.
+    """
+    await EquivalenciaService(db).eliminar(id=id, current_user=current_user)

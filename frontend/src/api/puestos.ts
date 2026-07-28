@@ -1,5 +1,9 @@
 import { fetchWithAuth } from "./http.ts";
 import type {
+  ClasificacionHistorialItem,
+  ClasificacionPerfil,
+  EstadoPuestoPerfil,
+  GradoPerfilItem,
   PerfilPuesto,
   PerfilPuestoListItem,
   PerfilPuestoCreatePayload,
@@ -37,7 +41,7 @@ function mapTipoPuestoPerfil(value: unknown): TipoPuestoPerfil {
   return value === "operativo" ? "operativo" : "administrativo";
 }
 
-function mapGrados(raw: unknown): { id: number; nombre: string; orden: number }[] {
+function mapGrados(raw: unknown): GradoPerfilItem[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .map((g) => {
@@ -46,9 +50,31 @@ function mapGrados(raw: unknown): { id: number; nombre: string; orden: number }[
         id: item.id as number,
         nombre: String(item.nombre ?? ""),
         orden: Number(item.orden ?? 0),
+        codigo: (item.codigo ?? null) as string | null,
+        career_path_codigo: (item.career_path_codigo ?? null) as string | null,
       };
     })
     .sort((a, b) => a.orden - b.orden);
+}
+
+/** Campos de clasificación organizacional, compartidos por listado y detalle. */
+function mapClasificacion(p: Record<string, unknown>): ClasificacionPerfil {
+  return {
+    career_path_id: (p.career_path_id as number | null) ?? null,
+    career_path_codigo: (p.career_path_codigo as string | null) ?? null,
+    career_path_nombre: (p.career_path_nombre as string | null) ?? null,
+    funcion_id: (p.funcion_id as number | null) ?? null,
+    funcion_nombre: (p.funcion_nombre as string | null) ?? null,
+    disciplina_id: (p.disciplina_id as number | null) ?? null,
+    disciplina_nombre: (p.disciplina_nombre as string | null) ?? null,
+    global_grade_id: (p.global_grade_id as number | null) ?? null,
+    global_grade_codigo: (p.global_grade_codigo as string | null) ?? null,
+    global_grade_nombre: (p.global_grade_nombre as string | null) ?? null,
+    estado: ((p.estado as EstadoPuestoPerfil) ?? "activo"),
+    clasificacion_completa: Boolean(p.clasificacion_completa),
+    clasificado_por: (p.clasificado_por as string | null) ?? null,
+    clasificado_en: (p.clasificado_en as string | null) ?? null,
+  };
 }
 
 // ── Mapping helper ────────────────────────────────────────────────────
@@ -64,6 +90,7 @@ function mapBackendToPerfilPuesto(p: Record<string, unknown>): PerfilPuesto {
     recomendaciones_ia: [] as PerfilPuesto["recomendaciones_ia"],
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
+    ...mapClasificacion(p),
   };
 }
 
@@ -112,6 +139,12 @@ export async function getPerfilesList(opts?: {
   page_size?: number;
   page?: number;
   busqueda?: string;
+  career_path_id?: number;
+  funcion_id?: number;
+  disciplina_id?: number;
+  global_grade_id?: number;
+  estado?: string;
+  clasificacion_pendiente?: boolean;
 }): Promise<PerfilPuestoListItem[]> {
   const pageSize = Math.min(opts?.page_size ?? 100, 100);
   const qs = new URLSearchParams({
@@ -121,6 +154,12 @@ export async function getPerfilesList(opts?: {
   if (opts?.area_id) qs.set("area_id", String(opts.area_id));
   if (opts?.grado_id) qs.set("grado_id", String(opts.grado_id));
   if (opts?.busqueda?.trim()) qs.set("busqueda", opts.busqueda.trim());
+  if (opts?.career_path_id) qs.set("career_path_id", String(opts.career_path_id));
+  if (opts?.funcion_id) qs.set("funcion_id", String(opts.funcion_id));
+  if (opts?.disciplina_id) qs.set("disciplina_id", String(opts.disciplina_id));
+  if (opts?.global_grade_id) qs.set("global_grade_id", String(opts.global_grade_id));
+  if (opts?.estado) qs.set("estado", opts.estado);
+  if (opts?.clasificacion_pendiente) qs.set("clasificacion_pendiente", "true");
   const res = await fetchWithAuth(`/api/v1/puestos-perfil?${qs}`);
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   const data = await res.json();
@@ -135,6 +174,7 @@ export async function getPerfilesList(opts?: {
     tipo: mapTipoPuestoPerfil(p.tipo),
     version: String(p.version ?? "1"),
     ultima_actualizacion: (p.updated_at ?? "") as string,
+    ...mapClasificacion(p),
   }));
 }
 
@@ -148,12 +188,22 @@ export async function getPerfilById(id: number): Promise<PerfilPuesto> {
 
 /** POST /api/v1/puestos-perfil — crear perfil */
 export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<PerfilPuesto> {
-  const body = {
+  const body: Record<string, unknown> = {
     codigo: payload.codigo,
     nombre: payload.nombre_puesto,
     area_id: payload.area_id,
     grado_ids: payload.grado_ids,
+    career_path_id: payload.career_path_id,
+    funcion_id: payload.funcion_id,
+    disciplina_id: payload.disciplina_id,
   };
+  // Solo se envía si el global level no tiene equivalencia configurada: si la
+  // tiene, el backend lo resuelve desde ahí.
+  if (payload.global_grade_id) body.global_grade_id = payload.global_grade_id;
+  if (payload.estado) body.estado = payload.estado;
+  if (payload.motivo_clasificacion) {
+    body.motivo_clasificacion = payload.motivo_clasificacion;
+  }
   const res = await fetchWithAuth("/api/v1/puestos-perfil", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -170,6 +220,19 @@ export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayloa
   if (payload.nombre_puesto) body.nombre = payload.nombre_puesto;
   if (payload.grado_ids !== undefined) body.grado_ids = payload.grado_ids;
   if (payload.area_id !== undefined) body.area_id = payload.area_id;
+  // `tipo` viajaba en el payload del modal de detalle pero nunca se copiaba al
+  // body: el cambio se perdía en silencio.
+  if (payload.tipo !== undefined) body.tipo = payload.tipo;
+  if (payload.career_path_id !== undefined) body.career_path_id = payload.career_path_id;
+  if (payload.funcion_id !== undefined) body.funcion_id = payload.funcion_id;
+  if (payload.disciplina_id !== undefined) body.disciplina_id = payload.disciplina_id;
+  if (payload.global_grade_id !== undefined) {
+    body.global_grade_id = payload.global_grade_id;
+  }
+  if (payload.estado !== undefined) body.estado = payload.estado;
+  if (payload.motivo_clasificacion !== undefined) {
+    body.motivo_clasificacion = payload.motivo_clasificacion;
+  }
   const res = await fetchWithAuth(`/api/v1/puestos-perfil/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -664,4 +727,21 @@ export async function deleteAsignacionTareaExtra(
     { method: "DELETE" },
   );
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+}
+
+/**
+ * GET /api/v1/puestos-perfil/:id/clasificacion-historial
+ *
+ * Bitácora de la clasificación organizacional, del evento más reciente al más
+ * antiguo. Cada uno trae el diff (campo, valor anterior, valor nuevo).
+ */
+export async function getClasificacionHistorial(
+  id: number,
+): Promise<ClasificacionHistorialItem[]> {
+  const res = await fetchWithAuth(
+    `/api/v1/puestos-perfil/${id}/clasificacion-historial`,
+  );
+  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
+  const data = await res.json();
+  return (data.items ?? []) as ClasificacionHistorialItem[];
 }

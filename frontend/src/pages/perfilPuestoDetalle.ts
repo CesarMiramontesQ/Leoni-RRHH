@@ -38,6 +38,14 @@ import type { TipoPuestoPerfil } from "../dashboard/puestos/types.ts";
 import { gradoIdsEntre, type GradoPerfilItem } from "../dashboard/puestos/types.ts";
 import type { CriterioRequerido } from "../dashboard/cualificaciones/types.ts";
 import { getGradosPuesto } from "../api/gradosPuesto.ts";
+import {
+  careerPathBadge,
+  clasificacionPendienteBadge,
+  estadoPerfilBadge,
+  formatGlobalLevelRango,
+  globalGradeBadge,
+  globalLevelChips,
+} from "../talento/clasificacionPuestoUi.ts";
 import { getCursosPuesto, asignarCursoPuesto, eliminarCursoPuesto, getCursos, getCursoSesiones } from "../api/cursos.ts";
 import type { CursoPuestoItem } from "../api/cursos.ts";
 
@@ -55,6 +63,21 @@ interface PuestoPerfilInfo {
   version: number;
   activo: boolean;
   updated_at?: string;
+  // ── Clasificación organizacional (Willis Towers Watson) ──────────────────
+  career_path_id?: number | null;
+  career_path_codigo?: string | null;
+  career_path_nombre?: string | null;
+  funcion_id?: number | null;
+  funcion_nombre?: string | null;
+  disciplina_id?: number | null;
+  disciplina_nombre?: string | null;
+  global_grade_id?: number | null;
+  global_grade_codigo?: string | null;
+  global_grade_nombre?: string | null;
+  estado?: string;
+  clasificacion_completa?: boolean;
+  clasificado_por?: string | null;
+  clasificado_en?: string | null;
 }
 
 interface Tarea {
@@ -181,8 +204,61 @@ async function loadCompetenciasPorGrado(perfilId: number, grados: GradoPerfilIte
 }
 
 function gradosLabel(grados: GradoPerfilItem[]): string {
-  if (!grados.length) return "Sin grados";
-  return grados.map((g) => g.nombre).join(", ");
+  if (!grados.length) return "Sin global levels";
+  // Mismo formato que el listado y el modal: "P10 → P12".
+  return formatGlobalLevelRango(grados);
+}
+
+/**
+ * Tarjeta "Clasificación Organizacional".
+ *
+ * Reúne la identidad WTW del puesto y deja constancia de quién la registró.
+ * El Global Grade clasifica el puesto en la estructura organizacional; no
+ * expresa sueldo ni compensación.
+ */
+function renderClasificacionOrganizacional(puesto: PuestoPerfilInfo): string {
+  const completa = Boolean(puesto.clasificacion_completa);
+  const dato = (etiqueta: string, valor: string | null | undefined, extra = "") => `
+    <div class="min-w-0">
+      <dt class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(etiqueta)}</dt>
+      <dd class="mt-1 flex flex-wrap items-center gap-1.5 text-sm font-medium text-text-primary">
+        ${extra || escapeHtml((valor ?? "").trim() || "—")}
+      </dd>
+    </div>`;
+
+  const firma =
+    puesto.clasificado_por || puesto.clasificado_en
+      ? `<div class="border-t border-slate-100/90 px-4 py-3 text-xs text-text-muted sm:px-5">
+          Clasificación registrada${puesto.clasificado_por ? ` por <strong class="font-semibold text-text-secondary">${escapeHtml(puesto.clasificado_por)}</strong>` : ""}${
+            puesto.clasificado_en
+              ? ` el <span class="tabular-nums">${escapeHtml(formatFecha(puesto.clasificado_en))}</span>`
+              : ""
+          }.
+        </div>`
+      : "";
+
+  return `
+  <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-labelledby="ppd-clasificacion-title">
+    <div class="flex flex-col gap-2 border-b border-slate-100/90 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div class="min-w-0">
+        <h2 id="ppd-clasificacion-title" class="text-base font-semibold text-text-primary">Clasificación Organizacional</h2>
+        <p class="mt-0.5 text-sm text-text-muted">Identidad oficial del puesto según la estructura definida por Recursos Humanos.</p>
+      </div>
+      ${completa ? estadoPerfilBadge(puesto.estado) : clasificacionPendienteBadge()}
+    </div>
+    <dl class="grid grid-cols-2 gap-4 px-4 py-4 sm:grid-cols-3 sm:px-5 lg:grid-cols-5">
+      ${dato("Career Path", puesto.career_path_nombre, careerPathBadge(puesto.career_path_codigo, puesto.career_path_nombre))}
+      ${dato("Función", puesto.funcion_nombre)}
+      ${dato("Disciplina", puesto.disciplina_nombre)}
+      ${dato("Global Level", null, `<span class="tabular-nums">${escapeHtml(formatGlobalLevelRango(puesto.grados ?? []))}</span>`)}
+      ${dato("Global Grade", null, globalGradeBadge(puesto.global_grade_codigo, { nombre: puesto.global_grade_nombre }))}
+    </dl>
+    <div class="border-t border-slate-100/90 px-4 py-3 sm:px-5">
+      <dt class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Rango de niveles</dt>
+      <dd class="mt-1.5 flex flex-wrap items-center gap-1.5">${globalLevelChips(puesto.grados ?? []) || '<span class="text-sm text-text-muted">Sin global levels</span>'}</dd>
+    </div>
+    ${firma}
+  </section>`;
 }
 
 function badgeAlcanceGeneral(): string {
@@ -334,7 +410,7 @@ function renderHeader(puesto: PuestoPerfilInfo, empleadosCount: number, perfilId
           </div>
           <h1 class="mt-3 text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">${escapeHtml(puesto.nombre)}</h1>
           <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-text-secondary">
-            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${safeText(puesto.area_nombre)}</strong> · ${escapeHtml(gradosLabel(puesto.grados ?? []))}</span></span>
+            <span class="inline-flex items-center gap-1.5">${ICON_BUILDING}<span><strong class="font-semibold text-text-primary">${safeText(puesto.area_nombre)}</strong>${puesto.career_path_nombre ? ` · ${escapeHtml(puesto.career_path_nombre)}` : ""} · <span class="tabular-nums">${escapeHtml(gradosLabel(puesto.grados ?? []))}</span></span></span>
             <span class="inline-flex items-center gap-1.5">${ICON_USERS}<span><strong class="font-semibold tabular-nums text-text-primary">${empleadosCount}</strong> empleado${empleadosCount !== 1 ? "s" : ""} asignado${empleadosCount !== 1 ? "s" : ""}</span></span>
             ${fechaActualizacion ? `<span class="text-xs text-text-muted">Actualizado ${escapeHtml(fechaActualizacion)}</span>` : ""}
           </div>
@@ -1142,6 +1218,8 @@ async function loadPerfilDetalle(container: HTMLElement, perfilId: number): Prom
 
         ${renderHeader(puesto, empleadosCount, perfilId)}
         ${renderExecutiveSummary(summary)}
+
+        ${renderClasificacionOrganizacional(puesto)}
 
         <div class="ppd-layout grid gap-4 lg:grid-cols-2 lg:items-start xl:gap-5">
           <div class="flex flex-col gap-4 sm:gap-5">

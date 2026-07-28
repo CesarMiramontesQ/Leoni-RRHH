@@ -13,6 +13,10 @@ import {
 } from "../components/puestos/ajustes/clasificacionSections.ts";
 import { mountCategoriasTareaSection } from "../components/puestos/ajustes/categoriasTareaSection.ts";
 import {
+  mountEquivalenciasSection,
+  mountGlobalGradesSection,
+} from "../components/puestos/ajustes/globalGradeSections.ts";
+import {
   AJUSTES_ICON_COMPETENCY,
   AJUSTES_ICON_GRADES,
   AJUSTES_ICON_QUAL,
@@ -38,7 +42,7 @@ const TABS: {
     eyebrow: "Towers Watson",
     title: "Clasificación del puesto",
     description:
-      "Career path, función, disciplina y global levels. Es la identidad oficial del puesto y la base de competencias, tareas y planes de carrera.",
+      "Career path, función, disciplina, global levels y global grades. Es la identidad oficial del puesto y la base de competencias, tareas y planes de carrera.",
     icon: AJUSTES_ICON_GRADES,
   },
   {
@@ -114,6 +118,8 @@ function renderPanel(tabId: TabId, activeTab: TabId): string {
       </div>
       <div id="puestos-ajustes-disciplinas" class="min-w-0"></div>
       <div id="puestos-ajustes-grados" class="min-w-0"></div>
+      <div id="puestos-ajustes-global-grades" class="min-w-0"></div>
+      <div id="puestos-ajustes-equivalencias" class="min-w-0"></div>
     </div>`;
   } else if (tabId === "tareas") {
     body = `<div id="puestos-ajustes-categorias-tarea" class="min-w-0"></div>`;
@@ -160,6 +166,14 @@ export function mountPuestosAjustes(container: HTMLElement, signal: AbortSignal)
       }
       const gradosHost = container.querySelector("#puestos-ajustes-grados");
       if (gradosHost instanceof HTMLElement) mountGradosSection(gradosHost, signal);
+      const globalGradesHost = container.querySelector("#puestos-ajustes-global-grades");
+      if (globalGradesHost instanceof HTMLElement) {
+        mountGlobalGradesSection(globalGradesHost, signal);
+      }
+      const equivalenciasHost = container.querySelector("#puestos-ajustes-equivalencias");
+      if (equivalenciasHost instanceof HTMLElement) {
+        mountEquivalenciasSection(equivalenciasHost, signal);
+      }
       return;
     }
 
