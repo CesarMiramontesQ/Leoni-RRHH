@@ -24,7 +24,7 @@ async def test_crear_career_path_success(client, db):
 
     response = await client.post(
         f"{BASE}/career-paths",
-        json={"codigo": "T", "nombre": "Technical", "orden": 7},
+        json={"codigo": "T", "nombre": "Technical"},
         headers=headers,
     )
 
@@ -32,7 +32,6 @@ async def test_crear_career_path_success(client, db):
     data = response.json()
     assert data["codigo"] == "T"
     assert data["nombre"] == "Technical"
-    assert data["orden"] == 7
     assert data["activo"] is True
 
 
@@ -44,7 +43,7 @@ async def test_crear_career_path_codigo_duplicado_409(client, db):
 
     response = await client.post(
         f"{BASE}/career-paths",
-        json={"codigo": "P", "nombre": "Otro", "orden": 50},
+        json={"codigo": "P", "nombre": "Otro"},
         headers=headers,
     )
 
@@ -86,7 +85,7 @@ async def test_empleado_sin_modulo_no_puede_crear_career_path(client, db):
 
     response = await client.post(
         f"{BASE}/career-paths",
-        json={"codigo": "X", "nombre": "Prohibido", "orden": 60},
+        json={"codigo": "X", "nombre": "Prohibido"},
         headers=headers,
     )
 

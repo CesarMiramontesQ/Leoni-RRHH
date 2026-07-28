@@ -84,24 +84,24 @@ class PuestoPerfilService:
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _grados_ordenados(perfil: PuestoPerfil) -> list[GradoPerfilItem]:
-        return sorted(
-            (
-                GradoPerfilItem(
-                    id=g.grado.id,
-                    nombre=g.grado.nombre,
-                    orden=g.grado.orden,
-                    codigo=g.grado.codigo,
-                    career_path_codigo=(
-                        g.grado.career_path.codigo if g.grado.career_path else None
-                    ),
-                )
-                for g in perfil.grados_config
-                if g.grado
-            ),
-            key=lambda x: x.orden,
-        )
+    @classmethod
+    def _grados_ordenados(cls, perfil: PuestoPerfil) -> list[GradoPerfilItem]:
+        grados = [g.grado for g in perfil.grados_config if g.grado]
+        return [
+            GradoPerfilItem(
+                id=g.id,
+                nombre=g.nombre,
+                orden=cls._posicion(g),
+                codigo=g.codigo,
+                career_path_codigo=g.career_path.codigo if g.career_path else None,
+                global_grade_codigo=(
+                    g.equivalencia.global_grade.codigo
+                    if g.equivalencia and g.equivalencia.global_grade
+                    else None
+                ),
+            )
+            for g in cls._ordenar_por_posicion(grados)
+        ]
 
     @staticmethod
     def _clasificacion_completa(perfil: PuestoPerfil) -> bool:
@@ -167,6 +167,27 @@ class PuestoPerfilService:
 
     # ── Validadores de grados ─────────────────────────────────────────────────
 
+    @staticmethod
+    def _posicion(grado: GradoPuesto) -> int | None:
+        """
+        Posicion del career level: el `orden` de su Global Grade.
+
+        El nivel no tiene escala propia. Devuelve None si no hay equivalencia
+        activa configurada, que es el unico caso en que un nivel no se puede
+        ubicar.
+        """
+        equivalencia = grado.equivalencia
+        grade = equivalencia.global_grade if equivalencia else None
+        return grade.orden if grade else None
+
+    @classmethod
+    def _ordenar_por_posicion(cls, grados: list[GradoPuesto]) -> list[GradoPuesto]:
+        """Los niveles sin equivalencia van al final; se desempata por codigo."""
+        return sorted(
+            grados,
+            key=lambda g: (cls._posicion(g) is None, cls._posicion(g) or 0, g.codigo),
+        )
+
     async def _validar_grados_consecutivos(
         self, grado_ids: list[int]
     ) -> list[GradoPuesto]:
@@ -176,17 +197,33 @@ class PuestoPerfilService:
         if not grado_ids:
             return []
         if len(set(grado_ids)) != len(grado_ids):
-            raise DomainValidationError("La lista de grados contiene duplicados")
+            raise DomainValidationError("La lista de career levels contiene duplicados")
         grados = await self.grado_repo.get_activos_by_ids(grado_ids)
         if len(grados) != len(grado_ids):
             faltante = next(iter(set(grado_ids) - {g.id for g in grados}))
             raise NotFoundError(entidad="GradoPuesto", id=faltante)
-        ordenes = sorted(g.orden for g in grados)
-        if ordenes[-1] - ordenes[0] + 1 != len(ordenes):
+
+        # Un nivel sin equivalencia no tiene posicion, asi que no se puede saber
+        # si el rango es contiguo ni por donde empieza.
+        sin_equivalencia = [g for g in grados if self._posicion(g) is None]
+        if sin_equivalencia:
+            codigos = ", ".join(g.codigo for g in sin_equivalencia)
             raise DomainValidationError(
-                f"Los grados del perfil deben ser consecutivos por orden (recibidos: {ordenes})"
+                f"Los career levels {codigos} no tienen una equivalencia de global "
+                "grade configurada, asi que no se puede ubicar el rango del perfil. "
+                "Configurala en Ajustes > Clasificacion."
             )
-        return sorted(grados, key=lambda g: g.orden)
+
+        # Se deduplica a proposito: dos niveles pueden equivaler al mismo global
+        # grade —es justo lo que permite comparar un P10 con un M1— y eso no
+        # rompe la contiguidad del rango.
+        posiciones = sorted({self._posicion(g) for g in grados})
+        if posiciones[-1] - posiciones[0] + 1 != len(posiciones):
+            raise DomainValidationError(
+                "Los career levels del perfil deben ser consecutivos por global "
+                f"grade (ordenes recibidos: {posiciones})"
+            )
+        return self._ordenar_por_posicion(grados)
 
     # ── Clasificacion organizacional ─────────────────────────────────────────
 
@@ -259,9 +296,8 @@ class PuestoPerfilService:
 
     async def _snapshot_clasificacion(self, perfil: PuestoPerfil) -> dict:
         """Valores de clasificacion con su etiqueta legible, para comparar y registrar."""
-        grados = sorted(
-            (g.grado for g in perfil.grados_config if g.grado),
-            key=lambda g: g.orden,
+        grados = self._ordenar_por_posicion(
+            [g.grado for g in perfil.grados_config if g.grado]
         )
         rango = ""
         if grados:

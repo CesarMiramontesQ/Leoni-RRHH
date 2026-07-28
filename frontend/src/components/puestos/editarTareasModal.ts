@@ -32,6 +32,7 @@ import {
   type TareaCatalogoFetchError,
 } from "../../api/tareasCatalogo.ts";
 import { tareaTituloSubtitulo } from "./perfilTareaDisplay.ts";
+import { compararCareerLevels } from "../../talento/clasificacionPuestoUi.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
   MODAL_OVERLAY,
@@ -53,7 +54,7 @@ export type EditarTareasModalHandle = {
 
 export type EditarTareasModalOptions = {
   perfilId: number;
-  grados?: { id: number; nombre: string; orden: number }[];
+  grados?: { id: number; nombre: string; orden: number | null }[];
   onSuccess: () => void;
 };
 
@@ -218,7 +219,7 @@ function renderAddForm(
   filterTipo: TipoFilter,
   filterCategoria: string,
   categorias: string[],
-  grados: { id: number; nombre: string; orden: number }[],
+  grados: { id: number; nombre: string; orden: number | null }[],
   alcance: AlcanceValue,
   categoriasCatalogo: CategoriaTarea[] = [],
   resumenDedicacionHtml = "",
@@ -230,7 +231,7 @@ function renderAddForm(
     )
     .join("");
   const gradoOpts = [...grados]
-    .sort((a, b) => a.orden - b.orden)
+    .sort(compararCareerLevels)
     .map(
       (g) =>
         `<option value="${g.id}" ${alcance === String(g.id) ? "selected" : ""}>${escapeHtml(g.nombre)}</option>`,
@@ -405,7 +406,7 @@ export function mountEditarTareasModal(
   let filterTipo: TipoFilter = "";
   let filterCategoria = "";
   let alcance: AlcanceValue = "";
-  const gradosPerfil = [...(options.grados ?? [])].sort((a, b) => a.orden - b.orden);
+  const gradosPerfil = [...(options.grados ?? [])].sort(compararCareerLevels);
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let categoriasOpciones: string[] = [];
   let categoriasCatalogo: CategoriaTarea[] = [];

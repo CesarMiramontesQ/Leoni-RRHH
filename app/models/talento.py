@@ -45,6 +45,7 @@ if TYPE_CHECKING:
         CareerPath,
         CategoriaTarea,
         DisciplinaPuesto,
+        CareerLevelGradeMapping,
         FuncionPuesto,
         GlobalGrade,
         PuestoPerfilClasificacionHistorial,
@@ -618,20 +619,23 @@ class GradoPuesto(Base):
     """
     Career Level de la metodologia Willis Towers Watson (P1..Pn / M1..Mn).
 
-    Cada nivel pertenece a un Career Path, asi que `codigo` y `orden` son unicos
+    Cada nivel pertenece a un Career Path, asi que `codigo` y `nombre` son unicos
     *dentro* del career path, no globalmente: P1 y M1 coexisten. La tabla conserva
     el nombre `levelup_grados_puesto` porque cuatro tablas la referencian por FK
     (`competencia_requisitos`, `perfil_tareas`, `perfil_funciones`,
     `puesto_perfil_grados`); renombrarla seria riesgo sin beneficio.
+
+    **El nivel no tiene orden propio.** Su posicion la da el Global Grade al que
+    equivale (`CareerLevelGradeMapping` -> `GlobalGrade.orden`), que es el
+    ordenador real del sistema Towers: por eso un P10 y un M1 pueden pesar lo
+    mismo. Un nivel sin equivalencia configurada no tiene posicion y no puede
+    formar parte del rango de un perfil.
     """
 
     __tablename__ = "levelup_grados_puesto"
     __table_args__ = (
         UniqueConstraint(
             "career_path_id", "codigo", name="uq_levelup_grados_puesto_path_codigo"
-        ),
-        UniqueConstraint(
-            "career_path_id", "orden", name="uq_levelup_grados_puesto_path_orden"
         ),
         UniqueConstraint(
             "career_path_id", "nombre", name="uq_levelup_grados_puesto_path_nombre"
@@ -644,7 +648,6 @@ class GradoPuesto(Base):
     )
     codigo: Mapped[str] = mapped_column(String(10), nullable=False)
     nombre: Mapped[str] = mapped_column(String(100), nullable=False)
-    orden: Mapped[int] = mapped_column(Integer, nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -656,6 +659,18 @@ class GradoPuesto(Base):
     career_path: Mapped["CareerPath"] = relationship(
         "CareerPath", back_populates="grados"
     )
+    # Equivalencia ACTIVA con el Global Grade: de ahi sale la posicion del nivel.
+    # `uselist=False` porque la unicidad es por nivel; el filtro por `activo`
+    # evita que una equivalencia retirada siga dando posicion.
+    equivalencia: Mapped[Optional["CareerLevelGradeMapping"]] = relationship(
+        "CareerLevelGradeMapping",
+        primaryjoin=(
+            "and_(GradoPuesto.id == CareerLevelGradeMapping.career_level_id, "
+            "CareerLevelGradeMapping.activo == True)"
+        ),
+        viewonly=True,
+        uselist=False,
+    )
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="grado"
     )
@@ -666,7 +681,7 @@ class GradoPuesto(Base):
     def __repr__(self) -> str:
         return (
             f"<GradoPuesto id={self.id} codigo={self.codigo} "
-            f"career_path_id={self.career_path_id} orden={self.orden}>"
+            f"career_path_id={self.career_path_id}>"
         )
 
 

@@ -19,7 +19,6 @@ class CareerPathCreate(BaseModel):
 
     codigo: str = Field(..., min_length=1, max_length=10)
     nombre: str = Field(..., min_length=2, max_length=100)
-    orden: int = Field(..., ge=1, le=99)
 
 
 class CareerPathUpdate(BaseModel):
@@ -27,7 +26,6 @@ class CareerPathUpdate(BaseModel):
 
     codigo: str = Field(..., min_length=1, max_length=10)
     nombre: str = Field(..., min_length=2, max_length=100)
-    orden: int = Field(..., ge=1, le=99)
 
 
 class CareerPathResponse(BaseModel):
@@ -36,7 +34,6 @@ class CareerPathResponse(BaseModel):
     id: int
     codigo: str
     nombre: str
-    orden: int
     activo: bool
     created_at: datetime
     updated_at: datetime

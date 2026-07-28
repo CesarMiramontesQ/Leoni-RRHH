@@ -18,6 +18,7 @@ from app.core.data_scope import effective_data_scope_for_module
 from app.core.rh_module_registry import user_has_module
 from app.models.auditoria import AuditLog
 from app.models.empleados import Empleado
+from app.models.clasificacion_puesto import CareerLevelGradeMapping
 from app.models.talento import (
     AccionRecomendada,
     Competencia,
@@ -658,7 +659,11 @@ class EvaluacionService:
                 select(CompetenciaRequisito)
                 .options(
                     selectinload(CompetenciaRequisito.competencia),
-                    selectinload(CompetenciaRequisito.grado),
+                    # La posicion del nivel sale de su equivalencia con el
+                    # global grade; sin precargarla se cae con MissingGreenlet.
+                    selectinload(CompetenciaRequisito.grado)
+                    .selectinload(GradoPuesto.equivalencia)
+                    .selectinload(CareerLevelGradeMapping.global_grade),
                 )
                 .where(
                     CompetenciaRequisito.puesto_perfil_id == perfil_funciones.puesto_perfil_id,
@@ -673,9 +678,20 @@ class EvaluacionService:
                     grados_presentes[req.grado_id] = req.grado
                 comp_map = niveles_por_grado_por_comp.setdefault(comp.id, {})
                 comp_map[req.grado_id] = req.nivel_requerido
+            def _posicion(grado) -> int | None:
+                eq = grado.equivalencia
+                return eq.global_grade.orden if eq and eq.global_grade else None
+
             grados = [
-                GradoNivelInfo(grado_id=g.id, grado_nombre=g.nombre, orden=g.orden)
-                for g in sorted(grados_presentes.values(), key=lambda g: g.orden)
+                GradoNivelInfo(
+                    grado_id=g.id, grado_nombre=g.nombre, orden=_posicion(g)
+                )
+                # Sin posicion van al final; se desempata por codigo para que el
+                # resumen no baile entre llamadas.
+                for g in sorted(
+                    grados_presentes.values(),
+                    key=lambda g: (_posicion(g) is None, _posicion(g) or 0, g.codigo),
+                )
             ]
 
         evaluaciones = await self.repo.list_by_empleado_cerradas(empleado_id)

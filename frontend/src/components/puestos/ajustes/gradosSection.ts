@@ -53,7 +53,6 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   let editingCareerPathId: number | null = null;
   let editingCodigo = "";
   let editingNombre = "";
-  let editingOrden = 1;
   let deletingItem: GradoPuesto | null = null;
   let modalError = "";
   let filtro = "";
@@ -62,15 +61,9 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     return g.career_path_nombre ?? g.career_path_codigo ?? "—";
   }
 
-  /** Siguiente `orden` libre dentro del career path (el orden es unico por path). */
-  function siguienteOrden(careerPathId: number): number {
-    const delPath = items.filter((g) => g.career_path_id === careerPathId);
-    return (delPath.length > 0 ? Math.max(...delPath.map((g) => g.orden)) : 0) + 1;
-  }
-
-  function codigoSugerido(careerPathId: number, orden: number): string {
-    const path = careerPaths.find((cp) => cp.id === careerPathId);
-    return path ? `${path.codigo}${orden}` : "";
+  /** Etiqueta de la posición: el global grade, o un aviso si falta la equivalencia. */
+  function posicionLabel(g: GradoPuesto): string {
+    return g.global_grade_codigo ?? "Sin equivalencia";
   }
 
   /** Mismo umbral y comportamiento que el buscador de `catalogoSection`. */
@@ -123,7 +116,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
         <td class="${AJUSTES_TABLE_TD} font-medium tabular-nums">${escapeHtml(g.codigo)}</td>
         <td class="${AJUSTES_TABLE_TD} text-text-secondary">${escapeHtml(careerPathLabel(g))}</td>
         <td class="${AJUSTES_TABLE_TD}">${escapeHtml(g.nombre)}</td>
-        <td class="${AJUSTES_TABLE_TD} tabular-nums text-text-secondary">${g.orden}</td>
+        <td class="${AJUSTES_TABLE_TD} ${g.global_grade_codigo ? "tabular-nums text-text-secondary" : "text-amber-700"}">${escapeHtml(posicionLabel(g))}</td>
         <td class="${AJUSTES_TABLE_TD_ACTIONS}">
           <div class="flex items-center justify-end gap-1">
             <button type="button" data-grado-action="edit" data-id="${g.id}" class="${AJUSTES_ROW_BTN_EDIT}" title="Editar">${AJUSTES_ICON_EDIT}</button>
@@ -142,7 +135,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
               <th scope="col" class="${AJUSTES_TABLE_TH}">Código</th>
               <th scope="col" class="${AJUSTES_TABLE_TH}">Career path</th>
               <th scope="col" class="${AJUSTES_TABLE_TH}">Nombre</th>
-              <th scope="col" class="${AJUSTES_TABLE_TH}">Orden</th>
+              <th scope="col" class="${AJUSTES_TABLE_TH}">Global grade</th>
               <th scope="col" class="${AJUSTES_TABLE_TD_ACTIONS} ${AJUSTES_TABLE_TH}"><span class="sr-only">Acciones</span></th>
             </tr>
           </thead>
@@ -200,19 +193,15 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
                 <p class="mt-1 text-xs text-text-muted">Etiqueta corta del nivel (P10, M3).</p>
               </div>
               <div>
-                <label for="grado-orden" class="${RH_LISTADO_LABEL}">Orden <span class="text-red-600">*</span></label>
-                <input id="grado-orden" name="orden" type="number" required min="1" max="99"
-                  value="${editingOrden}"
+                <label for="grado-nombre" class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600">*</span></label>
+                <input id="grado-nombre" name="nombre" type="text" required minlength="2" maxlength="100"
+                  value="${escapeHtml(editingNombre)}"
                   class="${AJUSTES_INPUT}" />
-                <p class="mt-1 text-xs text-text-muted">Jerarquía dentro del career path.</p>
               </div>
             </div>
-            <div>
-              <label for="grado-nombre" class="${RH_LISTADO_LABEL}">Nombre <span class="text-red-600">*</span></label>
-              <input id="grado-nombre" name="nombre" type="text" required minlength="2" maxlength="100"
-                value="${escapeHtml(editingNombre)}"
-                class="${AJUSTES_INPUT}" />
-            </div>
+            <p class="rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2 text-xs leading-relaxed text-text-muted">
+              La posición del nivel la define su <strong class="font-semibold text-text-secondary">global grade</strong>, que se configura en la tarjeta de equivalencias. Hasta entonces el nivel no se puede usar en el rango de un perfil.
+            </p>
             ${modalError ? ajustesModalError(modalError) : ""}
             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" data-grado-modal="cancel" class="${RH_LISTADO_BTN_SECONDARY}">Cancelar</button>
@@ -266,7 +255,6 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     editingCareerPathId = null;
     editingCodigo = "";
     editingNombre = "";
-    editingOrden = 1;
     deletingItem = null;
     modalError = "";
     modalSaving = false;
@@ -290,8 +278,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
         if (careerPaths.length === 0) return;
         modalMode = "create";
         editingCareerPathId = careerPaths[0].id;
-        editingOrden = siguienteOrden(editingCareerPathId);
-        editingCodigo = codigoSugerido(editingCareerPathId, editingOrden);
+        editingCodigo = "";
         editingNombre = "";
         modalError = "";
         paint();
@@ -304,7 +291,6 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
         editingCareerPathId = item.career_path_id;
         editingCodigo = item.codigo;
         editingNombre = item.nombre;
-        editingOrden = item.orden;
         modalError = "";
         paint();
       } else if (action === "delete" && !Number.isNaN(id)) {
@@ -330,10 +316,6 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       const nuevoId = Number(select.value);
       if (Number.isNaN(nuevoId)) return;
       editingCareerPathId = nuevoId;
-      if (modalMode === "create") {
-        editingOrden = siguienteOrden(nuevoId);
-        editingCodigo = codigoSugerido(nuevoId, editingOrden);
-      }
       const form = sectionEl.querySelector<HTMLFormElement>("#grado-form");
       editingNombre = String(new FormData(form!).get("nombre") ?? editingNombre);
       paint();
@@ -376,7 +358,6 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     const careerPathId = Number(fd.get("career_path_id"));
     const codigo = String(fd.get("codigo") ?? "").trim();
     const nombre = String(fd.get("nombre") ?? "").trim();
-    const orden = Number(fd.get("orden"));
     if (!Number.isFinite(careerPathId) || careerPathId <= 0) {
       modalError = "Selecciona un career path.";
       paint();
@@ -392,16 +373,11 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       paint();
       return;
     }
-    if (!Number.isFinite(orden) || orden < 1) {
-      modalError = "El orden debe ser un número mayor o igual a 1.";
-      paint();
-      return;
-    }
     modalSaving = true;
     modalError = "";
     paint();
     try {
-      const payload = { career_path_id: careerPathId, codigo, nombre, orden };
+      const payload = { career_path_id: careerPathId, codigo, nombre };
       if (modalMode === "create") {
         await createGradoPuesto(payload);
       } else if (modalMode === "edit" && editingId != null) {

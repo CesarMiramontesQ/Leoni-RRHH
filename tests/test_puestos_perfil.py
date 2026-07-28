@@ -158,10 +158,6 @@ async def test_varios_perfiles_comparten_career_level_en_la_misma_area(
     )
     assert r0.status_code == 201, r0.text
 
-    # El segundo perfil arranca en el nivel intermedio, asi que necesita su propia
-    # equivalencia: el global grade se resuelve por el nivel inicial del rango.
-    await make_equivalencia(db, career_level_id=grado_ids[1])
-
     # Otro perfil de la MISMA area reusando el mismo nivel intermedio.
     r1 = await client.post(
         "/api/v1/puestos-perfil",

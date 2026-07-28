@@ -43,7 +43,6 @@ function mapCareerPath(raw: Record<string, unknown>): CareerPath {
     id: raw.id as number,
     codigo: (raw.codigo ?? "") as string,
     nombre: (raw.nombre ?? "") as string,
-    orden: (raw.orden ?? 0) as number,
     activo: (raw.activo ?? true) as boolean,
     created_at: (raw.created_at ?? "") as string,
     updated_at: (raw.updated_at ?? "") as string,
