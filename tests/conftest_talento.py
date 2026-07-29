@@ -683,7 +683,12 @@ async def make_clasificacion_payload(
 ) -> dict:
     """
     Crea los catalogos de clasificacion y devuelve el fragmento de payload que el
-    alta de perfil exige: career path, funcion, disciplina y career levels.
+    alta de perfil exige: career path, funcion, disciplina y career level.
+
+    El perfil lleva UN nivel: el primero de `ordenes`. El parametro sigue
+    aceptando varios porque muchos tests necesitan mas niveles EN EL CATALOGO
+    (para probar que se rechaza el de otro path, por ejemplo); esos se recuperan
+    con `make_grados_consecutivos`, que es get-or-create.
 
     Con `con_equivalencia=True` (por defecto) los niveles llevan su equivalencia, de
     modo que tienen posicion y el global grade del perfil se autocompleta. Con
@@ -701,5 +706,5 @@ async def make_clasificacion_payload(
         "career_path_id": grados[0].career_path_id,
         "funcion_id": funcion.id,
         "disciplina_id": disciplina.id,
-        "grado_ids": [g.id for g in grados],
+        "grado_id": grados[0].id,
     }

@@ -122,13 +122,15 @@ export type PerfilPuestoCreatePayload = {
   nombre_puesto: string;
   area: string;
   area_id: number;
-  grado_ids: number[];
+  /**
+   * El career level del perfil. UNO: el global grade concreto lo lleva cada
+   * persona dentro del tramo de ese nivel, no el puesto.
+   */
+  grado_id: number;
   // Clasificación: obligatoria al crear.
   career_path_id: number;
   funcion_id: number;
   disciplina_id: number;
-  /** Solo si el career level no tiene equivalencia configurada. */
-  global_grade_id?: number | null;
   estado?: EstadoPuestoPerfil;
   motivo_clasificacion?: string | null;
 };
@@ -138,12 +140,11 @@ export type PerfilPuestoUpdatePayload = {
   nombre_puesto?: string;
   area?: string;
   area_id?: number;
-  grado_ids?: number[];
+  grado_id?: number;
   tipo?: TipoPuestoPerfil;
   career_path_id?: number;
   funcion_id?: number;
   disciplina_id?: number;
-  global_grade_id?: number | null;
   estado?: EstadoPuestoPerfil;
   motivo_clasificacion?: string | null;
 };
@@ -166,6 +167,11 @@ export type PuestosFilterState = {
   career_path_id: string;
   funcion_id: string;
   disciplina_id: string;
+  /**
+   * Filtro por global grade. El perfil ya no guarda uno: el backend lo resuelve
+   * por el TRAMO de su career level, así que la pregunta que responde sigue
+   * siendo «qué puestos pesan esto».
+   */
   global_grade_id: string;
   estado: string;
 };

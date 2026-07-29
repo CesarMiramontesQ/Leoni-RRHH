@@ -33,15 +33,20 @@ async def _grado_ids(db, *, ordenes):
 
 
 # ---------------------------------------------------------------------------
-# Crear — grados consecutivos
+# Crear — un career level
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_create_perfil_con_grados_consecutivos_success(client: AsyncClient, db):
-    """RH crea perfil con grados consecutivos → 201, grados ordenados por orden."""
+async def test_create_perfil_con_un_career_level_success(client: AsyncClient, db):
+    """
+    El perfil lleva UN career level, no un rango.
+
+    El nivel dice el tamano del puesto; el global grade concreto se asigna a cada
+    persona dentro del tramo de ese nivel, asi que un puesto no necesita abarcar
+    varios niveles para admitir gente de distinto peso.
+    """
     area = await make_area(db, descripcion="Manufactura")
     clasificacion = await make_clasificacion_payload(db, ordenes=[7, 8, 9])
-    grados = clasificacion["grado_ids"]
     rh = await make_empleado(db, rol="rh", email="pp_create_ok@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -63,36 +68,47 @@ async def test_create_perfil_con_grados_consecutivos_success(client: AsyncClient
     assert body["area_id"] == area.area_id
     assert body["tipo"] == "administrativo"
     assert body["created_by"] == rh.id
-    ordenes = [g["orden"] for g in body["grados"]]
-    assert ordenes == [7, 8, 9]
-    assert [g["id"] for g in body["grados"]] == grados
+    # La respuesta sigue siendo una lista —la leen la matriz de competencias y
+    # las tareas, que se acotan por nivel— pero con un solo elemento.
+    assert [g["id"] for g in body["grados"]] == [clasificacion["grado_id"]]
+    assert body["clasificacion_completa"] is True, (
+        "sin global grade el perfil no puede nacer marcado como pendiente"
+    )
 
 
 @pytest.mark.asyncio
-async def test_create_perfil_grados_no_consecutivos_error(client: AsyncClient, db):
-    """Grados no consecutivos (7,9,10) → 400/422 con mensaje 'consecutivos'."""
-    area = await make_area(db, descripcion="Area NoConsec")
-    clasificacion = await make_clasificacion_payload(db, ordenes=[7, 9, 10])
-    rh = await make_empleado(db, rol="rh", email="pp_noconsec@leoni.test")
+async def test_create_perfil_con_nivel_sin_equivalencia_422(client: AsyncClient, db):
+    """
+    Un career level sin equivalencias no tiene posicion en la estructura.
+
+    Sustituye al test de contiguidad del rango: con un solo nivel no hay rango
+    que validar, y lo que queda por comprobar es que el nivel se pueda ubicar.
+    """
+    area = await make_area(db, descripcion="Area Sin Equivalencia")
+    clasificacion = await make_clasificacion_payload(
+        db, ordenes=[7], con_equivalencia=False
+    )
+    rh = await make_empleado(db, rol="rh", email="pp_sin_eq@leoni.test")
     headers = await auth_headers(client, rh)
 
     response = await client.post(
         "/api/v1/puestos-perfil",
         json={
             "codigo": "NC-01",
-            "nombre": "Perfil NoConsec",
+            "nombre": "Perfil Sin Equivalencia",
             "area_id": area.area_id,
             **clasificacion,
         },
         headers=headers,
     )
-    assert response.status_code in (400, 422)
-    assert "consecutiv" in response.text.lower()
+    assert response.status_code == 422, response.text
+    assert "equivalencia" in response.text.lower()
+    assert "ajustes" in response.text.lower(), "el mensaje debe decir donde arreglarlo"
 
 
 @pytest.mark.asyncio
 async def test_create_perfil_sin_grados_422(client: AsyncClient, db):
-    """grado_ids vacio → 422 (validacion de schema)."""
+    """Sin career level → 422 (validacion de schema)."""
     area = await make_area(db, descripcion="Area SinGrados")
     rh = await make_empleado(db, rol="rh", email="pp_singrados@leoni.test")
     headers = await auth_headers(client, rh)
@@ -103,7 +119,6 @@ async def test_create_perfil_sin_grados_422(client: AsyncClient, db):
             "codigo": "SG-01",
             "nombre": "Perfil SinGrados",
             "area_id": area.area_id,
-            "grado_ids": [],
         },
         headers=headers,
     )
@@ -122,7 +137,7 @@ async def test_create_perfil_sin_area_422(client: AsyncClient, db):
         json={
             "codigo": "SA-01",
             "nombre": "Perfil SinArea",
-            "grado_ids": grados,
+            "grado_id": grados[0],
         },
         headers=headers,
     )
@@ -142,7 +157,7 @@ async def test_varios_perfiles_comparten_career_level_en_la_misma_area(
     """
     area = await make_area(db, descripcion="Area Career Level Compartido")
     clasificacion = await make_clasificacion_payload(db, ordenes=[1, 2, 3])
-    grado_ids = clasificacion["grado_ids"]
+    otros = await make_grados_consecutivos(db, ordenes=[1, 2, 3])
     rh = await make_empleado(db, rol="rh", email="pp_grado_dup@leoni.test")
     headers = await auth_headers(client, rh)
 
@@ -165,12 +180,12 @@ async def test_varios_perfiles_comparten_career_level_en_la_misma_area(
             "codigo": "GD-DUP",
             "nombre": "Perfil Dup Grado",
             "area_id": area.area_id,
-            **{**clasificacion, "grado_ids": [grado_ids[1]]},
+            **{**clasificacion, "grado_id": otros[1].id},
         },
         headers=headers,
     )
     assert r1.status_code == 201, r1.text
-    assert [g["id"] for g in r1.json()["grados"]] == [grado_ids[1]]
+    assert [g["id"] for g in r1.json()["grados"]] == [otros[1].id]
 
 
 # ---------------------------------------------------------------------------
@@ -178,34 +193,24 @@ async def test_varios_perfiles_comparten_career_level_en_la_misma_area(
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_update_perfil_cambia_grados_valida_consecutividad_y_area(client: AsyncClient, db):
-    """Update de grados: consecutivos → 200; no consecutivos → 422."""
+async def test_update_perfil_cambia_su_career_level(client: AsyncClient, db):
+    """Cambiar el nivel del perfil lo REEMPLAZA; nunca acumula dos."""
     area = await make_area(db, descripcion="Area Update Grados")
     grados = await make_grados_consecutivos(db, ordenes=[1, 2, 3])
     rh = await make_empleado(db, rol="rh", email="pp_upd_grados@leoni.test")
     headers = await auth_headers(client, rh)
     perfil = await make_puesto_perfil(
         db, nombre="Perfil Update Grados", area_id=area.area_id,
-        grado_ids=[grados[0].id, grados[1].id],
+        grado_ids=[grados[0].id],
     )
 
-    # Cambiar a [1,2,3] consecutivo → 200
     r_ok = await client.put(
         f"/api/v1/puestos-perfil/{perfil.id}",
-        json={"grado_ids": [g.id for g in grados]},
+        json={"grado_id": grados[2].id},
         headers=headers,
     )
     assert r_ok.status_code == 200, r_ok.text
-    assert [g["orden"] for g in r_ok.json()["grados"]] == [1, 2, 3]
-
-    # Cambiar a [1,3] no consecutivo → 422
-    r_bad = await client.put(
-        f"/api/v1/puestos-perfil/{perfil.id}",
-        json={"grado_ids": [grados[0].id, grados[2].id]},
-        headers=headers,
-    )
-    assert r_bad.status_code in (400, 422)
-    assert "consecutiv" in r_bad.text.lower()
+    assert [g["id"] for g in r_ok.json()["grados"]] == [grados[2].id]
 
 
 @pytest.mark.asyncio
@@ -722,3 +727,35 @@ async def test_resumen_tarjetas_unauthorized(client: AsyncClient, db):
     """Resumen tarjetas requiere autenticacion → 401 sin token."""
     response = await client.get("/api/v1/puestos-perfil/resumen-tarjetas")
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_cambiar_el_nivel_se_refleja_en_la_respuesta(client: AsyncClient, db):
+    """
+    Regresion: el cambio se guardaba pero la respuesta mostraba el nivel viejo.
+
+    `set_grados` reemplaza los niveles con un DELETE masivo, que no sincroniza la
+    coleccion ya cargada en la sesion. La relectura devolvia lo cacheado, asi que
+    la respuesta —y el historial de clasificacion, que se arma de ella— seguian
+    diciendo el nivel anterior.
+    """
+    area = await make_area(db, descripcion="Area Reflejo Nivel")
+    grados = await make_grados_consecutivos(db, ordenes=[4, 5])
+    rh = await make_empleado(db, rol="rh", email="pp_reflejo@leoni.test")
+    headers = await auth_headers(client, rh)
+    perfil = await make_puesto_perfil(
+        db, nombre="Perfil Reflejo", area_id=area.area_id, grado_ids=[grados[0].id]
+    )
+
+    response = await client.put(
+        f"/api/v1/puestos-perfil/{perfil.id}",
+        json={"grado_id": grados[1].id},
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    assert [g["id"] for g in response.json()["grados"]] == [grados[1].id]
+
+    # Y al releerlo, tambien.
+    detalle = await client.get(f"/api/v1/puestos-perfil/{perfil.id}", headers=headers)
+    assert [g["id"] for g in detalle.json()["grados"]] == [grados[1].id]

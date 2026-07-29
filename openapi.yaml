@@ -3719,7 +3719,7 @@ components:
 
     PuestoPerfilCreate:
       type: object
-      required: [codigo, nombre, area_id, grado_ids, career_path_id, funcion_id, disciplina_id]
+      required: [codigo, nombre, area_id, grado_id, career_path_id, funcion_id, disciplina_id]
       properties:
         codigo:
           type: string
@@ -3734,13 +3734,14 @@ components:
           type: integer
           minimum: 1
           description: Area del perfil (obligatoria)
-        grado_ids:
-          type: array
-          minItems: 1
-          items:
-            type: integer
+        grado_id:
+          type: integer
+          minimum: 1
           description: >-
-            Career levels consecutivos del perfil, todos del mismo career path
+            Career level del perfil. UNO: el nivel dice el tamano del puesto, y
+            el global grade concreto se asigna a cada persona dentro del tramo de
+            ese nivel, no al puesto. Debe pertenecer al career path del perfil y
+            tener equivalencia configurada.
         career_path_id:
           type: integer
           minimum: 1
@@ -3752,12 +3753,6 @@ components:
           type: integer
           minimum: 1
           description: Debe pertenecer a la funcion seleccionada
-        global_grade_id:
-          type: [integer, "null"]
-          minimum: 1
-          description: >-
-            Se toma de la equivalencia configurada para el career level inicial.
-            Solo hay que enviarlo si no existe equivalencia.
         estado:
           type: string
           enum: [activo, inactivo, en_revision]
@@ -3788,11 +3783,9 @@ components:
         area_id:
           type: [integer, "null"]
           minimum: 1
-        grado_ids:
-          type: [array, "null"]
-          minItems: 1
-          items:
-            type: integer
+        grado_id:
+          type: [integer, "null"]
+          minimum: 1
         career_path_id:
           type: [integer, "null"]
           minimum: 1
@@ -3800,9 +3793,6 @@ components:
           type: [integer, "null"]
           minimum: 1
         disciplina_id:
-          type: [integer, "null"]
-          minimum: 1
-        global_grade_id:
           type: [integer, "null"]
           minimum: 1
         estado:
@@ -4963,8 +4953,14 @@ components:
           type: [string, "null"]
         global_grade_id:
           type: [integer, "null"]
+          description: >-
+            Siempre null: el perfil dejo de tener global grade propio. Lo lleva
+            cada persona dentro del tramo de su career level.
         global_grade_codigo:
           type: [string, "null"]
+          description: >-
+            TRAMO que el perfil hereda de su career level (`GG12 - GG13`), solo
+            informativo.
         global_grade_nombre:
           type: [string, "null"]
         estado:

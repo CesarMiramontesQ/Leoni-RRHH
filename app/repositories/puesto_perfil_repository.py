@@ -59,10 +59,20 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         )
 
     async def get_with_relations(self, id: int) -> PuestoPerfil | None:
+        """
+        Relee el perfil PISANDO lo que la sesion tenga cargado.
+
+        `set_grados` reemplaza los niveles con un DELETE masivo, que no
+        sincroniza la coleccion ya cargada en la sesion. Sin `populate_existing`
+        esta relectura devolvia el nivel viejo: el cambio se guardaba en la BD
+        pero la respuesta —y con ella el historial— seguian mostrando el
+        anterior.
+        """
         result = await self.db.execute(
             select(PuestoPerfil)
             .options(*self._carga_clasificacion())
             .where(PuestoPerfil.id == id, PuestoPerfil.activo.is_(True))
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -102,17 +112,32 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
         if disciplina_id is not None:
             query = query.where(PuestoPerfil.disciplina_id == disciplina_id)
         if global_grade_id is not None:
-            query = query.where(PuestoPerfil.global_grade_id == global_grade_id)
+            # El perfil ya no guarda global grade: lo hereda del tramo de su
+            # career level. La pregunta que responde el filtro sigue siendo la
+            # misma —«que puestos pesan esto»—, solo cambia de donde se lee.
+            niveles_con_grade = (
+                select(CareerLevelGradeMapping.career_level_id)
+                .where(
+                    CareerLevelGradeMapping.global_grade_id == global_grade_id,
+                    CareerLevelGradeMapping.activo.is_(True),
+                )
+                .scalar_subquery()
+            )
+            query = query.where(
+                PuestoPerfil.grados_config.any(
+                    PuestoPerfilGrado.grado_id.in_(niveles_con_grade)
+                )
+            )
         if estado is not None:
             query = query.where(PuestoPerfil.estado == estado)
         if clasificacion_pendiente is not None:
-            # Un perfil esta clasificado cuando tiene los cuatro campos; el rango de
-            # career levels ya es obligatorio desde el alta.
+            # El global grade NO cuenta: dejo de ser un dato del perfil (lo lleva
+            # cada persona). Exigirlo dejaria a todo perfil nuevo como pendiente.
             completa = (
                 PuestoPerfil.career_path_id.isnot(None)
                 & PuestoPerfil.funcion_id.isnot(None)
                 & PuestoPerfil.disciplina_id.isnot(None)
-                & PuestoPerfil.global_grade_id.isnot(None)
+                & PuestoPerfil.grados_config.any()
             )
             query = query.where(~completa if clasificacion_pendiente else completa)
         if busqueda:
