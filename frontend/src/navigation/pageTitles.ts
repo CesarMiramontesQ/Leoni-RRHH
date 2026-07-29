@@ -23,6 +23,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/actas"), titulo: "Actas" },
   { match: (h) => h.startsWith("#/reportes"), titulo: "Reporte comedor" },
   { match: (h) => h.startsWith("#/puestos/ajustes"), titulo: "Ajustes para perfiles de puesto" },
+  { match: (h) => h.startsWith("#/puestos/wtw"), titulo: "Estructura WTW" },
   { match: (h) => h.startsWith("#/puestos"), titulo: "Perfiles de Puesto" },
   { match: (h) => h.startsWith("#/competencias"), titulo: "Matriz de Competencias" },
   { match: (h) => h.startsWith("#/capacidades"), titulo: "Matriz de Multihabilidades" },

@@ -3845,6 +3845,91 @@ components:
         evidencias:
           type: integer
 
+    WtwGradeItem:
+      type: object
+      required: [id, codigo, orden]
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+        orden:
+          type: integer
+
+    WtwNivelItem:
+      type: object
+      required: [id, codigo, nombre, posicion_desde, posicion_hasta, global_grades]
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+        nombre:
+          type: string
+        posicion_desde:
+          type: integer
+          description: Extremo inferior del tramo de global grades.
+        posicion_hasta:
+          type: integer
+        global_grades:
+          type: array
+          items:
+            type: string
+          description: Codigos de los grades que abarca, ordenados.
+
+    WtwNivelSinPosicion:
+      type: object
+      required: [id, codigo, nombre]
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+        nombre:
+          type: string
+
+    WtwPathItem:
+      type: object
+      required: [id, codigo, nombre, niveles, sin_posicion]
+      properties:
+        id:
+          type: integer
+        codigo:
+          type: string
+        nombre:
+          type: string
+        niveles:
+          type: array
+          items:
+            $ref: "#/components/schemas/WtwNivelItem"
+        sin_posicion:
+          type: array
+          description: >-
+            Career levels sin equivalencias: no tienen posicion en el eje. Se
+            devuelven aparte en vez de omitirlos, porque ocultarlos haria creer
+            que el catalogo esta completo.
+          items:
+            $ref: "#/components/schemas/WtwNivelSinPosicion"
+
+    WtwMapaResponse:
+      type: object
+      required: [global_grades, career_paths]
+      properties:
+        global_grades:
+          type: array
+          description: >-
+            Eje X, ordenado por `orden`. Solo incluye los grades que **algun**
+            career path ocupa: uno que nadie usa agrega columnas vacias y empuja
+            las franjas. Se toma la cobertura completa de cada tramo, no solo los
+            grades con equivalencia, para que una celda que abarque GG10 y GG12
+            pueda dibujarse pasando por GG11.
+          items:
+            $ref: "#/components/schemas/WtwGradeItem"
+        career_paths:
+          type: array
+          items:
+            $ref: "#/components/schemas/WtwPathItem"
+
     ResumenTarjetasResponse:
       type: object
       required: [items]
@@ -13233,6 +13318,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/puestos-perfil/wtw:
+    get:
+      tags: [Talento - Puestos Perfil]
+      summary: Estructura WTW (mapa de career paths sobre el eje de global grades)
+      description: >-
+        Una franja por career path y cada career level con el tramo de global
+        grades que abarca. No calcula nada: es la misma posicion que ubica el
+        rango de un perfil, puesta sobre un eje comun.
+
+
+        Vive bajo `/puestos-perfil` a proposito. Los catalogos que tienen estos
+        datos (`/career-levels`, `/clasificacion-puesto/*`) pertenecen al modulo
+        `puestos-ajustes`, y esta vista debe poder consultarla cualquiera con el
+        modulo `puestos`.
+      operationId: puestos_perfil_wtw
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Mapa de la estructura
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WtwMapaResponse"
 
   /api/v1/puestos-perfil/resumen-tarjetas:
     get:

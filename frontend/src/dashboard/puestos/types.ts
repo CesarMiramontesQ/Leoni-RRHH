@@ -179,3 +179,46 @@ export {
   careerLevelsEntre as gradoIdsEntre,
   careerLevelsSonConsecutivos as gradosSonConsecutivos,
 } from "../../talento/clasificacionPuestoUi.ts";
+
+// ── Mapa WTW ────────────────────────────────────────────────────────────────
+//
+// La estructura de grados como la lámina de Towers: una franja por career path,
+// cada nivel ocupando el ancho de los global grades que abarca.
+
+/** Columna del eje: un global grade. */
+export type WtwGrade = {
+  id: number;
+  codigo: string;
+  orden: number;
+};
+
+/** Career level con posición: ocupa de `posicion_desde` a `posicion_hasta`. */
+export type WtwNivel = {
+  id: number;
+  codigo: string;
+  nombre: string;
+  posicion_desde: number;
+  posicion_hasta: number;
+  /** Códigos de los grades que abarca, para el tooltip. */
+  global_grades: string[];
+};
+
+/** Career level sin equivalencias: no se puede ubicar en el eje. */
+export type WtwNivelSinPosicion = {
+  id: number;
+  codigo: string;
+  nombre: string;
+};
+
+export type WtwPath = {
+  id: number;
+  codigo: string;
+  nombre: string;
+  niveles: WtwNivel[];
+  sin_posicion: WtwNivelSinPosicion[];
+};
+
+export type WtwMapa = {
+  global_grades: WtwGrade[];
+  career_paths: WtwPath[];
+};

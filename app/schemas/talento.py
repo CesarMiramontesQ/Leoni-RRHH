@@ -304,6 +304,54 @@ class ResumenTarjetasResponse(BaseModel):
     items: list[PerfilTarjetaItem]
 
 
+# ── Mapa WTW ─────────────────────────────────────────────────────────────────
+#
+# La estructura de grados leida como la lamina de Willis Towers Watson: una
+# franja por career path y cada nivel ocupando el ancho de los global grades que
+# abarca. No calcula nada nuevo — es la misma posicion que ya usa el rango de un
+# perfil, puesta en un eje comun para que se vea que un P4 y un M1 pesan igual.
+
+
+class WtwGradeItem(BaseModel):
+    """Columna del eje: un global grade."""
+
+    id: int
+    codigo: str
+    orden: int
+
+
+class WtwNivelItem(BaseModel):
+    """Career level con posicion: ocupa de `posicion_desde` a `posicion_hasta`."""
+
+    id: int
+    codigo: str
+    nombre: str
+    posicion_desde: int
+    posicion_hasta: int
+    global_grades: list[str]
+
+
+class WtwNivelSinPosicion(BaseModel):
+    """Career level sin equivalencias: no se puede ubicar en el eje."""
+
+    id: int
+    codigo: str
+    nombre: str
+
+
+class WtwPathItem(BaseModel):
+    id: int
+    codigo: str
+    nombre: str
+    niveles: list[WtwNivelItem]
+    sin_posicion: list[WtwNivelSinPosicion]
+
+
+class WtwMapaResponse(BaseModel):
+    global_grades: list[WtwGradeItem]
+    career_paths: list[WtwPathItem]
+
+
 # ── IA Generacion ────────────────────────────────────────────────────────────
 
 

@@ -13,7 +13,12 @@ import type { AppShellNavItemId } from "./shellNavPolicy.ts";
 import { isShellNavItemVisibleForRol } from "./shellNavPolicy.ts";
 import { LEVEL_UP_PUESTOS } from "./levelUpNav.ts";
 
-export type PuestosNavKey = "puestos" | "competencias" | "tareas-catalogo" | "puestos-ajustes";
+export type PuestosNavKey =
+  | "puestos"
+  | "wtw"
+  | "competencias"
+  | "tareas-catalogo"
+  | "puestos-ajustes";
 
 export type PuestosNavItem = {
   id: AppShellNavItemId;

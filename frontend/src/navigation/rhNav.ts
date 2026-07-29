@@ -30,6 +30,7 @@ export type RhNavKey =
   | "level-up"
   | "puestos"
   | "puestos-ajustes"
+  | "wtw"
   | "competencias"
   | "tareas-catalogo"
   | "evaluaciones"

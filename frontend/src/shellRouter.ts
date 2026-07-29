@@ -26,6 +26,7 @@ import { mountComedor } from "./pages/comedor.ts";
 import { mountNotificaciones } from "./pages/notificaciones.ts";
 import { mountOrganigrama } from "./pages/organigrama.ts";
 import { mountPuestos } from "./pages/puestos.ts";
+import { mountWtwMapa } from "./pages/wtwMapa.ts";
 import { mountPuestosAjustes } from "./pages/puestosAjustes.ts";
 import { mountPerfilPuestoDetalle } from "./pages/perfilPuestoDetalle.ts";
 import { mountPuestoEmpleados } from "./pages/puestoEmpleados.ts";
@@ -403,6 +404,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
     if (h.startsWith("#/puestos/ajustes")) {
       mountPuestosAjustes(container, signal);
+      return;
+    }
+
+    // Antes del listado: `#/puestos` se lo comería.
+    if (h.startsWith("#/puestos/wtw")) {
+      mountWtwMapa(container, signal);
       return;
     }
 

@@ -1190,6 +1190,45 @@ Tabla de scores con barras de progreso + panel lateral de distribucion. Usado po
 
 ---
 
+### 13.3 Layout — Mapa de estructura
+
+Franjas apiladas sobre un **eje ordinal compartido**: cada categoría es una fila y cada
+elemento ocupa el ancho del tramo del eje que abarca. Usado por: Estructura WTW
+(`#/puestos/wtw`), donde la fila es un career path y el elemento un career level sobre el
+eje de global grades.
+
+```
+[Page Header]
+[Nota del eje: qué significa la escala]
+[Card por categoría]
+  [Badge de la categoría + conteo]
+  [Scroll horizontal]
+    [Fila de encabezado: una columna por punto del eje, sticky]
+    [Carril: elementos posicionados con grid-column: inicio / span n]
+  [Bandeja ámbar: elementos sin posición en el eje]
+```
+
+Reglas:
+- **El valor de la vista es la alineación entre franjas.** Todas comparten el mismo
+  `grid-template-columns`, así que dos elementos de categorías distintas en la misma columna
+  significan lo mismo. Si cada franja calculara sus columnas, la lectura se perdería.
+- **El eje se recorta a lo ocupado.** Un punto que ninguna categoría usa solo agrega
+  columnas vacías y empuja las franjas a un lado. Se recorta a la **cobertura** (la unión de
+  los tramos), no a los puntos con dato: un elemento que abarque del 10 al 12 necesita la
+  columna del 11 aunque nadie la haya declarado.
+- **La posición se calcula contra el índice del punto en el eje, no contra su valor.** Al
+  recortar, el eje queda con huecos en la numeración; buscar por valor colocaría mal las
+  celdas.
+- **Los elementos que se solapan bajan a otro carril** (`talento/wtwCarriles.ts`,
+  empaquetado greedy). Dibujarlos en la misma fila los haría pisarse y el gráfico diría algo
+  falso. Un catálogo sano sale en un solo carril.
+- **Lo que no se puede posicionar se muestra, no se oculta**: bandeja ámbar bajo el gráfico,
+  con el mismo lenguaje que usa Ajustes («Sin equivalencia») y enlace a donde se corrige.
+  Omitirlo haría creer que el catálogo está completo.
+- **No se reproducen paletas de origen.** La lámina de WTW usa morado/naranja/azul por
+  categoría; aquí las franjas usan capas tonales y la identidad la da el badge de la
+  categoría — §2 prohíbe inventar colores y reserva el accent para lo interactivo.
+
 ## 14. Level Up — Component Patterns
 
 ### 14.1 Sparkline (mini bar chart)

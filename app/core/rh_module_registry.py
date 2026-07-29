@@ -268,7 +268,9 @@ RH_MODULES: dict[str, RhModuleDef] = {
         key="puestos",
         label="Perfiles de puesto",
         group="Puestos",
-        nav_item_ids=("puestos",),
+        # `wtw` es la vista de la estructura: solo lee, y debe verla cualquiera
+        # que trabaje con perfiles, no solo quien administra el catalogo.
+        nav_item_ids=("puestos", "wtw"),
         hash_prefixes=("#/puestos",),
         api_prefixes=(
             "/api/v1/puestos-perfil",

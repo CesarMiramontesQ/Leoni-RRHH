@@ -27,6 +27,7 @@ from app.schemas.talento import (
     PuestoPerfilResponse,
     PuestoPerfilUpdate,
     ResumenTarjetasResponse,
+    WtwMapaResponse,
 )
 from app.services.puesto_perfil_service import PuestoPerfilService
 
@@ -78,6 +79,21 @@ async def resumen_tarjetas(
     """Devuelve perfiles activos con metricas agregadas para la vista de tarjetas."""
     service = PuestoPerfilService(db)
     return await service.resumen_tarjetas()
+
+
+@router.get("/wtw", response_model=WtwMapaResponse)
+async def mapa_wtw(
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Estructura de grados para la vista WTW: paths, sus niveles y el eje de grades.
+
+    Se declara ANTES de `/{id}`: FastAPI resuelve por orden y 'wtw' entraria
+    como `id: int`, devolviendo 422.
+    """
+    service = PuestoPerfilService(db)
+    return await service.mapa_wtw()
 
 
 @router.post(
