@@ -32,7 +32,7 @@ import {
 
 type Estado = "loading" | "ready" | "error";
 
-/** Ancho de cada columna del eje; por debajo los códigos se aprietan. */
+/** Ancho MÍNIMO de cada columna del eje; por debajo los códigos se aprietan. */
 const ANCHO_COLUMNA = "4.75rem";
 
 /** Columna fija de la izquierda con la etiqueta del career path. */
@@ -43,8 +43,37 @@ const ANCHO_ETIQUETA = "11rem";
 // todas las franjas comparten columna, dos niveles del mismo tinte están
 // alineados — el color acaba probando lo que la vista quiere enseñar.
 
+/**
+ * Ancho mínimo del lienzo: la suma exacta de las columnas.
+ *
+ * Se calcula en vez de usar `min-w-max` porque el ancho intrínseco lo decidiría
+ * el texto de las celdas, y entonces un nombre largo forzaría scroll aunque
+ * hubiera sitio. Con el mínimo fijado, el lienzo es tan ancho como el contenedor
+ * cuando cabe —y las columnas se reparten el sobrante— y desborda solo cuando de
+ * verdad no cabe.
+ *
+ * Importa que el LIENZO tenga este ancho, no solo las filas: la capa de tintes
+ * es `absolute inset-0` sobre él, y si el lienzo fuera más angosto que las filas
+ * los tintes se despegarían de las columnas al desplazar.
+ */
+function anchoMinimoLienzo(total: number): string {
+  return `min-width: calc(${ANCHO_ETIQUETA} + ${total} * ${ANCHO_COLUMNA});`;
+}
+
+/**
+ * Columnas del eje: la etiqueta fija y el resto repartiéndose lo que sobre.
+ *
+ * `1fr` con un mínimo, no un ancho fijo: con ancho fijo el eje terminaba antes
+ * del borde de la card y el último grade quedaba flotando con blanco a su
+ * derecha. El mínimo es lo que hace que el contenedor desborde y scrollee
+ * cuando la pantalla es angosta, en vez de aplastar las columnas.
+ *
+ * Las cuatro rejillas (tintes, encabezado y cada carril) usan esta misma
+ * plantilla sobre el mismo ancho de padre, así que reparten igual y siguen
+ * alineadas.
+ */
 function plantillaColumnas(total: number): string {
-  return `grid-template-columns: ${ANCHO_ETIQUETA} repeat(${total}, ${ANCHO_COLUMNA});`;
+  return `grid-template-columns: ${ANCHO_ETIQUETA} repeat(${total}, minmax(${ANCHO_COLUMNA}, 1fr));`;
 }
 
 /** Celda pegada a la izquierda que no se pierde al desplazar el eje. */
@@ -226,7 +255,7 @@ export function mountWtwMapa(container: HTMLElement, signal?: AbortSignal): void
       .join("");
     return `<div class="${RH_LISTADO_SURFACE} overflow-hidden">
         <div class="overflow-x-auto">
-          <div class="relative min-w-max">
+          <div class="relative" style="${anchoMinimoLienzo(grades.length)}">
             ${renderTintes(grades)}
             ${renderEje(grades)}
             ${franjas}
