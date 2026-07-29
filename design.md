@@ -1562,7 +1562,7 @@ mountCatalogoSection<MiEntidad>(sectionEl, signal, {
 
 ### 15.6.1 Reglas de la sección de catálogo
 
-- **Campos**: `tipo: "texto" | "numero" | "select"`. Dos campos consecutivos con
+- **Campos**: `tipo: "texto" | "numero" | "select" | "multiselect"`. Dos campos consecutivos con
   `ancho: "medio"` se emparejan en `sm:grid-cols-2`; el resto ocupa el ancho completo.
   El chevron de los `select` sale de `SELECT_CHEVRON`, nunca se dibuja a mano.
 - **Dependencias entre catálogos**: cuando un catálogo no puede existir sin otro
@@ -1571,7 +1571,17 @@ mountCatalogoSection<MiEntidad>(sectionEl, signal, {
   el botón de alta**, en vez de dejar al usuario abrir un formulario que va a fallar.
 - **Sincronía entre cards**: si dar de alta en una card cambia el select de otra, se emite un
   evento en `document` (`AJUSTES_CLASIFICACION_CHANGED`) y la card dependiente se recarga.
-  Mismo patrón que `AJUSTES_GRUPOS_COMPETENCIA_CHANGED`.
+  Mismo patrón que `AJUSTES_GRUPOS_COMPETENCIA_CHANGED` y `AJUSTES_EQUIVALENCIAS_CHANGED`.
+
+  **Toda card que lea un catálogo ajeno tiene que escuchar su evento** — el select y las
+  columnas que muestran ese dato quedan obsoletos si no. Han faltado dos veces: equivalencias
+  → tabla de career levels, y career paths → formulario de career level. La regla es
+  mecánica: si `cargar()` llama a un `api/` que no es el de la card, hay un
+  `document.addEventListener` que le corresponde.
+
+  Al reaccionar **no se reutiliza `load()`** si la card además *emite* ese mismo evento:
+  respondería a su propio cambio con el estado «Cargando…» y la tabla parpadearía en cada
+  alta. Se recarga en silencio, sin tocar `loading`.
 - **Conflictos del backend**: los 409 ("está en uso", "duplicado") se muestran tal cual dentro
   del modal con `ajustesModalError`; no se traducen ni se resumen.
 - Los listeners se registran con `{ signal }` y el modal se pinta dentro de la sección.

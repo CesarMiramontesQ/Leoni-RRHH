@@ -1,5 +1,8 @@
 import { getCareerPaths } from "../../../api/clasificacionPuesto.ts";
-import { notifyAjustesClasificacionChanged } from "./clasificacionSections.ts";
+import {
+  AJUSTES_CLASIFICACION_CHANGED,
+  notifyAjustesClasificacionChanged,
+} from "./clasificacionSections.ts";
 import { AJUSTES_EQUIVALENCIAS_CHANGED } from "./globalGradeSections.ts";
 import {
   createGradoPuesto,
@@ -263,6 +266,31 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       }) + renderModal();
   }
 
+  /**
+   * Recarga sin pasar por el estado «Cargando…».
+   *
+   * Se usa al reaccionar a cambios de otra card: el select del formulario
+   * ofrece los career paths y la tabla muestra su nombre, así que ambos tienen
+   * que reflejar un alta o un renombrado sin recargar la página. No se reutiliza
+   * `load` porque esta card también emite `AJUSTES_CLASIFICACION_CHANGED` al
+   * tocar un nivel, y responder a su propio evento con el estado de carga haría
+   * parpadear la tabla en cada alta.
+   */
+  async function refrescarSilencioso(): Promise<void> {
+    try {
+      const [grados, paths] = await Promise.all([
+        getGradosPuesto({ page_size: 200 }),
+        getCareerPaths(),
+      ]);
+      items = grados;
+      careerPaths = paths;
+      paint();
+    } catch {
+      // Lo que ya está en pantalla sigue siendo válido; un fallo aquí no debe
+      // romper la card.
+    }
+  }
+
   async function load(): Promise<void> {
     loading = true;
     error = "";
@@ -474,9 +502,19 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
 
   // El tramo de global grades de cada nivel se administra en la card de
   // equivalencias: si cambia allí, esta tabla debe reflejarlo sin recargar.
-  document.addEventListener(AJUSTES_EQUIVALENCIAS_CHANGED, () => void load(), {
-    signal,
-  });
+  document.addEventListener(
+    AJUSTES_EQUIVALENCIAS_CHANGED,
+    () => void refrescarSilencioso(),
+    { signal },
+  );
+
+  // Un career path nuevo (o renombrado) en la card de arriba tiene que salir en
+  // el select de este formulario y en la columna «Career path» de la tabla.
+  document.addEventListener(
+    AJUSTES_CLASIFICACION_CHANGED,
+    () => void refrescarSilencioso(),
+    { signal },
+  );
 
   void load();
 }
