@@ -24,6 +24,7 @@ from app.models.talento import GradoPuesto
 from app.repositories.clasificacion_puesto_repository import CareerPathRepository
 from app.repositories.grado_puesto_repository import GradoPuestoRepository
 from app.schemas.grados_puesto import (
+    GlobalGradeRef,
     GradoPuestoCreate,
     GradoPuestoListResponse,
     GradoPuestoResponse,
@@ -47,8 +48,11 @@ class GradoPuestoService:
         grado: GradoPuesto, *, reactivado: bool = False
     ) -> GradoPuestoResponse:
         career_path = grado.career_path
-        equivalencia = grado.equivalencia
-        grade = equivalencia.global_grade if equivalencia else None
+        # Un nivel abarca un TRAMO de grades (M4 = GG17 + GG18), no uno solo.
+        grades = sorted(
+            (eq.global_grade for eq in (grado.equivalencias or []) if eq.global_grade),
+            key=lambda g: g.orden,
+        )
         return GradoPuestoResponse(
             id=grado.id,
             career_path_id=grado.career_path_id,
@@ -56,9 +60,11 @@ class GradoPuestoService:
             career_path_nombre=career_path.nombre if career_path else None,
             codigo=grado.codigo,
             nombre=grado.nombre,
-            global_grade_id=grade.id if grade else None,
-            global_grade_codigo=grade.codigo if grade else None,
-            global_grade_orden=grade.orden if grade else None,
+            global_grades=[
+                GlobalGradeRef(id=g.id, codigo=g.codigo, orden=g.orden) for g in grades
+            ],
+            posicion_desde=grades[0].orden if grades else None,
+            posicion_hasta=grades[-1].orden if grades else None,
             activo=grado.activo,
             reactivado=reactivado,
             created_at=grado.created_at,

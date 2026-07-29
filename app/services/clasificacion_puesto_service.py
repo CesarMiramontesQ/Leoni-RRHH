@@ -608,15 +608,18 @@ class EquivalenciaService:
                 f"El global grade '{grade.codigo}' esta inactivo y no se puede "
                 "usar en una equivalencia"
             )
-        existente = await self.repo.get_by_career_level(
-            data.career_level_id, exclude_id=exclude_id
+        # Lo unico que no se repite es el PAR: un nivel puede abarcar varios
+        # grades (M4 = GG17 + GG18), y ahi esta la razon de que dos empleados en
+        # M4 puedan estar clasificados distinto.
+        existente = await self.repo.get_par(
+            data.career_level_id, data.global_grade_id, exclude_id=exclude_id
         )
         if existente:
             nivel = existente.career_level
             raise ConflictError(
                 detail=(
                     f"El career level '{nivel.codigo if nivel else data.career_level_id}' "
-                    "ya tiene una equivalencia configurada"
+                    f"ya equivale al global grade '{grade.codigo}'"
                 )
             )
 
@@ -661,7 +664,11 @@ class EquivalenciaService:
         # grade quedo grabado en el perfil, no se deriva en cada lectura.
         await self.repo.update(id, {"activo": False})
 
-    async def resolver(self, career_level_id: int) -> EquivalenciaResponse | None:
-        """Equivalencia activa del nivel, o None si RH no la ha configurado."""
-        item = await self.repo.get_activa_por_career_level(career_level_id)
-        return self._to_response(item) if item else None
+    async def resolver(self, career_level_id: int) -> list[EquivalenciaResponse]:
+        """
+        Grades a los que equivale el nivel, ordenados; vacio si no hay ninguno.
+
+        Es una lista porque un nivel abarca un tramo (M4 = GG17 + GG18).
+        """
+        items = await self.repo.get_activas_por_career_level(career_level_id)
+        return [self._to_response(i) for i in items]

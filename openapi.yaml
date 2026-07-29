@@ -3919,15 +3919,30 @@ components:
           type: string
         nombre:
           type: string
-        global_grade_id:
-          type: [integer, "null"]
-        global_grade_codigo:
-          type: [string, "null"]
-        global_grade_orden:
-          type: [integer, "null"]
+        global_grades:
+          type: array
           description: >-
-            Posicion del nivel, tomada de su Global Grade. Null cuando no hay
-            equivalencia configurada.
+            Global Grades que abarca el career level, ordenados por `orden`. Un
+            nivel abarca un TRAMO (M4 = GG17 + GG18), no un grade suelto: por eso
+            dos empleados en M4 pueden estar clasificados distinto. Vacio =
+            equivalencia sin configurar, y entonces el nivel no se puede ubicar
+            en el rango de un perfil.
+          items:
+            type: object
+            required: [id, codigo, orden]
+            properties:
+              id:
+                type: integer
+              codigo:
+                type: string
+              orden:
+                type: integer
+        posicion_desde:
+          type: [integer, "null"]
+          description: Extremo inferior del tramo. Null si no hay equivalencias.
+        posicion_hasta:
+          type: [integer, "null"]
+          description: Extremo superior del tramo.
         activo:
           type: boolean
         reactivado:
@@ -11892,11 +11907,13 @@ paths:
   /api/v1/clasificacion-puesto/equivalencias/resolver:
     get:
       tags: [Talento - Clasificacion de Puesto]
-      summary: Resolver el global grade de un career level
+      summary: Global grades a los que equivale un career level
       description: >-
-        Devuelve la equivalencia configurada por RH, o `null` si no existe.
-        `null` NO es un error: significa que el global grade debe capturarse a
-        mano. El sistema nunca deduce la correspondencia.
+        Lista ordenada por `orden`. Es una LISTA porque un nivel abarca un tramo:
+        M4 puede ser GG17 y GG18. Con uno solo el formulario de perfil lo
+        autocompleta; con varios RH elige entre ellos. Vacia NO es un error:
+        significa que RH no configuro la equivalencia y el global grade se
+        captura a mano. El sistema nunca deduce la correspondencia.
       operationId: equivalencias_resolver
       security:
         - BearerAuth: []
@@ -11909,13 +11926,13 @@ paths:
             minimum: 1
       responses:
         "200":
-          description: Equivalencia configurada, o null
+          description: Global grades del career level; vacia si no hay equivalencias
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/EquivalenciaResponse"
-                  - type: "null"
+                type: array
+                items:
+                  $ref: "#/components/schemas/EquivalenciaResponse"
 
   /api/v1/clasificacion-puesto/equivalencias/{id}:
     get:

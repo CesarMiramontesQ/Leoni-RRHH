@@ -133,16 +133,16 @@ export function mountEquivalenciasSection(
 ): void {
   let niveles: GradoPuesto[] = [];
   let grades: GlobalGrade[] = [];
-  let equivalencias: Equivalencia[] = [];
 
-  /** Niveles que aún no tienen equivalencia: la relación es 1:1 por nivel. */
-  function nivelesDisponibles(actualId?: number): GradoPuesto[] {
-    const ocupados = new Set(
-      equivalencias
-        .filter((e) => e.career_level_id !== actualId)
-        .map((e) => e.career_level_id),
-    );
-    return niveles.filter((n) => !ocupados.has(n.id));
+  /**
+   * Todos los niveles activos.
+   *
+   * Ya no hay niveles "ocupados": un career level abarca un TRAMO de grades
+   * (M4 = GG17 + GG18), así que puede aparecer en varias equivalencias. Lo único
+   * que no se repite es el par nivel↔grade, y de eso responde el backend.
+   */
+  function nivelesDisponibles(): GradoPuesto[] {
+    return niveles;
   }
 
   const seccion = mountCatalogoSection<Equivalencia>(sectionEl, signal, {
@@ -161,9 +161,6 @@ export function mountEquivalenciasSection(
       }
       if (grades.length === 0) {
         return "Primero crea global grades: la equivalencia apunta a uno.";
-      }
-      if (nivelesDisponibles().length === 0 && equivalencias.length > 0) {
-        return "Todos los career levels ya tienen equivalencia configurada.";
       }
       return null;
     },
@@ -227,7 +224,6 @@ export function mountEquivalenciasSection(
         getGradosPuesto({ page_size: 200 }),
         getGlobalGrades(),
       ]);
-      equivalencias = eqs;
       niveles = nivs;
       grades = ggs;
       return eqs;

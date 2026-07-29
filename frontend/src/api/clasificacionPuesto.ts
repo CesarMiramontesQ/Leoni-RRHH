@@ -261,19 +261,21 @@ export async function getEquivalencias(opts?: {
 }
 
 /**
- * Equivalencia configurada para un career level, o `null` si RH no la definió.
+ * Global grades a los que equivale un career level, ordenados por `orden`.
  *
- * `null` no es un error: significa que el global grade debe elegirse a mano.
+ * Es una **lista** porque un nivel abarca un tramo: M4 puede ser GG17 y GG18.
+ * Vacía no es un error: significa que RH no configuró la equivalencia y el
+ * global grade queda libre.
  */
 export async function resolverEquivalencia(
-  globalLevelId: number,
-): Promise<Equivalencia | null> {
+  careerLevelId: number,
+): Promise<Equivalencia[]> {
   const res = await fetchWithAuth(
-    `${BASE}/equivalencias/resolver?career_level_id=${globalLevelId}`,
+    `${BASE}/equivalencias/resolver?career_level_id=${careerLevelId}`,
   );
   if (!res.ok) fail(res, await readErrorDetail(res));
-  const data = (await res.json()) as Record<string, unknown> | null;
-  return data ? mapEquivalencia(data) : null;
+  const data = (await res.json()) as Record<string, unknown>[] | null;
+  return (data ?? []).map(mapEquivalencia);
 }
 
 export async function createEquivalencia(

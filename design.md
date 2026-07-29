@@ -1706,8 +1706,17 @@ Global Grade**) se lee igual en listado, detalle y formulario. Todo lo visual sa
   clasificación organizacional definida por RH. **Ningún texto de la UI puede sugerir que
   el Global Grade determina sueldo, banda salarial o compensación** — este sistema no
   administra esos conceptos. Hay un test que lo verifica.
-- **Un rango solo existe dentro de un career path.** `globalLevelsEntre` devuelve vacío si
+- **Un rango solo existe dentro de un career path.** `careerLevelsEntre` devuelve vacío si
   los extremos son de paths distintos, y el select de "hasta" se acota al path elegido.
+- **Un career level abarca un TRAMO de global grades**, no uno solo: M4 puede ser GG17 y
+  GG18, y por eso dos empleados en M4 pueden estar clasificados distinto. Se muestra con
+  `formatGlobalGrades` (`GG17`, `GG17 – GG18`, o «Sin equivalencia»). La contigüidad de un
+  rango se mide sobre la **unión** de grades cubiertos, no sobre una posición por nivel.
+- **El Global Grade del perfil está acotado a los de su career level inicial.** Con uno se
+  autocompleta; con varios el select queda sin preseleccionar y el aviso pide elegir; sin
+  equivalencias el campo queda libre con el aviso ámbar que enlaza a Ajustes. Guardar uno
+  fuera de ese conjunto devuelve 422 — si no, la equivalencia sería una sugerencia y nada
+  impediría un M4 clasificado GG25.
 - **Los badges llevan texto, nunca solo color** (§8.9). El de "Clasificación pendiente" es
   ámbar informativo, no un error: el perfil se puede seguir editando.
 - **Cascadas**: Función → Disciplina en filtros y formulario; al cambiar la función se

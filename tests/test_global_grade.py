@@ -9,6 +9,7 @@ from httpx import AsyncClient
 
 from tests.conftest import auth_headers, make_empleado
 from tests.conftest_talento import (
+    make_grado_puesto,
     make_area,
     make_clasificacion_payload,
     make_disciplina_puesto,
@@ -143,22 +144,56 @@ async def test_crear_equivalencia_success(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_equivalencia_duplicada_por_nivel_409(client: AsyncClient, db):
-    """Un career level solo puede tener una equivalencia."""
+async def test_un_career_level_puede_equivaler_a_varios_global_grades(
+    client: AsyncClient, db
+):
+    """
+    Un nivel abarca un TRAMO de grades: M4 puede ser GG17 y GG18.
+
+    Es la razon por la que dos empleados en M4 pueden estar clasificados
+    distinto: el nivel dice el tamano del puesto y el grade lo afina dentro.
+    """
+    rh = await make_empleado(db, rol="rh", email="eq_varios@leoni.test")
+    grados = await make_grados_consecutivos(db, ordenes=[10], con_equivalencia=False)
+    gg17 = await make_global_grade(db, codigo="GG17", orden=17)
+    gg18 = await make_global_grade(db, codigo="GG18", orden=18)
+    headers = await auth_headers(client, rh)
+
+    for grade in (gg17, gg18):
+        r = await client.post(
+            f"{BASE}/equivalencias",
+            json={"career_level_id": grados[0].id, "global_grade_id": grade.id},
+            headers=headers,
+        )
+        assert r.status_code == 201, r.text
+
+    resuelto = await client.get(
+        f"{BASE}/equivalencias/resolver?career_level_id={grados[0].id}", headers=headers
+    )
+    assert resuelto.status_code == 200
+    # Ordenados por `orden`: el primero marca la posicion del nivel.
+    assert [e["global_grade_codigo"] for e in resuelto.json()] == ["GG17", "GG18"]
+
+
+@pytest.mark.asyncio
+async def test_el_mismo_par_nivel_grade_no_se_repite_409(client: AsyncClient, db):
+    """Lo unico que no se puede repetir es el PAR, no el nivel."""
     rh = await make_empleado(db, rol="rh", email="eq_dup@leoni.test")
     grados = await make_grados_consecutivos(db, ordenes=[10], con_equivalencia=False)
-    await make_equivalencia(db, career_level_id=grados[0].id)
-    otro_grade = await make_global_grade(db, codigo="GG20", orden=20)
+    grade = await make_global_grade(db, codigo="GG20", orden=20)
+    await make_equivalencia(
+        db, career_level_id=grados[0].id, global_grade_id=grade.id
+    )
     headers = await auth_headers(client, rh)
 
     response = await client.post(
         f"{BASE}/equivalencias",
-        json={"career_level_id": grados[0].id, "global_grade_id": otro_grade.id},
+        json={"career_level_id": grados[0].id, "global_grade_id": grade.id},
         headers=headers,
     )
 
     assert response.status_code == 409
-    assert "equivalencia" in response.json()["detail"].lower()
+    assert "ya equivale" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -200,12 +235,12 @@ async def test_la_equivalencia_no_asume_correspondencia_por_numero(
         headers=headers,
     )
     assert resuelta.status_code == 200
-    assert resuelta.json()["global_grade_codigo"] == "GG08"
+    assert [e["global_grade_codigo"] for e in resuelta.json()] == ["GG08"]
 
 
 @pytest.mark.asyncio
-async def test_resolver_sin_equivalencia_devuelve_null(client: AsyncClient, db):
-    """Sin equivalencia configurada no es un error: la UI pide elegir a mano."""
+async def test_resolver_sin_equivalencia_devuelve_lista_vacia(client: AsyncClient, db):
+    """Sin equivalencias no es un error: la UI deja el global grade libre."""
     rh = await make_empleado(db, rol="rh", email="eq_null@leoni.test")
     grados = await make_grados_consecutivos(db, ordenes=[42], con_equivalencia=False)
     headers = await auth_headers(client, rh)
@@ -216,7 +251,7 @@ async def test_resolver_sin_equivalencia_devuelve_null(client: AsyncClient, db):
     )
 
     assert response.status_code == 200
-    assert response.json() is None
+    assert response.json() == []
 
 
 # ── Clasificacion del perfil ─────────────────────────────────────────────────
@@ -317,19 +352,19 @@ async def test_nivel_sin_equivalencia_no_se_puede_usar_en_un_perfil(
 
 
 @pytest.mark.asyncio
-async def test_global_grade_explicito_manda_sobre_la_equivalencia(
+async def test_el_global_grade_enviado_debe_ser_uno_del_career_level(
     client: AsyncClient, db
 ):
     """
-    Con los niveles ya posicionados, el global grade enviado a mano gana.
+    El global grade del perfil esta acotado a los de su career level inicial.
 
-    Sirve para registrar una clasificacion que RH decidio distinta de la que
-    sugiere la equivalencia del nivel inicial.
+    Si no, la equivalencia dejaria de ser una regla y nada impediria registrar un
+    M4 clasificado GG25.
     """
-    rh = await make_empleado(db, rol="rh", email="pp_gg_override@leoni.test")
-    area = await make_area(db, descripcion="Area GG Override")
+    rh = await make_empleado(db, rol="rh", email="pp_gg_ajeno@leoni.test")
+    area = await make_area(db, descripcion="Area GG Ajeno")
     clasificacion = await make_clasificacion_payload(db, ordenes=[30, 31])
-    otro = await make_global_grade(db, codigo="GG-OVR", orden=56)
+    ajeno = await make_global_grade(db, codigo="GG-OVR", orden=56)
     headers = await auth_headers(client, rh)
 
     response = await client.post(
@@ -338,14 +373,74 @@ async def test_global_grade_explicito_manda_sobre_la_equivalencia(
             "codigo": "GG-OVR-01",
             "nombre": "Perfil Override",
             "area_id": area.area_id,
-            "global_grade_id": otro.id,
+            "global_grade_id": ajeno.id,
+            **clasificacion,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422, response.text
+    assert "no equivale" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_con_varios_grades_el_enviado_decide(client: AsyncClient, db):
+    """Cuando el nivel abarca un tramo, RH elige cual de sus grades aplica."""
+    rh = await make_empleado(db, rol="rh", email="pp_gg_elige@leoni.test")
+    area = await make_area(db, descripcion="Area GG Elige")
+    clasificacion = await make_clasificacion_payload(db, ordenes=[30, 31])
+    # El nivel inicial abarca tambien GG-ALT, ademas del que le dio posicion.
+    alterno = await make_global_grade(db, codigo="GG-ALT", orden=32)
+    await make_equivalencia(
+        db,
+        career_level_id=clasificacion["grado_ids"][0],
+        global_grade_id=alterno.id,
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            "codigo": "GG-ALT-01",
+            "nombre": "Perfil Alterno",
+            "area_id": area.area_id,
+            "global_grade_id": alterno.id,
             **clasificacion,
         },
         headers=headers,
     )
 
     assert response.status_code == 201, response.text
-    assert response.json()["global_grade_codigo"] == "GG-OVR"
+    assert response.json()["global_grade_codigo"] == "GG-ALT"
+
+
+@pytest.mark.asyncio
+async def test_con_varios_grades_no_se_adivina_el_del_perfil(client: AsyncClient, db):
+    """Con un tramo de varios grades no hay nada que autocompletar."""
+    rh = await make_empleado(db, rol="rh", email="pp_gg_ambiguo@leoni.test")
+    area = await make_area(db, descripcion="Area GG Ambiguo")
+    clasificacion = await make_clasificacion_payload(db, ordenes=[30, 31])
+    alterno = await make_global_grade(db, codigo="GG-ALT2", orden=32)
+    await make_equivalencia(
+        db,
+        career_level_id=clasificacion["grado_ids"][0],
+        global_grade_id=alterno.id,
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            "codigo": "GG-AMB-01",
+            "nombre": "Perfil Ambiguo",
+            "area_id": area.area_id,
+            **clasificacion,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422, response.text
+    assert "elige" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -494,8 +589,14 @@ async def test_historial_registra_alta_y_diff_del_cambio(client: AsyncClient, db
     assert creado.status_code == 201, creado.text
     perfil_id = creado.json()["id"]
 
-    # Cambio de global grade con motivo.
-    nuevo_grade = await make_global_grade(db, codigo="GG-NUEVO", orden=60)
+    # Cambio de global grade con motivo. Debe ser uno de los del nivel inicial,
+    # que es a lo que el perfil esta acotado.
+    nuevo_grade = await make_global_grade(db, codigo="GG-NUEVO", orden=3)
+    await make_equivalencia(
+        db,
+        career_level_id=clasificacion["grado_ids"][0],
+        global_grade_id=nuevo_grade.id,
+    )
     cambio = await client.put(
         f"/api/v1/puestos-perfil/{perfil_id}",
         json={
@@ -662,3 +763,113 @@ async def test_editar_perfil_legacy_sin_career_levels(client: AsyncClient, db):
     assert body["nombre"] == "Perfil Sin Niveles Renombrado"
     assert body["grados"] == []
     assert body["clasificacion_completa"] is False
+
+
+@pytest.mark.asyncio
+async def test_un_nivel_de_dos_grades_sigue_siendo_contiguo_con_el_siguiente(
+    client: AsyncClient, db
+):
+    """
+    M4[GG17, GG18] + M5[GG19] es un rango valido.
+
+    La contiguidad se mide sobre la UNION de grades cubiertos, no sobre una
+    posicion por nivel: dos niveles pueden cubrir tres grades sin hueco.
+    """
+    rh = await make_empleado(db, rol="rh", email="pp_tramo_ok@leoni.test")
+    area = await make_area(db, descripcion="Area Tramo OK")
+    m4 = await make_grado_puesto(
+        db, codigo="M4", nombre="M4", orden=17, ordenes_extra=[18],
+        career_path_codigo="M",
+    )
+    m5 = await make_grado_puesto(
+        db, codigo="M5", nombre="M5", orden=19,
+        career_path_id=m4.career_path_id,
+    )
+    gg17 = await make_global_grade(db, codigo="GG17", orden=17)
+    funcion = await make_funcion_puesto(db)
+    disciplina = await make_disciplina_puesto(db, funcion_id=funcion.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            "codigo": "TRAMO-01",
+            "nombre": "Perfil Tramo",
+            "area_id": area.area_id,
+            "career_path_id": m4.career_path_id,
+            "funcion_id": funcion.id,
+            "disciplina_id": disciplina.id,
+            "grado_ids": [m4.id, m5.id],
+            # M4 abarca dos grades, asi que hay que elegir.
+            "global_grade_id": gg17.id,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 201, response.text
+    assert [g["codigo"] for g in response.json()["grados"]] == ["M4", "M5"]
+
+
+@pytest.mark.asyncio
+async def test_un_hueco_entre_tramos_se_rechaza(client: AsyncClient, db):
+    """M4[GG17, GG18] + M6[GG21] deja GG19 y GG20 sin cubrir."""
+    rh = await make_empleado(db, rol="rh", email="pp_tramo_hueco@leoni.test")
+    area = await make_area(db, descripcion="Area Tramo Hueco")
+    m4 = await make_grado_puesto(
+        db, codigo="M4", nombre="M4", orden=17, ordenes_extra=[18],
+        career_path_codigo="M",
+    )
+    m6 = await make_grado_puesto(
+        db, codigo="M6", nombre="M6", orden=21,
+        career_path_id=m4.career_path_id,
+    )
+    gg17 = await make_global_grade(db, codigo="GG17", orden=17)
+    funcion = await make_funcion_puesto(db)
+    disciplina = await make_disciplina_puesto(db, funcion_id=funcion.id)
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/puestos-perfil",
+        json={
+            "codigo": "TRAMO-02",
+            "nombre": "Perfil Hueco",
+            "area_id": area.area_id,
+            "career_path_id": m4.career_path_id,
+            "funcion_id": funcion.id,
+            "disciplina_id": disciplina.id,
+            "grado_ids": [m4.id, m6.id],
+            "global_grade_id": gg17.id,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422, response.text
+    assert "consecutivos" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_el_catalogo_no_duplica_un_nivel_con_varios_grades(
+    client: AsyncClient, db
+):
+    """
+    Regresion del orden por subquery.
+
+    Ordenar con un join a las equivalencias producia una fila por grade: el
+    nivel salia repetido y el `total` dejaba de cuadrar con la paginacion.
+    """
+    rh = await make_empleado(db, rol="rh", email="cat_tramo@leoni.test")
+    await make_grado_puesto(
+        db, codigo="M4", nombre="M4", orden=17, ordenes_extra=[18, 19],
+        career_path_codigo="M",
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.get("/api/v1/career-levels", headers=headers)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    m4 = [i for i in body["items"] if i["codigo"] == "M4"]
+    assert len(m4) == 1
+    assert body["total"] == len(body["items"])
+    assert [g["codigo"] for g in m4[0]["global_grades"]] == ["GG17", "GG18", "GG19"]
+    assert (m4[0]["posicion_desde"], m4[0]["posicion_hasta"]) == (17, 19)

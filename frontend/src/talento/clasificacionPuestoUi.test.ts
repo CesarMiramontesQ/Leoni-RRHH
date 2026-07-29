@@ -9,6 +9,8 @@ import {
   careerLevelsEntre,
   careerLevelsSonConsecutivos,
   GLOBAL_GRADE_TOOLTIP,
+  compararCareerLevels,
+  formatGlobalGrades,
   componerCodigoCareerLevel,
   numeroDeCareerLevel,
   siguienteNumeroCareerLevel,
@@ -191,5 +193,85 @@ describe("código del career level", () => {
 
   it("empieza en 1 cuando el career path no tiene niveles", () => {
     expect(siguienteNumeroCareerLevel("P", [])).toBe(1);
+  });
+});
+
+describe("tramo de global grades", () => {
+  const m4 = {
+    id: 1,
+    nombre: "M4",
+    codigo: "M4",
+    career_path_codigo: "M",
+    posicion_desde: 17,
+    posicion_hasta: 18,
+    global_grades: [
+      { id: 1, codigo: "GG17", orden: 17 },
+      { id: 2, codigo: "GG18", orden: 18 },
+    ],
+  };
+  const m5 = {
+    id: 2,
+    nombre: "M5",
+    codigo: "M5",
+    career_path_codigo: "M",
+    posicion_desde: 19,
+    posicion_hasta: 19,
+    global_grades: [{ id: 3, codigo: "GG19", orden: 19 }],
+  };
+  const m6 = {
+    id: 3,
+    nombre: "M6",
+    codigo: "M6",
+    career_path_codigo: "M",
+    posicion_desde: 21,
+    posicion_hasta: 21,
+    global_grades: [{ id: 4, codigo: "GG21", orden: 21 }],
+  };
+  const sinGrades = {
+    id: 4,
+    nombre: "M7",
+    codigo: "M7",
+    career_path_codigo: "M",
+    global_grades: [],
+  };
+
+  it("etiqueta el tramo con sus extremos", () => {
+    expect(formatGlobalGrades(m4)).toBe("GG17 – GG18");
+  });
+
+  it("un solo grade no se muestra como rango", () => {
+    expect(formatGlobalGrades(m5)).toBe("GG19");
+  });
+
+  it("sin equivalencias lo dice, no queda en blanco", () => {
+    expect(formatGlobalGrades(sinGrades)).toBe("Sin equivalencia");
+  });
+
+  it("dos niveles pueden cubrir tres grades sin hueco", () => {
+    // M4 abarca 17-18 y M5 el 19: la unión es contigua aunque sean dos niveles.
+    expect(careerLevelsSonConsecutivos([m4, m5], [m4.id, m5.id])).toBe(true);
+  });
+
+  it("detecta el hueco entre dos tramos", () => {
+    // M4 llega a 18 y M6 empieza en 21: faltan 19 y 20.
+    expect(careerLevelsSonConsecutivos([m4, m6], [m4.id, m6.id])).toBe(false);
+  });
+
+  it("un nivel sin equivalencias invalida el rango", () => {
+    expect(careerLevelsSonConsecutivos([m4, sinGrades], [m4.id, sinGrades.id])).toBe(
+      false,
+    );
+  });
+
+  it("el rango hasta un nivel incluye todo su tramo", () => {
+    // De M5 a M4: el extremo superior es el 18, no el 17 donde M4 empieza.
+    expect(careerLevelsEntre([m4, m5], m5.id, m4.id)).toEqual([m4.id, m5.id]);
+  });
+
+  it("ordena por el inicio del tramo, no por el final", () => {
+    expect([m5, m4].sort(compararCareerLevels).map((n) => n.codigo)).toEqual([
+      "M4",
+      "M5",
+    ]);
   });
 });

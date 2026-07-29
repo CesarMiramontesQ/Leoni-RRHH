@@ -31,6 +31,7 @@ from app.models.talento import (
 )
 from app.repositories.evaluacion_repository import EvaluacionRepository
 from app.repositories.perfil_funciones_repository import PerfilFuncionesRepository
+from app.utils import career_level_tramo as tramo_util
 from app.schemas.evaluaciones import (
     EmpleadoCompetenciaResumen,
     EmpleadoConPerfilItem,
@@ -662,7 +663,7 @@ class EvaluacionService:
                     # La posicion del nivel sale de su equivalencia con el
                     # global grade; sin precargarla se cae con MissingGreenlet.
                     selectinload(CompetenciaRequisito.grado)
-                    .selectinload(GradoPuesto.equivalencia)
+                    .selectinload(GradoPuesto.equivalencias)
                     .selectinload(CareerLevelGradeMapping.global_grade),
                 )
                 .where(
@@ -678,20 +679,15 @@ class EvaluacionService:
                     grados_presentes[req.grado_id] = req.grado
                 comp_map = niveles_por_grado_por_comp.setdefault(comp.id, {})
                 comp_map[req.grado_id] = req.nivel_requerido
-            def _posicion(grado) -> int | None:
-                eq = grado.equivalencia
-                return eq.global_grade.orden if eq and eq.global_grade else None
-
             grados = [
                 GradoNivelInfo(
-                    grado_id=g.id, grado_nombre=g.nombre, orden=_posicion(g)
+                    grado_id=g.id,
+                    grado_nombre=g.nombre,
+                    orden=tramo_util.posicion(g),
                 )
                 # Sin posicion van al final; se desempata por codigo para que el
                 # resumen no baile entre llamadas.
-                for g in sorted(
-                    grados_presentes.values(),
-                    key=lambda g: (_posicion(g) is None, _posicion(g) or 0, g.codigo),
-                )
+                for g in tramo_util.ordenar(grados_presentes.values())
             ]
 
         evaluaciones = await self.repo.list_by_empleado_cerradas(empleado_id)

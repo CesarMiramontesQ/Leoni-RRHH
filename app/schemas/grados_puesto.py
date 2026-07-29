@@ -41,6 +41,16 @@ class GradoPuestoUpdate(BaseModel):
     nombre: str = Field(..., min_length=2, max_length=100)
 
 
+class GlobalGradeRef(BaseModel):
+    """Referencia minima a un Global Grade dentro del tramo de un career level."""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    codigo: str
+    orden: int
+
+
 class GradoPuestoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -50,11 +60,12 @@ class GradoPuestoResponse(BaseModel):
     career_path_nombre: str | None = None
     codigo: str
     nombre: str
-    # La posicion del nivel la da su Global Grade. Sin equivalencia configurada
-    # el nivel no tiene posicion y no puede formar parte del rango de un perfil.
-    global_grade_id: int | None = None
-    global_grade_codigo: str | None = None
-    global_grade_orden: int | None = None
+    # Un nivel abarca un TRAMO de global grades (M4 = GG17 + GG18), ordenado por
+    # `orden`. Sin equivalencias el nivel no tiene posicion y no puede formar
+    # parte del rango de un perfil.
+    global_grades: list[GlobalGradeRef] = []
+    posicion_desde: int | None = None
+    posicion_hasta: int | None = None
     activo: bool
     # Solo lo llena el POST: `true` cuando el codigo pedido ocupaba un nivel
     # desactivado y se reactivo en vez de crear uno nuevo. La UI lo avisa para

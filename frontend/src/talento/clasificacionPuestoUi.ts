@@ -15,17 +15,38 @@ export type CareerLevelLike = {
   codigo?: string | null;
   career_path_codigo?: string | null;
   /**
-   * Posición del nivel. El catálogo la expone como `global_grade_orden` y el
-   * perfil como `orden` ya resuelto; ambos son el orden del Global Grade, que es
-   * lo único que ubica al nivel. `null` = sin equivalencia configurada.
+   * Posición del nivel. Un nivel abarca un **tramo** de global grades (M4 =
+   * GG17 + GG18), así que su posición es `[posicion_desde, posicion_hasta]`.
+   * El catálogo expone ambos extremos; el perfil expone solo el inferior, como
+   * `orden` ya resuelto. `null` = sin equivalencias configuradas.
    */
   orden?: number | null;
-  global_grade_orden?: number | null;
+  posicion_desde?: number | null;
+  posicion_hasta?: number | null;
+  /** Global grades del nivel, ordenados. Solo lo trae el catálogo. */
+  global_grades?: { id: number; codigo: string; orden: number }[];
 };
 
-/** Posición del nivel, venga del catálogo o del perfil. */
+/** Extremo inferior del tramo, venga del catálogo o del perfil. */
 export function posicionCareerLevel(nivel: CareerLevelLike): number | null {
-  return nivel.global_grade_orden ?? nivel.orden ?? null;
+  return nivel.posicion_desde ?? nivel.orden ?? null;
+}
+
+/** Extremo superior; cae al inferior cuando el nivel abarca un solo grade. */
+export function posicionHastaCareerLevel(nivel: CareerLevelLike): number | null {
+  return nivel.posicion_hasta ?? posicionCareerLevel(nivel);
+}
+
+/**
+ * Etiqueta del tramo de global grades: `GG17`, `GG17 – GG18`, o el aviso de que
+ * falta configurarlo. Se escribe una vez para que las tres pantallas que lo
+ * muestran no lo formateen cada una a su manera.
+ */
+export function formatGlobalGrades(nivel: CareerLevelLike): string {
+  const grades = [...(nivel.global_grades ?? [])].sort((a, b) => a.orden - b.orden);
+  if (grades.length === 0) return "Sin equivalencia";
+  if (grades.length === 1) return grades[0].codigo;
+  return `${grades[0].codigo} – ${grades[grades.length - 1].codigo}`;
 }
 
 /** Comparador estable: sin posición van al final, y se desempata por código. */
@@ -37,7 +58,22 @@ export function compararCareerLevels(a: CareerLevelLike, b: CareerLevelLike): nu
   }
   if (pa == null) return 1;
   if (pb == null) return -1;
-  return pa - pb;
+  if (pa !== pb) return pa - pb;
+  // Mismo inicio de tramo: el que llega más arriba va después.
+  const ha = posicionHastaCareerLevel(a) ?? pa;
+  const hb = posicionHastaCareerLevel(b) ?? pb;
+  if (ha !== hb) return ha - hb;
+  return (a.codigo ?? a.nombre).localeCompare(b.codigo ?? b.nombre);
+}
+
+/** Global grades que cubre un nivel, tramo completo incluido. */
+function coberturaCareerLevel(nivel: CareerLevelLike): number[] {
+  const desde = posicionCareerLevel(nivel);
+  if (desde == null) return [];
+  const hasta = posicionHastaCareerLevel(nivel) ?? desde;
+  const cubiertos: number[] = [];
+  for (let o = desde; o <= hasta; o++) cubiertos.push(o);
+  return cubiertos;
 }
 
 /** Texto que identifica al nivel: su código (P10) o, si falta, su nombre. */
@@ -152,7 +188,12 @@ export const ESTADOS_PERFIL: { value: string; label: string }[] = [
 ];
 
 /**
- * ¿Los niveles forman un rango consecutivo por `orden`?
+ * ¿Los niveles cubren un rango de global grades sin huecos?
+ *
+ * Se mira la UNIÓN de grades cubiertos, no una posición por nivel: un nivel
+ * abarca un tramo (M4 = GG17 + GG18), así que M4 + M5[GG19] es contiguo aunque
+ * sean dos niveles y tres grades. Dos niveles pueden además compartir grade —es
+ * lo que permite comparar un P10 con un M1—, por eso es una unión.
  *
  * Vivía en `dashboard/puestos/types.ts`, que es un archivo de tipos.
  */
@@ -161,19 +202,17 @@ export function careerLevelsSonConsecutivos(
   ids: number[],
 ): boolean {
   if (ids.length === 0) return false;
-  const posiciones = ids
-    .map((id) => {
-      const nivel = catalogo.find((g) => g.id === id);
-      return nivel ? posicionCareerLevel(nivel) : null;
-    })
-    .filter((o): o is number => typeof o === "number");
-  // Un nivel sin equivalencia no tiene posición, así que el rango no se puede
+  const niveles = ids
+    .map((id) => catalogo.find((g) => g.id === id))
+    .filter((n): n is CareerLevelLike => n != null);
+  // Un nivel sin equivalencias no tiene posición, así que el rango no se puede
   // validar: el backend lo rechaza con un mensaje que apunta a Ajustes.
-  if (posiciones.length !== ids.length) return false;
-  // Deduplicado: dos niveles pueden equivaler al mismo global grade y eso no
-  // rompe la contigüidad.
-  const unicas = [...new Set(posiciones)].sort((a, b) => a - b);
-  return unicas[unicas.length - 1] - unicas[0] + 1 === unicas.length;
+  if (niveles.length !== ids.length) return false;
+  if (niveles.some((n) => posicionCareerLevel(n) == null)) return false;
+  const cubiertos = [...new Set(niveles.flatMap(coberturaCareerLevel))].sort(
+    (a, b) => a - b,
+  );
+  return cubiertos[cubiertos.length - 1] - cubiertos[0] + 1 === cubiertos.length;
 }
 
 /** Ids de los niveles entre `desdeId` y `hastaId`, ambos incluidos. */
@@ -190,9 +229,13 @@ export function careerLevelsEntre(
   if (desde.career_path_codigo !== hasta.career_path_codigo) return [];
   const pDesde = posicionCareerLevel(desde);
   const pHasta = posicionCareerLevel(hasta);
-  // Sin equivalencia no hay posición y no se puede delimitar el rango.
+  // Sin equivalencias no hay posición y no se puede delimitar el rango.
   if (pDesde == null || pHasta == null) return [];
-  const [min, max] = pDesde <= pHasta ? [pDesde, pHasta] : [pHasta, pDesde];
+  // Los extremos son tramos: el rango llega hasta donde llega el tramo del
+  // nivel final, no hasta donde empieza.
+  const cubiertos = [...coberturaCareerLevel(desde), ...coberturaCareerLevel(hasta)];
+  const min = Math.min(...cubiertos);
+  const max = Math.max(...cubiertos);
   return catalogo
     .filter((g) => {
       if (g.career_path_codigo !== desde.career_path_codigo) return false;
