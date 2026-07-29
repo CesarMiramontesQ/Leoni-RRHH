@@ -469,3 +469,40 @@ async def test_editar_hacia_un_codigo_desactivado_da_409_no_reactiva(client, db)
         headers=headers,
     )
     assert response.status_code == 409, response.text
+
+
+@pytest.mark.asyncio
+async def test_un_perfil_borrado_no_retiene_el_career_level(client, db):
+    """
+    Un perfil con borrado suave no puede dejar su nivel inutilizable.
+
+    Los requisitos y las asignaciones del perfil siguen en la tabla despues de
+    borrarlo, y un perfil borrado no se puede restaurar desde ninguna pantalla:
+    contarlos dejaba el career level imposible de eliminar para siempre.
+    """
+    rh = await make_empleado(db, rol="rh", email="gp_perfil_muerto@leoni.test")
+    grado = await make_grado_puesto(db, codigo="P1", nombre="P1", orden=1)
+    perfil = await make_puesto_perfil(db, grado_ids=[grado.id])
+    competencia = await make_competencia(db)
+    await make_competencia_requisito(
+        db, puesto_perfil_id=perfil.id, competencia_id=competencia.id, grado_id=grado.id
+    )
+    empleado = await make_empleado(db, email="gp_asignado@leoni.test")
+    await make_perfil_funciones(
+        db, puesto_perfil_id=perfil.id, empleado_id=empleado.id, grado_id=grado.id
+    )
+    headers = await auth_headers(client, rh)
+
+    # Con el perfil vivo el nivel esta en uso y no se puede eliminar.
+    bloqueado = await client.delete(f"/api/v1/career-levels/{grado.id}", headers=headers)
+    assert bloqueado.status_code == 409
+    assert perfil.codigo in bloqueado.json()["detail"], "el mensaje debe decir donde"
+
+    # Al borrar el perfil, su residuo deja de retener el nivel.
+    borrado = await client.delete(
+        f"/api/v1/puestos-perfil/{perfil.id}", headers=headers
+    )
+    assert borrado.status_code in (200, 204), borrado.text
+
+    response = await client.delete(f"/api/v1/career-levels/{grado.id}", headers=headers)
+    assert response.status_code in (200, 204), response.text

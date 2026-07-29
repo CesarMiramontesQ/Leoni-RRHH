@@ -236,11 +236,15 @@ class GradoPuestoService:
         requisitos = await self.repo.count_requisitos_usando(id)
         asignaciones = await self.repo.count_asignaciones_usando(id)
         if requisitos > 0 or asignaciones > 0:
+            # Se nombran los perfiles: sin eso el mensaje decia "esta en uso" sin
+            # decir donde, y no habia por donde empezar a desbloquearlo.
+            perfiles = await self.repo.perfiles_usando(id)
+            donde = f". Perfiles: {', '.join(perfiles)}" if perfiles else ""
             raise ConflictError(
                 detail=(
-                    f"No se puede eliminar el career level '{grado.nombre}' "
+                    f"No se puede eliminar el career level '{grado.codigo}' "
                     f"porque esta en uso ({requisitos} requisito(s), "
-                    f"{asignaciones} asignacion(es) activa(s))"
+                    f"{asignaciones} asignacion(es) activa(s)){donde}"
                 )
             )
 
