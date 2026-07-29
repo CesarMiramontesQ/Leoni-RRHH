@@ -14,14 +14,16 @@ export type GradoPuesto = {
   codigo: string;
   nombre: string;
   /**
-   * Posición del nivel, que viene de su Global Grade.
+   * Global grades que abarca el nivel, ordenados por `orden`.
    *
-   * `null` cuando no tiene equivalencia configurada: ese nivel no se puede
-   * ubicar en el rango de un perfil.
+   * Un career level abarca un **tramo**: M4 puede ser GG17 y GG18, y por eso
+   * dos empleados en M4 pueden estar clasificados distinto. Lista vacía = sin
+   * equivalencias, y entonces el nivel no se puede ubicar en el rango de un
+   * perfil.
    */
-  global_grade_id: number | null;
-  global_grade_codigo: string | null;
-  global_grade_orden: number | null;
+  global_grades: { id: number; codigo: string; orden: number }[];
+  posicion_desde: number | null;
+  posicion_hasta: number | null;
   activo: boolean;
   /**
    * Solo lo llena el POST: `true` cuando el código pedido ocupaba un nivel

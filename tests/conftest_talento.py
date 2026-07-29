@@ -177,6 +177,7 @@ async def make_grado_puesto(
     career_path_id: int | None = None,
     career_path_codigo: str = "P",
     con_equivalencia: bool = True,
+    ordenes_extra: list[int] | None = None,
     activo: bool = True,
 ) -> GradoPuesto:
     """
@@ -189,6 +190,9 @@ async def make_grado_puesto(
 
     Con `con_equivalencia=False` el nivel queda sin posicion, que es el estado
     que el backend rechaza al armar el rango de un perfil.
+
+    `ordenes_extra` agrega mas global grades al nivel: un career level abarca un
+    TRAMO, no un grade suelto (M4 = GG17 + GG18).
     """
     uid = uuid.uuid4().hex[:6]
     if career_path_id is None:
@@ -213,10 +217,13 @@ async def make_grado_puesto(
     await db.refresh(grado)
 
     if con_equivalencia:
-        grade = await make_global_grade(db, codigo=f"GG{_orden:02d}", orden=_orden)
-        await make_equivalencia(
-            db, career_level_id=grado.id, global_grade_id=grade.id
-        )
+        for orden_grade in [_orden, *(ordenes_extra or [])]:
+            grade = await make_global_grade(
+                db, codigo=f"GG{orden_grade:02d}", orden=orden_grade
+            )
+            await make_equivalencia(
+                db, career_level_id=grado.id, global_grade_id=grade.id
+            )
         await db.refresh(grado)
     return grado
 

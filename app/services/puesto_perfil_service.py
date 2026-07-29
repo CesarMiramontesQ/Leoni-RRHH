@@ -39,6 +39,7 @@ from app.repositories.puesto_perfil_repository import (
     ClasificacionHistorialRepository,
     PuestoPerfilRepository,
 )
+from app.utils import career_level_tramo as tramo_util
 from app.schemas.talento import (
     ClasificacionCambioItem,
     ClasificacionHistorialItem,
@@ -94,11 +95,7 @@ class PuestoPerfilService:
                 orden=cls._posicion(g),
                 codigo=g.codigo,
                 career_path_codigo=g.career_path.codigo if g.career_path else None,
-                global_grade_codigo=(
-                    g.equivalencia.global_grade.codigo
-                    if g.equivalencia and g.equivalencia.global_grade
-                    else None
-                ),
+                global_grade_codigo=cls._etiqueta_grades(g),
             )
             for g in cls._ordenar_por_posicion(grados)
         ]
@@ -170,23 +167,31 @@ class PuestoPerfilService:
     @staticmethod
     def _posicion(grado: GradoPuesto) -> int | None:
         """
-        Posicion del career level: el `orden` de su Global Grade.
+        Posicion del career level: el extremo inferior de su tramo de grades.
 
-        El nivel no tiene escala propia. Devuelve None si no hay equivalencia
-        activa configurada, que es el unico caso en que un nivel no se puede
-        ubicar.
+        El nivel no tiene escala propia y puede abarcar varios global grades
+        (M4 = GG17 + GG18). Devuelve None si no hay equivalencias activas, que es
+        el unico caso en que un nivel no se puede ubicar.
         """
-        equivalencia = grado.equivalencia
-        grade = equivalencia.global_grade if equivalencia else None
-        return grade.orden if grade else None
+        return tramo_util.posicion(grado)
+
+    @staticmethod
+    def _etiqueta_grades(grado: GradoPuesto) -> str | None:
+        """`GG17` o `GG17 - GG18` segun el nivel abarque uno o varios grades."""
+        grades = sorted(
+            (eq.global_grade for eq in (grado.equivalencias or []) if eq.global_grade),
+            key=lambda g: g.orden,
+        )
+        if not grades:
+            return None
+        if len(grades) == 1:
+            return grades[0].codigo
+        return f"{grades[0].codigo} - {grades[-1].codigo}"
 
     @classmethod
     def _ordenar_por_posicion(cls, grados: list[GradoPuesto]) -> list[GradoPuesto]:
-        """Los niveles sin equivalencia van al final; se desempata por codigo."""
-        return sorted(
-            grados,
-            key=lambda g: (cls._posicion(g) is None, cls._posicion(g) or 0, g.codigo),
-        )
+        """Los niveles sin equivalencias van al final; se desempata por codigo."""
+        return tramo_util.ordenar(grados)
 
     async def _validar_grados_consecutivos(
         self, grado_ids: list[int]
@@ -203,7 +208,7 @@ class PuestoPerfilService:
             faltante = next(iter(set(grado_ids) - {g.id for g in grados}))
             raise NotFoundError(entidad="GradoPuesto", id=faltante)
 
-        # Un nivel sin equivalencia no tiene posicion, asi que no se puede saber
+        # Un nivel sin equivalencias no tiene posicion, asi que no se puede saber
         # si el rango es contiguo ni por donde empieza.
         sin_equivalencia = [g for g in grados if self._posicion(g) is None]
         if sin_equivalencia:
@@ -214,14 +219,16 @@ class PuestoPerfilService:
                 "Configurala en Ajustes > Clasificacion."
             )
 
-        # Se deduplica a proposito: dos niveles pueden equivaler al mismo global
-        # grade —es justo lo que permite comparar un P10 con un M1— y eso no
-        # rompe la contiguidad del rango.
-        posiciones = sorted({self._posicion(g) for g in grados})
-        if posiciones[-1] - posiciones[0] + 1 != len(posiciones):
+        # La contiguidad se mide sobre la UNION de los grades cubiertos, no sobre
+        # posiciones puntuales: un nivel abarca un tramo (M4 = GG17 + GG18), asi
+        # que M4 + M5[GG19] es contiguo aunque sean dos niveles y tres grades.
+        # Y dos niveles pueden compartir grade —es lo que permite comparar un P10
+        # con un M1—, por eso es una union y no una lista.
+        if not tramo_util.es_contiguo(grados):
+            cubiertos = sorted(tramo_util.cobertura(grados))
             raise DomainValidationError(
                 "Los career levels del perfil deben ser consecutivos por global "
-                f"grade (ordenes recibidos: {posiciones})"
+                f"grade (ordenes cubiertos: {cubiertos})"
             )
         return self._ordenar_por_posicion(grados)
 
@@ -263,11 +270,25 @@ class PuestoPerfilService:
         self, global_grade_id: int | None, grados: list[GradoPuesto]
     ) -> int | None:
         """
-        Global grade a guardar: el enviado, o el de la equivalencia del nivel inicial.
+        Global grade a guardar: el enviado, o el del nivel inicial si es unico.
 
-        Nunca se calcula: si RH no configuro la equivalencia y no mando uno, se
-        devuelve None y el llamador decide si eso es un error.
+        Nunca se calcula. El nivel inicial del rango define la clasificacion del
+        puesto, pero un nivel puede abarcar VARIOS grades (M4 = GG17 + GG18):
+        entonces no hay nada que autocompletar y RH debe elegir. Si el nivel
+        tiene equivalencias, el grade elegido debe ser uno de ellos — si no, la
+        equivalencia dejaria de ser una regla y nada impediria un M4 clasificado
+        GG25. Sin equivalencias el campo queda libre, que es lo que permite
+        avanzar antes de que RH capture el catalogo.
         """
+        del_nivel = (
+            await self.equivalencia_repo.get_activas_por_career_level(grados[0].id)
+            if grados
+            else []
+        )
+        codigos = ", ".join(
+            eq.global_grade.codigo for eq in del_nivel if eq.global_grade
+        )
+
         if global_grade_id is not None:
             grade = await self.grade_repo.get(global_grade_id)
             if not grade:
@@ -277,15 +298,23 @@ class PuestoPerfilService:
                     f"El global grade '{grade.codigo}' esta inactivo y no se puede "
                     "asignar"
                 )
+            permitidos = {eq.global_grade_id for eq in del_nivel}
+            if permitidos and grade.id not in permitidos:
+                raise DomainValidationError(
+                    f"El global grade '{grade.codigo}' no equivale al career level "
+                    f"'{grados[0].codigo}'. Validos: {codigos}. Si falta uno, "
+                    "agregalo en Ajustes > Clasificacion."
+                )
             return grade.id
 
-        if not grados:
+        if not del_nivel:
             return None
-        # El nivel inicial del rango es el que define la clasificacion del puesto.
-        equivalencia = await self.equivalencia_repo.get_activa_por_career_level(
-            grados[0].id
-        )
-        return equivalencia.global_grade_id if equivalencia else None
+        if len(del_nivel) > 1:
+            raise DomainValidationError(
+                f"El career level '{grados[0].codigo}' abarca varios global grades "
+                f"({codigos}): elige cual corresponde a este puesto."
+            )
+        return del_nivel[0].global_grade_id
 
     @staticmethod
     def _validar_estado(estado: str | None) -> None:

@@ -38,7 +38,10 @@ async def test_crear_grado_puesto_success(client, db):
     assert data["nombre"] == "Grado Especial"
     assert data["codigo"] == "P10"
     # El nivel nace sin posicion: se la da la equivalencia con el global grade.
-    assert data["global_grade_orden"] is None
+    # Recien creado no tiene equivalencias, asi que no tiene posicion.
+    assert data["global_grades"] == []
+    assert data["posicion_desde"] is None
+    assert data["posicion_hasta"] is None
     assert data["career_path_id"] == career_path.id
     assert data["career_path_codigo"] == "P"
     assert data["activo"] is True
@@ -102,8 +105,8 @@ async def test_un_p10_y_un_m1_pueden_pesar_lo_mismo(client, db):
 
     listado = await client.get("/api/v1/career-levels", headers=headers)
     por_codigo = {i["codigo"]: i for i in listado.json()["items"]}
-    assert por_codigo["P10"]["global_grade_orden"] == 10
-    assert por_codigo["M1"]["global_grade_orden"] == 10
+    assert por_codigo["P10"]["posicion_desde"] == 10
+    assert por_codigo["M1"]["posicion_desde"] == 10
 
 
 @pytest.mark.asyncio

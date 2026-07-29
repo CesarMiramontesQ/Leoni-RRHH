@@ -625,11 +625,16 @@ class GradoPuesto(Base):
     (`competencia_requisitos`, `perfil_tareas`, `perfil_funciones`,
     `puesto_perfil_grados`); renombrarla seria riesgo sin beneficio.
 
-    **El nivel no tiene orden propio.** Su posicion la da el Global Grade al que
-    equivale (`CareerLevelGradeMapping` -> `GlobalGrade.orden`), que es el
-    ordenador real del sistema Towers: por eso un P10 y un M1 pueden pesar lo
-    mismo. Un nivel sin equivalencia configurada no tiene posicion y no puede
-    formar parte del rango de un perfil.
+    **El nivel no tiene orden propio.** Su posicion la dan los Global Grades a
+    los que equivale (`CareerLevelGradeMapping` -> `GlobalGrade.orden`), que son
+    el ordenador real del sistema Towers: por eso un P10 y un M1 pueden pesar lo
+    mismo. Un nivel sin equivalencias no tiene posicion y no puede formar parte
+    del rango de un perfil.
+
+    **Un nivel abarca un TRAMO de grados, no uno solo**: M4 puede equivaler a
+    GG17 y GG18. Su posicion es `[min(orden), max(orden)]` sobre sus grados
+    activos. Por eso dos empleados en M4 pueden estar clasificados distinto: el
+    nivel dice el tamano del puesto y el grado lo afina dentro de ese tamano.
     """
 
     __tablename__ = "levelup_grados_puesto"
@@ -659,17 +664,17 @@ class GradoPuesto(Base):
     career_path: Mapped["CareerPath"] = relationship(
         "CareerPath", back_populates="grados"
     )
-    # Equivalencia ACTIVA con el Global Grade: de ahi sale la posicion del nivel.
-    # `uselist=False` porque la unicidad es por nivel; el filtro por `activo`
-    # evita que una equivalencia retirada siga dando posicion.
-    equivalencia: Mapped[Optional["CareerLevelGradeMapping"]] = relationship(
+    # Equivalencias ACTIVAS con Global Grades: de ahi sale el tramo del nivel.
+    # El filtro por `activo` evita que una equivalencia retirada siga dando
+    # posicion. No se ordenan aqui (requeriria un join a GlobalGrade): quien
+    # necesita el tramo usa `PuestoPerfilService._tramo`.
+    equivalencias: Mapped[List["CareerLevelGradeMapping"]] = relationship(
         "CareerLevelGradeMapping",
         primaryjoin=(
             "and_(GradoPuesto.id == CareerLevelGradeMapping.career_level_id, "
             "CareerLevelGradeMapping.activo == True)"
         ),
         viewonly=True,
-        uselist=False,
     )
     requisitos: Mapped[List["CompetenciaRequisito"]] = relationship(
         "CompetenciaRequisito", back_populates="grado"

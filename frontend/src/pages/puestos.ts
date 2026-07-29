@@ -112,6 +112,7 @@ const VALORES_MODAL_VACIOS: ModalValues = {
   estado: "activo",
   global_grade_autocompletado: false,
   global_grade_sin_equivalencia: false,
+  global_grade_opciones: [] as { id: number; codigo: string; nombre: string }[],
 };
 
 // ── Helpers de negocio ────────────────────────────────────────────────────
@@ -755,6 +756,12 @@ export type ModalValues = {
   estado: string;
   /** true cuando el global grade se resolvió desde la equivalencia configurada. */
   global_grade_autocompletado: boolean;
+  /**
+   * Global grades a los que equivale el career level inicial. El campo se acota
+   * a ellos: un nivel abarca un tramo (M4 = GG17 + GG18) y el perfil debe caer
+   * dentro. Vacío = sin equivalencias, y entonces se ofrece el catálogo entero.
+   */
+  global_grade_opciones: { id: number; codigo: string; nombre: string }[];
   /** true cuando el nivel elegido no tiene equivalencia: hay que capturarlo a mano. */
   global_grade_sin_equivalencia: boolean;
 };
@@ -907,7 +914,7 @@ function renderModal(
                 <div class="grid grid-cols-1">
                   <select id="puestos-modal-global-grade" name="global_grade_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
                     <option value="" ${!values.global_grade_id ? "selected" : ""}>Seleccionar…</option>
-                    ${catalogos.globalGrades.map((g) => `<option value="${g.id}" ${values.global_grade_id === String(g.id) ? "selected" : ""}>${escapeHtml(g.codigo)} — ${escapeHtml(g.nombre)}</option>`).join("")}
+                    ${(values.global_grade_opciones.length ? values.global_grade_opciones : catalogos.globalGrades).map((g) => `<option value="${g.id}" ${values.global_grade_id === String(g.id) ? "selected" : ""}>${escapeHtml(g.codigo)} — ${escapeHtml(g.nombre)}</option>`).join("")}
                   </select>
                   ${SELECT_CHEVRON}
                 </div>
@@ -1183,19 +1190,34 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
   }
 
   /**
-   * Resuelve el global grade desde la equivalencia del career level inicial.
+   * Acota el global grade a los del career level inicial.
    *
-   * Nunca lo calcula: consulta el catálogo de equivalencias. Si RH no configuró
-   * ninguna, deja el campo libre y marca el aviso para capturarlo a mano.
+   * Nunca lo calcula: consulta el catálogo de equivalencias. Con uno solo se
+   * autocompleta; con varios el nivel abarca un tramo y RH elige. Sin ninguna,
+   * el campo queda libre y se marca el aviso para capturarlo a mano.
    */
   async function sincronizarGlobalGrade(): Promise<void> {
     const nivelInicial = Number(editingValues.grado_desde_id);
     if (!Number.isFinite(nivelInicial) || nivelInicial <= 0) return;
     try {
-      const equivalencia = await resolverEquivalencia(nivelInicial);
-      if (equivalencia) {
-        editingValues.global_grade_id = String(equivalencia.global_grade_id);
+      const equivalencias = await resolverEquivalencia(nivelInicial);
+      editingValues.global_grade_opciones = equivalencias.map((e) => ({
+        id: e.global_grade_id,
+        codigo: e.global_grade_codigo ?? String(e.global_grade_id),
+        nombre: e.global_grade_nombre ?? "",
+      }));
+      if (equivalencias.length === 1) {
+        editingValues.global_grade_id = String(equivalencias[0].global_grade_id);
         editingValues.global_grade_autocompletado = true;
+        editingValues.global_grade_sin_equivalencia = false;
+      } else if (equivalencias.length > 1) {
+        // Con un tramo no hay nada que adivinar: se limpia lo que hubiera para
+        // que RH elija dentro de los válidos.
+        const sigueValido = editingValues.global_grade_opciones.some(
+          (g) => String(g.id) === editingValues.global_grade_id,
+        );
+        if (!sigueValido) editingValues.global_grade_id = "";
+        editingValues.global_grade_autocompletado = false;
         editingValues.global_grade_sin_equivalencia = false;
       } else {
         editingValues.global_grade_autocompletado = false;
@@ -1203,6 +1225,7 @@ export function mountPuestos(container: HTMLElement, signal: AbortSignal): void 
       }
     } catch {
       // Un fallo al resolver no debe bloquear el alta: se captura a mano.
+      editingValues.global_grade_opciones = [];
       editingValues.global_grade_sin_equivalencia = true;
     }
     if (modalMode === "create" || modalMode === "edit") paintModal();

@@ -43,6 +43,7 @@ import {
 } from "./ajustesSectionUi.ts";
 import {
   componerCodigoCareerLevel,
+  formatGlobalGrades,
   numeroDeCareerLevel,
   siguienteNumeroCareerLevel,
 } from "../../../talento/clasificacionPuestoUi.ts";
@@ -71,9 +72,9 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     return g.career_path_nombre ?? g.career_path_codigo ?? "—";
   }
 
-  /** Etiqueta de la posición: el global grade, o un aviso si falta la equivalencia. */
+  /** Tramo de global grades del nivel, o el aviso de que falta configurarlo. */
   function posicionLabel(g: GradoPuesto): string {
-    return g.global_grade_codigo ?? "Sin equivalencia";
+    return formatGlobalGrades(g);
   }
 
   /** Prefijo del código: el del career path seleccionado en el formulario. */
@@ -139,7 +140,7 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
         <td class="${AJUSTES_TABLE_TD} font-medium tabular-nums">${escapeHtml(g.codigo)}</td>
         <td class="${AJUSTES_TABLE_TD} text-text-secondary">${escapeHtml(careerPathLabel(g))}</td>
         <td class="${AJUSTES_TABLE_TD}">${escapeHtml(g.nombre)}</td>
-        <td class="${AJUSTES_TABLE_TD} ${g.global_grade_codigo ? "tabular-nums text-text-secondary" : "text-amber-700"}">${escapeHtml(posicionLabel(g))}</td>
+        <td class="${AJUSTES_TABLE_TD} ${g.global_grades.length ? "tabular-nums text-text-secondary" : "text-amber-700"}">${escapeHtml(posicionLabel(g))}</td>
         <td class="${AJUSTES_TABLE_TD_ACTIONS}">
           <div class="flex items-center justify-end gap-1">
             <button type="button" data-grado-action="edit" data-id="${g.id}" class="${AJUSTES_ROW_BTN_EDIT}" title="Editar">${AJUSTES_ICON_EDIT}</button>

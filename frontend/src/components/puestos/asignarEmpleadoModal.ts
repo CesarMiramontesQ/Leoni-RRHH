@@ -147,7 +147,7 @@ export function mountAsignarEmpleadoModal(
         : catalogo.filter((g) => g.activo);
       gradosPerfil = filtrados
         .sort(compararCareerLevels)
-        .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.global_grade_orden }));
+        .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.posicion_desde }));
       fillGradoSelect(gradosPerfil);
     } catch {
       gradoSelect.innerHTML = `<option value="">No se pudieron cargar grados</option>`;

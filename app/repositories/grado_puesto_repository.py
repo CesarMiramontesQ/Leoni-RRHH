@@ -29,12 +29,35 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
 
     @staticmethod
     def _carga_completa() -> tuple:
-        """Career path y equivalencia: sin ellos el nivel no sabe su posicion."""
+        """Career path y equivalencias: sin ellas el nivel no sabe su tramo."""
         return (
             selectinload(GradoPuesto.career_path),
-            selectinload(GradoPuesto.equivalencia).selectinload(
+            selectinload(GradoPuesto.equivalencias).selectinload(
                 CareerLevelGradeMapping.global_grade
             ),
+        )
+
+    @staticmethod
+    def _orden_minimo():
+        """
+        Subquery escalar con el `orden` mas bajo de los grados del nivel.
+
+        Se usa para ordenar SIN join: un nivel con dos equivalencias produciria
+        dos filas, duplicando el nivel en el listado y descuadrando el `total`
+        respecto a la paginacion.
+        """
+        return (
+            select(func.min(GlobalGrade.orden))
+            .select_from(CareerLevelGradeMapping)
+            .join(
+                GlobalGrade, GlobalGrade.id == CareerLevelGradeMapping.global_grade_id
+            )
+            .where(
+                CareerLevelGradeMapping.career_level_id == GradoPuesto.id,
+                CareerLevelGradeMapping.activo.is_(True),
+            )
+            .correlate(GradoPuesto)
+            .scalar_subquery()
         )
 
     async def list_filtered(
@@ -59,28 +82,15 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query)
 
-        # El career path y la equivalencia se precargan: el response los
+        # El career path y las equivalencias se precargan: el response los
         # denormaliza y leerlos en lazy dentro de una sesion async revienta con
         # MissingGreenlet.
         query = (
-            query.options(
-                selectinload(GradoPuesto.career_path),
-                selectinload(GradoPuesto.equivalencia).selectinload(
-                    CareerLevelGradeMapping.global_grade
-                ),
-            )
+            query.options(*self._carga_completa())
             .join(CareerPath, CareerPath.id == GradoPuesto.career_path_id)
-            .outerjoin(
-                CareerLevelGradeMapping,
-                (CareerLevelGradeMapping.career_level_id == GradoPuesto.id)
-                & CareerLevelGradeMapping.activo.is_(True),
-            )
-            .outerjoin(
-                GlobalGrade, GlobalGrade.id == CareerLevelGradeMapping.global_grade_id
-            )
             .order_by(
                 CareerPath.codigo,
-                GlobalGrade.orden.nulls_last(),
+                self._orden_minimo().nulls_last(),
                 GradoPuesto.codigo,
             )
             .offset(offset)

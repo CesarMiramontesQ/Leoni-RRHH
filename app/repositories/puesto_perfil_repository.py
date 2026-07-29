@@ -24,6 +24,7 @@ from app.models.talento import (
     PuestoPerfil,
     PuestoPerfilGrado,
 )
+from app.utils import career_level_tramo as tramo_util
 from app.repositories.base import BaseRepository
 
 
@@ -53,7 +54,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             # tuviera posicion.
             selectinload(PuestoPerfil.grados_config)
             .selectinload(PuestoPerfilGrado.grado)
-            .selectinload(GradoPuesto.equivalencia)
+            .selectinload(GradoPuesto.equivalencias)
             .selectinload(CareerLevelGradeMapping.global_grade),
         )
 
@@ -369,7 +370,7 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
                     selectinload(PuestoPerfil.area),
                     selectinload(PuestoPerfil.grados_config).selectinload(
                         PuestoPerfilGrado.grado
-                    ).selectinload(GradoPuesto.equivalencia).selectinload(
+                    ).selectinload(GradoPuesto.equivalencias).selectinload(
                         CareerLevelGradeMapping.global_grade
                     ),
                 )
@@ -379,26 +380,25 @@ class PuestoPerfilRepository(BaseRepository[PuestoPerfil]):
             for item in items:
                 perfil = perfiles_map.get(item["id"])
                 item["area_nombre"] = perfil.area.descripcion if perfil and perfil.area else None
-                # La posicion del nivel es la de su global grade; los que no
-                # tienen equivalencia van al final.
-                item["grados"] = sorted(
-                    (
-                        {
-                            "id": g.grado.id,
-                            "nombre": g.grado.nombre,
-                            "codigo": g.grado.codigo,
-                            "orden": (
-                                g.grado.equivalencia.global_grade.orden
-                                if g.grado.equivalencia
-                                and g.grado.equivalencia.global_grade
-                                else None
-                            ),
-                        }
-                        for g in (perfil.grados_config if perfil else [])
-                        if g.grado
-                    ),
-                    key=lambda x: (x["orden"] is None, x["orden"] or 0, x["codigo"]),
-                )
+                # La posicion del nivel es el extremo inferior de su tramo de
+                # global grades; los que no tienen equivalencias van al final.
+                item["grados"] = [
+                    {
+                        "id": g.grado.id,
+                        "nombre": g.grado.nombre,
+                        "codigo": g.grado.codigo,
+                        "orden": tramo_util.posicion(g.grado),
+                    }
+                    for g in tramo_util.ordenar(
+                        [
+                            g
+                            for g in (perfil.grados_config if perfil else [])
+                            if g.grado
+                        ],
+                        # `ordenar` espera el nivel, no la fila puente.
+                        clave=lambda g: g.grado,
+                    )
+                ]
 
         return items
 

@@ -1,3 +1,4 @@
+import { compararCareerLevels } from "../talento/clasificacionPuestoUi.ts";
 import { fetchWithAuth } from "./http.ts";
 import type {
   GradoPuesto,
@@ -28,9 +29,13 @@ function mapGrado(raw: Record<string, unknown>): GradoPuesto {
     career_path_nombre: (raw.career_path_nombre ?? null) as string | null,
     codigo: (raw.codigo ?? "") as string,
     nombre: (raw.nombre ?? "") as string,
-    global_grade_id: (raw.global_grade_id ?? null) as number | null,
-    global_grade_codigo: (raw.global_grade_codigo ?? null) as string | null,
-    global_grade_orden: (raw.global_grade_orden ?? null) as number | null,
+    global_grades: (raw.global_grades ?? []) as {
+      id: number;
+      codigo: string;
+      orden: number;
+    }[],
+    posicion_desde: (raw.posicion_desde ?? null) as number | null,
+    posicion_hasta: (raw.posicion_hasta ?? null) as number | null,
     activo: (raw.activo ?? true) as boolean,
     reactivado: (raw.reactivado ?? false) as boolean,
     created_at: (raw.created_at ?? "") as string,
@@ -56,19 +61,14 @@ export async function getGradosPuesto(opts?: {
   }
   const data = await res.json();
   const items = (data.items ?? data) as Record<string, unknown>[];
-  // Se agrupa por career path y dentro de cada uno se ordena por la posición que
-  // da el global grade. Los que no tienen equivalencia van al final.
+  // Se agrupa por career path y dentro de cada uno se ordena por el tramo de
+  // global grades. Los que no tienen equivalencias van al final.
   return items.map(mapGrado).sort((a, b) => {
     const porPath = (a.career_path_codigo ?? "").localeCompare(
       b.career_path_codigo ?? "",
     );
     if (porPath !== 0) return porPath;
-    const oa = a.global_grade_orden;
-    const ob = b.global_grade_orden;
-    if (oa == null && ob == null) return a.codigo.localeCompare(b.codigo);
-    if (oa == null) return 1;
-    if (ob == null) return -1;
-    return oa - ob;
+    return compararCareerLevels(a, b);
   });
 }
 

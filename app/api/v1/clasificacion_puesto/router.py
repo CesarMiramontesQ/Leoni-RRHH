@@ -348,18 +348,20 @@ async def listar_equivalencias(
     )
 
 
-@router.get("/equivalencias/resolver", response_model=EquivalenciaResponse | None)
+@router.get("/equivalencias/resolver", response_model=list[EquivalenciaResponse])
 async def resolver_equivalencia(
     career_level_id: int = Query(..., gt=0),
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Equivalencia configurada para un career level, o `null` si no hay ninguna.
+    Global grades a los que equivale un career level, ordenados por `orden`.
 
-    Alimenta el autocompletado del global grade en el formulario de perfil. Devolver
-    `null` no es un error: significa que RH aun no configuro esa equivalencia y el
-    global grade debe elegirse a mano.
+    Es una **lista** porque un nivel abarca un tramo: M4 puede ser GG17 y GG18.
+    Alimenta el campo de global grade del formulario de perfil, que se acota a
+    estos valores: con uno se autocompleta, con varios RH elige. Devolver `[]` no
+    es un error — significa que RH aun no configuro la equivalencia y entonces el
+    campo queda libre.
     """
     return await EquivalenciaService(db).resolver(career_level_id=career_level_id)
 

@@ -342,24 +342,37 @@ class CareerLevelGradeMappingRepository(BaseRepository[CareerLevelGradeMapping])
         )
         return result.scalar_one_or_none()
 
-    async def get_by_career_level(
-        self, career_level_id: int, exclude_id: int | None = None
+    async def get_par(
+        self, career_level_id: int, global_grade_id: int, exclude_id: int | None = None
     ) -> CareerLevelGradeMapping | None:
+        """
+        La equivalencia exacta nivel↔grade, si existe.
+
+        Lo unico que no se repite es el PAR: un nivel puede equivaler a varios
+        grades (M4 = GG17 + GG18).
+        """
         query = self._con_relaciones().where(
-            CareerLevelGradeMapping.career_level_id == career_level_id
+            CareerLevelGradeMapping.career_level_id == career_level_id,
+            CareerLevelGradeMapping.global_grade_id == global_grade_id,
         )
         if exclude_id:
             query = query.where(CareerLevelGradeMapping.id != exclude_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_activa_por_career_level(
+    async def get_activas_por_career_level(
         self, career_level_id: int
-    ) -> CareerLevelGradeMapping | None:
+    ) -> list[CareerLevelGradeMapping]:
+        """Grades del nivel, ordenados: el primero marca su posicion."""
         result = await self.db.execute(
-            self._con_relaciones().where(
+            self._con_relaciones()
+            .join(
+                GlobalGrade, GlobalGrade.id == CareerLevelGradeMapping.global_grade_id
+            )
+            .where(
                 CareerLevelGradeMapping.career_level_id == career_level_id,
                 CareerLevelGradeMapping.activo.is_(True),
             )
+            .order_by(GlobalGrade.orden)
         )
-        return result.scalar_one_or_none()
+        return list(result.scalars().all())

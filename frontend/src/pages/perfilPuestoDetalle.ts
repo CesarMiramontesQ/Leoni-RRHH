@@ -1544,7 +1544,7 @@ async function openEditBaseModal(
     gradosCatalogo = gradosRes
       .filter((g) => g.activo)
       .sort(compararCareerLevels)
-      .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.global_grade_orden }));
+      .map((g) => ({ id: g.id, nombre: g.nombre, orden: g.posicion_desde }));
   } catch {
     host.innerHTML = "";
     document.body.style.overflow = "";

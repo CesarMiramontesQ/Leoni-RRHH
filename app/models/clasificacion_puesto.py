@@ -177,10 +177,15 @@ class CareerLevelGradeMapping(Base):
     """
     Equivalencia configurable entre un Career Level y un Global Grade.
 
-    RH la define; el sistema nunca la calcula. La unicidad es por career level: un
-    nivel equivale a un solo grado. El career path no se guarda aqui porque ya
-    cuelga del career level (`GradoPuesto.career_path_id`) y duplicarlo permitiria
-    que las dos copias se contradigan.
+    RH la define; el sistema nunca la calcula. El career path no se guarda aqui
+    porque ya cuelga del career level (`GradoPuesto.career_path_id`) y duplicarlo
+    permitiria que las dos copias se contradigan.
+
+    **Un career level puede equivaler a VARIOS global grades**: M4 abarca GG17 y
+    GG18. Lo unico que no se repite es el par — la unicidad es
+    `(career_level_id, global_grade_id)`. Por eso dos empleados en M4 pueden
+    estar clasificados distinto: el nivel dice el tamano del puesto y el grado lo
+    afina dentro de ese tamano.
 
     No se asume ninguna correspondencia por defecto: P10 puede equivaler a GG09 y
     M1 a GG10 si asi lo define la organizacion.
@@ -189,7 +194,9 @@ class CareerLevelGradeMapping(Base):
     __tablename__ = "levelup_career_level_grade_mappings"
     __table_args__ = (
         UniqueConstraint(
-            "career_level_id", name="uq_levelup_career_level_grade_mapping_level"
+            "career_level_id",
+            "global_grade_id",
+            name="uq_levelup_career_level_grade_mapping_level_grade",
         ),
     )
 
