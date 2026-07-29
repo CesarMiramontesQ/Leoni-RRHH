@@ -993,7 +993,37 @@ Para matrices de habilidades. Representada como barras discretas (no heatmap con
 
 Barra con brecha: usar `--color-accent` en vez de `--color-primary` cuando `nivel_actual < nivel_requerido`.
 
-### 12.3 Monospace Font Token
+### 12.3 Escala ordinal continua (ejes)
+
+Para **ejes cuyo orden significa algo** — el eje de global grades del mapa WTW, donde a la
+derecha pesa más. Es la misma familia navy de §12.1, en versión continua para ejes de
+longitud variable.
+
+`frontend/src/ui/escalaOrdinal.ts`:
+
+| Uso | Función | Recorrido |
+|---|---|---|
+| Fondo de columna | `tinteOrdinalFondo(i, total)` | 5% → 27% de `--color-primary` sobre blanco |
+| Chip del encabezado | `tinteOrdinalChip(i, total)` | 14% → 100%, con el texto invertido pasado el 55% |
+
+```ts
+style="background: ${tinteOrdinalFondo(i, total)};"
+```
+
+Reglas:
+- **Rampa, no paleta.** Colores sueltos por columna dirían que son alternativas equivalentes;
+  en un eje ordinal son grados de lo mismo. Es la razón por la que el mapa WTW no reproduce
+  el morado/naranja/azul de la lámina original: ahí el color distingue *categorías*, aquí
+  tiene que ordenar.
+- **No se escriben valores**: se interpola con `color-mix` entre tokens existentes, así que
+  la rampa sigue a la marca si cambia.
+- **El tinte va en el fondo de la columna, no en el contenido.** Así el color codifica el eje
+  y lo que se apoya encima queda como figura, con contraste constante. Por eso el fondo se
+  queda por debajo del 30% de tinta.
+- **El texto sobre la rampa se invierte** pasado `UMBRAL_TEXTO_INVERTIDO`; hay un test que lo
+  comprueba en toda la rampa, porque el contraste no puede depender de dónde caiga la columna.
+
+### 12.4 Monospace Font Token
 
 Para IDs, codigos, valores numericos tabulares en matrices y tablas de Level Up:
 
@@ -1219,6 +1249,12 @@ Reglas:
 - **La posición se calcula contra el índice del punto en el eje, no contra su valor.** Al
   recortar, el eje queda con huecos en la numeración; buscar por valor colocaría mal las
   celdas.
+- **Un solo contenedor de scroll para todas las franjas.** Con un scroll por franja, desplazar
+  una desalinea las demás y se pierde lo único que la vista existe para enseñar. La etiqueta
+  de cada categoría va en una columna `sticky left-0` para no perderse al desplazar.
+- **El eje se colorea con la escala ordinal de §12.3.** Dos elementos con el mismo tinte están
+  en la misma columna, así que el color acaba probando la alineación en lugar de solo
+  decorar.
 - **Los elementos que se solapan bajan a otro carril** (`talento/wtwCarriles.ts`,
   empaquetado greedy). Dibujarlos en la misma fila los haría pisarse y el gráfico diría algo
   falso. Un catálogo sano sale en un solo carril.

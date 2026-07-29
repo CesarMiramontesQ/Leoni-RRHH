@@ -22,6 +22,7 @@ import { careerPathBadge, GLOBAL_GRADE_TOOLTIP } from "../talento/clasificacionP
 import { repartirEnCarriles } from "../talento/wtwCarriles.ts";
 import { talentoEyebrow, talentoPageRoot } from "../talento/pageKit.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
+import { tinteOrdinalChip, tinteOrdinalFondo } from "../ui/escalaOrdinal.ts";
 import {
   errorState,
   pageHeading,
@@ -31,27 +32,68 @@ import {
 
 type Estado = "loading" | "ready" | "error";
 
-/** Ancho mínimo de cada columna del eje; por debajo los códigos se aprietan. */
-const ANCHO_COLUMNA = "5.5rem";
+/** Ancho de cada columna del eje; por debajo los códigos se aprietan. */
+const ANCHO_COLUMNA = "4.75rem";
+
+/** Columna fija de la izquierda con la etiqueta del career path. */
+const ANCHO_ETIQUETA = "11rem";
+
+// El tinte de la rampa vive en la COLUMNA, no en la celda del nivel: así el
+// color codifica el eje y las celdas quedan como figura sobre ese fondo. Y como
+// todas las franjas comparten columna, dos niveles del mismo tinte están
+// alineados — el color acaba probando lo que la vista quiere enseñar.
+
+function plantillaColumnas(total: number): string {
+  return `grid-template-columns: ${ANCHO_ETIQUETA} repeat(${total}, ${ANCHO_COLUMNA});`;
+}
+
+/** Celda pegada a la izquierda que no se pierde al desplazar el eje. */
+function celdaEtiqueta(contenido: string, clases = ""): string {
+  return `<div class="sticky left-0 z-20 flex items-center border-r border-slate-200 bg-white px-4 ${clases}">${contenido}</div>`;
+}
 
 function renderEje(grades: WtwGrade[]): string {
   const celdas = grades
+    .map((g, i) => {
+      const { fondo, texto } = tinteOrdinalChip(i, grades.length);
+      return `<div class="flex items-center justify-center py-2">
+          <span class="inline-flex min-w-[3.25rem] justify-center rounded-md px-2 py-1 text-[11px] font-semibold tabular-nums"
+            style="background: ${fondo}; color: ${texto};">${escapeHtml(g.codigo)}</span>
+        </div>`;
+    })
+    .join("");
+  return `<div class="sticky top-0 z-30 grid border-b border-slate-200 bg-white"
+      style="${plantillaColumnas(grades.length)}"
+      role="row" aria-label="Global grades">
+      ${celdaEtiqueta(
+        `<span class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Global grade</span>`,
+        "py-2",
+      )}
+      ${celdas}
+    </div>`;
+}
+
+/** Fondo de las columnas: se pinta una vez y las franjas van encima. */
+function renderTintes(grades: WtwGrade[]): string {
+  const columnas = grades
     .map(
-      (g) =>
-        `<div class="px-2 py-1.5 text-center text-[11px] font-semibold tabular-nums text-text-secondary">${escapeHtml(g.codigo)}</div>`,
+      (_, i) =>
+        `<div style="background: ${tinteOrdinalFondo(i, grades.length)};" aria-hidden="true"></div>`,
     )
     .join("");
-  return `<div class="sticky top-0 z-10 grid border-b border-slate-200 bg-slate-50"
-      style="grid-template-columns: repeat(${grades.length}, minmax(${ANCHO_COLUMNA}, 1fr));"
-      role="row" aria-label="Global grades">${celdas}</div>`;
+  return `<div class="pointer-events-none absolute inset-0 grid"
+      style="${plantillaColumnas(grades.length)}">
+      <div aria-hidden="true"></div>
+      ${columnas}
+    </div>`;
 }
 
 /**
  * Celda de un nivel, colocada por columnas.
  *
- * `grid-column` es 1-based y se calcula contra la posición del grade en el eje,
- * no contra su `orden`: el catálogo puede tener huecos en la numeración y el eje
- * solo pinta los grades que existen.
+ * `grid-column` es 1-based y la columna 1 es la etiqueta fija, de ahí el `+ 2`.
+ * El índice sale de la posición del grade en el eje, nunca de su `orden`: el eje
+ * se recorta a lo ocupado y su numeración tiene huecos.
  */
 function renderNivel(nivel: WtwNivel, indicePorOrden: Map<number, number>): string {
   const inicio = indicePorOrden.get(nivel.posicion_desde);
@@ -59,10 +101,15 @@ function renderNivel(nivel: WtwNivel, indicePorOrden: Map<number, number>): stri
   if (inicio == null || fin == null) return "";
   const span = fin - inicio + 1;
   const titulo = `${nivel.codigo} · ${nivel.nombre} — ${nivel.global_grades.join(", ")}`;
-  return `<div class="flex min-w-0 flex-col justify-center gap-0.5 rounded-md border border-slate-200 bg-white px-2 py-2 text-center"
-      style="grid-column: ${inicio + 1} / span ${span};"
+  // Translúcida a propósito: deja pasar el tinte de sus columnas, así la celda
+  // queda atada a su posición del eje. Una celda que abarca dos grades enseña
+  // los dos tintes, que es exactamente lo que significa. El blanco al 85% sobre
+  // un tinte que no pasa del 27% deja el fondo efectivo por debajo del 6%, así
+  // que el contraste del texto no se mueve.
+  return `<div class="relative z-10 mx-0.5 flex min-w-0 flex-col justify-center gap-0.5 rounded-lg border border-white/70 bg-white/85 px-2 py-2.5 text-center shadow-[0_1px_2px_rgba(10,22,40,0.06)] backdrop-blur-[1px]"
+      style="grid-column: ${inicio + 2} / span ${span};"
       title="${escapeHtml(titulo)}">
-      <span class="text-sm font-semibold tabular-nums text-text-primary">${escapeHtml(nivel.codigo)}</span>
+      <span class="text-sm font-semibold tabular-nums leading-none text-text-primary">${escapeHtml(nivel.codigo)}</span>
       <span class="truncate text-[11px] leading-tight text-text-secondary">${escapeHtml(nivel.nombre)}</span>
     </div>`;
 }
@@ -71,61 +118,77 @@ function renderCarril(
   niveles: WtwNivel[],
   grades: WtwGrade[],
   indicePorOrden: Map<number, number>,
+  etiqueta: string,
 ): string {
-  return `<div class="grid gap-1 py-1"
-      style="grid-template-columns: repeat(${grades.length}, minmax(${ANCHO_COLUMNA}, 1fr));"
-      role="row">
+  return `<div class="relative grid py-1" style="${plantillaColumnas(grades.length)}" role="row">
+      ${celdaEtiqueta(etiqueta, "py-1")}
       ${niveles.map((n) => renderNivel(n, indicePorOrden)).join("")}
     </div>`;
 }
 
-function renderSinPosicion(path: WtwPath): string {
-  if (path.sin_posicion.length === 0) return "";
-  const chips = path.sin_posicion
-    .map(
-      (n) =>
-        `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-900">
-          <span class="font-semibold tabular-nums">${escapeHtml(n.codigo)}</span>
-          <span>${escapeHtml(n.nombre)}</span>
-        </span>`,
-    )
-    .join("");
-  return `<div class="border-t border-slate-100 px-4 py-3 sm:px-5">
-      <p class="text-xs leading-relaxed text-text-muted">
-        Sin equivalencia configurada, así que no tienen posición en el eje ni se pueden usar
-        en el rango de un perfil. Configúrala en
-        <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes</a>.
-      </p>
-      <div class="mt-2 flex flex-wrap gap-1.5">${chips}</div>
-    </div>`;
-}
-
-function renderPath(
+/**
+ * Una franja por career path, todas dentro del MISMO scroll.
+ *
+ * Con un scroll por franja, desplazar una desalineaba las demás y se perdía lo
+ * único que la vista existe para enseñar.
+ */
+function renderFranja(
   path: WtwPath,
   grades: WtwGrade[],
   indicePorOrden: Map<number, number>,
 ): string {
-  // Dos niveles del mismo path pueden solaparse; en una fila se pisarían.
   const carriles = repartirEnCarriles(path.niveles);
-  const cuerpo =
-    carriles.length === 0
-      ? `<p class="px-4 py-6 text-center text-sm text-text-muted sm:px-5">
-          Este career path aún no tiene career levels con equivalencia configurada.
-        </p>`
-      : `<div class="overflow-x-auto">
-          <div class="min-w-max px-4 pb-3 sm:px-5">
-            ${renderEje(grades)}
-            ${carriles.map((c) => renderCarril(c, grades, indicePorOrden)).join("")}
-          </div>
-        </div>`;
-  return `<section class="${RH_LISTADO_SURFACE}" aria-label="Career path ${escapeHtml(path.codigo)}">
-      <header class="flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5">
-        ${careerPathBadge(path.codigo, path.nombre)}
-        <span class="text-xs text-text-muted">${path.niveles.length} career level(s) posicionado(s)</span>
-      </header>
-      ${cuerpo}
-      ${renderSinPosicion(path)}
-    </section>`;
+  if (carriles.length === 0) {
+    return `<div class="relative grid border-t border-slate-100" style="${plantillaColumnas(grades.length)}">
+        ${celdaEtiqueta(careerPathBadge(path.codigo, path.nombre), "py-3")}
+        <div class="py-3 pl-4 text-xs text-text-muted" style="grid-column: 2 / -1;">
+          Sin career levels con equivalencia configurada.
+        </div>
+      </div>`;
+  }
+  // La etiqueta va en el primer carril; los demás llevan una celda vacía para
+  // que la columna fija no se rompa.
+  const filas = carriles
+    .map((c, i) =>
+      renderCarril(
+        c,
+        grades,
+        indicePorOrden,
+        i === 0 ? careerPathBadge(path.codigo, path.nombre) : "",
+      ),
+    )
+    .join("");
+  return `<div class="border-t border-slate-100 py-1" role="rowgroup"
+      aria-label="Career path ${escapeHtml(path.codigo)}">${filas}</div>`;
+}
+
+function renderSinPosicion(paths: WtwPath[]): string {
+  const pendientes = paths.filter((p) => p.sin_posicion.length > 0);
+  if (pendientes.length === 0) return "";
+  const bloques = pendientes
+    .map(
+      (p) => `<div class="flex flex-wrap items-center gap-1.5">
+        <span class="text-xs font-semibold text-text-secondary">${escapeHtml(p.codigo)}</span>
+        ${p.sin_posicion
+          .map(
+            (n) =>
+              `<span class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs text-amber-900">
+                <span class="font-semibold tabular-nums">${escapeHtml(n.codigo)}</span>
+                <span>${escapeHtml(n.nombre)}</span>
+              </span>`,
+          )
+          .join("")}
+      </div>`,
+    )
+    .join("");
+  return `<div class="${RH_LISTADO_SURFACE} px-4 py-4 sm:px-5">
+      <p class="text-xs leading-relaxed text-text-muted">
+        Estos career levels no tienen equivalencia configurada, así que no tienen posición en
+        el eje ni se pueden usar en el rango de un perfil. Se configura en
+        <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes</a>.
+      </p>
+      <div class="mt-3 flex flex-col gap-2">${bloques}</div>
+    </div>`;
 }
 
 export function mountWtwMapa(container: HTMLElement, signal?: AbortSignal): void {
@@ -156,10 +219,21 @@ export function mountWtwMapa(container: HTMLElement, signal?: AbortSignal): void
     }
       // El eje solo trae los grades ocupados, así que su `orden` tiene huecos: la
     // columna se busca por índice, nunca por `orden`.
-    const indicePorOrden = new Map(mapa.global_grades.map((g, i) => [g.orden, i]));
-    return mapa.career_paths
-      .map((p) => renderPath(p, mapa!.global_grades, indicePorOrden))
+    const grades = mapa.global_grades;
+    const indicePorOrden = new Map(grades.map((g, i) => [g.orden, i]));
+    const franjas = mapa.career_paths
+      .map((p) => renderFranja(p, grades, indicePorOrden))
       .join("");
+    return `<div class="${RH_LISTADO_SURFACE} overflow-hidden">
+        <div class="overflow-x-auto">
+          <div class="relative min-w-max">
+            ${renderTintes(grades)}
+            ${renderEje(grades)}
+            ${franjas}
+          </div>
+        </div>
+      </div>
+      ${renderSinPosicion(mapa.career_paths)}`;
   }
 
   function paint(): void {
@@ -167,7 +241,9 @@ export function mountWtwMapa(container: HTMLElement, signal?: AbortSignal): void
     mountAppShell(container, {
       pageTitle: "Estructura WTW",
       activeNav: "wtw",
-      mainClass: "py-0",
+      // `py-0` dejaba el contenido pegado al navbar: el contenedor de página
+      // solo trae padding horizontal.
+      mainClass: "py-5 sm:py-6",
       mainHtml: talentoPageRoot(`
         <div class="flex flex-col gap-5">
           <div class="flex flex-col gap-2">
