@@ -567,9 +567,11 @@ function renderFilterBar(
         "filter-grado",
         "Career level",
         "Todos",
+        // El código del nivel ya empieza con el del career path (M1, P10):
+        // anteponerlo repetía la misma letra.
         gradosCatalog.map((g) => ({
           value: String(g.id),
-          label: `${g.career_path_codigo ?? "?"} · ${careerLevelLabel(g)}`,
+          label: careerLevelLabel(g),
         })),
         filters.grado_id,
       )}
