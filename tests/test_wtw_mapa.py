@@ -24,14 +24,17 @@ URL = "/api/v1/puestos-perfil/wtw"
 @pytest.mark.asyncio
 async def test_el_eje_llega_ordenado_por_orden(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="wtw_eje@leoni.test")
+    # Se crean en desorden a proposito: el eje debe salir ascendente pase lo que
+    # pase, porque la posicion de cada celda se calcula contra su indice.
     for orden in (19, 8, 12):
-        await make_global_grade(db, codigo=f"GG{orden:02d}", orden=orden)
+        await make_grado_puesto(db, codigo=f"P{orden}", nombre=f"P{orden}", orden=orden)
     headers = await auth_headers(client, rh)
 
     response = await client.get(URL, headers=headers)
 
     assert response.status_code == 200, response.text
     ordenes = [g["orden"] for g in response.json()["global_grades"]]
+    assert ordenes, "el eje no deberia venir vacio con niveles posicionados"
     assert ordenes == sorted(ordenes)
 
 
@@ -120,3 +123,47 @@ async def test_la_ve_quien_tiene_puestos_sin_administrar_el_catalogo(
     from app.core.rh_module_registry import resolve_module_from_api_path
 
     assert resolve_module_from_api_path(URL) == "puestos"
+
+
+@pytest.mark.asyncio
+async def test_el_eje_omite_los_grades_que_nadie_ocupa(client: AsyncClient, db):
+    """
+    Un grade que ningun career path usa solo agrega columnas vacias.
+
+    El eje empezaba en GG01 aunque el primer nivel arrancara en GG07, empujando
+    todas las franjas a la derecha.
+    """
+    rh = await make_empleado(db, rol="rh", email="wtw_recorte@leoni.test")
+    await make_global_grade(db, codigo="GG01", orden=1)  # nadie lo usa
+    await make_grado_puesto(db, codigo="P1", nombre="Entry", orden=7)
+    headers = await auth_headers(client, rh)
+
+    response = await client.get(URL, headers=headers)
+
+    assert response.status_code == 200, response.text
+    codigos = [g["codigo"] for g in response.json()["global_grades"]]
+    assert codigos == ["GG07"]
+
+
+@pytest.mark.asyncio
+async def test_el_eje_conserva_los_grades_intermedios_de_un_tramo(
+    client: AsyncClient, db
+):
+    """
+    Se recorta por COBERTURA, no por grades con equivalencia.
+
+    Un nivel que abarca GG10 y GG12 pasa tambien por GG11: sin esa columna su
+    celda no se podria dibujar completa.
+    """
+    rh = await make_empleado(db, rol="rh", email="wtw_intermedio@leoni.test")
+    await make_global_grade(db, codigo="GG11", orden=11)
+    await make_grado_puesto(
+        db, codigo="P3", nombre="Career", orden=10, ordenes_extra=[12]
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.get(URL, headers=headers)
+
+    assert response.status_code == 200, response.text
+    codigos = [g["codigo"] for g in response.json()["global_grades"]]
+    assert codigos == ["GG10", "GG11", "GG12"]

@@ -1212,8 +1212,13 @@ Reglas:
 - **El valor de la vista es la alineación entre franjas.** Todas comparten el mismo
   `grid-template-columns`, así que dos elementos de categorías distintas en la misma columna
   significan lo mismo. Si cada franja calculara sus columnas, la lectura se perdería.
-- **La posición se calcula contra el índice del punto en el eje, no contra su valor.** El
-  catálogo puede tener huecos (`orden` 7, 8, 12) y el eje solo pinta lo que existe.
+- **El eje se recorta a lo ocupado.** Un punto que ninguna categoría usa solo agrega
+  columnas vacías y empuja las franjas a un lado. Se recorta a la **cobertura** (la unión de
+  los tramos), no a los puntos con dato: un elemento que abarque del 10 al 12 necesita la
+  columna del 11 aunque nadie la haya declarado.
+- **La posición se calcula contra el índice del punto en el eje, no contra su valor.** Al
+  recortar, el eje queda con huecos en la numeración; buscar por valor colocaría mal las
+  celdas.
 - **Los elementos que se solapan bajan a otro carril** (`talento/wtwCarriles.ts`,
   empaquetado greedy). Dibujarlos en la misma fila los haría pisarse y el gráfico diría algo
   falso. Un catálogo sano sale en un solo carril.

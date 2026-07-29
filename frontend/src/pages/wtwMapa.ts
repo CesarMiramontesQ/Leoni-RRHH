@@ -146,13 +146,16 @@ export function mountWtwMapa(container: HTMLElement, signal?: AbortSignal): void
     }
     if (estado === "error") return errorState({ message: error });
     if (!mapa || mapa.global_grades.length === 0) {
+      // El eje solo trae los grades que algún career path ocupa, así que vacío
+      // significa «ningún nivel tiene equivalencia», no «no hay grades».
       return `<div class="${RH_LISTADO_SURFACE} px-5 py-10 text-center text-sm text-text-muted">
-        Todavía no hay global grades capturados, así que no hay eje sobre el que dibujar la
-        estructura. Se capturan en
+        Ningún career level tiene equivalencia configurada todavía, así que no hay eje sobre
+        el que dibujar la estructura. Se configura en
         <a href="#/puestos/ajustes" class="font-semibold text-accent underline">Ajustes</a>.
       </div>`;
     }
-    // El eje pinta los grades que existen; su `orden` puede tener huecos.
+      // El eje solo trae los grades ocupados, así que su `orden` tiene huecos: la
+    // columna se busca por índice, nunca por `orden`.
     const indicePorOrden = new Map(mapa.global_grades.map((g, i) => [g.orden, i]));
     return mapa.career_paths
       .map((p) => renderPath(p, mapa!.global_grades, indicePorOrden))

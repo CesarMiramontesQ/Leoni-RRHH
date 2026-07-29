@@ -3917,7 +3917,12 @@ components:
       properties:
         global_grades:
           type: array
-          description: Eje X, ordenado por `orden`.
+          description: >-
+            Eje X, ordenado por `orden`. Solo incluye los grades que **algun**
+            career path ocupa: uno que nadie usa agrega columnas vacias y empuja
+            las franjas. Se toma la cobertura completa de cada tramo, no solo los
+            grades con equivalencia, para que una celda que abarque GG10 y GG12
+            pueda dibujarse pasando por GG11.
           items:
             $ref: "#/components/schemas/WtwGradeItem"
         career_paths:

@@ -482,9 +482,18 @@ class PuestoPerfilService:
                 )
             )
 
+        # El eje se recorta a lo que algun career path ocupa: un grade que nadie
+        # usa solo agrega columnas vacias y empuja las franjas a la derecha.
+        # Se usa la COBERTURA, no los grades con equivalencia: un nivel que
+        # abarque GG10 y GG12 pasa tambien por GG11, y sin esa columna su celda
+        # no podria dibujarse completa.
+        cubiertos = tramo_util.cobertura(niveles)
+
         return WtwMapaResponse(
             global_grades=[
-                WtwGradeItem(id=g.id, codigo=g.codigo, orden=g.orden) for g in grades
+                WtwGradeItem(id=g.id, codigo=g.codigo, orden=g.orden)
+                for g in grades
+                if g.orden in cubiertos
             ],
             career_paths=items,
         )
