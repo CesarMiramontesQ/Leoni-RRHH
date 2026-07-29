@@ -98,6 +98,23 @@ export function ajustesEmptyState(message: string, ctaHtml = ""): string {
   </div>`;
 }
 
+/**
+ * Aviso informativo dentro de una card de ajustes, descartable.
+ *
+ * No es un error ni una confirmación de éxito: cuenta algo que pasó y que el
+ * usuario no pidió explícitamente (por ejemplo, que un alta resultó ser la
+ * reactivación de un registro desactivado).
+ */
+export function ajustesNoticeAlert(message: string, dismissAttr: string): string {
+  return `<div class="mx-4 mt-4 flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-text-secondary" role="status">
+    <p class="flex-1 leading-relaxed">${escapeHtml(message)}</p>
+    <button type="button" ${dismissAttr} aria-label="Descartar aviso"
+      class="rounded-md p-1 text-slate-500 transition hover:bg-active-tint hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"/></svg>
+    </button>
+  </div>`;
+}
+
 export function ajustesModalError(message: string): string {
   return `<p class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">${escapeHtml(message)}</p>`;
 }

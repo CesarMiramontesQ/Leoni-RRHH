@@ -377,3 +377,92 @@ async def test_mover_un_nivel_de_path_exige_el_prefijo_del_path_nuevo(client, db
     )
     assert valido.status_code == 200, valido.text
     assert valido.json()["codigo"] == "M5"
+
+
+@pytest.mark.asyncio
+async def test_crear_sobre_un_nivel_desactivado_lo_reactiva(client, db):
+    """
+    Un nivel desactivado sigue ocupando su codigo: las uniques de la tabla no
+    distinguen `activo`.
+
+    Antes la validacion solo miraba los activos, el duplicado llegaba al INSERT
+    y salia un 500. Ahora se reactiva la MISMA fila (mismo id), que es lo que
+    implica un borrado suave: nada de lo que la referenciaba queda huerfano.
+    """
+    rh = await make_empleado(db, rol="rh", email="gp_reactivar@leoni.test")
+    path = await make_career_path(db, codigo="M", nombre="Management")
+    grado = await make_grado_puesto(
+        db, codigo="M1", nombre="M1", orden=1, career_path_id=path.id, activo=False
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/career-levels",
+        json={"career_path_id": path.id, "codigo": "M1", "nombre": "Team Leader"},
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["id"] == grado.id, "debe reactivar la fila existente, no crear otra"
+    assert body["activo"] is True
+    assert body["nombre"] == "Team Leader"
+    # La respuesta lo dice: fue una restauracion, no un alta.
+    assert body["reactivado"] is True
+
+
+@pytest.mark.asyncio
+async def test_crear_uno_nuevo_no_se_marca_como_reactivado(client, db):
+    rh = await make_empleado(db, rol="rh", email="gp_no_react@leoni.test")
+    path = await make_career_path(db, codigo="P")
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/career-levels",
+        json={"career_path_id": path.id, "codigo": "P3", "nombre": "P3"},
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["reactivado"] is False
+
+
+@pytest.mark.asyncio
+async def test_nombre_ocupado_por_un_nivel_desactivado_da_409_no_500(client, db):
+    """El nombre tiene su propia unique, y tampoco distingue `activo`."""
+    rh = await make_empleado(db, rol="rh", email="gp_nom_desact@leoni.test")
+    path = await make_career_path(db, codigo="P")
+    await make_grado_puesto(
+        db, codigo="P1", nombre="Team Leader", orden=1, career_path_id=path.id, activo=False
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.post(
+        "/api/v1/career-levels",
+        json={"career_path_id": path.id, "codigo": "P2", "nombre": "Team Leader"},
+        headers=headers,
+    )
+    assert response.status_code == 409, response.text
+    assert "desactivado" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_editar_hacia_un_codigo_desactivado_da_409_no_reactiva(client, db):
+    """
+    Reactivar solo tiene sentido al CREAR. Al editar significaria fusionar dos
+    filas, asi que choca.
+    """
+    rh = await make_empleado(db, rol="rh", email="gp_edit_desact@leoni.test")
+    path = await make_career_path(db, codigo="P")
+    await make_grado_puesto(
+        db, codigo="P1", nombre="Viejo", orden=1, career_path_id=path.id, activo=False
+    )
+    vivo = await make_grado_puesto(
+        db, codigo="P2", nombre="Vivo", orden=2, career_path_id=path.id
+    )
+    headers = await auth_headers(client, rh)
+
+    response = await client.patch(
+        f"/api/v1/career-levels/{vivo.id}",
+        json={"career_path_id": path.id, "codigo": "P1", "nombre": "Vivo"},
+        headers=headers,
+    )
+    assert response.status_code == 409, response.text

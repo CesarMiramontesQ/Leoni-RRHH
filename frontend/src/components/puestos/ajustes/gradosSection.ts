@@ -36,6 +36,7 @@ import {
   ajustesErrorAlert,
   ajustesInputConPrefijo,
   ajustesLoadingState,
+  ajustesNoticeAlert,
   ajustesModalError,
   ajustesSectionCard,
   ajustesTableWrap,
@@ -63,6 +64,8 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
   let deletingItem: GradoPuesto | null = null;
   let modalError = "";
   let filtro = "";
+  /** Aviso de que un alta terminó siendo la reactivación de un desactivado. */
+  let aviso = "";
 
   function careerPathLabel(g: GradoPuesto): string {
     return g.career_path_nombre ?? g.career_path_codigo ?? "—";
@@ -252,7 +255,9 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
         actionButtonHtml: sinCareerPaths
           ? ""
           : `<button type="button" data-grado-action="create" class="${RH_LISTADO_BTN_PRIMARY} shrink-0">${AJUSTES_ICON_PLUS}<span>Nuevo career level</span></button>`,
-        bodyHtml: `<div data-grados-body>${renderTable()}</div>`,
+        bodyHtml:
+          (aviso ? ajustesNoticeAlert(aviso, 'data-grado-action="dismiss-aviso"') : "") +
+          `<div data-grados-body>${renderTable()}</div>`,
       }) + renderModal();
   }
 
@@ -301,6 +306,11 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       }
       const action = btn.dataset.gradoAction;
       const id = Number(btn.dataset.id);
+      if (action === "dismiss-aviso") {
+        aviso = "";
+        paint();
+        return;
+      }
       if (action === "create") {
         if (careerPaths.length === 0) return;
         modalMode = "create";
@@ -421,9 +431,16 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
     try {
       const payload = { career_path_id: careerPathId, codigo, nombre };
       if (modalMode === "create") {
-        await createGradoPuesto(payload);
+        const creado = await createGradoPuesto(payload);
+        // Si el código ocupaba un nivel desactivado, el backend lo reactiva en
+        // vez de crear otro. Hacerlo pasar por alta ocultaría que el nivel
+        // conserva su id y lo que colgaba de él (equivalencia incluida).
+        aviso = creado.reactivado
+          ? `«${creado.codigo}» ya existía desactivado: se reactivó conservando su configuración.`
+          : "";
       } else if (modalMode === "edit" && editingId != null) {
         await updateGradoPuesto(editingId, payload);
+        aviso = "";
       }
       closeModal();
       await load();

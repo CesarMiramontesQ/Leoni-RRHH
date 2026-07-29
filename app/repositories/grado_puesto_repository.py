@@ -89,31 +89,36 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
         result = await self.db.execute(query)
         return list(result.scalars().unique().all()), total or 0
 
-    async def exists_by_nombre(
+    async def get_por_nombre(
         self, career_path_id: int, nombre: str, exclude_id: int | None = None
-    ) -> bool:
-        query = select(func.count()).select_from(GradoPuesto).where(
-            GradoPuesto.career_path_id == career_path_id,
-            GradoPuesto.nombre.ilike(nombre),
-            GradoPuesto.activo.is_(True),
-        )
-        if exclude_id:
-            query = query.where(GradoPuesto.id != exclude_id)
-        count = await self.db.scalar(query)
-        return (count or 0) > 0
+    ) -> GradoPuesto | None:
+        """
+        Nivel con ese nombre en el path, **incluidos los desactivados**.
 
-    async def exists_by_codigo(
+        Las uniques de la tabla (`career_path_id, codigo` y `career_path_id,
+        nombre`) cubren todas las filas, no solo las activas. Filtrar por
+        `activo` aqui hacia que el duplicado pasara la validacion y reventara
+        en el INSERT como 500.
+        """
+        return await self._uno_por(GradoPuesto.nombre.ilike(nombre), career_path_id, exclude_id)
+
+    async def get_por_codigo(
         self, career_path_id: int, codigo: str, exclude_id: int | None = None
-    ) -> bool:
-        query = select(func.count()).select_from(GradoPuesto).where(
-            GradoPuesto.career_path_id == career_path_id,
-            GradoPuesto.codigo.ilike(codigo),
-            GradoPuesto.activo.is_(True),
+    ) -> GradoPuesto | None:
+        """Nivel con ese codigo en el path, incluidos los desactivados."""
+        return await self._uno_por(GradoPuesto.codigo.ilike(codigo), career_path_id, exclude_id)
+
+    async def _uno_por(
+        self, criterio, career_path_id: int, exclude_id: int | None
+    ) -> GradoPuesto | None:
+        query = select(GradoPuesto).where(
+            GradoPuesto.career_path_id == career_path_id, criterio
         )
         if exclude_id:
             query = query.where(GradoPuesto.id != exclude_id)
-        count = await self.db.scalar(query)
-        return (count or 0) > 0
+        result = await self.db.execute(query.limit(1))
+        return result.scalar_one_or_none()
+
 
     async def count_requisitos_usando(self, grado_id: int) -> int:
         query = select(func.count()).select_from(CompetenciaRequisito).where(
