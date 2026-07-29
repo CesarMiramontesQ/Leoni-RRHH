@@ -12236,7 +12236,12 @@ paths:
                 $ref: "#/components/schemas/GradoPuestoResponse"
     delete:
       tags: [Talento - Career Levels]
-      summary: Eliminar grado de puesto (soft delete)
+      summary: Eliminar career level (soft delete)
+      description: >-
+        Solo RH. Falla si el nivel esta en uso por un perfil **vivo**: requisitos
+        de competencia o asignaciones activas. El residuo de un perfil borrado NO
+        cuenta — un borrado suave no se puede restaurar desde ninguna pantalla, y
+        contarlo dejaba el nivel imposible de eliminar para siempre.
       operationId: grados_puesto_delete
       security:
         - BearerAuth: []
@@ -12248,7 +12253,11 @@ paths:
             type: integer
       responses:
         "204":
-          description: Grado eliminado
+          description: Career level desactivado
+        "409":
+          description: >-
+            En uso por perfiles vivos. El detalle nombra los perfiles que lo
+            retienen.
 
   # ── Talento — Metodos Calificacion Competencia ───────
   /api/v1/metodos-calificacion-competencia:

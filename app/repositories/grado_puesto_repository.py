@@ -19,7 +19,13 @@ from app.models.clasificacion_puesto import (
     CareerPath,
     GlobalGrade,
 )
-from app.models.talento import CompetenciaRequisito, GradoPuesto, PerfilFunciones
+from app.models.talento import (
+    CompetenciaRequisito,
+    GradoPuesto,
+    PerfilFunciones,
+    PuestoPerfil,
+    PuestoPerfilGrado,
+)
 from app.repositories.base import BaseRepository
 
 
@@ -131,19 +137,58 @@ class GradoPuestoRepository(BaseRepository[GradoPuesto]):
 
 
     async def count_requisitos_usando(self, grado_id: int) -> int:
-        query = select(func.count()).select_from(CompetenciaRequisito).where(
-            CompetenciaRequisito.grado_id == grado_id,
+        """
+        Requisitos que usan el nivel, **solo de perfiles vivos**.
+
+        Un perfil borrado es un borrado suave y no se puede restaurar desde
+        ninguna pantalla: dejar que sus requisitos retengan el nivel lo dejaba
+        imposible de eliminar para siempre. Mismo criterio que
+        `CareerPathRepository.count_perfiles_usando`.
+        """
+        query = (
+            select(func.count())
+            .select_from(CompetenciaRequisito)
+            .join(
+                PuestoPerfil, PuestoPerfil.id == CompetenciaRequisito.puesto_perfil_id
+            )
+            .where(
+                CompetenciaRequisito.grado_id == grado_id,
+                PuestoPerfil.activo.is_(True),
+            )
         )
         count = await self.db.scalar(query)
         return count or 0
 
     async def count_asignaciones_usando(self, grado_id: int) -> int:
-        query = select(func.count()).select_from(PerfilFunciones).where(
-            PerfilFunciones.grado_id == grado_id,
-            PerfilFunciones.activo.is_(True),
+        """Asignaciones activas del nivel, **solo de perfiles vivos**."""
+        query = (
+            select(func.count())
+            .select_from(PerfilFunciones)
+            .join(PuestoPerfil, PuestoPerfil.id == PerfilFunciones.puesto_perfil_id)
+            .where(
+                PerfilFunciones.grado_id == grado_id,
+                PerfilFunciones.activo.is_(True),
+                PuestoPerfil.activo.is_(True),
+            )
         )
         count = await self.db.scalar(query)
         return count or 0
+
+    async def perfiles_usando(self, grado_id: int, limite: int = 5) -> list[str]:
+        """Codigos de los perfiles vivos que usan el nivel, para el mensaje de error."""
+        query = (
+            select(PuestoPerfil.codigo)
+            .where(
+                PuestoPerfil.activo.is_(True),
+                PuestoPerfil.grados_config.any(
+                    PuestoPerfilGrado.grado_id == grado_id
+                ),
+            )
+            .order_by(PuestoPerfil.codigo)
+            .limit(limite)
+        )
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
 
     async def get_activos_by_ids(self, ids: list[int]) -> list[GradoPuesto]:
         """Devuelve los grados activos cuyos ids esten en la lista."""
