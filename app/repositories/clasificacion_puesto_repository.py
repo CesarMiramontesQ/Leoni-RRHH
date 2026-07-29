@@ -261,12 +261,6 @@ class GlobalGradeRepository(BaseRepository[GlobalGrade]):
             query = query.where(GlobalGrade.id != exclude_id)
         return (await self.db.scalar(query) or 0) > 0
 
-    async def count_perfiles_usando(self, global_grade_id: int) -> int:
-        query = select(func.count()).select_from(PuestoPerfil).where(
-            PuestoPerfil.global_grade_id == global_grade_id
-        )
-        return await self.db.scalar(query) or 0
-
     async def count_equivalencias_usando(self, global_grade_id: int) -> int:
         query = select(func.count()).select_from(CareerLevelGradeMapping).where(
             CareerLevelGradeMapping.global_grade_id == global_grade_id

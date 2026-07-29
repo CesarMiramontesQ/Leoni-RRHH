@@ -35,7 +35,7 @@ import type { EditarCualificacionesModalHandle } from "../components/puestos/edi
 import type { EditarTareasModalHandle } from "../components/puestos/editarTareasModal.ts";
 import { getPerfilCompetencias, getPerfilCualificaciones, updatePerfil, getAreasOptions, type PerfilCualificacion, type AreaOption } from "../api/puestos.ts";
 import type { TipoPuestoPerfil } from "../dashboard/puestos/types.ts";
-import { gradoIdsEntre, type GradoPerfilItem } from "../dashboard/puestos/types.ts";
+import type { GradoPerfilItem } from "../dashboard/puestos/types.ts";
 import type { CriterioRequerido } from "../dashboard/cualificaciones/types.ts";
 import { getGradosPuesto } from "../api/gradosPuesto.ts";
 import {
@@ -1555,8 +1555,6 @@ async function openEditBaseModal(
   const tipo = puesto.tipo === "operativo" ? "operativo" : "administrativo";
   const gradosActuales = [...(puesto.grados ?? [])].sort(compararCareerLevels);
   const gradoDesdeId = gradosActuales[0]?.id != null ? String(gradosActuales[0].id) : "";
-  const gradoHastaId =
-    gradosActuales.length > 0 ? String(gradosActuales[gradosActuales.length - 1].id) : "";
 
   const areaOpts = areas
     .map(
@@ -1610,29 +1608,17 @@ async function openEditBaseModal(
               ${SELECT_CHEVRON}
             </div>
           </div>
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label for="eb-grado-desde" class="${RH_LISTADO_LABEL}">Grado desde <span class="text-red-600" aria-hidden="true">*</span></label>
-              <div class="grid grid-cols-1">
-                <select id="eb-grado-desde" name="grado_desde" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-                  <option value="" disabled ${!gradoDesdeId ? "selected" : ""}>Seleccionar…</option>
-                  ${gradoOpts(gradoDesdeId)}
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
-            </div>
-            <div>
-              <label for="eb-grado-hasta" class="${RH_LISTADO_LABEL}">Grado hasta <span class="text-red-600" aria-hidden="true">*</span></label>
-              <div class="grid grid-cols-1">
-                <select id="eb-grado-hasta" name="grado_hasta" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
-                  <option value="" disabled ${!gradoHastaId ? "selected" : ""}>Seleccionar…</option>
-                  ${gradoOpts(gradoHastaId)}
-                </select>
-                ${SELECT_CHEVRON}
-              </div>
+          <div>
+            <label for="eb-grado" class="${RH_LISTADO_LABEL}">Career level <span class="text-red-600" aria-hidden="true">*</span></label>
+            <div class="grid grid-cols-1">
+              <select id="eb-grado" name="grado_id" required class="${RH_LISTADO_SELECT} col-start-1 row-start-1 ${FIELD_FOCUS} ${RH_LISTADO_FOCUS_RING}">
+                <option value="" disabled ${!gradoDesdeId ? "selected" : ""}>Seleccionar…</option>
+                ${gradoOpts(gradoDesdeId)}
+              </select>
+              ${SELECT_CHEVRON}
             </div>
           </div>
-          <p class="text-xs text-text-muted">Se incluirán todos los grados consecutivos entre ambos extremos.</p>
+          <p class="text-xs text-text-muted">Un puesto tiene un solo career level. El global grade lo lleva cada persona dentro del tramo de ese nivel.</p>
           <div>
             <label for="eb-tipo" class="${RH_LISTADO_LABEL}">Tipo <span class="text-red-600" aria-hidden="true">*</span></label>
             <div class="grid grid-cols-1">
@@ -1681,31 +1667,23 @@ async function openEditBaseModal(
     const codigo = String(fd.get("codigo") ?? "").trim();
     const nombre_puesto = String(fd.get("nombre_puesto") ?? "").trim();
     const areaRaw = String(fd.get("area") ?? "").trim();
-    const gradoDesdeRaw = String(fd.get("grado_desde") ?? "").trim();
-    const gradoHastaRaw = String(fd.get("grado_hasta") ?? "").trim();
+    const gradoRaw = String(fd.get("grado_id") ?? "").trim();
     const tipoRaw = String(fd.get("tipo") ?? "").trim();
     const areaIdNum = areaRaw ? Number(areaRaw) : NaN;
-    const gradoDesdeNum = Number(gradoDesdeRaw);
-    const gradoHastaNum = Number(gradoHastaRaw);
+    const gradoNum = Number(gradoRaw);
     const tipoValue: TipoPuestoPerfil | null =
       tipoRaw === "administrativo" || tipoRaw === "operativo" ? tipoRaw : null;
-
-    const grado_ids = gradoIdsEntre(gradosCatalogo, gradoDesdeNum, gradoHastaNum);
 
     if (
       !codigo ||
       !nombre_puesto ||
       !areaRaw ||
       Number.isNaN(areaIdNum) ||
-      !gradoDesdeRaw ||
-      !gradoHastaRaw ||
-      grado_ids.length === 0 ||
+      !gradoRaw ||
+      Number.isNaN(gradoNum) ||
       !tipoValue
     ) {
-      errorEl.textContent =
-        grado_ids.length === 0 && gradoDesdeRaw && gradoHastaRaw
-          ? "El rango de grados no es válido."
-          : "Completa todos los campos requeridos.";
+      errorEl.textContent = "Completa todos los campos requeridos.";
       errorEl.classList.remove("hidden");
       return;
     }
@@ -1719,7 +1697,7 @@ async function openEditBaseModal(
         codigo,
         nombre_puesto,
         area_id: areaIdNum,
-        grado_ids,
+        grado_id: gradoNum,
         tipo: tipoValue,
       });
       close();

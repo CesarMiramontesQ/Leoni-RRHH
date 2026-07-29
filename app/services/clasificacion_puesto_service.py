@@ -508,13 +508,14 @@ class GlobalGradeService:
         if not item or not item.activo:
             raise NotFoundError(entidad="GlobalGrade", id=id)
 
-        perfiles = await self.repo.count_perfiles_usando(id)
+        # Los perfiles ya no referencian un global grade: lo heredan del tramo de
+        # su career level. Lo unico que lo retiene son las equivalencias.
         equivalencias = await self.repo.count_equivalencias_usando(id)
-        if perfiles or equivalencias:
+        if equivalencias:
             raise ConflictError(
                 detail=(
                     f"No se puede eliminar el global grade '{item.codigo}' porque esta "
-                    f"en uso ({perfiles} perfil(es), {equivalencias} equivalencia(s))"
+                    f"en uso por {equivalencias} equivalencia(s) de career level"
                 )
             )
         await self.repo.update(id, {"activo": False})

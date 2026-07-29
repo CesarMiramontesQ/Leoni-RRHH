@@ -69,7 +69,6 @@ CAMPOS_CLASIFICACION: tuple[tuple[str, str], ...] = (
     ("funcion", "Funcion"),
     ("disciplina", "Disciplina"),
     ("career_level", "Career Level"),
-    ("global_grade", "Global Grade"),
     ("estado", "Estado"),
 )
 
@@ -105,14 +104,26 @@ class PuestoPerfilService:
             for g in cls._ordenar_por_posicion(grados)
         ]
 
+    @classmethod
+    def _tramo_del_perfil(cls, perfil: PuestoPerfil) -> str | None:
+        """Etiqueta del tramo de global grades que hereda del career level."""
+        grados = [g.grado for g in perfil.grados_config if g.grado]
+        return cls._etiqueta_grades(grados[0]) if grados else None
+
     @staticmethod
     def _clasificacion_completa(perfil: PuestoPerfil) -> bool:
+        """
+        El global grade NO cuenta: dejo de ser un dato del perfil.
+
+        Lo asigna cada persona dentro del tramo de su career level. Exigirlo aqui
+        marcaria como «clasificacion pendiente» a todo perfil nuevo.
+        """
         return all(
             (
                 perfil.career_path_id,
                 perfil.funcion_id,
                 perfil.disciplina_id,
-                perfil.global_grade_id,
+                bool(perfil.grados_config),
             )
         )
 
@@ -146,13 +157,12 @@ class PuestoPerfilService:
             funcion_nombre=perfil.funcion.nombre if perfil.funcion else None,
             disciplina_id=perfil.disciplina_id,
             disciplina_nombre=perfil.disciplina.nombre if perfil.disciplina else None,
-            global_grade_id=perfil.global_grade_id,
-            global_grade_codigo=(
-                perfil.global_grade.codigo if perfil.global_grade else None
-            ),
-            global_grade_nombre=(
-                perfil.global_grade.nombre if perfil.global_grade else None
-            ),
+            # El perfil ya no tiene global grade propio: se expone el TRAMO que
+            # hereda de su career level, informativo. El GG concreto lo lleva
+            # cada persona dentro de ese tramo.
+            global_grade_id=None,
+            global_grade_codigo=cls._tramo_del_perfil(perfil),
+            global_grade_nombre=None,
             estado=perfil.estado,
             clasificacion_completa=cls._clasificacion_completa(perfil),
             clasificado_por=clasificado_por,
@@ -198,44 +208,38 @@ class PuestoPerfilService:
         """Los niveles sin equivalencias van al final; se desempata por codigo."""
         return tramo_util.ordenar(grados)
 
-    async def _validar_grados_consecutivos(
-        self, grado_ids: list[int]
-    ) -> list[GradoPuesto]:
-        # Sin niveles no hay nada que validar. El alta los exige por schema, pero
-        # al editar un perfil anterior a la metodologia puede no tener ninguno, y
-        # eso no debe impedir corregirle el nombre.
-        if not grado_ids:
+    async def _validar_grado(self, grado_id: int | None) -> list[GradoPuesto]:
+        """
+        El career level del perfil. UNO.
+
+        Antes era un rango y habia que validar contiguidad; ya no. El nivel dice
+        el tamano del puesto y el global grade concreto se asigna a cada persona
+        dentro del tramo de ese nivel, asi que un puesto no necesita abarcar
+        varios niveles para admitir gente de distinto peso.
+
+        Devuelve una lista de uno: es lo que espera el resto del servicio y lo
+        que la respuesta sigue exponiendo, para no tocar la matriz de
+        competencias ni las tareas, que se acotan por nivel.
+        """
+        # Sin nivel no hay nada que validar. El alta lo exige por schema, pero al
+        # editar un perfil anterior a la metodologia puede no tener ninguno, y eso
+        # no debe impedir corregirle el nombre.
+        if grado_id is None:
             return []
-        if len(set(grado_ids)) != len(grado_ids):
-            raise DomainValidationError("La lista de career levels contiene duplicados")
-        grados = await self.grado_repo.get_activos_by_ids(grado_ids)
-        if len(grados) != len(grado_ids):
-            faltante = next(iter(set(grado_ids) - {g.id for g in grados}))
-            raise NotFoundError(entidad="GradoPuesto", id=faltante)
+        grados = await self.grado_repo.get_activos_by_ids([grado_id])
+        if not grados:
+            raise NotFoundError(entidad="GradoPuesto", id=grado_id)
 
-        # Un nivel sin equivalencias no tiene posicion, asi que no se puede saber
-        # si el rango es contiguo ni por donde empieza.
-        sin_equivalencia = [g for g in grados if self._posicion(g) is None]
-        if sin_equivalencia:
-            codigos = ", ".join(g.codigo for g in sin_equivalencia)
+        grado = grados[0]
+        # Sin equivalencias el nivel no tiene posicion: no se puede ubicar en la
+        # estructura ni saber que global grades admite su gente.
+        if self._posicion(grado) is None:
             raise DomainValidationError(
-                f"Los career levels {codigos} no tienen una equivalencia de global "
-                "grade configurada, asi que no se puede ubicar el rango del perfil. "
-                "Configurala en Ajustes > Clasificacion."
+                f"El career level '{grado.codigo}' no tiene una equivalencia de "
+                "global grade configurada, asi que no se puede ubicar. Configurala "
+                "en Ajustes > Clasificacion."
             )
-
-        # La contiguidad se mide sobre la UNION de los grades cubiertos, no sobre
-        # posiciones puntuales: un nivel abarca un tramo (M4 = GG17 + GG18), asi
-        # que M4 + M5[GG19] es contiguo aunque sean dos niveles y tres grades.
-        # Y dos niveles pueden compartir grade —es lo que permite comparar un P10
-        # con un M1—, por eso es una union y no una lista.
-        if not tramo_util.es_contiguo(grados):
-            cubiertos = sorted(tramo_util.cobertura(grados))
-            raise DomainValidationError(
-                "Los career levels del perfil deben ser consecutivos por global "
-                f"grade (ordenes cubiertos: {cubiertos})"
-            )
-        return self._ordenar_por_posicion(grados)
+        return grados
 
     # ── Clasificacion organizacional ─────────────────────────────────────────
 
@@ -271,56 +275,6 @@ class PuestoPerfilService:
                     "seleccionada"
                 )
 
-    async def _resolver_global_grade(
-        self, global_grade_id: int | None, grados: list[GradoPuesto]
-    ) -> int | None:
-        """
-        Global grade a guardar: el enviado, o el del nivel inicial si es unico.
-
-        Nunca se calcula. El nivel inicial del rango define la clasificacion del
-        puesto, pero un nivel puede abarcar VARIOS grades (M4 = GG17 + GG18):
-        entonces no hay nada que autocompletar y RH debe elegir. Si el nivel
-        tiene equivalencias, el grade elegido debe ser uno de ellos — si no, la
-        equivalencia dejaria de ser una regla y nada impediria un M4 clasificado
-        GG25. Sin equivalencias el campo queda libre, que es lo que permite
-        avanzar antes de que RH capture el catalogo.
-        """
-        del_nivel = (
-            await self.equivalencia_repo.get_activas_por_career_level(grados[0].id)
-            if grados
-            else []
-        )
-        codigos = ", ".join(
-            eq.global_grade.codigo for eq in del_nivel if eq.global_grade
-        )
-
-        if global_grade_id is not None:
-            grade = await self.grade_repo.get(global_grade_id)
-            if not grade:
-                raise NotFoundError(entidad="GlobalGrade", id=global_grade_id)
-            if not grade.activo:
-                raise DomainValidationError(
-                    f"El global grade '{grade.codigo}' esta inactivo y no se puede "
-                    "asignar"
-                )
-            permitidos = {eq.global_grade_id for eq in del_nivel}
-            if permitidos and grade.id not in permitidos:
-                raise DomainValidationError(
-                    f"El global grade '{grade.codigo}' no equivale al career level "
-                    f"'{grados[0].codigo}'. Validos: {codigos}. Si falta uno, "
-                    "agregalo en Ajustes > Clasificacion."
-                )
-            return grade.id
-
-        if not del_nivel:
-            return None
-        if len(del_nivel) > 1:
-            raise DomainValidationError(
-                f"El career level '{grados[0].codigo}' abarca varios global grades "
-                f"({codigos}): elige cual corresponde a este puesto."
-            )
-        return del_nivel[0].global_grade_id
-
     @staticmethod
     def _validar_estado(estado: str | None) -> None:
         if estado is not None and estado not in ESTADOS_PERFIL:
@@ -354,10 +308,6 @@ class PuestoPerfilService:
                 perfil.disciplina.nombre if perfil.disciplina else None,
             ),
             "career_level": (tuple(g.id for g in grados), rango or None),
-            "global_grade": (
-                perfil.global_grade_id,
-                perfil.global_grade.codigo if perfil.global_grade else None,
-            ),
             "estado": (perfil.estado, perfil.estado),
             "_grados": grados,
         }
@@ -401,9 +351,11 @@ class PuestoPerfilService:
                 "career_path_id": perfil.career_path_id,
                 "funcion_id": perfil.funcion_id,
                 "disciplina_id": perfil.disciplina_id,
+                # Un solo nivel: desde y hasta son el mismo. Se conservan las dos
+                # columnas para no migrar la tabla del historial.
                 "career_level_desde_id": grados[0].id if grados else None,
                 "career_level_hasta_id": grados[-1].id if grados else None,
-                "global_grade_id": perfil.global_grade_id,
+                "global_grade_id": None,
                 "estado": perfil.estado,
                 "version": perfil.version,
                 "cambios": cambios,
@@ -614,19 +566,11 @@ class PuestoPerfilService:
                 detail=f"Ya existe un perfil de puesto con el nombre '{data.nombre}' en esa área"
             )
 
-        grados = await self._validar_grados_consecutivos(data.grado_ids)
+        grados = await self._validar_grado(data.grado_id)
         self._validar_estado(data.estado)
         await self._validar_clasificacion(
             data.career_path_id, data.funcion_id, data.disciplina_id, grados
         )
-
-        global_grade_id = await self._resolver_global_grade(data.global_grade_id, grados)
-        if global_grade_id is None:
-            raise DomainValidationError(
-                f"El career level '{grados[0].codigo}' no tiene una equivalencia de "
-                "global grade configurada. Configurala en Ajustes o selecciona el "
-                "global grade manualmente."
-            )
 
         estado = data.estado or "activo"
         perfil = await self.repo.create({
@@ -638,7 +582,6 @@ class PuestoPerfilService:
             "career_path_id": data.career_path_id,
             "funcion_id": data.funcion_id,
             "disciplina_id": data.disciplina_id,
-            "global_grade_id": global_grade_id,
             "estado": estado,
             # `activo` sigue siendo el soft-delete y se mantiene alineado con el estado.
             "activo": estado != "inactivo",
@@ -646,7 +589,7 @@ class PuestoPerfilService:
             "created_by": current_user.id,
             "updated_by": current_user.id,
         })
-        await self.repo.set_grados(perfil.id, data.grado_ids)
+        await self.repo.set_grados(perfil.id, [data.grado_id])
 
         # Reload with relations
         perfil = await self.repo.get_with_relations(perfil.id)
@@ -672,9 +615,12 @@ class PuestoPerfilService:
         new_nombre = data.nombre if data.nombre is not None else perfil.nombre
         new_area_id = data.area_id if data.area_id is not None else perfil.area_id
         current_grado_ids = await self.repo.get_grado_ids(id)
-        new_grado_ids = (
-            data.grado_ids if data.grado_ids is not None else sorted(current_grado_ids)
+        new_grado_id = (
+            data.grado_id
+            if data.grado_id is not None
+            else next(iter(sorted(current_grado_ids)), None)
         )
+        new_grado_ids = [new_grado_id] if new_grado_id is not None else []
 
         # Duplicado (nombre + area)
         if new_area_id is not None and await self.repo.exists_by_nombre_y_area(
@@ -684,13 +630,12 @@ class PuestoPerfilService:
                 detail=f"Ya existe un perfil de puesto con el nombre '{new_nombre}' en esa área"
             )
 
-        grados_cambio = data.grado_ids is not None
+        grados_cambio = data.grado_id is not None
 
         # Foto de la clasificacion ANTES de tocar nada, para el diff del historial.
         clasificacion_previa = await self._snapshot_clasificacion(perfil)
 
-        # Validar consecutividad si cambian los grados
-        grados = await self._validar_grados_consecutivos(new_grado_ids)
+        grados = await self._validar_grado(new_grado_id)
 
         # ── Clasificacion: opcional al editar, pero coherente si se toca ──────
         self._validar_estado(data.estado)
@@ -710,18 +655,6 @@ class PuestoPerfilService:
         await self._validar_clasificacion(
             new_career_path_id, new_funcion_id, new_disciplina_id, grados
         )
-
-        # El global grade se re-resuelve cuando cambia el rango de niveles o el
-        # career path: seguir con el anterior dejaria una clasificacion incoherente.
-        new_global_grade_id = perfil.global_grade_id
-        if data.global_grade_id is not None:
-            new_global_grade_id = await self._resolver_global_grade(
-                data.global_grade_id, grados
-            )
-        elif grados_cambio or data.career_path_id is not None:
-            resuelto = await self._resolver_global_grade(None, grados)
-            if resuelto is not None:
-                new_global_grade_id = resuelto
 
         # No permitir quitar grados en uso (requisitos/tareas/asignaciones activas)
         removidos = list(set(current_grado_ids) - set(new_grado_ids))
@@ -754,7 +687,6 @@ class PuestoPerfilService:
         update_data["career_path_id"] = new_career_path_id
         update_data["funcion_id"] = new_funcion_id
         update_data["disciplina_id"] = new_disciplina_id
-        update_data["global_grade_id"] = new_global_grade_id
         if data.estado is not None:
             update_data["estado"] = data.estado
             update_data["activo"] = data.estado != "inactivo"

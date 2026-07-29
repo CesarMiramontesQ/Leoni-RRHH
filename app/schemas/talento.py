@@ -43,23 +43,19 @@ class PuestoPerfilCreate(BaseModel):
     codigo: str = Field(..., min_length=1, max_length=20)
     nombre: str = Field(..., min_length=3, max_length=255)
     area_id: int = Field(..., gt=0, description="Area del perfil (obligatoria)")
-    grado_ids: list[int] = Field(
+    grado_id: int = Field(
         ...,
-        min_length=1,
-        description="Career levels consecutivos del perfil, todos del mismo career path",
+        gt=0,
+        description=(
+            "Career level del perfil. UNO: el nivel dice el tamano del puesto, y el "
+            "global grade concreto se asigna a cada persona dentro del tramo de ese "
+            "nivel, no al puesto."
+        ),
     )
     # ── Clasificacion organizacional (obligatoria al crear) ───────────────────
     career_path_id: int = Field(..., gt=0)
     funcion_id: int = Field(..., gt=0)
     disciplina_id: int = Field(..., gt=0)
-    global_grade_id: Optional[int] = Field(
-        None,
-        gt=0,
-        description=(
-            "Se toma de la equivalencia configurada para el career level inicial. "
-            "Solo hay que enviarlo si no existe equivalencia."
-        ),
-    )
     estado: Optional[EstadoPuestoPerfil] = None
     motivo_clasificacion: Optional[str] = Field(
         None, description="Queda registrado en el historial de clasificacion"
@@ -85,11 +81,10 @@ class PuestoPerfilUpdate(BaseModel):
     codigo: Optional[str] = Field(None, min_length=1, max_length=20)
     nombre: Optional[str] = Field(None, min_length=3, max_length=255)
     area_id: Optional[int] = Field(None, gt=0)
-    grado_ids: Optional[list[int]] = Field(None, min_length=1)
+    grado_id: Optional[int] = Field(None, gt=0)
     career_path_id: Optional[int] = Field(None, gt=0)
     funcion_id: Optional[int] = Field(None, gt=0)
     disciplina_id: Optional[int] = Field(None, gt=0)
-    global_grade_id: Optional[int] = Field(None, gt=0)
     estado: Optional[EstadoPuestoPerfil] = None
     motivo_clasificacion: Optional[str] = None
     tipo: Optional[TipoPuestoPerfil] = None

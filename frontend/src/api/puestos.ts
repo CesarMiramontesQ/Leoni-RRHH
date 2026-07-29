@@ -192,14 +192,11 @@ export async function createPerfil(payload: PerfilPuestoCreatePayload): Promise<
     codigo: payload.codigo,
     nombre: payload.nombre_puesto,
     area_id: payload.area_id,
-    grado_ids: payload.grado_ids,
+    grado_id: payload.grado_id,
     career_path_id: payload.career_path_id,
     funcion_id: payload.funcion_id,
     disciplina_id: payload.disciplina_id,
   };
-  // Solo se envía si el career level no tiene equivalencia configurada: si la
-  // tiene, el backend lo resuelve desde ahí.
-  if (payload.global_grade_id) body.global_grade_id = payload.global_grade_id;
   if (payload.estado) body.estado = payload.estado;
   if (payload.motivo_clasificacion) {
     body.motivo_clasificacion = payload.motivo_clasificacion;
@@ -218,7 +215,7 @@ export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayloa
   const body: Record<string, unknown> = {};
   if (payload.codigo) body.codigo = payload.codigo;
   if (payload.nombre_puesto) body.nombre = payload.nombre_puesto;
-  if (payload.grado_ids !== undefined) body.grado_ids = payload.grado_ids;
+  if (payload.grado_id !== undefined) body.grado_id = payload.grado_id;
   if (payload.area_id !== undefined) body.area_id = payload.area_id;
   // `tipo` viajaba en el payload del modal de detalle pero nunca se copiaba al
   // body: el cambio se perdía en silencio.
@@ -226,9 +223,6 @@ export async function updatePerfil(id: number, payload: PerfilPuestoUpdatePayloa
   if (payload.career_path_id !== undefined) body.career_path_id = payload.career_path_id;
   if (payload.funcion_id !== undefined) body.funcion_id = payload.funcion_id;
   if (payload.disciplina_id !== undefined) body.disciplina_id = payload.disciplina_id;
-  if (payload.global_grade_id !== undefined) {
-    body.global_grade_id = payload.global_grade_id;
-  }
   if (payload.estado !== undefined) body.estado = payload.estado;
   if (payload.motivo_clasificacion !== undefined) {
     body.motivo_clasificacion = payload.motivo_clasificacion;

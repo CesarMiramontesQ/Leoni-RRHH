@@ -11,9 +11,8 @@ en el repo, el servicio de perfiles y el de evaluaciones:
 
 - **Orden**: por el minimo, desempate por el maximo y luego por codigo. Los
   niveles sin equivalencias van al final: no tienen posicion.
-- **Contiguidad** de un rango: se mira la UNION de ordenes cubiertos, no las
-  posiciones puntuales. `M4[17,18] + M5[19]` es contiguo aunque sean dos niveles
-  y tres grados.
+- **Cobertura** de un conjunto de niveles: la UNION de los ordenes que abarcan.
+  La usa el eje del mapa WTW para recortarse a lo ocupado.
 
 No depende de la sesion: recibe entidades ya cargadas. Quien las pase debe traer
 `equivalencias -> global_grade` precargado, o el acceso lazy revienta con
@@ -93,11 +92,3 @@ def cobertura(grados: Iterable[_Nivel]) -> set[int]:
         if t:
             cubiertos.update(range(t[0], t[1] + 1))
     return cubiertos
-
-
-def es_contiguo(grados: Iterable[_Nivel]) -> bool:
-    """La cobertura no tiene huecos. Vacia se considera contigua."""
-    cubiertos = sorted(cobertura(grados))
-    if not cubiertos:
-        return True
-    return cubiertos[-1] - cubiertos[0] + 1 == len(cubiertos)
