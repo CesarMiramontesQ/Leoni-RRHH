@@ -1,5 +1,6 @@
 import { getCareerPaths } from "../../../api/clasificacionPuesto.ts";
 import { notifyAjustesClasificacionChanged } from "./clasificacionSections.ts";
+import { AJUSTES_EQUIVALENCIAS_CHANGED } from "./globalGradeSections.ts";
 import {
   createGradoPuesto,
   deleteGradoPuesto,
@@ -470,6 +471,12 @@ export function mountGradosSection(sectionEl: HTMLElement, signal: AbortSignal):
       paint();
     }
   }
+
+  // El tramo de global grades de cada nivel se administra en la card de
+  // equivalencias: si cambia allí, esta tabla debe reflejarlo sin recargar.
+  document.addEventListener(AJUSTES_EQUIVALENCIAS_CHANGED, () => void load(), {
+    signal,
+  });
 
   void load();
 }

@@ -1624,7 +1624,24 @@ que ordena):
 
 Cada columna se lee de arriba abajo en el mismo orden en que se captura.
 
-### 15.6.4 Campo con prefijo fijo
+### 15.6.4 La unidad de la card es la entidad, no la fila del backend
+
+La card de **Equivalencias** guarda un renglón por par career level ↔ global grade, pero se
+presenta **agrupada por career level**: una fila por nivel, con su tramo en una columna
+(`GG17, GG18`). RH piensa «M4 equivale a GG17 y GG18», no «dos equivalencias que comparten
+nivel».
+
+Consecuencias, que valen para cualquier card en la misma situación:
+- El `id` del item es el de la **entidad agrupadora** (el career level), no el del renglón.
+  Editar y eliminar actúan sobre todo el grupo.
+- El formulario usa `tipo: "multiselect"` (lista de checkboxes) y guardar **sincroniza**:
+  crea los que faltan y borra los que sobran. No se edita renglón por renglón.
+- El item conserva el id de cada renglón (`filas`), que es lo único que permite borrarlo.
+- Si otra card muestra el dato agrupado, hay que **avisarle**
+  (`AJUSTES_EQUIVALENCIAS_CHANGED`): la tabla de career levels muestra el tramo y se quedaba
+  diciendo «Sin equivalencia» hasta recargar la página.
+
+### 15.6.5 Campo con prefijo fijo
 
 Cuando parte del valor de un campo **la dicta otro dato del formulario**, esa parte no se
 teclea: se pinta adosada dentro del mismo borde, en un `<span>` que vive fuera del
