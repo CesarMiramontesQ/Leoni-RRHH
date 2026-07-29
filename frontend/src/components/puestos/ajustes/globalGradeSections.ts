@@ -190,9 +190,11 @@ export function mountEquivalenciasSection(
         name: "career_level_id",
         label: "Career level",
         opciones: () =>
+          // Sin prefijo de career path: desde que el código del nivel empieza
+          // con el del path (M1, P10), anteponerlo repetía la misma letra.
           nivelesDisponibles().map((n) => ({
             value: String(n.id),
-            label: `${n.career_path_codigo ?? "?"} · ${n.codigo} — ${n.nombre}`,
+            label: `${n.codigo} — ${n.nombre}`,
           })),
       },
       {

@@ -1698,6 +1698,10 @@ Global Grade**) se lee igual en listado, detalle y formulario. Todo lo visual sa
 - **El código manda sobre el nombre.** Un career level se muestra por su `codigo`
   (`P10`); el `nombre` va en el `title`. Los códigos llevan `tabular-nums` para que las
   columnas no bailen.
+- **Nunca anteponer el career path al código de un nivel.** El código ya empieza con el del
+  path (`M1`, `P10`), así que `M · M1 — Team Leader` repite la misma letra. El career path
+  se muestra aparte solo cuando es un dato por derecho propio: su **columna** en la tabla de
+  career levels, o el **badge** del perfil.
 - **El Global Grade siempre lleva tooltip** (`GLOBAL_GRADE_TOOLTIP`): explica que es la
   clasificación organizacional definida por RH. **Ningún texto de la UI puede sugerir que
   el Global Grade determina sueldo, banda salarial o compensación** — este sistema no
