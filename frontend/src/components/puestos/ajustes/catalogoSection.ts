@@ -55,7 +55,18 @@ type CampoBase = {
 export type CatalogoCampo =
   | (CampoBase & { tipo: "texto"; minLength?: number; maxLength?: number; requerido?: boolean })
   | (CampoBase & { tipo: "numero"; min?: number; max?: number; requerido?: boolean })
-  | (CampoBase & { tipo: "select"; opciones: () => CatalogoOpcion[]; requerido?: boolean });
+  | (CampoBase & { tipo: "select"; opciones: () => CatalogoOpcion[]; requerido?: boolean })
+  /**
+   * Varias opciones a la vez, como lista de checkboxes.
+   *
+   * El valor viaja en `valores[name]` como ids separados por coma, para no
+   * romper el `Record<string, string>` que comparten alta y edición.
+   */
+  | (CampoBase & {
+      tipo: "multiselect";
+      opciones: () => CatalogoOpcion[];
+      requerido?: boolean;
+    });
 
 export type CatalogoColumna<T> = {
   header: string;
@@ -225,7 +236,25 @@ export function mountCatalogoSection<T extends CatalogoItem>(
       : "";
 
     let control: string;
-    if (campo.tipo === "select") {
+    if (campo.tipo === "multiselect") {
+      const marcados = new Set(valor.split(",").filter(Boolean));
+      const opciones = campo.opciones();
+      control = opciones.length
+        ? `<div id="${id}" role="group" aria-labelledby="${id}-label"
+             class="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+            ${opciones
+              .map(
+                (o) => `<label class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-text-primary transition hover:bg-active-tint">
+                  <input type="checkbox" name="${escapeHtml(campo.name)}" value="${escapeHtml(o.value)}"
+                    ${marcados.has(o.value) ? "checked" : ""}
+                    class="size-4 rounded border-slate-300 text-accent focus:ring-2 focus:ring-accent/40" />
+                  <span>${escapeHtml(o.label)}</span>
+                </label>`,
+              )
+              .join("")}
+          </div>`
+        : `<p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm text-text-muted">Sin opciones disponibles.</p>`;
+    } else if (campo.tipo === "select") {
       const opciones = campo
         .opciones()
         .map(
@@ -248,6 +277,13 @@ export function mountCatalogoSection<T extends CatalogoItem>(
           value="${escapeHtml(valor)}" class="${AJUSTES_INPUT}" />`;
     }
 
+    if (campo.tipo === "multiselect") {
+      return `<div>
+          <span id="${id}-label" class="${RH_LISTADO_LABEL} block">${escapeHtml(campo.label)}${marca}</span>
+          ${control}
+          ${hint}
+        </div>`;
+    }
     return `<div>
         <label for="${id}" class="${RH_LISTADO_LABEL}">${escapeHtml(campo.label)}${marca}</label>
         ${control}
@@ -346,13 +382,21 @@ export function mountCatalogoSection<T extends CatalogoItem>(
     paint();
   }
 
+  /** Lee un campo del form. Los multiselect viajan como ids separados por coma. */
+  function leerCampo(fd: FormData, campo: CatalogoCampo): string {
+    if (campo.tipo === "multiselect") {
+      return fd.getAll(campo.name).map(String).join(",");
+    }
+    return String(fd.get(campo.name) ?? "");
+  }
+
   /** Conserva lo ya escrito al repintar el modal (p. ej. al cambiar un select). */
   function capturarFormulario(): void {
     const form = sectionEl.querySelector<HTMLFormElement>(`#${config.key}-form`);
     if (!form) return;
     const fd = new FormData(form);
     for (const campo of config.campos) {
-      valores[campo.name] = String(fd.get(campo.name) ?? "");
+      valores[campo.name] = leerCampo(fd, campo);
     }
   }
 
@@ -450,7 +494,7 @@ export function mountCatalogoSection<T extends CatalogoItem>(
     const fd = new FormData(form);
     const enviados: Record<string, string> = {};
     for (const campo of config.campos) {
-      enviados[campo.name] = String(fd.get(campo.name) ?? "").trim();
+      enviados[campo.name] = leerCampo(fd, campo).trim();
     }
 
     const invalido = config.validar?.(enviados);

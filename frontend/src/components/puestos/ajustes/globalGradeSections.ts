@@ -13,7 +13,6 @@ import {
   deleteGlobalGrade,
   getEquivalencias,
   getGlobalGrades,
-  updateEquivalencia,
   updateGlobalGrade,
 } from "../../../api/clasificacionPuesto.ts";
 import { getGradosPuesto } from "../../../api/gradosPuesto.ts";
@@ -127,40 +126,126 @@ export function mountGlobalGradesSection(
   });
 }
 
+/**
+ * Un career level con el tramo de global grades que abarca.
+ *
+ * La unidad de esta card es el NIVEL, no el par nivel↔grade: RH piensa «M4
+ * equivale a GG17 y GG18», no «dos equivalencias que casualmente comparten
+ * nivel». El backend sigue guardando un renglón por par; aquí se agrupan.
+ */
+type EquivalenciaNivel = {
+  /** Es el id del career level: la fila representa al nivel, no a un par. */
+  id: number;
+  career_path_nombre: string | null;
+  career_level_codigo: string;
+  grades: { id: number; codigo: string }[];
+  /** Id del renglón del backend por cada grade, para poder borrarlo. */
+  filas: { grade_id: number; equivalencia_id: number }[];
+};
+
+/**
+ * Agrupa los renglones del backend (un par nivel↔grade cada uno) por career
+ * level, que es la unidad con la que RH piensa.
+ *
+ * `ordenGrades` son los ids en el orden del catálogo (que ya viene por `orden`),
+ * para que el tramo se lea de menor a mayor y no en el orden de captura.
+ */
+/** Se emite al cambiar las equivalencias: la tabla de career levels muestra el tramo. */
+export const AJUSTES_EQUIVALENCIAS_CHANGED = "ajustes:equivalencias-changed";
+
+export function notifyEquivalenciasChanged(): void {
+  document.dispatchEvent(new CustomEvent(AJUSTES_EQUIVALENCIAS_CHANGED));
+}
+
+export function agruparEquivalenciasPorNivel(
+  equivalencias: Equivalencia[],
+  ordenGrades: number[],
+): EquivalenciaNivel[] {
+  const mapa = new Map<number, EquivalenciaNivel>();
+  for (const e of equivalencias) {
+    let fila = mapa.get(e.career_level_id);
+    if (!fila) {
+      fila = {
+        id: e.career_level_id,
+        career_path_nombre: e.career_path_nombre,
+        career_level_codigo: e.career_level_codigo ?? String(e.career_level_id),
+        grades: [],
+        filas: [],
+      };
+      mapa.set(e.career_level_id, fila);
+    }
+    fila.grades.push({
+      id: e.global_grade_id,
+      codigo: e.global_grade_codigo ?? String(e.global_grade_id),
+    });
+    fila.filas.push({ grade_id: e.global_grade_id, equivalencia_id: e.id });
+  }
+  const posicion = new Map(ordenGrades.map((id, i) => [id, i]));
+  for (const fila of mapa.values()) {
+    fila.grades.sort((a, b) => (posicion.get(a.id) ?? 0) - (posicion.get(b.id) ?? 0));
+  }
+  return [...mapa.values()];
+}
+
+/** Ids de los grades marcados en el formulario (viajan separados por coma). */
+export function gradesElegidos(valores: Record<string, string>): number[] {
+  return (valores.global_grade_ids ?? "")
+    .split(",")
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
 export function mountEquivalenciasSection(
   sectionEl: HTMLElement,
   signal: AbortSignal,
 ): void {
   let niveles: GradoPuesto[] = [];
   let grades: GlobalGrade[] = [];
+  let porNivel: EquivalenciaNivel[] = [];
 
-  /**
-   * Todos los niveles activos.
-   *
-   * Ya no hay niveles "ocupados": un career level abarca un TRAMO de grades
-   * (M4 = GG17 + GG18), así que puede aparecer en varias equivalencias. Lo único
-   * que no se repite es el par nivel↔grade, y de eso responde el backend.
-   */
-  function nivelesDisponibles(): GradoPuesto[] {
-    return niveles;
+  function nivelPorId(id: number): EquivalenciaNivel | undefined {
+    return porNivel.find((n) => n.id === id);
   }
 
-  const seccion = mountCatalogoSection<Equivalencia>(sectionEl, signal, {
+  /**
+   * Deja el nivel con exactamente los grades elegidos.
+   *
+   * Crea los que faltan y borra los que sobran, en vez de editar renglones: así
+   * el formulario habla de un tramo y no de pares sueltos.
+   */
+  async function sincronizar(nivelId: number, elegidos: number[]): Promise<void> {
+    const actual = nivelPorId(nivelId);
+    const yaEstan = new Set(actual?.grades.map((g) => g.id) ?? []);
+    for (const gradeId of elegidos) {
+      if (!yaEstan.has(gradeId)) {
+        await createEquivalencia({
+          career_level_id: nivelId,
+          global_grade_id: gradeId,
+        });
+      }
+    }
+    const quedan = new Set(elegidos);
+    for (const fila of actual?.filas ?? []) {
+      if (!quedan.has(fila.grade_id)) await deleteEquivalencia(fila.equivalencia_id);
+    }
+  }
+
+  const seccion = mountCatalogoSection<EquivalenciaNivel>(sectionEl, signal, {
     key: "equivalencia",
     titleId: "equivalencias-section-title",
     title: "Equivalencias Career Level ↔ Global Grade",
     description:
-      "Define qué global grade corresponde a cada career level. Es lo que autocompleta el perfil al elegir el nivel; el sistema nunca lo deduce por número.",
+      "Define qué global grades abarca cada career level. Un nivel puede equivaler a varios (M4 = GG17 y GG18). Es lo que acota el global grade del perfil; el sistema nunca lo deduce por número.",
     iconHtml: AJUSTES_ICON_SCALE,
     singular: "equivalencia",
     emptyMessage:
-      "No hay equivalencias configuradas. Sin ellas, el global grade del perfil se captura a mano.",
+      "No hay equivalencias configuradas. Sin ellas, el career level no tiene posición y no se puede usar en el rango de un perfil.",
     bloqueo: () => {
       if (niveles.length === 0) {
         return "Primero crea career levels: la equivalencia parte de un nivel.";
       }
       if (grades.length === 0) {
-        return "Primero crea global grades: la equivalencia apunta a uno.";
+        return "Primero crea global grades: la equivalencia apunta a ellos.";
       }
       return null;
     },
@@ -172,12 +257,12 @@ export function mountEquivalenciasSection(
       },
       {
         header: "Career level",
-        valor: (i) => i.career_level_codigo ?? String(i.career_level_id),
+        valor: (i) => i.career_level_codigo,
         clase: "font-medium tabular-nums",
       },
       {
-        header: "Global grade",
-        valor: (i) => i.global_grade_codigo ?? String(i.global_grade_id),
+        header: "Global grades",
+        valor: (i) => i.grades.map((g) => g.codigo).join(", ") || "—",
         clase: "font-medium tabular-nums",
       },
     ],
@@ -187,17 +272,16 @@ export function mountEquivalenciasSection(
         name: "career_level_id",
         label: "Career level",
         opciones: () =>
-          // Sin prefijo de career path: desde que el código del nivel empieza
-          // con el del path (M1, P10), anteponerlo repetía la misma letra.
-          nivelesDisponibles().map((n) => ({
+          niveles.map((n) => ({
             value: String(n.id),
             label: `${n.codigo} — ${n.nombre}`,
           })),
       },
       {
-        tipo: "select",
-        name: "global_grade_id",
-        label: "Global grade",
+        tipo: "multiselect",
+        name: "global_grade_ids",
+        label: "Global grades",
+        hint: "Marca todos los que abarca el nivel. Con uno solo, el perfil lo autocompleta; con varios, RH elige al clasificar el puesto.",
         opciones: () =>
           grades.map((g) => ({
             value: String(g.id),
@@ -205,19 +289,16 @@ export function mountEquivalenciasSection(
           })),
       },
     ],
-    valoresNuevo: () => {
-      const disponibles = nivelesDisponibles();
-      return {
-        career_level_id: disponibles[0] ? String(disponibles[0].id) : "",
-        global_grade_id: grades[0] ? String(grades[0].id) : "",
-      };
-    },
+    valoresNuevo: () => ({
+      career_level_id: niveles[0] ? String(niveles[0].id) : "",
+      global_grade_ids: "",
+    }),
     valoresEdicion: (i) => ({
-      career_level_id: String(i.career_level_id),
-      global_grade_id: String(i.global_grade_id),
+      career_level_id: String(i.id),
+      global_grade_ids: i.grades.map((g) => g.id).join(","),
     }),
     etiqueta: (i) =>
-      `${i.career_level_codigo ?? i.career_level_id} → ${i.global_grade_codigo ?? i.global_grade_id}`,
+      `${i.career_level_codigo} → ${i.grades.map((g) => g.codigo).join(", ")}`,
     cargar: async () => {
       const [eqs, nivs, ggs] = await Promise.all([
         getEquivalencias(),
@@ -226,24 +307,30 @@ export function mountEquivalenciasSection(
       ]);
       niveles = nivs;
       grades = ggs;
-      return eqs;
+      porNivel = agruparEquivalenciasPorNivel(eqs, ggs.map((g) => g.id));
+      return porNivel;
     },
-    crear: (v) =>
-      createEquivalencia({
-        career_level_id: Number(v.career_level_id),
-        global_grade_id: Number(v.global_grade_id),
-      }),
-    actualizar: (id, v) =>
-      updateEquivalencia(id, {
-        career_level_id: Number(v.career_level_id),
-        global_grade_id: Number(v.global_grade_id),
-      }),
-    eliminar: deleteEquivalencia,
+    crear: (v) => sincronizar(Number(v.career_level_id), gradesElegidos(v)),
+    actualizar: async (id, v) => {
+      const destino = Number(v.career_level_id);
+      // Cambiar el nivel en la edición mueve el tramo entero: se vacía el
+      // anterior para no dejar el mismo tramo colgando de dos niveles.
+      if (destino !== id) await sincronizar(id, []);
+      await sincronizar(destino, gradesElegidos(v));
+    },
+    eliminar: async (id) => {
+      await sincronizar(id, []);
+    },
     validar: (v) => {
       if (!Number(v.career_level_id)) return "Selecciona un career level.";
-      if (!Number(v.global_grade_id)) return "Selecciona un global grade.";
+      if (gradesElegidos(v).length === 0) {
+        return "Marca al menos un global grade.";
+      }
       return null;
     },
+    // La tabla de career levels muestra el tramo en su columna «Global grade»:
+    // sin esto se quedaba diciendo «Sin equivalencia» hasta recargar la página.
+    alCambiar: notifyEquivalenciasChanged,
   });
 
   // Los selects de esta card dependen de las otras dos: si RH crea un global
