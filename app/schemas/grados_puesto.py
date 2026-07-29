@@ -56,6 +56,10 @@ class GradoPuestoResponse(BaseModel):
     global_grade_codigo: str | None = None
     global_grade_orden: int | None = None
     activo: bool
+    # Solo lo llena el POST: `true` cuando el codigo pedido ocupaba un nivel
+    # desactivado y se reactivo en vez de crear uno nuevo. La UI lo avisa para
+    # no hacer pasar por alta lo que fue una restauracion.
+    reactivado: bool = False
     created_at: datetime
     updated_at: datetime
 

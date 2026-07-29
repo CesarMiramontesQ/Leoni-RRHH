@@ -3930,6 +3930,13 @@ components:
             equivalencia configurada.
         activo:
           type: boolean
+        reactivado:
+          type: boolean
+          default: false
+          description: >-
+            Solo lo llena el POST: `true` cuando el codigo pedido ocupaba un
+            career level desactivado y se reactivo la misma fila (mismo id) en
+            vez de crear una nueva. En los listados siempre llega `false`.
         created_at:
           type: string
           format: date-time

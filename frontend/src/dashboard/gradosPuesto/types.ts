@@ -23,6 +23,12 @@ export type GradoPuesto = {
   global_grade_codigo: string | null;
   global_grade_orden: number | null;
   activo: boolean;
+  /**
+   * Solo lo llena el POST: `true` cuando el código pedido ocupaba un nivel
+   * desactivado y se reactivó en vez de crear uno nuevo. En los listados
+   * siempre llega `false`.
+   */
+  reactivado: boolean;
   created_at: string;
   updated_at: string;
 };

@@ -43,7 +43,9 @@ class GradoPuestoService:
         return user.rol.nombre if user.rol else "empleado"
 
     @staticmethod
-    def _to_response(grado: GradoPuesto) -> GradoPuestoResponse:
+    def _to_response(
+        grado: GradoPuesto, *, reactivado: bool = False
+    ) -> GradoPuestoResponse:
         career_path = grado.career_path
         equivalencia = grado.equivalencia
         grade = equivalencia.global_grade if equivalencia else None
@@ -58,6 +60,7 @@ class GradoPuestoService:
             global_grade_codigo=grade.codigo if grade else None,
             global_grade_orden=grade.orden if grade else None,
             activo=grado.activo,
+            reactivado=reactivado,
             created_at=grado.created_at,
             updated_at=grado.updated_at,
         )
@@ -119,18 +122,30 @@ class GradoPuestoService:
         codigo: str,
         exclude_id: int | None = None,
     ) -> None:
-        if await self.repo.exists_by_codigo(
+        """
+        Duplicados contra TODAS las filas, activas o no.
+
+        Las uniques de la tabla no distinguen `activo`, asi que comprobar solo
+        los activos dejaba pasar el duplicado hasta el INSERT: 500 en vez de 409.
+        """
+        choque = await self.repo.get_por_codigo(
             data.career_path_id, codigo, exclude_id=exclude_id
-        ):
-            raise ConflictError(
-                detail=f"Ya existe el career level '{codigo}' en ese career path"
-            )
-        if await self.repo.exists_by_nombre(
+        )
+        if choque:
+            raise ConflictError(detail=self._detalle_choque(choque, f"codigo '{codigo}'"))
+
+        choque = await self.repo.get_por_nombre(
             data.career_path_id, data.nombre, exclude_id=exclude_id
-        ):
+        )
+        if choque:
             raise ConflictError(
-                detail=f"Ya existe un career level '{data.nombre}' en ese career path"
+                detail=self._detalle_choque(choque, f"nombre '{data.nombre}'")
             )
+
+    @staticmethod
+    def _detalle_choque(choque: GradoPuesto, que: str) -> str:
+        estado = "" if choque.activo else " (esta desactivado)"
+        return f"Ya existe un career level con {que} en ese career path{estado}"
 
     async def crear(
         self, data: GradoPuestoCreate, current_user: Empleado
@@ -140,6 +155,22 @@ class GradoPuestoService:
 
         career_path = await self._validar_career_path(data.career_path_id)
         codigo = self._normalizar_codigo(career_path, data.codigo)
+
+        # Crear un codigo que ocupa un nivel DESACTIVADO lo reactiva, en vez de
+        # chocar contra la unique. Se conserva su id para que nada de lo que lo
+        # referenciaba quede huerfano: es exactamente lo que implica un borrado
+        # suave, y sin esto el codigo quedaba quemado para siempre (no hay
+        # pantalla para reactivar).
+        desactivado = await self.repo.get_por_codigo(data.career_path_id, codigo)
+        if desactivado and not desactivado.activo:
+            await self._validar_unicidad(data, codigo, exclude_id=desactivado.id)
+            await self.repo.update(
+                desactivado.id, {"nombre": data.nombre, "activo": True}
+            )
+            return self._to_response(
+                await self.repo.get_with_career_path(desactivado.id), reactivado=True
+            )
+
         await self._validar_unicidad(data, codigo)
 
         grado = await self.repo.create({

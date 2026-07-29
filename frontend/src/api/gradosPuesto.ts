@@ -32,6 +32,7 @@ function mapGrado(raw: Record<string, unknown>): GradoPuesto {
     global_grade_codigo: (raw.global_grade_codigo ?? null) as string | null,
     global_grade_orden: (raw.global_grade_orden ?? null) as number | null,
     activo: (raw.activo ?? true) as boolean,
+    reactivado: (raw.reactivado ?? false) as boolean,
     created_at: (raw.created_at ?? "") as string,
     updated_at: (raw.updated_at ?? "") as string,
   };
