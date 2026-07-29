@@ -159,6 +159,7 @@ export type AppShellNavItemId =
   | "reportes"
   | "puestos"
   | "puestos-ajustes"
+  | "wtw"
   | "tareas-catalogo"
   | "competencias"
   | "capacidades"
@@ -266,7 +267,7 @@ const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set([OPERATIVO_NAV_ROL, "ger
 const NOMINAS_NAV_ROLES: ReadonlySet<string> = new Set([OPERATIVO_NAV_ROL, "director", "gerente"]);
 
 const TALENTO_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set([
-  "puestos", "puestos-ajustes", "tareas-catalogo", "competencias", "capacidades",
+  "puestos", "puestos-ajustes", "wtw", "tareas-catalogo", "competencias", "capacidades",
   "cursos", "cursos-seguimiento", "cursos-ajustes", "cursos-juntas", "cursos-proveedores", "cursos-externos", "cursos-vencimientos", "sesiones", "opls", "evidencias", "sugerencias", "encuestas", "encuestas-rh", "metas", "dashboard-talento", "ciclo-desempeno", "historial-objetivo", "level-up",
 ]);
 

@@ -108,6 +108,7 @@ export type ShellNavKey =
   | "reportes"
   | "puestos"
   | "puestos-ajustes"
+  | "wtw"
   | "tareas-catalogo"
   | "competencias"
   | "evaluaciones"

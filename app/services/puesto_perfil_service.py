@@ -53,6 +53,11 @@ from app.schemas.talento import (
     PuestoPerfilResponse,
     PuestoPerfilUpdate,
     ResumenTarjetasResponse,
+    WtwGradeItem,
+    WtwMapaResponse,
+    WtwNivelItem,
+    WtwNivelSinPosicion,
+    WtwPathItem,
 )
 
 ESTADOS_PERFIL = ("activo", "inactivo", "en_revision")
@@ -408,6 +413,81 @@ class PuestoPerfilService:
         )
 
     # ── Resumen Tarjetas ────────────────────────────────────────────────────
+
+    async def mapa_wtw(self) -> WtwMapaResponse:
+        """
+        La estructura de grados leida como la lamina de Towers.
+
+        Una franja por career path y cada nivel ocupando el ancho de los global
+        grades que abarca. No calcula nada: la posicion es la misma que usa el
+        rango de un perfil, puesta sobre un eje comun para que se vea que un P4
+        y un M1 caen en la misma columna.
+
+        Vive bajo `/api/v1/puestos-perfil` a proposito: los catalogos que tienen
+        estos datos pertenecen al modulo `puestos-ajustes`, y la vista debe poder
+        consultarla cualquiera que trabaje con perfiles de puesto.
+        """
+        grades, _ = await self.grade_repo.list_filtered(offset=0, limit=500)
+        grades = sorted(grades, key=lambda g: g.orden)
+
+        paths, _ = await self.career_path_repo.list_filtered(offset=0, limit=200)
+        # Los niveles traen precargado `equivalencias -> global_grade`; leerlos
+        # en lazy dentro de una sesion async revienta con MissingGreenlet.
+        niveles, _ = await self.grado_repo.list_filtered(offset=0, limit=500)
+
+        por_path: dict[int, list] = {}
+        for nivel in niveles:
+            por_path.setdefault(nivel.career_path_id, []).append(nivel)
+
+        items: list[WtwPathItem] = []
+        for path in paths:
+            del_path = tramo_util.ordenar(por_path.get(path.id, []))
+            con_posicion: list[WtwNivelItem] = []
+            sin_posicion: list[WtwNivelSinPosicion] = []
+            for nivel in del_path:
+                t = tramo_util.tramo(nivel)
+                if t is None:
+                    # Sin equivalencias no se puede ubicar. Se devuelve igual:
+                    # ocultarlo mentiria sobre lo que hay en el catalogo.
+                    sin_posicion.append(
+                        WtwNivelSinPosicion(
+                            id=nivel.id, codigo=nivel.codigo, nombre=nivel.nombre
+                        )
+                    )
+                    continue
+                codigos = [
+                    eq.global_grade.codigo
+                    for eq in sorted(
+                        (e for e in nivel.equivalencias if e.global_grade),
+                        key=lambda e: e.global_grade.orden,
+                    )
+                ]
+                con_posicion.append(
+                    WtwNivelItem(
+                        id=nivel.id,
+                        codigo=nivel.codigo,
+                        nombre=nivel.nombre,
+                        posicion_desde=t[0],
+                        posicion_hasta=t[1],
+                        global_grades=codigos,
+                    )
+                )
+            items.append(
+                WtwPathItem(
+                    id=path.id,
+                    codigo=path.codigo,
+                    nombre=path.nombre,
+                    niveles=con_posicion,
+                    sin_posicion=sin_posicion,
+                )
+            )
+
+        return WtwMapaResponse(
+            global_grades=[
+                WtwGradeItem(id=g.id, codigo=g.codigo, orden=g.orden) for g in grades
+            ],
+            career_paths=items,
+        )
 
     async def resumen_tarjetas(self) -> ResumenTarjetasResponse:
         rows = await self.repo.get_resumen_tarjetas()

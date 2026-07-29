@@ -11,8 +11,11 @@ import { TALENTO_NAV_ITEMS } from "./talentoNav.ts";
 
 describe("sección Puestos", () => {
   it("lista la definición del puesto, en orden de captura", () => {
+    // «Estructura WTW» va tras los perfiles: es el marco en el que viven, y se
+    // lee antes que los catálogos que los componen.
     expect(PUESTOS_NAV_ITEMS.map((item) => item.key)).toEqual([
       "puestos",
+      "wtw",
       "competencias",
       "tareas-catalogo",
       "puestos-ajustes",
