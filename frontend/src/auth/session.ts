@@ -71,6 +71,7 @@ export function clearAuth(): void {
   sessionStorage.removeItem(KEY_ACCESS);
   sessionStorage.removeItem(KEY_REFRESH);
   void import("./rhUiMode.ts").then(({ resetRhUiMode }) => resetRhUiMode());
+  void import("./vistaRolPermissions.ts").then(({ resetVistasRol }) => resetVistasRol());
   void import("../notificaciones/notificacionesResumenStore.ts").then(({ resetNotificacionesResumen }) => {
     resetNotificacionesResumen();
   });

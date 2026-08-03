@@ -609,6 +609,9 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
   const permisosRhMenuItem = canAccessRhPermisosAdmin() && !isRhEmpleadoUiMode()
     ? `<a href="#/ajustes/permisos-rh" class="block px-3 py-1 text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Permisos RH</a>`
     : "";
+  const vistasRolMenuItem = canAccessRhPermisosAdmin() && !isRhEmpleadoUiMode()
+    ? `<a href="#/ajustes/vistas-rol" class="block px-3 py-1 text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Vistas por rol</a>`
+    : "";
 
   container.innerHTML = `
 <el-dialog>
@@ -743,6 +746,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
           </button>
           <el-menu anchor="bottom end" popover class="w-48 origin-top-right rounded-md bg-white py-2 shadow-lg outline outline-black/5 transition transition-discrete [--anchor-gap:--spacing(2.5)] data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in">
             ${permisosRhMenuItem}
+            ${vistasRolMenuItem}
             <button type="button" id="app-shell-sign-out" class="block w-full px-3 py-1 text-left text-sm/6 text-text-primary focus:bg-surface focus:outline-none">Cerrar sesión</button>
           </el-menu>
         </el-dropdown>

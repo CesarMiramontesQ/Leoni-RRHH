@@ -10,7 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.middleware import RhModulePermissionMiddleware, SupervisorRestrictedRoutesMiddleware
+from app.middleware import (
+    RhModulePermissionMiddleware,
+    SupervisorRestrictedRoutesMiddleware,
+    VistaRolPermissionMiddleware,
+)
 from app.core.exceptions import EXCEPTION_STATUS_MAP, LeoniException
 
 logging.basicConfig(
@@ -157,6 +161,21 @@ async def lifespan(app: FastAPI):
             str(e),
         )
 
+    # 4. Configuración inicial de vistas por rol (no bloqueante). Solo inserta las
+    #    filas que falten, así una vista recién agregada al catálogo aparece con su
+    #    valor por defecto sin pisar lo que el admin RH haya configurado.
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.utils.seed_vistas_rol import ensure_vistas_rol_defaults
+
+        async with AsyncSessionLocal() as db:
+            await ensure_vistas_rol_defaults(db)
+            await db.commit()
+    except Exception as e:  # noqa: BLE001 — el arranque no debe fallar por esto
+        logger.warning(
+            "Seed de vistas por rol omitido (%s: %s)", type(e).__name__, str(e)
+        )
+
     logger.info("Plataforma RH lista — entorno: %s", settings.APP_ENV)
 
     yield
@@ -193,6 +212,9 @@ app.add_middleware(
 # Después de CORS: bloquea `supervisor` en actas y reportes de comedor (API) antes del router.
 app.add_middleware(SupervisorRestrictedRoutesMiddleware)
 app.add_middleware(RhModulePermissionMiddleware)
+# Vistas apagadas por el admin RH para un rol base: 403 antes del router, para que
+# entrar por URL directa tampoco funcione.
+app.add_middleware(VistaRolPermissionMiddleware)
 
 # ── Exception Handlers ────────────────────────────────────────
 def _validation_errors_json_safe(errors: list) -> list:
@@ -280,6 +302,7 @@ from app.api.v1.categorias_tarea.router import router as categorias_tarea_router
 from app.api.v1.perfil_funciones.router import router as perfil_funciones_router
 from app.api.v1.cualificaciones_catalogo.router import router as cualificaciones_catalogo_router
 from app.api.v1.rh_permisos.router import router as rh_permisos_router
+from app.api.v1.vistas_rol.router import router as vistas_rol_router
 from app.api.v1.nominas.router import router as nominas_router
 from app.api.v1.horas_extra.router import router as horas_extra_router
 from app.api.v1.faltas_retardos.router import router as faltas_retardos_router
@@ -331,6 +354,7 @@ app.include_router(categorias_tarea_router)
 app.include_router(perfil_funciones_router)
 app.include_router(cualificaciones_catalogo_router)
 app.include_router(rh_permisos_router)
+app.include_router(vistas_rol_router)
 app.include_router(nominas_router)
 app.include_router(horas_extra_router)
 app.include_router(faltas_retardos_router)

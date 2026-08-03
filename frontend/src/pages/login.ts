@@ -1,5 +1,6 @@
 import { getRememberMePreference, setSession } from "../auth/session.ts";
 import { loadRhModulePermissions, resetRhModulePermissions } from "../auth/rhModulePermissions.ts";
+import { loadVistasRol, resetVistasRol } from "../auth/vistaRolPermissions.ts";
 import { resolveRhInitialHash } from "../navigation/shellNavPolicy.ts";
 import {
   refreshNotificacionesResumen,
@@ -179,9 +180,10 @@ export function mountLogin(container: HTMLElement): void {
       );
       resetNotificacionesResumen();
       resetRhModulePermissions();
+      resetVistasRol();
       void refreshNotificacionesResumen();
 
-      await loadRhModulePermissions();
+      await Promise.all([loadRhModulePermissions(), loadVistasRol()]);
       const initialHash = resolveRhInitialHash("#/");
       history.replaceState(null, "", initialHash);
       mountAuthenticatedShell(container);

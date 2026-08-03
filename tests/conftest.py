@@ -61,6 +61,7 @@ import app.models.evaluacion360  # noqa: F401  (incluye plantillas)
 import app.models.encuestas_rh  # noqa: F401
 import app.models.metas  # noqa: F401
 import app.models.ciclo_desempeno  # noqa: F401
+import app.models.vistas_rol  # noqa: F401
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password
@@ -103,7 +104,20 @@ async def engine():
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    # El código que abre su propia sesión (middlewares, jobs) usa AsyncSessionLocal
+    # y no pasa por `dependency_overrides`. Sin este redireccionamiento apuntaría a
+    # la BD real. StaticPool hace que comparta la conexión con el fixture `db`, así
+    # que ve lo que el test acaba de escribir aunque no haya commiteado.
+    import app.core.database as _database_module
+
+    _original_session_local = _database_module.AsyncSessionLocal
+    _database_module.AsyncSessionLocal = async_sessionmaker(
+        _engine, class_=AsyncSession, expire_on_commit=False
+    )
+
     yield _engine
+
+    _database_module.AsyncSessionLocal = _original_session_local
 
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
