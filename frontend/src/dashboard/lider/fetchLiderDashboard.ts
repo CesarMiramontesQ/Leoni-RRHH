@@ -2,10 +2,9 @@ import { getSolicitudesRows } from "../../api/solicitudes.ts";
 import { fetchAllIncidenciasForExport, getIncidenciasRows } from "../../api/incidencias.ts";
 import { getComedorEquipoReservasMes, type ComedorEquipoReservaApiItem } from "../../api/comedor.ts";
 import { getEmpleadosResumen } from "../../api/empleados.ts";
-import { getEmpleadoVista360 } from "../../api/vista360.ts";
-import { getEmpleadoIdFromAccessToken, getEffectiveGestorNavRol, getRolFromAccessToken } from "../../auth/jwt.ts";
+import { fetchDashboardKpis } from "../../api/dashboardKpis.ts";
+import { getEmpleadoIdFromAccessToken, getEffectiveGestorNavRol } from "../../auth/jwt.ts";
 import { emptyRhIncidenciaListFilters, type RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
-import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyLiderDashboardPayload } from "./mock.ts";
 import { buildSupervisorIncidenciasChart, GERENTE_INCIDENCIAS_CHART_TOP_N } from "./buildSupervisorIncidenciasChart.ts";
@@ -176,53 +175,6 @@ function formatApprovalDateRange(startIso: string, endIso: string): string {
   return `${fmt(startIso)} - ${fmt(endIso)}`;
 }
 
-/** Igual que dashboard empleado: días calendario entre inicio y fin (inclusive). */
-function parseIsoDateAsUtcDay(isoDate: string): number | null {
-  const [yearRaw, monthRaw, dayRaw] = isoDate.split("-");
-  const year = Number(yearRaw);
-  const month = Number(monthRaw);
-  const day = Number(dayRaw);
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
-  return Date.UTC(year, month - 1, day);
-}
-
-function calcVacationDaysInclusive(fechaInicio: string, fechaFin: string): number {
-  const startUtc = parseIsoDateAsUtcDay(fechaInicio.slice(0, 10));
-  const endUtc = parseIsoDateAsUtcDay(fechaFin.slice(0, 10));
-  if (startUtc === null || endUtc === null || endUtc < startUtc) return 0;
-  return (endUtc - startUtc) / (24 * 60 * 60 * 1000) + 1;
-}
-
-/** Primer y último día del mes civil de `ref` (YYYY-MM-DD locales). */
-function monthIsoRange(ref: Date): { monthStartIso: string; monthEndIso: string } {
-  const y = ref.getFullYear();
-  const m = ref.getMonth();
-  const lastDay = new Date(y, m + 1, 0).getDate();
-  return {
-    monthStartIso: `${y}-${pad2(m + 1)}-01`,
-    monthEndIso: `${y}-${pad2(m + 1)}-${pad2(lastDay)}`,
-  };
-}
-
-/** Días distintos del mes en que aplica HO aprobado propio (mismo criterio que “este mes”). */
-function countApprovedHomeOfficeDaysInMonth(
-  rows: RhSolicitudTablaFila[],
-  myId: string | null,
-  monthStartIso: string,
-  monthEndIso: string,
-): number {
-  if (!myId) return 0;
-  const days = new Set<string>();
-  for (const r of rows) {
-    if (r.tipo !== "home_office" || r.estado !== SOLICITUD_ESTADO_API.APROBADO) continue;
-    if (r.empleado_id !== myId) continue;
-    for (const iso of eachIsoDayInclusive(r.fecha_inicio, r.fecha_fin)) {
-      if (iso >= monthStartIso && iso <= monthEndIso) days.add(iso);
-    }
-  }
-  return days.size;
-}
-
 /** Incidencias “activas” para KPI (no cerradas), según filas ya filtradas por rol en API. */
 function countIncidenciasActivas(filas: RhIncidenciaTablaFila[]): number {
   return filas.reduce((n, r) => (r.estado !== "cerrado" ? n + 1 : n), 0);
@@ -242,8 +194,6 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
     target ? new Date(target.year, target.monthIndex, 1) : now;
   const base = emptyLiderDashboardPayload(referenceDate);
   const myId = getEmpleadoIdFromAccessToken();
-  const myIdNum = myId !== null ? Number(myId) : null;
-  const myVista360Id = myIdNum !== null && Number.isFinite(myIdNum) ? myIdNum : null;
   const visibleRange = computeVisibleRange(
     base.team_calendar.initial_year,
     base.team_calendar.initial_month_index,
@@ -258,29 +208,17 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
     const incidenciasPromise = esGerente
       ? fetchAllIncidenciasForExport(emptyRhIncidenciaListFilters()).catch(() => [] as RhIncidenciaTablaFila[])
       : getIncidenciasRows(100).catch(() => [] as RhIncidenciaTablaFila[]);
-    const [rows, mealRowsByMonth, empleadosResumen, vista360, incidenciasFilas] = await Promise.all([
+    const [rows, mealRowsByMonth, empleadosResumen, kpis, incidenciasFilas] = await Promise.all([
       getSolicitudesRows(100),
       role === "supervisor"
         ? Promise.all(mealMonths.map(({ year, month }) => getComedorEquipoReservasMes(year, month)))
         : Promise.resolve([]),
       getEmpleadosResumen().catch(() => null),
-      myVista360Id !== null ? getEmpleadoVista360(myVista360Id).catch(() => null) : Promise.resolve(null),
+      fetchDashboardKpis(),
       incidenciasPromise,
     ]);
     const todayIso = rhIsoLocalDate(now);
-    const { monthStartIso, monthEndIso } = monthIsoRange(now);
 
-    const vacationUsedDays = rows
-      .filter(
-        (r) =>
-          r.tipo === "vacaciones" &&
-          r.estado === SOLICITUD_ESTADO_API.APROBADO &&
-          (myId == null || r.empleado_id === myId) &&
-          r.fecha_fin.slice(0, 10) < todayIso,
-      )
-      .reduce((acc, r) => acc + calcVacationDaysInclusive(r.fecha_inicio, r.fecha_fin), 0);
-
-    const homeOfficeThisMonth = countApprovedHomeOfficeDaysInMonth(rows, myId, monthStartIso, monthEndIso);
     const solicitudesGestion = rows.filter(
       (r) =>
         esSolicitudTipoCalendarioDashboard(r.tipo) &&
@@ -384,9 +322,11 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
       ...base,
       personal: {
         ...base.personal,
-        vacation_available_days: vista360?.saldo_vacaciones ?? base.personal.vacation_available_days,
-        vacation_used_days: vacationUsedDays,
-        home_office_this_month: homeOfficeThisMonth,
+        // Los tres KPIs personales salen de TRESS (DATOS_ANALISIS), igual que en el
+        // dashboard del empleado: misma fuente y misma definición para los tres roles.
+        vacation_available_days: kpis?.vacaciones_disponibles ?? null,
+        vacation_used_days: kpis?.vacaciones_tomadas_ciclo ?? null,
+        home_office_dias_anio: kpis?.home_office_dias_anio ?? null,
         pending_requests: ownRows.filter((r) => r.estado === SOLICITUD_ESTADO_API.PENDIENTE).length,
         pending_request_types: Array.from(
           new Set(

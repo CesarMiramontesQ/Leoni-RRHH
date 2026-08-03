@@ -128,7 +128,7 @@ function buildTeamCalendarDemo(year: number, monthIndex: number): Record<string,
 const MOCK_PERSONAL: LiderPersonalStats = {
   vacation_available_days: 12,
   vacation_used_days: 6,
-  home_office_this_month: 2,
+  home_office_dias_anio: 2,
   pending_requests: 1,
   pending_request_types: ["vacation"],
 };
@@ -197,7 +197,7 @@ export function emptyLiderDashboardPayload(now: Date = new Date()): LiderDashboa
     personal: {
       vacation_available_days: null,
       vacation_used_days: null,
-      home_office_this_month: null,
+      home_office_dias_anio: null,
       pending_requests: null,
       pending_request_types: [],
     },

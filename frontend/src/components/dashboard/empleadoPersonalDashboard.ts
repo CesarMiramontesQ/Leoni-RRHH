@@ -25,8 +25,12 @@ import type {
 import { getRolFromAccessToken } from "../../auth/jwt.ts";
 import { RH_LISTADO_PAGE_OUTER_GRADIENT, RH_LISTADO_SURFACE } from "../../ui/uiTokens.ts";
 
+/**
+ * `null` = sin dato (nómina no respondió) y se muestra «—». Antes devolvía "0 días",
+ * lo que hacía indistinguible un cero real de un fallo de conexión.
+ */
 function fmtDays(value: number | null): string {
-  if (value === null || Number.isNaN(value)) return "0 días";
+  if (value === null || Number.isNaN(value)) return "—";
   const safe = Math.max(0, value);
   const rounded = Math.round(safe * 10) / 10;
   const shown = Number.isInteger(rounded)
@@ -239,11 +243,11 @@ export function renderEmpleadoStatCards(payload: EmpleadoDashboardPayload | null
       extra: "",
     },
     {
-      label: "Este mes",
+      label: "Este año",
       labelCls: "text-violet-700",
       iconWrap: "bg-violet-500/12 text-violet-700",
       icon: iconEsteMes(),
-      value: fmtDays(p?.home_office_this_month ?? null),
+      value: fmtDays(p?.home_office_dias_anio ?? null),
       sub: "Home Office tomados",
       extra: "",
     },
