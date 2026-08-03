@@ -121,18 +121,6 @@ export async function fetchAllEmpleadosForExport(
 export type { UsuarioVista360 } from "./vista360.ts";
 export { getEmpleadoVista360 } from "./vista360.ts";
 
-export type EmpleadoVacacionesSaldo = {
-  empleado_id: number;
-  dias_disponibles: number;
-  updated_at?: string | null;
-};
-
-export async function getEmpleadoVacaciones(empleadoId: number): Promise<EmpleadoVacacionesSaldo> {
-  const res = await fetchWithAuth(`/api/v1/empleados/${empleadoId}/vacaciones`);
-  if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
-  return (await res.json()) as EmpleadoVacacionesSaldo;
-}
-
 export type EmpleadoHomeOfficeDisponibilidad = {
   empleado_id: number;
   anio: number;

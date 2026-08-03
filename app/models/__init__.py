@@ -16,8 +16,6 @@ from app.models.empleados_rh import (
     EmpleadoRhPermisos,
 )
 from app.models.turnos_empleados import TurnoEmpleado
-from app.models.vacaciones import Vacaciones
-from app.models.vacaciones_disponibles import VacacionesDisponibles
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
@@ -155,8 +153,6 @@ __all__ = [
     "EmpleadoRhPermisos",
     "EmpleadoRhHorasExtra",
     "TurnoEmpleado",
-    "Vacaciones",
-    "VacacionesDisponibles",
     "Solicitud",
     "SolicitudAprobacion",
     "Incidencia",

@@ -10,12 +10,7 @@ from app.repositories.datos_analisis_vacaciones_repository import (
     DatosAnalisisVacacionesRepository,
 )
 from app.repositories.empleado_repository import EmpleadoRepository
-from app.repositories.vacaciones_repository import VacacionesRepository
-from app.schemas.vacaciones import (
-    SaldoVacacionesRealResponse,
-    VacacionesResponse,
-    VacacionesUpdate,
-)
+from app.schemas.vacaciones import SaldoVacacionesRealResponse
 
 
 async def obtener_saldo_gozo_tress(no_empleado: int) -> float:
@@ -45,7 +40,6 @@ async def obtener_saldo_gozo_tress(no_empleado: int) -> float:
 
 class VacacionesService:
     def __init__(self, db: AsyncSession):
-        self.repo = VacacionesRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
         self.db = db
 
@@ -80,14 +74,6 @@ class VacacionesService:
             return
         raise ForbiddenError(detail="No tienes acceso a este empleado")
 
-    async def obtener_saldo(
-        self, empleado_id: int, current_user: Empleado
-    ) -> VacacionesResponse:
-        await self.repo.ensure_empleado_exists(empleado_id)
-        await self._ensure_puede_ver_empleado(current_user, empleado_id)
-        dias = await self.repo.get_dias_disponibles(empleado_id)
-        return VacacionesResponse(empleado_id=empleado_id, dias_disponibles=dias)
-
     async def obtener_saldo_real(
         self, empleado_id: int, current_user: Empleado
     ) -> SaldoVacacionesRealResponse:
@@ -105,14 +91,3 @@ class VacacionesService:
             saldo_gozo_total=total,
         )
 
-    async def actualizar_saldo(
-        self,
-        empleado_id: int,
-        data: VacacionesUpdate,
-        current_user: Empleado,
-    ) -> VacacionesResponse:
-        if not user_has_module(current_user, "solicitudes"):
-            raise ForbiddenError(detail="No tienes permiso para actualizar el saldo de vacaciones")
-        await self.repo.ensure_empleado_exists(empleado_id)
-        row = await self.repo.establecer(empleado_id, data.dias_disponibles)
-        return VacacionesResponse(empleado_id=empleado_id, dias_disponibles=row.dias)

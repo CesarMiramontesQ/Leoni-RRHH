@@ -38,7 +38,6 @@ export type UsuarioVista360 = {
   solicitudes_recientes: SolicitudBrief[];
   incidencias_activas: IncidenciaBrief[];
   actas_firmadas: ActaBrief[];
-  saldo_vacaciones: number;
   turno_empleado?: Vista360TurnoEmpleado | null;
   /** Fecha de ingreso real (CB_FEC_ING de dbo.COLABORA); null si la BD externa no responde. */
   fecha_ingreso: string | null;

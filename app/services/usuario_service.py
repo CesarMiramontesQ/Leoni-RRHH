@@ -35,7 +35,6 @@ from app.models.turnos_empleados import TurnoEmpleado
 from app.utils.turno_empleado_match import turno_no_empleado_matches
 from app.repositories.usuario_repository import ModoEstadoListado, UsuarioRepository
 from app.repositories.empleado_repository import EmpleadoRepository
-from app.repositories.vacaciones_repository import VacacionesRepository
 from app.schemas.empleados import AreaResponse, PuestoResponse
 from app.schemas.usuarios import (
     ActaBrief,
@@ -625,9 +624,6 @@ class UsuarioService:
             solicitudes_recientes=[SolicitudBrief.model_validate(s) for s in solicitudes],
             incidencias_activas=[IncidenciaBrief.model_validate(i) for i in incidencias],
             actas_firmadas=[ActaBrief.model_validate(a) for a in actas],
-            saldo_vacaciones=await VacacionesRepository(self.db).get_dias_disponibles(
-                usuario.id
-            ),
             turno_empleado=turno_empleado,
             fecha_ingreso=fecha_ingreso,
         )

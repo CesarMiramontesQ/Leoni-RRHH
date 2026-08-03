@@ -241,7 +241,7 @@ async def test_crear_solicitud_duplicado_exacto_antes_que_saldo(
     client: AsyncClient, db,
 ):
     empleado = await make_empleado(
-        db, rol="empleado", email="sol004a@leoni.test", dias_vacaciones=1
+        db, rol="empleado", email="sol004a@leoni.test"
     )
     await make_solicitud(
         db,
@@ -489,7 +489,6 @@ async def test_crear_solicitud_vacaciones_administrativo_rechaza_fin_de_semana(
         rol="empleado",
         email="sol004e@leoni.test",
         clasificacion_id=cl_admin.clasificacion_id,
-        dias_vacaciones=10,
     )
     headers = await auth_headers(client, empleado)
     response = await client.post(
@@ -520,7 +519,6 @@ async def test_crear_solicitud_vacaciones_administrativo_cuenta_dias_laborales(
         rol="empleado",
         email="sol004f@leoni.test",
         clasificacion_id=cl_admin.clasificacion_id,
-        dias_vacaciones=10,
     )
     headers = await auth_headers(client, empleado)
     response = await client.post(
@@ -560,7 +558,7 @@ async def test_crear_solicitud_vacaciones_sin_dias_disponibles_422(
         "app.services.vacaciones_service.obtener_saldo_gozo_tress", _saldo_cero
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol004c@leoni.test", dias_vacaciones=0
+        db, rol="empleado", email="sol004c@leoni.test"
     )
     headers = await auth_headers(client, empleado)
     response = await client.post(
@@ -589,7 +587,7 @@ async def test_crear_solicitud_vacaciones_saldo_insuficiente_422(
         "app.services.vacaciones_service.obtener_saldo_gozo_tress", _saldo_dos
     )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol004d@leoni.test", dias_vacaciones=2
+        db, rol="empleado", email="sol004d@leoni.test"
     )
     headers = await auth_headers(client, empleado)
     response = await client.post(

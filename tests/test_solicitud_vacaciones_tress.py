@@ -38,7 +38,7 @@ def tress_caido(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_disponible_endpoint_sin_comprometidos(client: AsyncClient, db):
-    emp = await make_empleado(db, rol="empleado", email="disp-a@test", dias_vacaciones=0)
+    emp = await make_empleado(db, rol="empleado", email="disp-a@test")
     headers = await auth_headers(client, emp)
 
     res = await client.get(
@@ -53,7 +53,7 @@ async def test_disponible_endpoint_sin_comprometidos(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_disponible_resta_solicitudes_en_curso(client: AsyncClient, db):
-    emp = await make_empleado(db, rol="empleado", email="disp-b@test", dias_vacaciones=0)
+    emp = await make_empleado(db, rol="empleado", email="disp-b@test")
     # 3 días naturales pendientes (comprometidos).
     await make_solicitud(
         db,
@@ -76,7 +76,7 @@ async def test_disponible_resta_solicitudes_en_curso(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_disponible_excluir_solicitud_id(client: AsyncClient, db):
-    emp = await make_empleado(db, rol="empleado", email="disp-ex@test", dias_vacaciones=0)
+    emp = await make_empleado(db, rol="empleado", email="disp-ex@test")
     sol = await make_solicitud(
         db,
         empleado_id=emp.id,
@@ -116,7 +116,7 @@ async def test_disponible_excluir_solicitud_id(client: AsyncClient, db):
 @pytest.mark.asyncio
 async def test_crear_bloquea_saldo_insuficiente(client: AsyncClient, db, set_saldo_tress):
     set_saldo_tress(3.0)
-    emp = await make_empleado(db, rol="empleado", email="insuf@test", dias_vacaciones=0)
+    emp = await make_empleado(db, rol="empleado", email="insuf@test")
     headers = await auth_headers(client, emp)
 
     res = await client.post(
@@ -135,7 +135,7 @@ async def test_crear_bloquea_saldo_insuficiente(client: AsyncClient, db, set_sal
 
 @pytest.mark.asyncio
 async def test_crear_bloquea_tress_caido(client: AsyncClient, db, tress_caido):
-    emp = await make_empleado(db, rol="empleado", email="caido@test", dias_vacaciones=0)
+    emp = await make_empleado(db, rol="empleado", email="caido@test")
     headers = await auth_headers(client, emp)
 
     res = await client.post(

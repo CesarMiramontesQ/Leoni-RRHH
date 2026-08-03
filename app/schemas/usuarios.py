@@ -141,7 +141,6 @@ class UsuarioVista360Response(BaseModel):
     solicitudes_recientes: list[SolicitudBrief]
     incidencias_activas: list[IncidenciaBrief]
     actas_firmadas: list[ActaBrief]
-    saldo_vacaciones: int
     turno_empleado: Optional[Vista360TurnoEmpleado] = None
     # Fecha de ingreso real desde SQL Server datos-analisis (CB_FEC_ING de dbo.COLABORA);
     # None si la BD externa no está disponible (el frontend cae a `registro`).
