@@ -9,6 +9,7 @@ import {
   isModulosRhEnrolled,
 } from "../auth/rhModulePermissions.ts";
 import { navItemIdToModuleKey, resolveModuleFromHash } from "../auth/rhModuleRegistry.ts";
+import { vistaRolPermiteHash, vistaRolPermiteNavItem } from "../auth/vistaRolPermissions.ts";
 import { isComedorHubVisibleForRol } from "./comedorNav.ts";
 import { isLaboralesHubVisibleForRol } from "./laboralesNav.ts";
 import {
@@ -333,9 +334,14 @@ function moduleNavAllowed(rol: string | null, itemId: AppShellNavItemId): boolea
 export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShellNavItemId): boolean {
   // Regla B (operativa): registrar/aprobar horas extra depende ÚNICAMENTE de la
   // autorización explícita en Ajustes de Nómina, nunca del permiso RH de Nóminas
-  // (Regla A) ni del rol. Autoritativo en todos los caminos.
+  // (Regla A) ni del rol. Autoritativo en todos los caminos. Por eso estos dos
+  // ítems tampoco están en el catálogo de vistas por rol.
   if (itemId === "horas-extra-aprobaciones") return canApproveOvertime();
   if (itemId === "horas-extra-solicitud") return canRegisterOvertime();
+  // Configuración de vistas por rol (`#/ajustes/vistas-rol`): para los roles base es
+  // la autoridad —enciende y apaga ítems—; devuelve null cuando no aplica.
+  const porVista = vistaRolPermiteNavItem(itemId);
+  if (porVista !== null) return porVista;
   // No-RH en Modo RH: ver únicamente los módulos asignados (hoy Nóminas es el
   // único cableado a hub). En modo base se cae al comportamiento normal de su rol.
   if (isNonRhRhMode()) {
@@ -418,6 +424,10 @@ export function supervisorMayAccessHash(hash: string): boolean {
 }
 
 function hashAllowedByRole(rol: string | null, hash: string): boolean {
+  // Para una ruta del catálogo de vistas por rol la configuración manda: puede abrir
+  // una página que la política del rol no contemplaba y cerrar una que sí.
+  const porVista = vistaRolPermiteHash(hash);
+  if (porVista !== null) return porVista;
   if (rol === "empleado") return empleadoMayAccessHash(hash);
   if (usesSupervisorRoutePolicy(rol)) return supervisorMayAccessHash(hash);
   return true;
@@ -436,6 +446,11 @@ export function resolveRoutedHashForRol(
 ): string {
   if (opts.enrolledNonRh) return rawHash;
   if (isRhOperativoUiMode()) return rawHash;
+  // Para una ruta del catálogo de vistas por rol la configuración es la autoridad: si
+  // está encendida no se le aplican las compuertas por rol, y si está apagada no se
+  // enruta. (El router muestra «acceso denegado» antes de llegar aquí.)
+  const porVista = vistaRolPermiteHash(rawHash);
+  if (porVista !== null) return porVista ? rawHash : "#/";
   if (rol === "empleado" && !empleadoMayAccessHash(rawHash)) return "#/";
   if (usesSupervisorRoutePolicy(rol) && !supervisorMayAccessHash(rawHash)) return "#/";
   return rawHash;
@@ -472,7 +487,7 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
     return isRhOperativoUiMode() || isNonRhRhMode();
   }
-  if (h.startsWith("#/ajustes/permisos-rh")) {
+  if (h.startsWith("#/ajustes/permisos-rh") || h.startsWith("#/ajustes/vistas-rol")) {
     return isRhOperativoUiMode() && canAccessRhPermisosAdmin();
   }
 
@@ -512,7 +527,7 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
 /** Rutas permitidas para RH en modo empleado (autoservicio). */
 export function rhEmpleadoMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
-  if (h.startsWith("#/ajustes/permisos-rh")) return false;
+  if (h.startsWith("#/ajustes/permisos-rh") || h.startsWith("#/ajustes/vistas-rol")) return false;
   if (h.startsWith("#/comedor/gestion")) return false;
   if (h.startsWith("#/comedor/planear")) return false;
   if (h.startsWith("#/comedor/codigos-externos")) return false;
@@ -528,7 +543,11 @@ export function rhMayAccessHash(hash: string): boolean {
   }
   if (isRhGestorTeamUiMode()) {
     const h = (hash || "#/").trim();
-    if (h.startsWith("#/ajustes/permisos-rh") || h.startsWith(RH_SIN_PERMISOS_HASH)) return false;
+    if (
+      h.startsWith("#/ajustes/permisos-rh")
+      || h.startsWith("#/ajustes/vistas-rol")
+      || h.startsWith(RH_SIN_PERMISOS_HASH)
+    ) return false;
     const navRol = isRhGerenteUiMode() ? "gerente" : "supervisor";
     if (navRol === "supervisor") {
       return supervisorMayAccessHash(hash);
@@ -537,7 +556,11 @@ export function rhMayAccessHash(hash: string): boolean {
   }
   if (isRhDirectorUiMode()) {
     const h = (hash || "#/").trim();
-    if (h.startsWith("#/ajustes/permisos-rh") || h.startsWith(RH_SIN_PERMISOS_HASH)) return false;
+    if (
+      h.startsWith("#/ajustes/permisos-rh")
+      || h.startsWith("#/ajustes/vistas-rol")
+      || h.startsWith(RH_SIN_PERMISOS_HASH)
+    ) return false;
     return hashAllowedByRole("director", hash);
   }
   return modulosMayAccessHash(hash, getRolFromAccessToken());

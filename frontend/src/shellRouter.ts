@@ -13,6 +13,7 @@ import {
   usesSupervisorRoutePolicy,
 } from "./navigation/shellNavPolicy.ts";
 import { isModulosRhEnrolled } from "./auth/rhModulePermissions.ts";
+import { vistaRolPermiteHash } from "./auth/vistaRolPermissions.ts";
 import { isAdminUser, isNonRhRhMode, isRhDirectorUiMode, isRhEmpleadoUiMode, isRhGestorTeamUiMode, isRhOperativoUiMode, RH_UI_MODE_CHANGE_EVENT } from "./auth/rhUiMode.ts";
 import { mountDashboardPlaceholder } from "./pages/dashboard.ts";
 import { mountEmployeeVista360, parseVista360InitialTabFromHash } from "./pages/empleadoVista360.ts";
@@ -117,6 +118,12 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     const enrolledNonRh = !isAdminUser() && isModulosRhEnrolled();
     const adminRhOperativo = isAdminUser() && isRhOperativoUiMode();
     const nonRhInRhMode = enrolledNonRh && isNonRhRhMode();
+    // Vista apagada por el admin RH para este rol: pantalla de acceso denegado, no una
+    // redirección silenciosa — el usuario tiene que entender por qué no entró.
+    if (vistaRolPermiteHash(rawHash) === false) {
+      mountRhModuleAccessDenied(container);
+      return;
+    }
     if (!enrolledNonRh && !adminRhOperativo) {
       if (getRolFromAccessToken() === "empleado" && !empleadoMayAccessHash(rawHash)) {
         history.replaceState(null, "", "#/");
@@ -171,6 +178,17 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
 
     if (h.startsWith("#/ajustes/permisos-rh")) {
       mountAjustesPermisosRh(container, signal);
+      return;
+    }
+
+    if (h.startsWith("#/ajustes/vistas-rol")) {
+      void import("./pages/ajustesVistasRol.ts")
+        .then(({ mountAjustesVistasRol }) => mountAjustesVistasRol(container, signal))
+        // `activeNav: "dashboard"` porque Vistas por rol vive en el menú de usuario,
+        // no en el sidebar: no hay ítem que resaltar.
+        .catch((err) =>
+          renderLazyPageImportError(container, "dashboard", "Vistas por rol", err),
+        );
       return;
     }
 

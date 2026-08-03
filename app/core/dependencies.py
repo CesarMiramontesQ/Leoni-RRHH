@@ -93,6 +93,31 @@ async def get_current_user(
     return empleado
 
 
+async def _vista_rol_permite(
+    db: AsyncSession, current_user: Empleado, rol_nombre: str, path: str
+) -> bool:
+    """True si el admin RH habilitó para este rol la vista dueña de `path`.
+
+    Solo aplica a los roles configurables y a usuarios que no se rigen por el sistema
+    de permisos por módulo (ese ya se evaluó antes en `role_checker`).
+    """
+    from app.core.rh_module_registry import is_modulos_rh_enrolled
+    from app.core.vista_rol_cache import vista_habilitada_para_rol
+    from app.core.vista_rol_registry import (
+        gate_api_amplia,
+        is_rol_configurable,
+        resolve_vista_from_api_path,
+    )
+
+    if not is_rol_configurable(rol_nombre) or is_modulos_rh_enrolled(current_user):
+        return False
+    vista_key = resolve_vista_from_api_path(path)
+    if vista_key is None:
+        return False
+    habilitado = await vista_habilitada_para_rol(db, rol_nombre, vista_key)
+    return gate_api_amplia(rol_nombre, vista_key, habilitado)
+
+
 def role_checker(roles_requeridos: list[str]):
     """Factory que retorna una dependency para verificar roles de API.
 
@@ -141,6 +166,10 @@ def role_checker(roles_requeridos: list[str]):
             return current_user
         module_key = resolve_module_from_api_path(request.url.path)
         if module_key and user_has_module(current_user, module_key):
+            return current_user
+        # Vista habilitada para el rol por el admin RH: abre endpoints que el rol
+        # base no tenía. El alcance de datos no cambia — lo sigue fijando el rol.
+        if await _vista_rol_permite(db, current_user, rol_nombre, request.url.path):
             return current_user
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

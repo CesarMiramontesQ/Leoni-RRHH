@@ -357,6 +357,88 @@ components:
           type: boolean
           description: true = otorgar admin, false = revocar admin
 
+    # ── Vistas por rol ────────────────────────────────
+    VistaRolCatalogItem:
+      type: object
+      required: [key, label, descripcion, grupo, ruta, activa, nav_item_ids, roles]
+      properties:
+        key:
+          type: string
+          description: Identificador único de la vista en el catálogo
+        label:
+          type: string
+          description: Nombre visible
+        descripcion:
+          type: string
+        grupo:
+          type: string
+          description: Agrupación en la pantalla de configuración
+        ruta:
+          type: string
+          description: Ruta (hash) principal de la vista en el frontend
+        activa:
+          type: boolean
+          description: Vista activa en el catálogo
+        nav_item_ids:
+          type: array
+          items:
+            type: string
+        roles:
+          type: array
+          description: Roles configurables (empleado, supervisor, gerente)
+          items:
+            type: string
+
+    VistaRolMeResponse:
+      type: object
+      required: [rol, configurable, vistas]
+      properties:
+        rol:
+          type: string
+        configurable:
+          type: boolean
+          description: false para admin RH y roles fuera del alcance; el gate no aplica
+        vistas:
+          type: object
+          additionalProperties:
+            type: boolean
+
+    VistaRolConfigResponse:
+      type: object
+      required: [roles, config]
+      properties:
+        roles:
+          type: array
+          items:
+            type: string
+        config:
+          type: object
+          description: Mapa rol -> (vista_key -> habilitado)
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: boolean
+
+    VistaRolCambio:
+      type: object
+      required: [rol, vista_key, habilitado]
+      properties:
+        rol:
+          type: string
+          enum: [empleado, supervisor, gerente]
+        vista_key:
+          type: string
+        habilitado:
+          type: boolean
+
+    VistaRolConfigUpdate:
+      type: object
+      properties:
+        cambios:
+          type: array
+          items:
+            $ref: "#/components/schemas/VistaRolCambio"
+
     # ── Empleados / Usuarios ──────────────────────────
     EmpleadoResponse:
       type: object
@@ -7720,6 +7802,108 @@ paths:
           description: Empleado no encontrado
         "409":
           description: No se puede revocar al último administrador
+
+  # ── Vistas por rol ──────────────────────────────────
+  /api/v1/vistas-rol/me:
+    get:
+      tags: [Vistas por rol]
+      summary: Vistas habilitadas para el rol del usuario autenticado
+      description: >-
+        Devuelve el mapa vista -> habilitado que aplica al usuario. `configurable` es
+        false para el admin RH y para los roles fuera del alcance (director, rh): en
+        ese caso todas las vistas vienen en true y el gate no aplica.
+      operationId: vistas_rol_me
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Vistas del rol
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VistaRolMeResponse"
+
+  /api/v1/vistas-rol/catalogo:
+    get:
+      tags: [Vistas por rol]
+      summary: Catálogo de vistas configurables
+      operationId: vistas_rol_catalogo
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Catálogo de vistas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VistaRolCatalogItem"
+        "403":
+          description: Requiere usuario admin
+
+  /api/v1/vistas-rol/config:
+    get:
+      tags: [Vistas por rol]
+      summary: Matriz completa de configuración (rol x vista)
+      operationId: vistas_rol_config_get
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Configuración actual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VistaRolConfigResponse"
+        "403":
+          description: Requiere usuario admin
+    put:
+      tags: [Vistas por rol]
+      summary: Aplicar cambios en la configuración de vistas por rol
+      description: >-
+        Aplica solo los pares (rol, vista) enviados; los no incluidos no se tocan.
+        Auditado como VISTAS_ROL_UPDATED. Los cambios aplican sin requerir re-login
+        (la configuración no viaja en el JWT), con hasta 30 s de propagación entre
+        procesos por el caché.
+      operationId: vistas_rol_config_update
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VistaRolConfigUpdate"
+      responses:
+        "200":
+          description: Configuración actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VistaRolConfigResponse"
+        "400":
+          description: Clave de vista desconocida o rol no configurable
+        "403":
+          description: Requiere usuario admin
+
+  /api/v1/vistas-rol/config/restaurar:
+    post:
+      tags: [Vistas por rol]
+      summary: Restaurar la configuración inicial
+      description: Vuelve al acceso que cada rol tenía de origen. Auditado.
+      operationId: vistas_rol_config_restaurar
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Configuración restaurada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VistaRolConfigResponse"
+        "403":
+          description: Requiere usuario admin
 
   # ── Usuarios ────────────────────────────────────────
   /api/v1/usuarios/roles:

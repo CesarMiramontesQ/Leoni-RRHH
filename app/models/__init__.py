@@ -139,6 +139,7 @@ from app.models.ciclo_desempeno import (
     CicloDesempeno,
     CicloDesempenoResultado,
 )
+from app.models.vistas_rol import VistaRol
 
 __all__ = [
     "Rol",
@@ -269,4 +270,5 @@ __all__ = [
     "MetaCheckin",
     "CicloDesempeno",
     "CicloDesempenoResultado",
+    "VistaRol",
 ]

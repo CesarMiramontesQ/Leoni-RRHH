@@ -22,6 +22,7 @@ from sqlalchemy import func, select
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
+from app.utils.seed_vistas_rol import ensure_vistas_rol_defaults
 from app.models.catalogos import (
     Area,
     Categoria,
@@ -593,6 +594,9 @@ async def seed() -> None:
 
             logger.info("Seeding administradores de permisos RH...")
             await seed_rh_permisos_admins(db)
+
+            logger.info("Seeding configuración de vistas por rol...")
+            await ensure_vistas_rol_defaults(db)
 
             if settings.APP_ENV == "production":
                 logger.info("Seeding Level Up omitido (producción)")

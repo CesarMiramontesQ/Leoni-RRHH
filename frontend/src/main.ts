@@ -1,6 +1,7 @@
 import "./style.css";
 import { refreshAccessTokenSession } from "./api/http.ts";
 import { loadRhModulePermissions } from "./auth/rhModulePermissions.ts";
+import { loadVistasRol } from "./auth/vistaRolPermissions.ts";
 import { getAccessToken, getRefreshToken } from "./auth/session.ts";
 import { resolveRhInitialHash } from "./navigation/shellNavPolicy.ts";
 import { mountLogin } from "./pages/login.ts";
@@ -14,7 +15,7 @@ async function bootstrap(): Promise<void> {
   }
   if (getAccessToken()) {
     void refreshNotificacionesResumen();
-    await loadRhModulePermissions();
+    await Promise.all([loadRhModulePermissions(), loadVistasRol()]);
     const initialHash = resolveRhInitialHash();
     if (initialHash !== (window.location.hash || "#/")) {
       history.replaceState(null, "", initialHash);
