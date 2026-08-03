@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     )
     from app.models.roles import Rol
     from app.models.turnos_empleados import TurnoEmpleado
-    from app.models.vacaciones import Vacaciones
     from app.models.catalogos import (
         Area,
         Categoria,
@@ -156,11 +155,6 @@ class Empleado(Base):
         primaryjoin="cast(Empleado.no_empleado, String) == TurnoEmpleado.no_empleado",
         foreign_keys="TurnoEmpleado.no_empleado",
         viewonly=True,
-    )
-    vacaciones: Mapped[Optional["Vacaciones"]] = relationship(
-        "Vacaciones",
-        back_populates="empleado",
-        uselist=False,
     )
 
     # ── Propiedades de compatibilidad (datos del proyecto en levelup_empleados_*) ──

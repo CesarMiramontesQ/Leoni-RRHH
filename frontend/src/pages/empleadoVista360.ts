@@ -660,11 +660,14 @@ function renderVista360Content(
       </div>
     </div>`;
 
+  // El saldo sale de nómina (TRESS); "—" cuando datos-analisis no responde.
   const beneficiosInner = `
     <div class="max-w-md rounded-2xl border border-border/80 bg-white p-6 shadow-sm">
       <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500/90">Saldo de vacaciones</p>
-      <p class="mt-2 text-3xl font-bold tabular-nums text-leoni-blue">${escapeHtml(String(data.saldo_vacaciones))}</p>
-      <p class="mt-2 text-sm text-text-muted">Días (según registro en sistema; integración TRESS pendiente).</p>
+      <p class="mt-2 text-3xl font-bold tabular-nums text-leoni-blue">${
+        saldoVacacionesReal === null ? "—" : escapeHtml(String(saldoVacacionesReal))
+      }</p>
+      <p class="mt-2 text-sm text-text-muted">Días disponibles según nómina (TRESS).</p>
     </div>`;
 
   const capacidadesInner = renderCapacidadesPanel();

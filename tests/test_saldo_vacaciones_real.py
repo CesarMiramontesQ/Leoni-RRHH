@@ -38,8 +38,8 @@ def mock_saldo_tress(monkeypatch):
 @pytest.mark.asyncio
 async def test_saldo_real_happy_path(client: AsyncClient, db, mock_saldo_tress):
     mock_saldo_tress(15.5)
-    rh = await make_empleado(db, rol="rh", email="saldo-rh@test", dias_vacaciones=None)
-    emp = await make_empleado(db, rol="empleado", email="saldo-emp@test", dias_vacaciones=0)
+    rh = await make_empleado(db, rol="rh", email="saldo-rh@test")
+    emp = await make_empleado(db, rol="empleado", email="saldo-emp@test")
     headers = await auth_headers(client, rh)
 
     res = await client.get(
@@ -57,8 +57,8 @@ async def test_saldo_real_happy_path(client: AsyncClient, db, mock_saldo_tress):
 async def test_saldo_real_sin_periodos_devuelve_cero(client: AsyncClient, db, mock_saldo_tress):
     # ISNULL(SUM,0) en el SQL => un empleado sin periodos da 0 (no None).
     mock_saldo_tress(0.0)
-    rh = await make_empleado(db, rol="rh", email="saldo-cero-rh@test", dias_vacaciones=None)
-    emp = await make_empleado(db, rol="empleado", email="saldo-cero-emp@test", dias_vacaciones=0)
+    rh = await make_empleado(db, rol="rh", email="saldo-cero-rh@test")
+    emp = await make_empleado(db, rol="empleado", email="saldo-cero-emp@test")
     headers = await auth_headers(client, rh)
 
     res = await client.get(
@@ -71,7 +71,7 @@ async def test_saldo_real_sin_periodos_devuelve_cero(client: AsyncClient, db, mo
 
 @pytest.mark.asyncio
 async def test_saldo_real_empleado_inexistente_404(client: AsyncClient, db):
-    rh = await make_empleado(db, rol="rh", email="saldo-404-rh@test", dias_vacaciones=None)
+    rh = await make_empleado(db, rol="rh", email="saldo-404-rh@test")
     headers = await auth_headers(client, rh)
 
     res = await client.get(
@@ -83,8 +83,8 @@ async def test_saldo_real_empleado_inexistente_404(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_saldo_real_sin_permiso_403(client: AsyncClient, db):
-    emp_a = await make_empleado(db, rol="empleado", email="saldo-a@test", dias_vacaciones=0)
-    emp_b = await make_empleado(db, rol="empleado", email="saldo-b@test", dias_vacaciones=0)
+    emp_a = await make_empleado(db, rol="empleado", email="saldo-a@test")
+    emp_b = await make_empleado(db, rol="empleado", email="saldo-b@test")
     headers = await auth_headers(client, emp_a)
 
     res = await client.get(

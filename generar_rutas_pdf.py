@@ -61,7 +61,7 @@ ROUTES = [
         ("GET",    "/api/v1/usuarios/{id}",                       "Panel RH → Detalle del usuario",                 "rh",         "Ficha completa del empleado."),
         ("PUT",    "/api/v1/usuarios/{id}",                       "Panel RH → Formulario «Editar usuario»",         "rh",         "Solo RH puede modificar datos."),
         ("DELETE", "/api/v1/usuarios/{id}",                       "Panel RH → Botón «Desactivar usuario»",          "rh",         "Soft delete. Cancela solicitudes PENDING activas."),
-        ("GET",    "/api/v1/usuarios/{id}/vista360",              "Vista 360° del empleado (perfil extendido)",     "rh/gerente", "Solicitudes, incidencias, actas y saldo de vacaciones."),
+        ("GET",    "/api/v1/usuarios/{id}/vista360",              "Vista 360° del empleado (perfil extendido)",     "rh/gerente", "Solicitudes, incidencias y actas."),
         ("GET",    "/api/v1/usuarios/{id}/metricas",              "Panel RH → Tarjetas de métricas del empleado",   "rh",         "KPIs individuales: antigüedad, rotación, actas totales."),
     ]),
 

@@ -40,8 +40,8 @@ def mock_fecha_ingreso(monkeypatch):
 @pytest.mark.asyncio
 async def test_vista360_incluye_fecha_ingreso(client: AsyncClient, db, mock_fecha_ingreso):
     mock_fecha_ingreso(date(2019, 3, 15))
-    rh = await make_empleado(db, rol="rh", email="fi-rh@test", dias_vacaciones=None)
-    emp = await make_empleado(db, rol="empleado", email="fi-emp@test", dias_vacaciones=0)
+    rh = await make_empleado(db, rol="rh", email="fi-rh@test")
+    emp = await make_empleado(db, rol="empleado", email="fi-emp@test")
     headers = await auth_headers(client, rh)
 
     res = await client.get(f"/api/v1/empleados/{emp.id}/vista360", headers=headers)
@@ -52,8 +52,8 @@ async def test_vista360_incluye_fecha_ingreso(client: AsyncClient, db, mock_fech
 @pytest.mark.asyncio
 async def test_vista360_fecha_ingreso_null_sin_bd_externa(client: AsyncClient, db):
     # Sin datos-analisis configurada, el helper devuelve None y el endpoint sigue 200.
-    rh = await make_empleado(db, rol="rh", email="fi-null-rh@test", dias_vacaciones=None)
-    emp = await make_empleado(db, rol="empleado", email="fi-null-emp@test", dias_vacaciones=0)
+    rh = await make_empleado(db, rol="rh", email="fi-null-rh@test")
+    emp = await make_empleado(db, rol="empleado", email="fi-null-emp@test")
     headers = await auth_headers(client, rh)
 
     res = await client.get(f"/api/v1/empleados/{emp.id}/vista360", headers=headers)

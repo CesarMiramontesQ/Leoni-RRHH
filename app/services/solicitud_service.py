@@ -62,7 +62,6 @@ from app.repositories.solicitud_repository import (
     SolicitudAprobacionRepository,
     SolicitudRepository,
 )
-from app.repositories.vacaciones_repository import VacacionesRepository
 from app.schemas import PaginatedResponse
 from app.schemas.solicitudes import (
     ESTADO_SOLICITUD_APROBADA,
@@ -343,7 +342,6 @@ class SolicitudService:
         self.aprobacion_repo = SolicitudAprobacionRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
         self.comedor_acceso_repo = ComedorAccesoRepository(db)
-        self.vacaciones_repo = VacacionesRepository(db)
         self.db = db
 
     async def _empleado_en_subarbol_gerente(

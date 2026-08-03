@@ -55,7 +55,6 @@ import app.models.talento  # noqa: F401
 import app.models.level_up  # noqa: F401
 import app.models.cursos_catalogo  # noqa: F401
 import app.models.proveedores_externos  # noqa: F401
-import app.models.vacaciones  # noqa: F401
 import app.models.turnos_empleados  # noqa: F401
 import app.models.evaluacion360  # noqa: F401  (incluye plantillas)
 import app.models.encuestas_rh  # noqa: F401
@@ -259,7 +258,6 @@ async def make_empleado(
     estado_id: int = 1,
     clasificacion_id: int | None = None,
     fecha_fin_contrato: date | None = None,
-    dias_vacaciones: int | None = 30,
     puede_administrar_permisos_rh: bool = False,
     puede_registrar_horas_extra: bool = False,
     modulos_rh: dict | None = None,
@@ -331,14 +329,6 @@ async def make_empleado(
     empleado.rh_config = config
     empleado.rh_permisos = permisos
     core.rol = rol_obj
-
-    if dias_vacaciones is not None:
-        from app.models.vacaciones_disponibles import VacacionesDisponibles
-
-        db.add(
-            VacacionesDisponibles(no_empleado=empleado.no_empleado, dias=dias_vacaciones)
-        )
-        await db.flush()
 
     return empleado
 
