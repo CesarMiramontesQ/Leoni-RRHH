@@ -58,7 +58,7 @@ function personalToEmpleadoPayload(p: LiderPersonalStats): EmpleadoDashboardPayl
   return {
     vacation_available_days: p.vacation_available_days,
     vacation_used_days: p.vacation_used_days,
-    home_office_this_month: p.home_office_this_month,
+    home_office_dias_anio: p.home_office_dias_anio,
     pending_requests: p.pending_requests,
     pending_request_types: p.pending_request_types,
     calendar: stub.calendar,

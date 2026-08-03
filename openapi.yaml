@@ -357,6 +357,42 @@ components:
           type: boolean
           description: true = otorgar admin, false = revocar admin
 
+    # ── Dashboard (KPIs de nómina) ────────────────────
+    DashboardKpisResponse:
+      type: object
+      required: [disponible, anio]
+      properties:
+        disponible:
+          type: boolean
+          description: false si datos-analisis no está configurada o no respondió
+        vacaciones_disponibles:
+          type: number
+          nullable: true
+          description: Suma de días de gozo pendientes de todos los aniversarios
+        vacaciones_tomadas_ciclo:
+          type: number
+          nullable: true
+          description: Días ya gozados del aniversario vigente
+        vacaciones_derecho_ciclo:
+          type: number
+          nullable: true
+          description: Días que corresponden en el aniversario vigente
+        ciclo_aniversario:
+          type: integer
+          nullable: true
+          description: Número de aniversario vigente en TRESS
+        ciclo_vence:
+          type: string
+          format: date
+          nullable: true
+        home_office_dias_anio:
+          type: integer
+          nullable: true
+          description: Días de home office registrados en el año en curso
+        anio:
+          type: integer
+          description: Año al que corresponde el KPI de home office
+
     # ── Vistas por rol ────────────────────────────────
     VistaRolCatalogItem:
       type: object
@@ -7802,6 +7838,30 @@ paths:
           description: Empleado no encontrado
         "409":
           description: No se puede revocar al último administrador
+
+  # ── Dashboard (KPIs de nómina) ──────────────────────
+  /api/v1/dashboard/mis-kpis:
+    get:
+      tags: [Dashboard]
+      summary: KPIs de vacaciones y home office del usuario autenticado
+      description: >-
+        Vacaciones (disponibles y tomadas del ciclo vigente) y días de home office del año
+        en curso, leídos de DATOS_ANALISIS (TRESS). Autoservicio: siempre son los del
+        usuario autenticado, no recibe empleado_id. Responde 200 aunque la BD externa no
+        esté disponible; en ese caso `disponible` es false y los valores vienen en null,
+        para que el dashboard cargue igual y la UI muestre un guion en vez de un cero.
+      operationId: dashboard_mis_kpis
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: KPIs personales (o payload degradado si TRESS no responde)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardKpisResponse"
+        "401":
+          description: No autenticado
 
   # ── Vistas por rol ──────────────────────────────────
   /api/v1/vistas-rol/me:

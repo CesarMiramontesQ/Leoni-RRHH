@@ -51,7 +51,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
         group="General",
         nav_item_ids=("dashboard",),
         hash_prefixes=("#/",),
-        api_prefixes=("/api/v1/bono-productividad",),
+        api_prefixes=("/api/v1/bono-productividad", "/api/v1/dashboard"),
     ),
     "organigrama": RhModuleDef(
         key="organigrama",
@@ -461,6 +461,9 @@ RH_SELF_SERVICE_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/comedor/accesos/primera-fecha-permitida",
     "/api/v1/comedor/registro",
     "/api/v1/bono-productividad",
+    # KPIs propios del dashboard (vacaciones y home office desde TRESS): uso personal,
+    # siempre del usuario autenticado.
+    "/api/v1/dashboard/mis-kpis",
     # Evaluacion 360: responder evaluaciones es self-service (cualquier evaluador).
     "/api/v1/evaluacion-360/mis-evaluaciones",
     "/api/v1/evaluacion-360/evaluaciones",

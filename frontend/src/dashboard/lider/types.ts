@@ -5,7 +5,7 @@ import type { EmpleadoPendingRequestType } from "../empleado/types.ts";
 export type LiderPersonalStats = {
   vacation_available_days: number | null;
   vacation_used_days: number | null;
-  home_office_this_month: number | null;
+  home_office_dias_anio: number | null;
   pending_requests: number | null;
   pending_request_types: EmpleadoPendingRequestType[];
 };
