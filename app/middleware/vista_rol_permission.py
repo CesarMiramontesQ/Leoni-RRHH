@@ -22,6 +22,7 @@ from app.core.vista_rol_registry import (
     VISTAS_ROL,
     gate_api_bloquea,
     is_rol_configurable,
+    rol_configurable_para_modo,
     resolve_vista_from_api_path,
 )
 
@@ -56,17 +57,24 @@ class VistaRolPermissionMiddleware(BaseHTTPMiddleware):
         if payload is None or payload.get("type") != "access":
             return await call_next(request)
 
-        # El admin RH conserva acceso a todo, incluida la administración de vistas.
-        if payload.get("rh_admin"):
-            return await call_next(request)
-
         rol = payload.get("rol")
-        if not is_rol_configurable(rol):
-            return await call_next(request)
 
-        # Un usuario inscrito en permisos por módulo se rige por ese sistema.
-        if payload.get("rh_enrolled") or isinstance(payload.get("rh_modulos"), dict):
-            return await call_next(request)
+        if payload.get("rh_admin"):
+            # En Modo RH el admin conserva acceso a todo; al simular otro perfil con el
+            # toggle se le aplica la configuración de ESE rol, para que vea lo mismo que
+            # quien lo tiene. La administración de vistas nunca está en el catálogo, así
+            # que no puede encerrarse fuera de ella.
+            rol_simulado = rol_configurable_para_modo(request.headers.get("X-RH-UI-Mode"))
+            if rol_simulado is None:
+                return await call_next(request)
+            rol = rol_simulado
+        else:
+            if not is_rol_configurable(rol):
+                return await call_next(request)
+
+            # Un usuario inscrito en permisos por módulo se rige por ese sistema.
+            if payload.get("rh_enrolled") or isinstance(payload.get("rh_modulos"), dict):
+                return await call_next(request)
 
         config = await get_config_con_sesion_propia()
         habilitado = vista_habilitada_en(config, rol, vista_key)

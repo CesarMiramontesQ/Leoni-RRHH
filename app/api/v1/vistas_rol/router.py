@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_admin_user
+from app.core.dependencies import get_current_user, get_rh_ui_mode, require_admin_user
 from app.models.empleados import Empleado
 from app.repositories.vistas_rol_repository import VistasRolRepository
 from app.schemas.vistas_rol import (
@@ -31,10 +31,15 @@ def _svc(repo: VistasRolRepository = Depends(_repo)) -> VistasRolService:
 @router.get("/me", response_model=VistaRolMeResponse)
 async def get_mis_vistas(
     current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: VistasRolService = Depends(_svc),
 ):
-    """Vistas habilitadas para el rol del usuario autenticado."""
-    return await svc.get_me(current_user)
+    """Vistas habilitadas para el rol del usuario autenticado.
+
+    Para un admin RH depende del modo activo (`X-RH-UI-Mode`): exento en Modo RH,
+    sujeto a la configuración del rol que simula en los demás modos.
+    """
+    return await svc.get_me(current_user, rh_ui_mode=rh_ui_mode)
 
 
 @router.get("/catalogo", response_model=list[VistaRolCatalogItem])

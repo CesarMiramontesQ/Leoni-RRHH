@@ -431,13 +431,28 @@ components:
       properties:
         rol:
           type: string
+          description: >-
+            Rol cuya configuración aplica. Para un admin RH que simula otro perfil con
+            el toggle, es el rol simulado (no el suyo).
         configurable:
           type: boolean
-          description: false para admin RH y roles fuera del alcance; el gate no aplica
+          description: >-
+            false cuando el gate no aplica - admin RH en Modo RH, o rol fuera del
+            alcance (director, rh).
         vistas:
           type: object
           additionalProperties:
             type: boolean
+        por_rol:
+          type: object
+          nullable: true
+          description: >-
+            Matriz rol -> vistas. Solo se envía a admins RH, para que alternar el modo
+            de UI aplique la configuración del rol simulado sin otra petición.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: boolean
 
     VistaRolConfigResponse:
       type: object
@@ -7840,9 +7855,11 @@ paths:
       tags: [Vistas por rol]
       summary: Vistas habilitadas para el rol del usuario autenticado
       description: >-
-        Devuelve el mapa vista -> habilitado que aplica al usuario. `configurable` es
-        false para el admin RH y para los roles fuera del alcance (director, rh): en
-        ese caso todas las vistas vienen en true y el gate no aplica.
+        Devuelve el mapa vista -> habilitado que aplica al usuario. Un admin RH está
+        exento solo en Modo RH; si simula empleado/líder/gerente con el toggle
+        (cabecera X-RH-UI-Mode) recibe la configuración de ese rol, más la matriz
+        completa en `por_rol`. Para roles fuera del alcance (director, rh) todas las
+        vistas vienen en true y el gate no aplica.
       operationId: vistas_rol_me
       security:
         - BearerAuth: []

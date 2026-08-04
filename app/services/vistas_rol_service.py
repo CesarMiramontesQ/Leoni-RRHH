@@ -8,6 +8,7 @@ from app.core.vista_rol_registry import (
     catalogo_para_api,
     defaults_por_rol,
     is_rol_configurable,
+    rol_configurable_para_modo,
     validate_roles,
     validate_vista_keys,
 )
@@ -51,15 +52,36 @@ class VistasRolService:
             roles=list(ROLES_CONFIGURABLES), config=await self._config_actual()
         )
 
-    async def get_me(self, current_user: Empleado) -> VistaRolMeResponse:
-        """Vistas del rol del usuario. Admin y roles no configurables las ven todas."""
+    async def get_me(
+        self, current_user: Empleado, rh_ui_mode: str | None = None
+    ) -> VistaRolMeResponse:
+        """Vistas del rol del usuario.
+
+        El admin RH está exento **solo en Modo RH**: al simular empleado/líder/gerente con
+        el toggle, se le aplica la configuración de ese rol para que vea exactamente lo que
+        ve quien lo tiene. Se le envía además la matriz completa (`por_rol`) para que
+        cambiar de modo no requiera otra petición.
+        """
         rol = current_user.rol.nombre if current_user.rol else "empleado"
-        if is_admin_user(current_user) or not is_rol_configurable(rol):
+        todas = {key: True for key in all_vista_keys()}
+
+        if is_admin_user(current_user):
+            config = await self._config_actual()
+            rol_simulado = rol_configurable_para_modo(rh_ui_mode)
+            if rol_simulado is None:
+                return VistaRolMeResponse(
+                    rol=rol, configurable=False, vistas=todas, por_rol=config
+                )
             return VistaRolMeResponse(
-                rol=rol,
-                configurable=False,
-                vistas={key: True for key in all_vista_keys()},
+                rol=rol_simulado,
+                configurable=True,
+                vistas=config[rol_simulado],
+                por_rol=config,
             )
+
+        if not is_rol_configurable(rol):
+            return VistaRolMeResponse(rol=rol, configurable=False, vistas=todas)
+
         config = await self._config_actual()
         return VistaRolMeResponse(rol=rol, configurable=True, vistas=config[rol])
 
