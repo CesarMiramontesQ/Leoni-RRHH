@@ -46,9 +46,12 @@ vi.mock("../auth/rhModulePermissions.ts", () => ({
   isModulosRhEnrolled: () => false,
 }));
 
+let puedeAprobarHoras = false;
+let puedeRegistrarHoras = false;
+
 vi.mock("../auth/payrollPermissions.ts", () => ({
-  canApproveOvertime: () => false,
-  canRegisterOvertime: () => false,
+  canApproveOvertime: () => puedeAprobarHoras,
+  canRegisterOvertime: () => puedeRegistrarHoras,
 }));
 
 /** `undefined` = el gate no aplica (se devuelve null). */
@@ -65,6 +68,8 @@ describe("shellNavPolicy — gate de vistas por rol", () => {
     storage.clear();
     vistasPorNavItem.clear();
     vistasPorHash.clear();
+    puedeAprobarHoras = false;
+    puedeRegistrarHoras = false;
     jwtRol = "empleado";
     vi.resetModules();
   });
@@ -102,6 +107,22 @@ describe("shellNavPolicy — gate de vistas por rol", () => {
     vistasPorNavItem.set("horas-extra-solicitud", true);
     vistasPorNavItem.set("horas-extra-aprobaciones", true);
     expect(isShellNavItemVisibleForRol("empleado", "horas-extra-solicitud")).toBe(false);
+    expect(isShellNavItemVisibleForRol("empleado", "horas-extra-aprobaciones")).toBe(false);
+  });
+
+  it("no bloquea las rutas de horas extra: manda la Regla B", async () => {
+    const { resolveRoutedHashForRol, isShellNavItemVisibleForRol } = await import(
+      "./shellNavPolicy.ts"
+    );
+    const RUTA = "#/nominas/horas-extra/aprobaciones";
+    // El registro real devuelve null para esta ruta (Regla B), como el mock aquí.
+    puedeAprobarHoras = true;
+    expect(resolveRoutedHashForRol("empleado", RUTA, { enrolledNonRh: false })).toBe(RUTA);
+    expect(isShellNavItemVisibleForRol("empleado", "horas-extra-aprobaciones")).toBe(true);
+
+    // Y sin la autorización de nómina sigue sin poder, como antes.
+    puedeAprobarHoras = false;
+    expect(resolveRoutedHashForRol("empleado", RUTA, { enrolledNonRh: false })).toBe("#/");
     expect(isShellNavItemVisibleForRol("empleado", "horas-extra-aprobaciones")).toBe(false);
   });
 

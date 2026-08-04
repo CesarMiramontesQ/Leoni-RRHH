@@ -91,6 +91,16 @@ describe("vistaRolRegistry", () => {
     expect(resolveVistaFromHash("#/talento/mis-metas?ciclo=2")).toBe("mis-metas");
   });
 
+  it("deja fuera del gate las rutas de horas extra (Regla B)", () => {
+    // Regresión: `#/nominas/horas-extra/aprobaciones` cae bajo el prefijo de la vista
+    // «Horas Extra» —apagada de fábrica—, así que el gate la bloqueaba y un empleado
+    // designado aprobador veía "Acceso no autorizado".
+    expect(resolveVistaFromHash("#/nominas/horas-extra/aprobaciones")).toBeNull();
+    expect(resolveVistaFromHash("#/horas-extra/solicitud")).toBeNull();
+    // La pantalla de gestión sí sigue siendo configurable.
+    expect(resolveVistaFromHash("#/nominas/horas-extra")).toBe("nominas-horas-extra");
+  });
+
   it("devuelve null para rutas fuera del catálogo", () => {
     expect(resolveVistaFromHash("#/notificaciones")).toBeNull();
     expect(resolveVistaFromHash("#/ajustes/permisos-rh")).toBeNull();

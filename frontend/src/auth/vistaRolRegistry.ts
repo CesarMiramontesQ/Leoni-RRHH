@@ -72,6 +72,19 @@ const NAV_ITEM_RULES: Readonly<Record<string, string>> = {
   "cursos-vencimientos": "cursos-vencimientos",
 };
 
+/**
+ * Regla B: registrar y aprobar horas extra dependen ÚNICAMENTE de los claims de nómina
+ * (`he_autorizado` / `he_aprobador`), nunca del rol ni de un permiso de módulo. Sus ítems
+ * ya están fuera de NAV_ITEM_RULES, pero sus rutas caen bajo el prefijo
+ * `#/nominas/horas-extra` de la vista «Horas Extra» —apagada de fábrica para los roles
+ * base—, así que sin esta exención el gate las bloqueaba antes de que la Regla B pudiera
+ * decidir: un empleado designado aprobador veía "Acceso no autorizado".
+ */
+const HASH_EXENTOS_REGLA_B: readonly string[] = [
+  "#/horas-extra/solicitud",
+  "#/nominas/horas-extra/aprobaciones",
+];
+
 /** Ruta hash → vista. Gana el prefijo más largo (igual que el backend). */
 const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "organigrama", prefix: "#/organigrama" },
@@ -133,6 +146,7 @@ export function resolveVistaFromHash(hashValue: string): string | null {
   // como `#/operaciones?area_id=3` no casaría con ningún prefijo y saltaría la compuerta.
   const h = hashSinQuery((hashValue || "#/").trim());
   if (h === "" || h === "#" || h === "#/") return "dashboard";
+  if (HASH_EXENTOS_REGLA_B.some((prefix) => h.startsWith(prefix))) return null;
   for (const rule of HASH_RULES) {
     if (h === rule.prefix || h.startsWith(`${rule.prefix}/`) || h.startsWith(rule.prefix)) {
       return rule.key;
