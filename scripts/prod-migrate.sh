@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Tras git pull (branch prod-v2.0): reconstruye backend e aplica migraciones Alembic.
+# Tras git pull: reconstruye el backend y aplica migraciones Alembic.
+#
+# Reconstruye SOLO el backend. Si el release toca el frontend, ejecuta ademas
+# ./scripts/prod-build-frontend.sh o el navegador seguira sirviendo el bundle viejo.
 #
 # Uso en el servidor:
 #   cd /levelup/Leoni-RRHH
-#   git pull origin prod-v2.0
+#   git pull origin main
 #   ./scripts/prod-migrate.sh
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d
 #
@@ -41,7 +44,7 @@ if [[ -z "$CURRENT_REV" ]]; then
   exec "$(dirname "$0")/bono-first-migrate.sh"
 fi
 
-# Prod v1.0 dejó alembic_version en n3; prod-v2.0 continúa desde f36fc (merge vacío equivalente).
+# Prod v1.0 dejó alembic_version en n3; la cadena actual continúa desde f36fc (merge vacío equivalente).
 if [[ "$CURRENT_REV" == "n3o4p5q6r7s8" ]]; then
   echo "=== Prod v1.0 detectado (n3): stamp a f36fc5feb45e antes de upgrade ==="
   alembic_run stamp f36fc5feb45e
