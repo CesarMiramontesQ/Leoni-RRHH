@@ -1,4 +1,4 @@
-# Producción V2.0 (branch prod-v2.0): código de main + infra de prod v1.0.
+# Producción: se despliega desde `main` (o un tag de release). Ver docs/DEPLOY.md.
 # BD única = Bono (PostgreSQL externo del cliente); sin contenedor de BD en Docker.
 #
 # Proyecto Compose: leoni-rh-prod (aislado de leoni-rh-dev).
@@ -6,6 +6,8 @@
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d
 # Tras git pull con cambios en backend/alembic:
 #   ./scripts/prod-migrate.sh
+# Si cambió el frontend:
+#   ./scripts/prod-build-frontend.sh
 name: leoni-rh-prod
 
 services:
