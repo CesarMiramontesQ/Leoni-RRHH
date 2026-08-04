@@ -394,9 +394,22 @@ _VISTAS: tuple[VistaRolDef, ...] = (
 VISTAS_ROL: dict[str, VistaRolDef] = {v.key: v for v in _VISTAS}
 
 
-# Rutas que nunca se evalúan: infraestructura y la propia administración de vistas.
+# Rutas que nunca se evalúan: infraestructura, la propia administración de vistas y las
+# de horas extra (Regla B, ver abajo).
 VISTA_ROL_EXEMPT_API_PREFIXES: tuple[str, ...] = RH_MODULE_EXEMPT_API_PREFIXES + (
     "/api/v1/vistas-rol",
+    "/api/v1/horas-extra",
+)
+
+# Regla B: registrar y aprobar horas extra dependen ÚNICAMENTE de la autorización
+# explícita de nómina (claims `he_autorizado` / `he_aprobador`), nunca del rol ni de un
+# permiso de módulo. Sus ítems de menú ya están fuera del catálogo, pero sus RUTAS caen
+# bajo el prefijo `#/nominas/horas-extra` de la vista «Horas Extra» —apagada de fábrica
+# para los roles base—, así que el gate las bloqueaba antes de que la Regla B pudiera
+# decidir: un empleado designado aprobador veía "Acceso no autorizado".
+HASH_EXENTOS_REGLA_B: tuple[str, ...] = (
+    "#/horas-extra/solicitud",
+    "#/nominas/horas-extra/aprobaciones",
 )
 
 
@@ -460,6 +473,9 @@ def resolve_vista_from_hash(hash_value: str) -> str | None:
     h = (hash_value or "#/").strip()
     if h in ("", "#", "#/"):
         return "dashboard"
+
+    if any(h.startswith(prefix) for prefix in HASH_EXENTOS_REGLA_B):
+        return None
 
     best_key: str | None = None
     best_len = -1

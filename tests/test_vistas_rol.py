@@ -129,6 +129,27 @@ def test_rutas_exentas_no_resuelven_a_vista():
         assert resolve_vista_from_api_path(path) is None, path
 
 
+def test_horas_extra_queda_fuera_del_gate_regla_b():
+    """Registrar y aprobar horas extra dependen solo de los claims de nómina.
+
+    Regresión: `#/nominas/horas-extra/aprobaciones` cae bajo el prefijo de la vista
+    «Horas Extra» —apagada de fábrica—, así que el gate la bloqueaba y un empleado
+    designado aprobador veía "Acceso no autorizado".
+    """
+    assert resolve_vista_from_hash("#/nominas/horas-extra/aprobaciones") is None
+    assert resolve_vista_from_hash("#/horas-extra/solicitud") is None
+    # La pantalla de gestión de Horas Extra sí sigue siendo configurable.
+    assert resolve_vista_from_hash("#/nominas/horas-extra") == "nominas-horas-extra"
+
+    assert resolve_vista_from_api_path("/api/v1/horas-extra") is None
+    assert resolve_vista_from_api_path("/api/v1/nominas/horas-extra/aprobaciones") is None
+    assert resolve_vista_from_api_path("/api/v1/nominas/horas-extra") == "nominas-horas-extra"
+
+    # Los dos ítems de menú tampoco están en el catálogo.
+    assert nav_item_to_vista_key("horas-extra-solicitud") is None
+    assert nav_item_to_vista_key("horas-extra-aprobaciones") is None
+
+
 def test_resolve_vista_from_hash_y_nav_item():
     assert resolve_vista_from_hash("#/") == "dashboard"
     assert resolve_vista_from_hash("#/comedor") == "comedor"
