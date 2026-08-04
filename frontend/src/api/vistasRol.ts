@@ -17,6 +17,8 @@ export type VistaRolMeResponse = {
   rol: string;
   configurable: boolean;
   vistas: Record<string, boolean>;
+  /** Matriz rol → vistas. Solo llega a admins RH, para resolver el modo simulado. */
+  por_rol?: Record<string, Record<string, boolean>> | null;
 };
 
 export type VistaRolConfigResponse = {

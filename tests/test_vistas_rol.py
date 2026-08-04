@@ -54,9 +54,11 @@ async def _sembrar_defaults(db) -> None:
     vista_rol_cache.invalidate()
 
 
-async def _make_admin(db, email: str):
+async def _make_admin(db, email: str, rol: str = "supervisor"):
+    """Admin RH. `rol` importa: `validate_rh_ui_mode_for_user` solo deja simular el
+    modo que corresponde al rol operativo (gerente→`gerente`, supervisor→`lider`)."""
     return await make_empleado(
-        db, rol="supervisor", email=email, puede_administrar_permisos_rh=True
+        db, rol=rol, email=email, puede_administrar_permisos_rh=True
     )
 
 
@@ -522,3 +524,131 @@ async def test_seed_es_idempotente_y_no_pisa_lo_configurado(client: AsyncClient,
         )
     ).scalar_one()
     assert sigue is True
+
+
+# ─────────────────── admin RH y modo de UI simulado ───────────────────
+
+
+@pytest.mark.asyncio
+async def test_admin_en_modo_rh_ve_todas_las_vistas(client: AsyncClient, db):
+    """Sin header o en `operativo` el admin está exento: es su vista de trabajo."""
+    admin = await _make_admin(db, "admin_modo_rh@test.com")
+    await _sembrar_defaults(db)
+    headers = await auth_headers(client, admin)
+
+    for extra in ({}, {"X-RH-UI-Mode": "operativo"}):
+        body = (await client.get("/api/v1/vistas-rol/me", headers={**headers, **extra})).json()
+        assert body["configurable"] is False, extra
+        assert all(body["vistas"].values()), extra
+
+
+@pytest.mark.asyncio
+async def test_admin_en_modo_simulado_recibe_las_vistas_de_ese_rol(client: AsyncClient, db):
+    """El toggle debe mostrarle lo que ve el rol simulado, o no puede comprobar su
+    propia configuración."""
+    admin_ger = await _make_admin(db, "admin_modo_ger@test.com", rol="gerente")
+    admin_sup = await _make_admin(db, "admin_modo_sup@test.com", rol="supervisor")
+    await _sembrar_defaults(db)
+    h_ger = await auth_headers(client, admin_ger)
+    h_sup = await auth_headers(client, admin_sup)
+
+    await _configurar(
+        client, h_ger,
+        [{"rol": "gerente", "vista_key": "metricas", "habilitado": False}],
+    )
+
+    body = (
+        await client.get(
+            "/api/v1/vistas-rol/me", headers={**h_ger, "X-RH-UI-Mode": "gerente"}
+        )
+    ).json()
+    assert body["rol"] == "gerente"
+    assert body["configurable"] is True
+    assert body["vistas"]["metricas"] is False
+
+    # `lider` mapea al rol supervisor, que no se tocó.
+    body = (
+        await client.get(
+            "/api/v1/vistas-rol/me", headers={**h_sup, "X-RH-UI-Mode": "lider"}
+        )
+    ).json()
+    assert body["rol"] == "supervisor"
+    assert body["vistas"]["metricas"] is True
+
+
+@pytest.mark.asyncio
+async def test_me_de_admin_incluye_la_matriz_para_el_toggle(client: AsyncClient, db):
+    """`por_rol` evita una petición nueva cada vez que se alterna el modo."""
+    admin = await _make_admin(db, "admin_matriz@test.com")
+    await _sembrar_defaults(db)
+    headers = await auth_headers(client, admin)
+
+    body = (await client.get("/api/v1/vistas-rol/me", headers=headers)).json()
+    assert set(body["por_rol"]) == set(ROLES_CONFIGURABLES)
+    assert body["por_rol"]["empleado"]["dashboard"] is True
+
+    # A un no-admin no se le manda la matriz completa.
+    sup = await make_empleado(db, rol="supervisor", email="sup_sin_matriz@test.com")
+    body = (
+        await client.get("/api/v1/vistas-rol/me", headers=await auth_headers(client, sup))
+    ).json()
+    assert body.get("por_rol") is None
+
+
+@pytest.mark.asyncio
+async def test_modo_director_no_aplica_gate(client: AsyncClient, db):
+    """`director` no es rol configurable: simularlo deja al admin viendo todo."""
+    admin = await _make_admin(db, "admin_modo_dir@test.com", rol="director")
+    await _sembrar_defaults(db)
+    headers = await auth_headers(client, admin)
+
+    body = (
+        await client.get(
+            "/api/v1/vistas-rol/me", headers={**headers, "X-RH-UI-Mode": "director"}
+        )
+    ).json()
+    assert body["configurable"] is False
+    assert all(body["vistas"].values())
+
+
+@pytest.mark.asyncio
+async def test_api_del_admin_respeta_la_vista_apagada_del_rol_simulado(
+    client: AsyncClient, db
+):
+    """El gate del API también sigue al modo: en Modo RH pasa, simulando gerente no."""
+    admin = await _make_admin(db, "admin_api_modo@test.com", rol="gerente")
+    await _sembrar_defaults(db)
+    headers = await auth_headers(client, admin)
+
+    await _configurar(
+        client, headers,
+        [{"rol": "gerente", "vista_key": "ciclo-desempeno", "habilitado": False}],
+    )
+
+    # Modo RH: acceso intacto.
+    assert (await client.get(CICLOS_URL, headers=headers)).status_code == 200
+
+    # Simulando gerente: se le aplica lo que configuró para ese rol.
+    res = await client.get(CICLOS_URL, headers={**headers, "X-RH-UI-Mode": "gerente"})
+    assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_nunca_pierde_la_administracion_de_vistas(client: AsyncClient, db):
+    """Red de seguridad: la pantalla de configuración no está en el catálogo, así que
+    ningún modo ni configuración puede dejar al admin sin poder revertir."""
+    admin = await _make_admin(db, "admin_no_encierro@test.com", rol="gerente")
+    await _sembrar_defaults(db)
+    headers = await auth_headers(client, admin)
+
+    await _configurar(
+        client, headers,
+        [
+            {"rol": rol, "vista_key": key, "habilitado": False}
+            for rol in ROLES_CONFIGURABLES
+            for key in all_vista_keys()
+        ],
+    )
+    for modo in ("operativo", "gerente"):  # los válidos para un admin gerente
+        h = {**headers, "X-RH-UI-Mode": modo}
+        assert (await client.get(CONFIG_URL, headers=h)).status_code == 200, modo

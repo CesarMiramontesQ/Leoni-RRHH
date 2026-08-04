@@ -412,6 +412,27 @@ def is_rol_configurable(rol_nombre: str | None) -> bool:
     return rol_nombre in ROLES_CONFIGURABLES
 
 
+# Modo de UI simulado (`X-RH-UI-Mode`) → rol cuya configuración se aplica.
+# `operativo` (Modo RH) y `director` no mapean: ahí el admin ve todo.
+_MODO_UI_A_ROL: dict[str, str] = {
+    "empleado": "empleado",
+    "lider": "supervisor",
+    "gerente": "gerente",
+}
+
+
+def rol_configurable_para_modo(rh_ui_mode: str | None) -> str | None:
+    """Rol al que se le aplica el gate cuando un admin simula otro perfil.
+
+    Un admin RH está exento en Modo RH (`operativo`), pero al cambiar el toggle a
+    empleado/líder/gerente debe ver exactamente lo que ve ese rol — si no, no puede
+    comprobar el efecto de su propia configuración.
+    """
+    if not rh_ui_mode:
+        return None
+    return _MODO_UI_A_ROL.get(str(rh_ui_mode).strip().lower())
+
+
 def _path_matches_prefix(path: str, prefix: str) -> bool:
     if path == prefix:
         return True

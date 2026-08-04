@@ -20,6 +20,13 @@ class VistaRolMeResponse(BaseModel):
     rol: str
     configurable: bool
     vistas: dict[str, bool]
+    por_rol: dict[str, dict[str, bool]] | None = Field(
+        default=None,
+        description=(
+            "Matriz completa rol → vistas. Solo se envía a admins RH, para que el toggle "
+            "de Modo RH aplique la configuración del rol simulado sin volver a pedir datos."
+        ),
+    )
 
 
 class VistaRolConfigResponse(BaseModel):
