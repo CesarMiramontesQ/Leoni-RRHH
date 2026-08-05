@@ -290,6 +290,8 @@ export type ComedorRhEmpleadoBusquedaApi = {
   no_empleado: number;
   nombre: string;
   area: string | null;
+  /** Comedor asignado hoy en turnos; `null` si no tiene. */
+  comedor_id: number | null;
 };
 
 /**

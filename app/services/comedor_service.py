@@ -1646,8 +1646,13 @@ class ComedorService:
         `no_empleado` a texto: reescribir el filtro aquí reintroduciría el fallo de tipos
         que ese repositorio resolvió en PostgreSQL.
         """
-        if not user_has_module(current_user, "comedor-registro"):
-            raise ForbiddenError(detail="No tienes acceso al registro de comedor.")
+        # Lo usan las dos pantallas de la sección (registrar consumo y asignar comedor),
+        # así que basta con cualquiera de los dos permisos de comedor.
+        if not (
+            user_has_module(current_user, "comedor-registro")
+            or user_has_module(current_user, "comedor-gestion")
+        ):
+            raise ForbiddenError(detail="No tienes acceso a la sección de comedor.")
 
         empleados = await UsuarioRepository(self.db).list_page(
             offset=0,
@@ -1657,12 +1662,17 @@ class ComedorService:
             puesto_id=None,
             estados_activos=list(settings.ESTADOS_ACTIVOS_IDS),
         )
+        # El comedor actual permite corregir una asignación, no solo llenar las vacías.
+        comedores = await self.empleado_repo.comedores_por_no_empleado(
+            [emp.no_empleado for emp in empleados]
+        )
         items = [
             ComedorRhEmpleadoBusquedaItem(
                 empleado_id=emp.id,
                 no_empleado=emp.no_empleado,
                 nombre=emp.nombre,
                 area=emp.area.descripcion if emp.area else None,
+                comedor_id=comedores.get(emp.no_empleado),
             )
             for emp in empleados
         ]

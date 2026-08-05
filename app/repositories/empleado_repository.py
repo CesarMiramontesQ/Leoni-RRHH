@@ -279,6 +279,38 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         )
         return list(result.scalars().unique().all())
 
+    async def comedores_por_no_empleado(
+        self, no_empleados: Sequence[int]
+    ) -> dict[int, int | None]:
+        """Comedor asignado en `turnos_empleados`, indexado por número de empleado.
+
+        Consulta en bloque para no hacer una query por fila del buscador. Se buscan las
+        dos variantes del número («123» y «123.0») porque la columna es texto y arrastra
+        el formato de los listados de Excel — mismo criterio que `turno_no_empleado_matches`.
+        """
+        if not no_empleados:
+            return {}
+        variantes: list[str] = []
+        for numero in no_empleados:
+            base = no_empleado_as_turno_str(numero)
+            variantes.extend((base, f"{base}.0"))
+
+        result = await self.db.execute(
+            select(TurnoEmpleado.no_empleado, TurnoEmpleado.comedor).where(
+                TurnoEmpleado.no_empleado.in_(variantes)
+            )
+        )
+        comedores: dict[int, int | None] = {}
+        for no_str, comedor_id in result.all():
+            try:
+                clave = int(float(no_str))
+            except (TypeError, ValueError):
+                continue
+            # Si hay filas duplicadas por el formato, gana la que sí trae comedor.
+            if comedor_id is not None or clave not in comedores:
+                comedores[clave] = comedor_id
+        return comedores
+
     async def asignar_comedor_en_turno(
         self,
         *,

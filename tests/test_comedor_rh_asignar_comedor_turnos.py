@@ -176,3 +176,57 @@ async def test_buscar_empleados_valida_q_y_respeta_limit(client: AsyncClient, db
     assert len(r.json()["items"]) == 2
     assert r.json()["total"] == 2
 
+
+@pytest.mark.asyncio
+async def test_buscar_empleados_devuelve_el_comedor_actual(client: AsyncClient, db):
+    """El modal de asignar necesita saber qué comedor tiene ya cada quien, para poder
+    corregirlo y no solo llenar los vacíos."""
+    from app.models.comedor import Comedor
+
+    comedor = Comedor(nombre="C busqueda", activo=True)
+    db.add(comedor)
+    await db.flush()
+
+    rh = await make_empleado(db, rol="rh", email="rh_bus_com@test.leoni", password="RhBusC!1")
+    con = await make_empleado(
+        db, email="con_comedor@test.leoni", password="SecretQ1!", nombre="RAMIREZ SOTO, ANA"
+    )
+    sin = await make_empleado(
+        db, email="sin_comedor@test.leoni", password="SecretQ2!", nombre="RAMIREZ LUNA, JOSE"
+    )
+    await link_turno_comedor_empleado(db, con, comedor.id)
+    await db.commit()
+
+    r = await client.get(
+        BUSCAR_URL,
+        params={"q": "ramirez"},
+        headers=await auth_headers(client, rh, password="RhBusC!1"),
+    )
+    assert r.status_code == 200, r.text
+    por_id = {item["empleado_id"]: item["comedor_id"] for item in r.json()["items"]}
+    assert por_id[con.id] == comedor.id
+    assert por_id[sin.id] is None
+
+
+@pytest.mark.asyncio
+async def test_buscar_empleados_sirve_a_las_dos_pantallas_de_comedor(client: AsyncClient, db):
+    """Lo usan el modal de registro y el de asignar, así que basta cualquiera de los dos
+    permisos de la sección."""
+    for modulo in ("comedor-registro", "comedor-gestion"):
+        usuario = await make_empleado(
+            db,
+            rol="empleado",
+            email=f"perfil_{modulo}@test.leoni",
+            password="Perfil1!",
+            nombre="TORRES DIAZ, LUZ",
+            inscrito_modulos_rh=True,
+            modulos_rh={modulo: True},
+        )
+        await db.commit()
+        r = await client.get(
+            BUSCAR_URL,
+            params={"q": "torres"},
+            headers=await auth_headers(client, usuario, password="Perfil1!"),
+        )
+        assert r.status_code == 200, f"{modulo}: {r.text}"
+
