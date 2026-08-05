@@ -33,6 +33,7 @@ from app.schemas.comedor import (
     ComedorRhProximosRegistrosPage,
     ComedorRhAsignarComedorTurnosRequest,
     ComedorRhAsignarComedorTurnosResponse,
+    ComedorRhEmpleadosBusquedaList,
     ComedorRhEmpleadosSinComedorList,
     ComedorRhRegistroCreate,
     ComedorRhRegistroResponse,
@@ -565,6 +566,27 @@ async def rh_empleados_sin_comedor_asignado(
     """Empleados activos sin comedor en `turnos_empleados` (alertas operativas)."""
     service = ComedorService(db)
     return await service.list_empleados_sin_comedor_asignado_rh(current_user)
+
+
+@router.get(
+    "/rh/empleados-buscar",
+    response_model=ComedorRhEmpleadosBusquedaList,
+)
+async def rh_buscar_empleados(
+    q: str = Query(..., min_length=2, max_length=100, description="Nombre o número de empleado"),
+    limit: int = Query(8, ge=1, le=50),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Busca empleados activos para el modal de registro de comedor.
+
+    Vive bajo `/comedor/rh` para que el permiso exigido sea el de esta pantalla
+    (`comedor-registro`) y no el del módulo `empleados`, que un perfil de comedor no tiene.
+    """
+    service = ComedorService(db)
+    return await service.buscar_empleados_para_registro_rh(
+        current_user=current_user, q=q, limit=limit
+    )
 
 
 @router.post(

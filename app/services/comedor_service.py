@@ -41,6 +41,7 @@ from app.models.empleados import Empleado
 from app.models.roles import Rol
 from app.models.turnos_empleados import TurnoEmpleado
 from app.utils.turno_empleado_match import turno_no_empleado_matches
+from app.repositories.usuario_repository import UsuarioRepository
 from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
     ComedorCodigoExternoRepository,
@@ -70,6 +71,8 @@ from app.schemas.comedor import (
     ComedorRhPaseExternoItem,
     ComedorRhAsignarComedorTurnosRequest,
     ComedorRhAsignarComedorTurnosResponse,
+    ComedorRhEmpleadoBusquedaItem,
+    ComedorRhEmpleadosBusquedaList,
     ComedorRhEmpleadoSinComedorItem,
     ComedorRhEmpleadosSinComedorList,
     ComedorRhRegistroCreate,
@@ -1626,6 +1629,44 @@ class ComedorService:
             for emp in empleados
         ]
         return ComedorRhEmpleadosSinComedorList(total=len(items), items=items)
+
+    async def buscar_empleados_para_registro_rh(
+        self,
+        current_user: Empleado,
+        q: str,
+        limit: int = 8,
+    ) -> ComedorRhEmpleadosBusquedaList:
+        """Busca empleados activos para registrar su consumo desde el modal de comedor.
+
+        Vive bajo el prefijo de comedor a propósito: llamar a `/api/v1/empleados` haría que
+        el permiso exigido fuese el del módulo `empleados`, que un perfil de comedor no
+        tiene — el 403 que rompía el buscador (ver docs de `resolve_module_from_api_path`).
+
+        Reusa `UsuarioRepository.list_page`, que ya normaliza acentos y castea
+        `no_empleado` a texto: reescribir el filtro aquí reintroduciría el fallo de tipos
+        que ese repositorio resolvió en PostgreSQL.
+        """
+        if not user_has_module(current_user, "comedor-registro"):
+            raise ForbiddenError(detail="No tienes acceso al registro de comedor.")
+
+        empleados = await UsuarioRepository(self.db).list_page(
+            offset=0,
+            limit=limit,
+            q=q,
+            area_id=None,
+            puesto_id=None,
+            estados_activos=list(settings.ESTADOS_ACTIVOS_IDS),
+        )
+        items = [
+            ComedorRhEmpleadoBusquedaItem(
+                empleado_id=emp.id,
+                no_empleado=emp.no_empleado,
+                nombre=emp.nombre,
+                area=emp.area.descripcion if emp.area else None,
+            )
+            for emp in empleados
+        ]
+        return ComedorRhEmpleadosBusquedaList(total=len(items), items=items)
 
     async def asignar_comedor_turnos_rh(
         self,

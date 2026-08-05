@@ -285,6 +285,31 @@ export async function getComedorRhEmpleadosSinComedorAsignado(): Promise<Comedor
   return (await res.json()) as ComedorRhEmpleadosSinComedorListApi;
 }
 
+export type ComedorRhEmpleadoBusquedaApi = {
+  empleado_id: number;
+  no_empleado: number;
+  nombre: string;
+  area: string | null;
+};
+
+/**
+ * Busca empleados para el modal de registro.
+ *
+ * Vive bajo `/comedor/rh` a propósito: `/api/v1/empleados` exige el módulo `empleados`,
+ * que un perfil de comedor no tiene, y devolvía un 403 que dejaba el buscador vacío.
+ */
+export async function buscarComedorRhEmpleados(
+  q: string,
+  limit = 8,
+): Promise<{ total: number; items: ComedorRhEmpleadoBusquedaApi[] }> {
+  const params = new URLSearchParams();
+  params.set("q", q);
+  params.set("limit", String(limit));
+  const res = await fetchWithAuth(`/api/v1/comedor/rh/empleados-buscar?${params.toString()}`);
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as { total: number; items: ComedorRhEmpleadoBusquedaApi[] };
+}
+
 export async function asignarComedorRhTurnos(
   asignaciones: readonly { empleadoId: number; comedorId: number }[],
 ): Promise<{ actualizados: number }> {

@@ -11121,6 +11121,65 @@ paths:
               schema:
                 type: object
 
+  /api/v1/comedor/rh/empleados-buscar:
+    get:
+      tags: [Comedor]
+      summary: Buscar empleados para el registro de comedor (RH)
+      description: >-
+        Busca empleados activos por nombre o numero para el modal de registro. Vive bajo
+        `/comedor/rh` para que el permiso exigido sea `comedor-registro` y no el modulo
+        `empleados`, que un perfil de comedor no tiene.
+      operationId: comedor_rh_empleados_buscar
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Nombre o numero de empleado (minimo 2 caracteres)
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 8
+            minimum: 1
+            maximum: 50
+      responses:
+        "200":
+          description: Coincidencias encontradas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, items]
+                properties:
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [empleado_id, no_empleado, nombre]
+                      properties:
+                        empleado_id:
+                          type: integer
+                        no_empleado:
+                          type: integer
+                        nombre:
+                          type: string
+                        area:
+                          type: string
+                          nullable: true
+        "403":
+          description: Sin acceso al registro de comedor
+        "422":
+          description: Parametro `q` invalido
+
   /api/v1/comedor/rh/empleados-sin-comedor-asignado:
     get:
       tags: [Comedor]

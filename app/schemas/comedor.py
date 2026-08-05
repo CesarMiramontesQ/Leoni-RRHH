@@ -333,6 +333,20 @@ class ComedorRhEmpleadosSinComedorList(BaseModel):
     items: list[ComedorRhEmpleadoSinComedorItem]
 
 
+class ComedorRhEmpleadoBusquedaItem(BaseModel):
+    """Empleado encontrado para registrar su consumo desde el modal de comedor."""
+
+    empleado_id: int
+    no_empleado: int
+    nombre: str
+    area: Optional[str] = None
+
+
+class ComedorRhEmpleadosBusquedaList(BaseModel):
+    total: int
+    items: list[ComedorRhEmpleadoBusquedaItem]
+
+
 class ComedorRhAsignacionComedorTurnoItem(BaseModel):
     empleado_id: int = Field(..., ge=1)
     comedor_id: int = Field(..., ge=1)

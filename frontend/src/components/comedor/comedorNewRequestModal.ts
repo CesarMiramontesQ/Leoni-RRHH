@@ -532,10 +532,15 @@ export function mountComedorNewRequestModal(
           for (const row of rows) {
             employeeSelectionCache.set(row.id, row);
           }
-        } catch {
+        } catch (error) {
           if (currentToken !== searchToken) return;
           searchResults = [];
-          searchEmployeesError = "No fue posible consultar empleados. Intenta de nuevo.";
+          // Se muestra el `detail` del backend en vez de un genérico: un 403 por permisos
+          // se veía igual que un fallo de red, y dejaba el buscador «roto» sin decir por qué.
+          searchEmployeesError = comedorErrorMessage(
+            error,
+            "No fue posible consultar empleados. Intenta de nuevo.",
+          );
         } finally {
           if (currentToken !== searchToken) return;
           isSearchingEmployees = false;
