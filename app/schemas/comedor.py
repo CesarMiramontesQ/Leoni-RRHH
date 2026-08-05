@@ -340,6 +340,7 @@ class ComedorRhEmpleadoBusquedaItem(BaseModel):
     no_empleado: int
     nombre: str
     area: Optional[str] = None
+    comedor_id: Optional[int] = None
 
 
 class ComedorRhEmpleadosBusquedaList(BaseModel):

@@ -575,7 +575,7 @@ async def rh_empleados_sin_comedor_asignado(
 async def rh_buscar_empleados(
     q: str = Query(..., min_length=2, max_length=100, description="Nombre o número de empleado"),
     limit: int = Query(8, ge=1, le=50),
-    current_user: Empleado = Depends(role_checker(["operativo"])),
+    current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Busca empleados activos para el modal de registro de comedor.

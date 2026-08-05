@@ -447,6 +447,11 @@ RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
 
 RH_MODULE_EXEMPT_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/auth",
+    # Buscador de empleados de la sección Comedor: lo usan el modal de registro
+    # (`comedor-registro`) y el de asignar comedor (`comedor-gestion`), y un path solo
+    # resuelve a UN módulo. La autorización la hace `buscar_empleados_para_registro_rh`,
+    # que acepta cualquiera de los dos.
+    "/api/v1/comedor/rh/empleados-buscar",
     "/api/v1/notificaciones",
     "/api/v1/rh-permisos",
     "/api/v1/nominas/horas-extra/aprobaciones",

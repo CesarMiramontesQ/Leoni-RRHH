@@ -3,11 +3,12 @@
  */
 import {
   asignarComedorRhTurnos,
+  buscarComedorRhEmpleados,
   comedorErrorMessage,
   getComedorRhEmpleadosSinComedorAsignado,
   getComedoresActivos,
   type ComedorApiItem,
-  type ComedorRhEmpleadoSinComedorApi,
+  type ComedorRhEmpleadoBusquedaApi,
 } from "../../api/comedor.ts";
 import { BTN_PRIMARY, BTN_SECONDARY, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
@@ -25,9 +26,13 @@ export type ComedorAsignarComedorModalHandle = {
 };
 
 type RowState = {
-  empleado: ComedorRhEmpleadoSinComedorApi;
+  empleado: ComedorRhEmpleadoBusquedaApi;
+  /** Valor del selector; arranca en el comedor actual para no perderlo al guardar. */
   comedorId: string;
 };
+
+/** Tope de resultados: la lista completa son cientos de empleados. */
+const LIMITE_RESULTADOS = 25;
 
 function shellHtml(): string {
   return `
@@ -78,37 +83,88 @@ function renderComedorOptions(comedores: readonly ComedorApiItem[], selectedId: 
   return `${first}${rest}`;
 }
 
+function renderSearchBar(query: string): string {
+  return `
+    <div class="mb-4">
+      <label for="comedor-asignar-buscar" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Buscar empleado
+      </label>
+      <input
+        id="comedor-asignar-buscar"
+        type="search"
+        value="${escapeHtml(query)}"
+        data-comedor-asignar-buscar
+        placeholder="Nombre o número de empleado"
+        class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25" />
+    </div>`;
+}
+
+function renderComedorActual(
+  comedores: readonly ComedorApiItem[],
+  comedorId: number | null,
+): string {
+  if (comedorId == null) {
+    return `<span class="text-xs text-amber-700">Sin comedor asignado</span>`;
+  }
+  const nombre = comedores.find((c) => c.id === comedorId)?.nombre ?? `#${String(comedorId)}`;
+  return `<span class="text-xs text-slate-500">Comedor actual: <strong class="font-semibold text-slate-700">${escapeHtml(nombre)}</strong></span>`;
+}
+
 function renderBody(
   rows: readonly RowState[],
   comedores: readonly ComedorApiItem[],
-  state: "loading" | "ready" | "empty" | "error",
+  state: "loading" | "ready" | "idle" | "sin-resultados" | "error",
   errorMessage: string | null,
   isSubmitting: boolean,
+  query: string,
+  totalSinComedor: number | null,
 ): string {
-  if (state === "loading") {
-    return `<div class="flex items-center gap-3 py-10 text-sm text-slate-500">
-      <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-      Cargando empleados…
-    </div>`;
-  }
   if (state === "error") {
     return `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
-      <p class="font-semibold">No fue posible cargar el listado.</p>
+      <p class="font-semibold">No fue posible completar la búsqueda.</p>
       <p class="mt-1">${escapeHtml(errorMessage ?? "Error inesperado.")}</p>
       <button type="button" data-comedor-asignar-comedor-retry class="mt-3 inline-flex min-h-10 items-center rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-50">Reintentar</button>
     </div>`;
   }
-  if (state === "empty") {
-    return `<div class="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-600" role="status">
-      <p class="font-medium text-slate-800">Todos los empleados activos tienen comedor asignado.</p>
-      <button type="button" data-comedor-asignar-comedor-cerrar-inline class="${BTN_SECONDARY} mt-4 min-h-10 px-5">Cerrar</button>
+
+  const buscador = renderSearchBar(query);
+
+  if (state === "loading") {
+    return `${buscador}<div class="flex items-center gap-3 py-10 text-sm text-slate-500">
+      <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      Buscando empleados…
+    </div>`;
+  }
+
+  if (state === "idle") {
+    const pendientes =
+      totalSinComedor != null && totalSinComedor > 0
+        ? `<p class="mt-1 text-sm text-slate-600">Hay <strong class="font-semibold text-slate-800">${String(totalSinComedor)}</strong> empleados activos sin comedor asignado.</p>`
+        : "";
+    return `${buscador}<div class="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center" role="status">
+      <p class="font-medium text-slate-800">Busca al empleado por nombre o número.</p>
+      ${pendientes}
+      <p class="mt-2 text-xs text-slate-500">Puedes asignarle un comedor o cambiar el que ya tiene.</p>
+    </div>`;
+  }
+
+  if (state === "sin-resultados") {
+    return `${buscador}<div class="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-600" role="status">
+      No se encontraron empleados con «${escapeHtml(query)}».
     </div>`;
   }
 
   const fieldClass =
     "h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25";
 
+  const aviso =
+    rows.length >= LIMITE_RESULTADOS
+      ? `<p class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Se muestran los primeros ${String(LIMITE_RESULTADOS)} resultados. Afina la búsqueda si no ves a quien buscas.</p>`
+      : "";
+
   return `
+    ${buscador}
+    ${aviso}
     <form id="comedor-asignar-comedor-form" class="flex min-h-0 flex-1 flex-col gap-4">
       <ul class="space-y-3">
         ${rows
@@ -119,7 +175,8 @@ function renderBody(
               <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-semibold text-slate-900">${escapeHtml(emp.nombre)}</p>
-                  <p class="mt-0.5 text-xs text-slate-500">${escapeHtml(emp.no_empleado)}</p>
+                  <p class="mt-0.5 text-xs text-slate-500">${escapeHtml(emp.no_empleado)}${emp.area ? ` · ${escapeHtml(emp.area)}` : ""}</p>
+                  <p class="mt-1">${renderComedorActual(comedores, emp.comedor_id)}</p>
                 </div>
                 <div class="relative w-full sm:max-w-[14rem]">
                   <select
@@ -160,24 +217,43 @@ export function mountComedorAsignarComedorModal(
   const bodyEl = body;
   let comedores: ComedorApiItem[] = [];
   let rows: RowState[] = [];
-  let panelState: "loading" | "ready" | "empty" | "error" = "loading";
+  let panelState: "loading" | "ready" | "idle" | "sin-resultados" | "error" = "idle";
   let errorMessage: string | null = null;
   let isSubmitting = false;
+  let query = "";
+  let totalSinComedor: number | null = null;
+  let searchTimer: number | null = null;
+  /** Descarta respuestas de búsquedas que ya quedaron obsoletas. */
+  let searchToken = 0;
 
   function close(): void {
     overlayEl.classList.add("hidden");
     overlayEl.classList.remove("flex");
     document.body.style.overflow = "";
     rows = [];
-    panelState = "loading";
+    panelState = "idle";
     errorMessage = null;
     isSubmitting = false;
+    query = "";
+    if (searchTimer !== null) window.clearTimeout(searchTimer);
+    searchTimer = null;
+    searchToken += 1;
     bodyEl.innerHTML = "";
   }
 
-  function paint(): void {
-    bodyEl.innerHTML = renderBody(rows, comedores, panelState, errorMessage, isSubmitting);
+  function paint(opts?: { keepFocus?: boolean }): void {
+    const seleccion = opts?.keepFocus
+      ? bodyEl.querySelector<HTMLInputElement>("[data-comedor-asignar-buscar]")?.selectionStart ?? null
+      : null;
+    bodyEl.innerHTML = renderBody(
+      rows, comedores, panelState, errorMessage, isSubmitting, query, totalSinComedor,
+    );
     bindBody();
+    if (opts?.keepFocus) {
+      const input = bodyEl.querySelector<HTMLInputElement>("[data-comedor-asignar-buscar]");
+      input?.focus();
+      if (input && seleccion !== null) input.setSelectionRange(seleccion, seleccion);
+    }
   }
 
   async function loadData(): Promise<void> {
@@ -185,22 +261,68 @@ export function mountComedorAsignarComedorModal(
     errorMessage = null;
     paint();
     try {
-      const [listado, catalogo] = await Promise.all([
-        getComedorRhEmpleadosSinComedorAsignado(),
+      // Solo el catálogo y el contador: la lista completa son cientos de filas y ya no
+      // se pinta de golpe — se busca. El contador orienta sobre cuánto queda pendiente.
+      const [catalogo, listado] = await Promise.all([
         getComedoresActivos(),
+        getComedorRhEmpleadosSinComedorAsignado().catch(() => null),
       ]);
       comedores = catalogo;
-      rows = listado.items.map((empleado) => ({ empleado, comedorId: "" }));
-      panelState = rows.length > 0 ? "ready" : "empty";
+      totalSinComedor = listado?.total ?? null;
+      rows = [];
+      panelState = "idle";
     } catch (error) {
       panelState = "error";
-      errorMessage = comedorErrorMessage(error, "Error al cargar empleados.");
+      errorMessage = comedorErrorMessage(error, "Error al cargar el catálogo de comedores.");
       rows = [];
     }
     paint();
   }
 
+  async function runSearch(texto: string): Promise<void> {
+    const q = texto.trim();
+    query = texto;
+    if (q.length < 2) {
+      searchToken += 1;
+      rows = [];
+      panelState = "idle";
+      paint({ keepFocus: true });
+      return;
+    }
+    searchToken += 1;
+    const token = searchToken;
+    panelState = "loading";
+    paint({ keepFocus: true });
+    try {
+      const resultado = await buscarComedorRhEmpleados(q, LIMITE_RESULTADOS);
+      if (token !== searchToken) return;
+      rows = resultado.items.map((empleado) => ({
+        empleado,
+        // Arranca en el comedor actual: si el usuario no toca el selector, guardar no
+        // se lo cambia por accidente.
+        comedorId: empleado.comedor_id != null ? String(empleado.comedor_id) : "",
+      }));
+      panelState = rows.length > 0 ? "ready" : "sin-resultados";
+    } catch (error) {
+      if (token !== searchToken) return;
+      panelState = "error";
+      errorMessage = comedorErrorMessage(error, "No fue posible buscar empleados.");
+      rows = [];
+    }
+    paint({ keepFocus: true });
+  }
+
   function bindBody(): void {
+    const buscador = bodyEl.querySelector<HTMLInputElement>("[data-comedor-asignar-buscar]");
+    buscador?.addEventListener("input", () => {
+      if (searchTimer !== null) window.clearTimeout(searchTimer);
+      const valor = buscador.value;
+      query = valor;
+      searchTimer = window.setTimeout(() => {
+        void runSearch(valor);
+      }, 300);
+    });
+
     bodyEl.querySelector("[data-comedor-asignar-comedor-retry]")?.addEventListener("click", () => {
       void loadData();
     });
@@ -224,16 +346,23 @@ export function mountComedorAsignarComedorModal(
     const form = bodyEl.querySelector("#comedor-asignar-comedor-form");
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      // Solo se envía lo que cambió respecto al comedor actual: así reasignar a uno no
+      // reescribe de paso a los demás resultados de la búsqueda.
       const asignaciones = rows
         .map((row) => ({
           empleadoId: row.empleado.empleado_id,
           comedorId: Number.parseInt(row.comedorId, 10),
+          actual: row.empleado.comedor_id,
         }))
-        .filter((row) => Number.isFinite(row.comedorId) && row.comedorId > 0);
+        .filter(
+          (row) =>
+            Number.isFinite(row.comedorId) && row.comedorId > 0 && row.comedorId !== row.actual,
+        )
+        .map(({ empleadoId, comedorId }) => ({ empleadoId, comedorId }));
       if (asignaciones.length === 0) {
         showEmpleadosToast(
           options.toastContainer,
-          "Selecciona un comedor para al menos un empleado.",
+          "Cambia el comedor de al menos un empleado.",
           "error",
         );
         return;
