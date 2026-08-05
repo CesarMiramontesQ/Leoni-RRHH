@@ -1,7 +1,6 @@
 from fastapi import HTTPException, status
 
 from app.core import vista_rol_cache
-from app.core.rh_module_registry import is_modulos_rh_enrolled
 from app.core.rh_ui_mode import is_admin_user
 from app.core.vista_rol_registry import (
     ROLES_CONFIGURABLES,
@@ -80,13 +79,13 @@ class VistasRolService:
                 por_rol=config,
             )
 
-        # Un usuario inscrito en permisos por módulo se rige por ESE sistema, no por el
-        # gate de rol — igual que en `VistaRolPermissionMiddleware`. Sin esta salida, a
-        # quien tiene módulos otorgados se le aplicaba además la config de su rol base y
-        # se los pisaba: con los 4 módulos de Comedor solo veía la página cuya vista está
-        # encendida para `empleado`, más el Dashboard que su rol trae de fábrica.
-        if not is_rol_configurable(rol) or is_modulos_rh_enrolled(current_user):
+        if not is_rol_configurable(rol):
             return VistaRolMeResponse(rol=rol, configurable=False, vistas=todas)
+
+        # A un inscrito en módulos RH se le mandan igualmente las vistas de su rol: las
+        # necesita para su navegación en Modo base. Es el frontend quien decide cuándo
+        # aplicarlas, porque el toggle Modo RH / Modo base del no-admin vive solo en el
+        # navegador y nunca llega hasta aquí. En Modo RH mandan sus módulos, no esto.
 
         config = await self._config_actual()
         return VistaRolMeResponse(rol=rol, configurable=True, vistas=config[rol])
