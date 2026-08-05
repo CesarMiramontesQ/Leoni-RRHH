@@ -12,7 +12,7 @@
  */
 import { fetchVistasRolMe } from "../api/vistasRol.ts";
 import { isModulosRhEnrolled } from "./rhModulePermissions.ts";
-import { getRhUiMode, isAdminUser } from "./rhUiMode.ts";
+import { getRhUiMode, isAdminUser, isNonRhRhMode } from "./rhUiMode.ts";
 import { navItemToVistaKey, resolveVistaFromHash } from "./vistaRolRegistry.ts";
 
 type VistaRolState = {
@@ -78,11 +78,13 @@ function vistasActivas(): Record<string, boolean> | null {
     const rol = MODO_UI_A_ROL[getRhUiMode()];
     return rol ? (state.porRol[rol] ?? null) : null;
   }
-  // Quien tiene módulos RH otorgados se rige por ESE sistema: aplicarle además la
-  // configuración de su rol base se los pisaba (con los 4 módulos de Comedor solo veía
-  // la página encendida para `empleado`). El backend ya manda `configurable: false` en
-  // este caso; esto lo sostiene aunque la sesión traiga una respuesta anterior.
-  if (isModulosRhEnrolled()) return null;
+  // Un inscrito en módulos RH tiene DOS navegaciones, y el gate solo rige en una:
+  //   · Modo RH  → ve lo que le otorgaron; el gate de rol no opina, o le pisaría los
+  //                módulos (con los 4 de Comedor solo veía la página encendida para su rol).
+  //   · Modo base → ve el menú de su rol, y ahí sí manda la configuración de ese rol.
+  // El modo del no-admin vive solo en el navegador, así que esta decisión no puede
+  // tomarse en el backend: por eso `me` manda siempre las vistas del rol y se resuelve aquí.
+  if (isModulosRhEnrolled() && isNonRhRhMode()) return null;
   return state.configurable ? state.vistas : null;
 }
 

@@ -8,10 +8,12 @@ let esAdmin = false;
 let modoUi = "operativo";
 
 let inscritoEnModulos = false;
+let enModoRh = false;
 
 vi.mock("./rhUiMode.ts", () => ({
   isAdminUser: () => esAdmin,
   getRhUiMode: () => modoUi,
+  isNonRhRhMode: () => enModoRh,
 }));
 
 vi.mock("./rhModulePermissions.ts", () => ({
@@ -45,6 +47,7 @@ describe("vistaRolPermissions y el modo de UI", () => {
     esAdmin = false;
     modoUi = "operativo";
     inscritoEnModulos = false;
+    enModoRh = false;
     respuesta = ME;
     vi.resetModules();
   });
@@ -99,11 +102,12 @@ describe("vistaRolPermissions y el modo de UI", () => {
     expect(m.vistaRolPermiteNavItem("metricas")).toBeNull();
   });
 
-  it("un inscrito en módulos RH queda fuera del gate: manda su grant", async () => {
-    // Caso reportado: a una empleada con los 4 módulos de Comedor otorgados se le
-    // aplicaba además la config de su rol base, así que solo veía la página cuya vista
-    // está encendida para `empleado` (Comedor) y le aparecía el Dashboard de su rol.
+  it("un inscrito EN MODO RH queda fuera del gate: manda su grant", async () => {
+    // A una empleada con los 4 módulos de Comedor otorgados se le aplicaba además la
+    // config de su rol base, así que solo veía la página cuya vista está encendida para
+    // `empleado` (Comedor) y le aparecía el Dashboard de su rol.
     inscritoEnModulos = true;
+    enModoRh = true;
     respuesta = {
       rol: "empleado",
       configurable: true,
@@ -127,5 +131,33 @@ describe("vistaRolPermissions y el modo de UI", () => {
 
     expect(m.isVistaRolGateActivo()).toBe(true);
     expect(m.vistaRolPermiteNavItem("comedor-gestion")).toBe(false);
+  });
+
+  it("el mismo inscrito EN MODO BASE sí ve su menú de rol limitado", async () => {
+    // Las dos navegaciones conviven: en Modo RH mandan los módulos, en Modo base manda
+    // la configuración que el admin RH puso para su rol.
+    inscritoEnModulos = true;
+    enModoRh = false;
+    respuesta = {
+      rol: "empleado",
+      configurable: true,
+      vistas: { "comedor-gestion": false, dashboard: true },
+    };
+    const m = await cargar();
+
+    expect(m.isVistaRolGateActivo()).toBe(true);
+    expect(m.vistaRolPermiteNavItem("comedor-gestion")).toBe(false);
+    expect(m.vistaRolPermiteNavItem("dashboard")).toBe(true);
+  });
+
+  it("el admin en modo simulado no se ve afectado por estar inscrito", async () => {
+    // Un admin cuenta como inscrito, pero su rama va antes: manda el modo del toggle.
+    esAdmin = true;
+    inscritoEnModulos = true;
+    enModoRh = false;
+    const m = await cargar();
+    modoUi = "gerente";
+    expect(m.vistaRolPermiteNavItem("metricas")).toBe(false);
+    expect(m.vistaRolPermiteNavItem("actas")).toBe(true);
   });
 });

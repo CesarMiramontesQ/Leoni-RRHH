@@ -676,12 +676,13 @@ async def test_admin_nunca_pierde_la_administracion_de_vistas(client: AsyncClien
 
 
 @pytest.mark.asyncio
-async def test_inscrito_en_modulos_rh_queda_fuera_del_gate(client: AsyncClient, db):
-    """Los permisos por módulo mandan sobre la configuración del rol base.
+async def test_a_un_inscrito_se_le_mandan_las_vistas_de_su_rol(client: AsyncClient, db):
+    """Un inscrito necesita la config de su rol para su navegación en Modo base.
 
-    Caso reportado: a una empleada con los 4 módulos de Comedor otorgados se le aplicaba
-    ADEMÁS la config de su rol `empleado`, que los pisaba — solo veía la página cuya vista
-    está encendida para ese rol, más el Dashboard que su rol trae de fábrica.
+    Quién la aplica y cuándo lo decide el frontend: en Modo RH mandan sus módulos y el
+    gate no opina (o se los pisaría); en Modo base manda esta configuración. El toggle
+    del no-admin vive solo en el navegador y nunca llega al backend, así que aquí se
+    envía siempre.
     """
     emp = await make_empleado(
         db,
@@ -700,8 +701,10 @@ async def test_inscrito_en_modulos_rh_queda_fuera_del_gate(client: AsyncClient, 
     body = (
         await client.get("/api/v1/vistas-rol/me", headers=await auth_headers(client, emp))
     ).json()
-    assert body["configurable"] is False
-    assert all(body["vistas"].values()), "el gate no debe recortarle nada"
+    assert body["configurable"] is True
+    assert body["rol"] == "empleado"
+    # La config de su rol viaja completa; `actas` está apagada de fábrica para `empleado`.
+    assert body["vistas"]["actas"] is False
 
 
 @pytest.mark.asyncio
