@@ -100,6 +100,16 @@ function renderPreviewPanel(state: ComedorWeeklyPlannerViewState): string {
           <h2 class="text-base font-semibold text-[#0A1628]">Vista previa del menú</h2>
           <p class="mt-0.5 text-xs text-slate-500">${hasMenu ? "Menú como lo verá el empleado, por día." : "Carga una planeación para previsualizar el menú."}</p>
         </div>
+        ${
+          hasMenu
+            ? `<button
+                 type="button"
+                 data-comedor-plan-edit-day
+                 class="${BTN_SECONDARY} min-h-10 shrink-0 justify-center"
+                 title="Editar el menú del día seleccionado"
+               >Editar día</button>`
+            : ""
+        }
       </div>
       ${
         hasMenu
@@ -121,7 +131,9 @@ function renderActionsPanel(state: ComedorWeeklyPlannerViewState): string {
       <div class="${RH_LISTADO_SURFACE} p-5">
         <h2 class="text-sm font-semibold text-[#0A1628]">Acciones</h2>
         <p class="mt-1 text-xs text-slate-500">
-          La planeación se guarda al importar el archivo XLSX. Elimina la semana para registrar una planeación nueva.
+          La planeación se carga desde el archivo XLSX. Para corregir un platillo usa
+          <strong class="font-semibold text-slate-700">Editar día</strong>; eliminar la semana
+          solo es necesario para empezar de cero.
         </p>
 
         <div class="mt-5">

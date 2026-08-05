@@ -1,4 +1,8 @@
-import { getComedorMenuSemana, publicarComedorMenu } from "../../api/comedor.ts";
+import {
+  eliminarComedorMenuDia,
+  getComedorMenuSemana,
+  publicarComedorMenu,
+} from "../../api/comedor.ts";
 import type { ComedorMenuDiaDetalle } from "./menuDayDetalle.ts";
 import {
   menuDelDiaHasContent,
@@ -68,6 +72,70 @@ export type PersistComedorWeekMenuParams = {
   /** Logs temporales de depuración (solo desarrollo). */
   debug?: boolean;
 };
+
+export type ComedorDayMenuTipo = "normal" | "dieta";
+
+export type ComedorDayMenuPersistPlan = {
+  publicar: ReturnType<typeof buildPublicarMenuPayloadsForDay>;
+  /** Tipos que quedaron sin texto y hay que borrar del backend. */
+  borrar: ComedorDayMenuTipo[];
+};
+
+/**
+ * Qué hay que escribir y qué hay que borrar para dejar el día como está en pantalla.
+ *
+ * `buildPublicarMenuPayloadsForDay` omite los tipos sin texto, lo que basta al publicar una
+ * semana nueva pero no al editar: si el usuario vacía la Opción B, la fila anterior seguiría
+ * viva en la BD y el empleado la seguiría viendo. Aquí esos tipos entran en `borrar`.
+ */
+export function buildDayMenuPersistPlan(day: {
+  key: string;
+  menuNormal: string;
+  menuDieta: string;
+  detalle: ComedorMenuDiaDetalle;
+}): ComedorDayMenuPersistPlan {
+  const publicar = buildPublicarMenuPayloadsForDay(day);
+  const publicados = new Set(publicar.map((entry) => entry.tipo));
+  const borrar = (["normal", "dieta"] as const).filter((tipo) => !publicados.has(tipo));
+  return { publicar, borrar: [...borrar] };
+}
+
+export type PersistComedorDayMenuParams = {
+  comedorId: number;
+  weekStartIso: string;
+  day: {
+    key: string;
+    menuNormal: string;
+    menuDieta: string;
+    detalle: ComedorMenuDiaDetalle;
+  };
+};
+
+/** Guarda UN día: publica lo que tiene texto y borra lo que quedó vacío. */
+export async function persistComedorDayMenu(
+  params: PersistComedorDayMenuParams,
+): Promise<ComedorDayMenuPersistPlan> {
+  const plan = buildDayMenuPersistPlan(params.day);
+
+  // Los borrados van primero y en serie: si el usuario vacía la Opción B y a la vez cambia
+  // la A, un borrado tardío podría pisar la publicación recién hecha del mismo día.
+  for (const tipo of plan.borrar) {
+    await eliminarComedorMenuDia(params.comedorId, params.weekStartIso, params.day.key, tipo);
+  }
+  await Promise.all(
+    plan.publicar.map((entry) =>
+      publicarComedorMenu({
+        comedorId: params.comedorId,
+        semanaIso: params.weekStartIso,
+        dia: entry.dia,
+        tipo: entry.tipo,
+        descripcion: entry.descripcion,
+        detalle: entry.detalle,
+      }),
+    ),
+  );
+  return plan;
+}
 
 /** Persiste todos los días/tipos con contenido vía POST /api/v1/comedor/menu (upsert en backend). */
 export async function persistComedorWeekMenu(params: PersistComedorWeekMenuParams): Promise<number> {

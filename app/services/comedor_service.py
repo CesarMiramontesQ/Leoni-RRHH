@@ -87,6 +87,7 @@ from app.schemas.comedor import (
     HuellaValidarResponse,
     MenuSemanalCreate,
     MenuSemanalDeleteResponse,
+    MenuSemanalDiaDeleteResponse,
     MenuSemanalResponse,
 )
 from app.services.auth_service import authenticate_user
@@ -548,6 +549,59 @@ class ComedorService:
         return MenuSemanalDeleteResponse(
             comedor_id=comedor_id,
             semana=semana,
+            deleted_count=deleted_count,
+        )
+
+    async def eliminar_menu_dia(
+        self,
+        comedor_id: int,
+        semana: date,
+        dia: str,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+        tipo: str | None = None,
+    ) -> MenuSemanalDiaDeleteResponse:
+        """Vacía el menú de un día sin tocar el resto de la semana.
+
+        Con `tipo` borra solo esa opción (p. ej. quitar la dieta y dejar la normal).
+        Un día sin menú registrado devuelve `deleted_count: 0`, no un error: el llamador
+        pide el estado final, no la existencia previa.
+        """
+        if not user_has_module(current_user, "comedor-planear"):
+            raise ForbiddenError(detail="No tienes acceso al módulo de planeación de comedor.")
+
+        comedor = await self.comedor_repo.get(comedor_id)
+        if comedor is None:
+            raise NotFoundError(entidad="Comedor", id=comedor_id)
+
+        deleted_count = await self.menu_repo.delete_menu_dia(
+            comedor_id=comedor_id,
+            semana=semana,
+            dia=dia,
+            tipo=tipo,
+        )
+        await self.db.flush()
+
+        audit_background(
+            background_tasks,
+            self.db,
+            accion="MENU_DIA_ELIMINADO",
+            modulo="comedor",
+            usuario_id=current_user.id,
+            entidad_id=comedor_id,
+            datos_despues={
+                "comedor_id": comedor_id,
+                "semana": str(semana),
+                "dia": dia,
+                "tipo": tipo,
+                "deleted_count": deleted_count,
+            },
+        )
+        return MenuSemanalDiaDeleteResponse(
+            comedor_id=comedor_id,
+            semana=semana,
+            dia=dia,
+            tipo=tipo,
             deleted_count=deleted_count,
         )
 

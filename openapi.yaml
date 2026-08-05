@@ -3020,6 +3020,24 @@ components:
         deleted_count:
           type: integer
 
+    MenuSemanalDiaDeleteResponse:
+      type: object
+      required: [comedor_id, semana, dia, deleted_count]
+      properties:
+        comedor_id:
+          type: integer
+        semana:
+          type: string
+          format: date
+        dia:
+          type: string
+        tipo:
+          type: string
+          nullable: true
+          enum: [normal, dieta]
+        deleted_count:
+          type: integer
+
     ComedorAsignadoResponse:
       type: object
       required: [comedor_id, comedor_nombre]
@@ -10464,6 +10482,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MenuSemanalDeleteResponse"
+
+  /api/v1/comedor/menu/dia:
+    delete:
+      tags: [Comedor]
+      summary: Vaciar el menu de un dia (sin borrar la semana)
+      description: >-
+        Elimina el menu de un solo dia para poder corregirlo sin reimportar la semana
+        completa. Sin `tipo` borra ambas opciones del dia; con `tipo` solo esa. El dia se
+        normaliza (acentos y mayusculas). Un dia sin registros devuelve `deleted_count: 0`,
+        no un error. Requiere el modulo `comedor-planear`.
+      operationId: comedor_menu_dia_delete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: comedor_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: semana
+          in: query
+          required: true
+          description: Lunes de la semana
+          schema:
+            type: string
+            format: date
+        - name: dia
+          in: query
+          required: true
+          schema:
+            type: string
+            example: jueves
+        - name: tipo
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [normal, dieta]
+      responses:
+        "200":
+          description: Menu del dia eliminado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenuSemanalDiaDeleteResponse"
+        "403":
+          description: Sin acceso al modulo de planeacion de comedor
+        "404":
+          description: Comedor no encontrado
 
   /api/v1/comedor/mi-comedor-asignado:
     get:

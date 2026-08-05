@@ -64,6 +64,16 @@ class MenuSemanalDeleteResponse(BaseModel):
     deleted_count: int
 
 
+class MenuSemanalDiaDeleteResponse(BaseModel):
+    """Resultado de vaciar el menú de un día (o de un solo tipo dentro del día)."""
+
+    comedor_id: int
+    semana: date
+    dia: str
+    tipo: Optional[str] = None
+    deleted_count: int
+
+
 class ComedorAsignadoResponse(BaseModel):
     """Comedor del empleado según `turnos_empleados` y catálogo `comedores`."""
 
