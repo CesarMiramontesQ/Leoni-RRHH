@@ -11,6 +11,7 @@
  * resuelve el rol en cada consulta — así el toggle surte efecto sin volver a pedir datos.
  */
 import { fetchVistasRolMe } from "../api/vistasRol.ts";
+import { isModulosRhEnrolled } from "./rhModulePermissions.ts";
 import { getRhUiMode, isAdminUser } from "./rhUiMode.ts";
 import { navItemToVistaKey, resolveVistaFromHash } from "./vistaRolRegistry.ts";
 
@@ -77,6 +78,11 @@ function vistasActivas(): Record<string, boolean> | null {
     const rol = MODO_UI_A_ROL[getRhUiMode()];
     return rol ? (state.porRol[rol] ?? null) : null;
   }
+  // Quien tiene módulos RH otorgados se rige por ESE sistema: aplicarle además la
+  // configuración de su rol base se los pisaba (con los 4 módulos de Comedor solo veía
+  // la página encendida para `empleado`). El backend ya manda `configurable: false` en
+  // este caso; esto lo sostiene aunque la sesión traiga una respuesta anterior.
+  if (isModulosRhEnrolled()) return null;
   return state.configurable ? state.vistas : null;
 }
 

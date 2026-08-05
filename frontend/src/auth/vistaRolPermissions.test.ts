@@ -7,9 +7,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let esAdmin = false;
 let modoUi = "operativo";
 
+let inscritoEnModulos = false;
+
 vi.mock("./rhUiMode.ts", () => ({
   isAdminUser: () => esAdmin,
   getRhUiMode: () => modoUi,
+}));
+
+vi.mock("./rhModulePermissions.ts", () => ({
+  isModulosRhEnrolled: () => inscritoEnModulos,
 }));
 
 const ME = {
@@ -38,6 +44,7 @@ describe("vistaRolPermissions y el modo de UI", () => {
   beforeEach(() => {
     esAdmin = false;
     modoUi = "operativo";
+    inscritoEnModulos = false;
     respuesta = ME;
     vi.resetModules();
   });
@@ -90,5 +97,35 @@ describe("vistaRolPermissions y el modo de UI", () => {
     const m = await cargar();
     expect(m.isVistaRolGateActivo()).toBe(false);
     expect(m.vistaRolPermiteNavItem("metricas")).toBeNull();
+  });
+
+  it("un inscrito en módulos RH queda fuera del gate: manda su grant", async () => {
+    // Caso reportado: a una empleada con los 4 módulos de Comedor otorgados se le
+    // aplicaba además la config de su rol base, así que solo veía la página cuya vista
+    // está encendida para `empleado` (Comedor) y le aparecía el Dashboard de su rol.
+    inscritoEnModulos = true;
+    respuesta = {
+      rol: "empleado",
+      configurable: true,
+      vistas: { "comedor-gestion": false, "comedor-planear": false, reportes: false, dashboard: true },
+    };
+    const m = await cargar();
+
+    expect(m.isVistaRolGateActivo()).toBe(false);
+    // El gate ya no opina: deciden los permisos por módulo.
+    expect(m.vistaRolPermiteNavItem("comedor-gestion")).toBeNull();
+    expect(m.vistaRolPermiteNavItem("comedor-planear")).toBeNull();
+    expect(m.vistaRolPermiteNavItem("reportes")).toBeNull();
+    expect(m.vistaRolPermiteNavItem("dashboard")).toBeNull();
+    expect(m.vistaRolPermiteHash("#/comedor/gestion")).toBeNull();
+  });
+
+  it("un rol base SIN módulos otorgados sí queda sujeto al gate", async () => {
+    inscritoEnModulos = false;
+    respuesta = { rol: "empleado", configurable: true, vistas: { "comedor-gestion": false } };
+    const m = await cargar();
+
+    expect(m.isVistaRolGateActivo()).toBe(true);
+    expect(m.vistaRolPermiteNavItem("comedor-gestion")).toBe(false);
   });
 });
