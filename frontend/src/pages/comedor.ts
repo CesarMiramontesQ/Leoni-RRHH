@@ -52,6 +52,7 @@ import {
   getComedorAsignado,
   registrarComedorSeleccion,
   reservarComedorAcceso,
+  buscarComedorRhEmpleados,
   isComedorApiError,
   type ComedorRhRegistroResponseApi,
   type ComedorMisReservaApiItem,
@@ -87,7 +88,6 @@ import {
   WEEK_PLANNER_DAY_KEYS,
   WEEK_PLANNER_DAY_LABELS,
 } from "../comedor/rh/weekPlannerDays.ts";
-import { getEmpleadosPage } from "../api/empleados.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import {
   COMEDOR_EMPLEADO_PROXIMAS_PAGE_SIZE,
@@ -920,12 +920,13 @@ function toPlannerViewState(state: RhPlannerState): ComedorWeeklyPlannerViewStat
 async function searchComedorEmployeesFromDb(query: string): Promise<readonly ComedorEmployeeOption[]> {
   const q = query.trim();
   if (!q) return [];
-  const page = await getEmpleadosPage({ page: 1, page_size: 8, q });
+  if (q.length < 2) return [];
+  const page = await buscarComedorRhEmpleados(q, 8);
   return page.items.map((item) => ({
     id: String(item.empleado_id),
     nombre: item.nombre,
     numero: formatNoEmpleadoDisplay(item.no_empleado),
-    area: item.area?.descripcion ?? "Sin área",
+    area: item.area ?? "Sin área",
     avatarUrl: null,
   }));
 }
@@ -962,7 +963,7 @@ async function resolveEmpleadoOptionForComedor(
   const q = (noEmpleadoJwt || empleadoId || empleadoNombre).trim();
   if (!q) return base;
   try {
-    const page = await getEmpleadosPage({ page: 1, page_size: 8, q });
+    const page = await buscarComedorRhEmpleados(q, 8);
     const exactByNoEmpleado = noEmpleadoJwt ?
       page.items.find((item) => formatNoEmpleadoDisplay(item.no_empleado) === formatNoEmpleadoDisplay(noEmpleadoJwt))
     : undefined;
@@ -975,7 +976,7 @@ async function resolveEmpleadoOptionForComedor(
       id: String(picked.empleado_id),
       nombre: picked.nombre || base.nombre,
       numero: formatNoEmpleadoDisplay(picked.no_empleado) || base.numero,
-      area: picked.area?.descripcion ?? base.area,
+      area: picked.area ?? base.area,
       avatarUrl: null,
     };
   } catch {
