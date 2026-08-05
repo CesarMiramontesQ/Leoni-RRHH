@@ -49,6 +49,7 @@ from app.schemas.comedor import (
     HuellaValidarResponse,
     MenuSemanalCreate,
     MenuSemanalDeleteResponse,
+    MenuSemanalDiaDeleteResponse,
     MenuSemanalResponse,
 )
 from app.services.comedor_service import ComedorService
@@ -121,6 +122,28 @@ async def publicar_menu(
     service = ComedorService(db)
     return await service.publicar_menu(
         data=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )
+
+
+@router.delete("/menu/dia", response_model=MenuSemanalDiaDeleteResponse)
+async def eliminar_menu_dia(
+    background_tasks: BackgroundTasks,
+    comedor_id: int = Query(...),
+    semana: date = Query(..., description="Lunes de la semana"),
+    dia: str = Query(..., description="Día a vaciar; se normaliza (acentos y mayúsculas)"),
+    tipo: str | None = Query(None, description="Opcional: `normal` o `dieta`. Sin él, ambas"),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Vacía el menú de un día sin borrar la semana. Módulo `comedor-planear`."""
+    service = ComedorService(db)
+    return await service.eliminar_menu_dia(
+        comedor_id=comedor_id,
+        semana=semana,
+        dia=dia,
+        tipo=tipo,
         current_user=current_user,
         background_tasks=background_tasks,
     )

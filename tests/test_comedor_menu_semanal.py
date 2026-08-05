@@ -253,3 +253,182 @@ async def test_publicar_menu_no_rh_sin_modulo_comedor(client: AsyncClient, db):
     assert r.status_code == 403, r.text
     assert "rh" not in r.json()["detail"].lower()
     assert "módulo" in r.json()["detail"].lower() or "comedor" in r.json()["detail"].lower()
+
+
+# ─────────────────── borrado por día (editar sin borrar la semana) ───────────────────
+
+MENU_DIA_URL = "/api/v1/comedor/menu/dia"
+
+
+async def _publicar(client, hdrs, comedor_id, semana, dia, tipo, descripcion, detalle=None):
+    body = {
+        "comedor_id": comedor_id,
+        "semana": semana.isoformat(),
+        "dia": dia,
+        "tipo": tipo,
+        "descripcion": descripcion,
+    }
+    if detalle is not None:
+        body["detalle"] = detalle
+    r = await client.post(MENU_URL, json=body, headers=hdrs)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+@pytest.mark.asyncio
+async def test_eliminar_menu_dia_no_toca_el_resto_de_la_semana(client: AsyncClient, db):
+    """El caso que motivó la feature: corregir un día sin reimportar la semana."""
+    rh = await make_empleado(db, rol="rh", email="rh_dia_1@test.leoni", password="RhM3nu!")
+    hdrs = await auth_headers(client, rh, password="RhM3nu!")
+    comedor_id = await _crear_comedor(client, hdrs)
+    semana = date(2026, 3, 2)
+
+    for dia in ("lunes", "martes"):
+        for tipo in ("normal", "dieta"):
+            await _publicar(client, hdrs, comedor_id, semana, dia, tipo, f"{tipo} {dia}")
+
+    r = await client.delete(
+        MENU_DIA_URL,
+        params={"comedor_id": comedor_id, "semana": semana.isoformat(), "dia": "martes"},
+        headers=hdrs,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["deleted_count"] == 2
+    assert r.json()["dia"] == "martes"
+
+    items = (
+        await client.get(
+            MENU_URL,
+            params={"comedor_id": comedor_id, "semana": semana.isoformat()},
+            headers=hdrs,
+        )
+    ).json()
+    assert {item["dia"] for item in items} == {"lunes"}
+    assert len(items) == 2
+
+
+@pytest.mark.asyncio
+async def test_eliminar_solo_un_tipo_conserva_el_otro(client: AsyncClient, db):
+    """Quitar la Opción B de un día debe dejar viva la Opción A."""
+    rh = await make_empleado(db, rol="rh", email="rh_dia_2@test.leoni", password="RhM3nu!")
+    hdrs = await auth_headers(client, rh, password="RhM3nu!")
+    comedor_id = await _crear_comedor(client, hdrs)
+    semana = date(2026, 3, 2)
+
+    await _publicar(client, hdrs, comedor_id, semana, "jueves", "normal", "Fajitas")
+    await _publicar(client, hdrs, comedor_id, semana, "jueves", "dieta", "Rollo primavera")
+
+    r = await client.delete(
+        MENU_DIA_URL,
+        params={
+            "comedor_id": comedor_id,
+            "semana": semana.isoformat(),
+            "dia": "jueves",
+            "tipo": "dieta",
+        },
+        headers=hdrs,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["deleted_count"] == 1
+
+    items = (
+        await client.get(
+            MENU_URL,
+            params={"comedor_id": comedor_id, "semana": semana.isoformat()},
+            headers=hdrs,
+        )
+    ).json()
+    assert len(items) == 1
+    assert items[0]["tipo"] == "normal"
+    assert items[0]["descripcion"] == "Fajitas"
+
+
+@pytest.mark.asyncio
+async def test_eliminar_menu_dia_normaliza_acentos_y_mayusculas(client: AsyncClient, db):
+    """La UI manda la clave normalizada, pero el endpoint no debe depender de eso."""
+    rh = await make_empleado(db, rol="rh", email="rh_dia_3@test.leoni", password="RhM3nu!")
+    hdrs = await auth_headers(client, rh, password="RhM3nu!")
+    comedor_id = await _crear_comedor(client, hdrs)
+    semana = date(2026, 3, 2)
+
+    await _publicar(client, hdrs, comedor_id, semana, "miercoles", "normal", "Pollo oriental")
+
+    r = await client.delete(
+        MENU_DIA_URL,
+        params={"comedor_id": comedor_id, "semana": semana.isoformat(), "dia": "Miércoles"},
+        headers=hdrs,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["deleted_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_eliminar_menu_dia_sin_registros_no_falla(client: AsyncClient, db):
+    """El llamador pide un estado final, no la existencia previa."""
+    rh = await make_empleado(db, rol="rh", email="rh_dia_4@test.leoni", password="RhM3nu!")
+    hdrs = await auth_headers(client, rh, password="RhM3nu!")
+    comedor_id = await _crear_comedor(client, hdrs)
+
+    r = await client.delete(
+        MENU_DIA_URL,
+        params={"comedor_id": comedor_id, "semana": "2026-03-02", "dia": "domingo"},
+        headers=hdrs,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["deleted_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_eliminar_menu_dia_requiere_modulo_comedor(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="rh_dia_5@test.leoni", password="RhM3nu!")
+    hdrs = await auth_headers(client, rh, password="RhM3nu!")
+    comedor_id = await _crear_comedor(client, hdrs)
+
+    sin_modulo = await make_empleado(
+        db,
+        rol="empleado",
+        email="emp_dia_sin@test.leoni",
+        password="Emp3!Menu",
+        inscrito_modulos_rh=True,
+        modulos_rh={"solicitudes": True},
+    )
+    r = await client.delete(
+        MENU_DIA_URL,
+        params={"comedor_id": comedor_id, "semana": "2026-03-02", "dia": "lunes"},
+        headers=await auth_headers(client, sin_modulo, password="Emp3!Menu"),
+    )
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reenviar_el_dia_conserva_su_detalle(client: AsyncClient, db):
+    """Trampa del upsert: `model_dump()` siempre incluye `detalle`, así que un POST sin él
+    lo deja en null. Editar un día debe reenviarlo completo."""
+    rh = await make_empleado(db, rol="rh", email="rh_dia_6@test.leoni", password="RhM3nu!")
+    hdrs = await auth_headers(client, rh, password="RhM3nu!")
+    comedor_id = await _crear_comedor(client, hdrs)
+    semana = date(2026, 3, 2)
+    detalle = {
+        "sopa_o_crema": [],
+        "guarniciones": ["ARROZ ROJO", "FRIJOLES"],
+        "complementos": ["ENSALADA VERDE"],
+        "tortillas": ["TORTILLA DE MAIZ"],
+        "postres": ["ARROZ CON LECHE"],
+        "salsas": ["SALSA VERDE"],
+        "aguas": ["AGUA DE JAMAICA"],
+    }
+
+    await _publicar(client, hdrs, comedor_id, semana, "lunes", "normal", "Mole", detalle)
+    # Reenviar con el detalle (lo que hace el modal) lo conserva y cambia la descripción.
+    creado = await _publicar(
+        client, hdrs, comedor_id, semana, "lunes", "normal", "Mole con pollo", detalle
+    )
+    assert creado["descripcion"] == "Mole con pollo"
+    assert creado["detalle"]["guarniciones"] == ["ARROZ ROJO", "FRIJOLES"]
+
+    # Y sin `detalle` el backend lo borra: por eso el modal edita el día completo.
+    sin_detalle = await _publicar(
+        client, hdrs, comedor_id, semana, "lunes", "normal", "Mole sin guarnición"
+    )
+    assert sin_detalle["detalle"] is None
+

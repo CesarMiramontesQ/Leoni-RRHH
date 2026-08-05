@@ -119,6 +119,25 @@ class MenuSemanalRepository(BaseRepository[MenuSemanal]):
         await self.db.flush()
         return int(result.rowcount or 0)
 
+    async def delete_menu_dia(
+        self, comedor_id: int, semana: date, dia: str, tipo: str | None = None
+    ) -> int:
+        """Borra el menú de UN día. Sin `tipo` borra normal y dieta; con él, solo ese.
+
+        Permite corregir o vaciar un día sin tocar el resto de la semana. El día se
+        normaliza igual que en `upsert_menu`, para que «Miércoles» encuentre `miercoles`.
+        """
+        condiciones = [
+            MenuSemanal.comedor_id == comedor_id,
+            MenuSemanal.semana == semana,
+            func.lower(MenuSemanal.dia) == self._normalize_menu_dia(str(dia)),
+        ]
+        if tipo is not None:
+            condiciones.append(MenuSemanal.tipo == tipo)
+        result = await self.db.execute(delete(MenuSemanal).where(*condiciones))
+        await self.db.flush()
+        return int(result.rowcount or 0)
+
     async def get_menu_semana_todos(self, semana: date) -> list[MenuSemanal]:
         """Retorna todos los menus de todos los comedores para una semana."""
         result = await self.db.execute(

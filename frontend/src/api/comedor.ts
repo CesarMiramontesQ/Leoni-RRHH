@@ -177,6 +177,30 @@ export async function eliminarComedorMenuSemana(
   return (await res.json()) as { comedor_id: number; semana: string; deleted_count: number };
 }
 
+export async function eliminarComedorMenuDia(
+  comedorId: number,
+  semanaIso: string,
+  dia: string,
+  tipo?: "normal" | "dieta",
+): Promise<{ comedor_id: number; semana: string; dia: string; tipo: string | null; deleted_count: number }> {
+  const params = new URLSearchParams();
+  params.set("comedor_id", String(comedorId));
+  params.set("semana", semanaIso);
+  params.set("dia", dia);
+  if (tipo) params.set("tipo", tipo);
+  const res = await fetchWithAuth(`/api/v1/comedor/menu/dia?${params.toString()}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as {
+    comedor_id: number;
+    semana: string;
+    dia: string;
+    tipo: string | null;
+    deleted_count: number;
+  };
+}
+
 export async function getComedorAsignado(targetUserId?: number): Promise<ComedorAsignadoApi> {
   const params = new URLSearchParams();
   if (targetUserId != null) params.set("target_user_id", String(targetUserId));
