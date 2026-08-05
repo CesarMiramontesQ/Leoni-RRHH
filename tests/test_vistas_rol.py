@@ -673,3 +673,46 @@ async def test_admin_nunca_pierde_la_administracion_de_vistas(client: AsyncClien
     for modo in ("operativo", "gerente"):  # los válidos para un admin gerente
         h = {**headers, "X-RH-UI-Mode": modo}
         assert (await client.get(CONFIG_URL, headers=h)).status_code == 200, modo
+
+
+@pytest.mark.asyncio
+async def test_inscrito_en_modulos_rh_queda_fuera_del_gate(client: AsyncClient, db):
+    """Los permisos por módulo mandan sobre la configuración del rol base.
+
+    Caso reportado: a una empleada con los 4 módulos de Comedor otorgados se le aplicaba
+    ADEMÁS la config de su rol `empleado`, que los pisaba — solo veía la página cuya vista
+    está encendida para ese rol, más el Dashboard que su rol trae de fábrica.
+    """
+    emp = await make_empleado(
+        db,
+        rol="empleado",
+        email="emp_inscrita_comedor@test.com",
+        inscrito_modulos_rh=True,
+        modulos_rh={
+            "comedor-registro": True,
+            "comedor-gestion": True,
+            "comedor-planear": True,
+            "reportes": True,
+        },
+    )
+    await _sembrar_defaults(db)
+
+    body = (
+        await client.get("/api/v1/vistas-rol/me", headers=await auth_headers(client, emp))
+    ).json()
+    assert body["configurable"] is False
+    assert all(body["vistas"].values()), "el gate no debe recortarle nada"
+
+
+@pytest.mark.asyncio
+async def test_rol_base_sin_modulos_sigue_sujeto_al_gate(client: AsyncClient, db):
+    """La exención anterior es solo para inscritos: un rol base puro sí se configura."""
+    emp = await make_empleado(db, rol="empleado", email="emp_sin_modulos@test.com")
+    await _sembrar_defaults(db)
+
+    body = (
+        await client.get("/api/v1/vistas-rol/me", headers=await auth_headers(client, emp))
+    ).json()
+    assert body["configurable"] is True
+    assert body["vistas"]["actas"] is False
+

@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 
 from app.core import vista_rol_cache
+from app.core.rh_module_registry import is_modulos_rh_enrolled
 from app.core.rh_ui_mode import is_admin_user
 from app.core.vista_rol_registry import (
     ROLES_CONFIGURABLES,
@@ -79,7 +80,12 @@ class VistasRolService:
                 por_rol=config,
             )
 
-        if not is_rol_configurable(rol):
+        # Un usuario inscrito en permisos por módulo se rige por ESE sistema, no por el
+        # gate de rol — igual que en `VistaRolPermissionMiddleware`. Sin esta salida, a
+        # quien tiene módulos otorgados se le aplicaba además la config de su rol base y
+        # se los pisaba: con los 4 módulos de Comedor solo veía la página cuya vista está
+        # encendida para `empleado`, más el Dashboard que su rol trae de fábrica.
+        if not is_rol_configurable(rol) or is_modulos_rh_enrolled(current_user):
             return VistaRolMeResponse(rol=rol, configurable=False, vistas=todas)
 
         config = await self._config_actual()
