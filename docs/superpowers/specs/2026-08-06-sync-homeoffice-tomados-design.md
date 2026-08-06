@@ -113,9 +113,16 @@ Espeja `sync_vacaciones_disponibles_service`:
 **Empleado activo sin filas de Home Office ⇒ se escribe `0`**, no se omite. Así el `0` que ve
 el dashboard es un dato sincronizado y no la ausencia de uno.
 
-`SyncHomeOfficeStats`: `consultados`, `insertados`, `actualizados`, `omitidos`, `errores`,
-`mensajes_error`. `actualizado_en` se refresca en cada corrida exitosa cambien o no los días,
-para poder distinguir «sin movimiento» de «caché rancia».
+`SyncHomeOfficeStats`: `consultados`, `insertados`, `actualizados`, `omitidos`. No lleva
+contador de errores por empleado —a diferencia de vacaciones— porque aquí hay **una sola**
+consulta: o se lee todo o no se lee nada, y ese fallo se propaga como excepción en vez de
+contarse. Un campo que siempre valdría cero sería ruido.
+
+`actualizado_en` se refresca en cada corrida exitosa cambien o no los días, para poder
+distinguir «sin movimiento» de «caché rancia».
+
+El rango semiabierto del año vive aquí como `rango_anio(anio) -> (date, date)`; el actual
+`dashboard_kpis_service.rango_anio_en_curso` se retira con la lectura directa (ver §5).
 
 Repositorio `app/repositories/homeoffice_tomados_repository.py` con `get_by_no_empleado_anio`
 y `map_existentes(anio, no_empleados)` — este último carga las filas de una vez para decidir
@@ -146,8 +153,8 @@ una solicitud no disparan nada, porque en ninguno de los dos casos se escribe en
 ### 5. Cambio de la fuente de lectura
 
 `dashboard_kpis_service` pasa a leer `HomeOfficeTomadosRepository.get_by_no_empleado_anio`.
-Se elimina `_home_office_dias_anio` y el uso de `DatosAnalisisReadClient` en ese módulo. Sin
-fila para el empleado ⇒ `0`.
+Se elimina el uso de `DatosAnalisisReadClient` en ese módulo y `rango_anio_en_curso`, que ya
+solo servía para armar el rango de la consulta externa. Sin fila para el empleado ⇒ `0`.
 
 El contrato de la API no cambia (`home_office_dias_anio: int | None`), así que el frontend y
 ese campo de `openapi.yaml` quedan intactos. El frontend nunca consultó `DATOS_ANALISIS`
@@ -168,7 +175,7 @@ Se consultan con `docker-compose logs -f backend | grep "Sync home office"`.
 | Situación | Comportamiento |
 | --- | --- |
 | `DATOS_ANALISIS` no configurada o motor no creable | `ConnectionError`; no se escribe nada |
-| Error SQL durante la consulta agregada | el `SQLAlchemyError` se propaga tal cual al llamador; la transacción de Bono hace rollback y no queda nada a medias |
+| Error SQL durante la consulta agregada | se registra y se re-lanza como `ConnectionError` (con la excepción original como causa), para que job y CLI traten un solo tipo; no se escribe nada en Bono |
 | Fallo dentro del job diario | capturado y registrado con `logger.error(..., exc_info=True)`; no tumba el scheduler |
 | Fallo en la sincronización posterior a una aprobación | capturado, registrado, **la aprobación se conserva**; se corrige a las 06:00 |
 | Empleado sin filas en `dbo.PERMISO` | se escribe `0` |
