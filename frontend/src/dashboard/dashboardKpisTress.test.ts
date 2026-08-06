@@ -80,25 +80,34 @@ describe("KPIs del dashboard desde TRESS", () => {
   });
 
   it("el dashboard de empleado toma los tres KPIs del endpoint", async () => {
-    const { fetchEmpleadoDashboard } = await import("./empleado/fetchEmpleadoDashboard.ts");
-    const payload = await fetchEmpleadoDashboard();
+    const { fetchEmpleadoDashboardKpis } = await import("./empleado/fetchEmpleadoDashboard.ts");
+    const kpis = await fetchEmpleadoDashboardKpis();
 
     expect(fetchDashboardKpisMock).toHaveBeenCalled();
-    expect(payload?.vacation_available_days).toBe(8);
-    expect(payload?.vacation_used_days).toBe(16);
+    expect(kpis?.vacation_available_days).toBe(8);
+    expect(kpis?.vacation_used_days).toBe(16);
     // Antes este campo nunca se asignaba y la tarjeta mostraba siempre "0 días".
-    expect(payload?.home_office_dias_anio).toBe(3);
+    expect(kpis?.home_office_dias_anio).toBe(3);
   });
 
-  it("si nómina no responde los KPIs quedan en null, no en cero", async () => {
-    kpisRespuesta = null;
+  it("la carga principal del dashboard no espera a TRESS", async () => {
+    // Los KPIs van en su propia petición: metidos en el Promise.all del dashboard,
+    // una BD de nómina caída bloqueaba el render entero (15 s por carga).
     const { fetchEmpleadoDashboard } = await import("./empleado/fetchEmpleadoDashboard.ts");
     const payload = await fetchEmpleadoDashboard();
 
+    expect(fetchDashboardKpisMock).not.toHaveBeenCalled();
     expect(payload).not.toBeNull();
     expect(payload?.vacation_available_days).toBeNull();
     expect(payload?.vacation_used_days).toBeNull();
     expect(payload?.home_office_dias_anio).toBeNull();
+  });
+
+  it("si nómina no responde los KPIs quedan en null, no en cero", async () => {
+    kpisRespuesta = null;
+    const { fetchEmpleadoDashboardKpis } = await import("./empleado/fetchEmpleadoDashboard.ts");
+
+    expect(await fetchEmpleadoDashboardKpis()).toBeNull();
   });
 
   it("el dashboard de supervisor/gerente usa el mismo endpoint", async () => {

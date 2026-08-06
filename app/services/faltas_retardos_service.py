@@ -1,3 +1,4 @@
+import logging
 from datetime import date, timedelta
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -81,6 +82,22 @@ def _ventana_por_defecto(
         return fecha_inicio, fecha_fin
     hoy = date.today()
     return hoy - timedelta(days=365 * VENTANA_DEFAULT_MESES // 12), None
+
+
+logger = logging.getLogger(__name__)
+
+
+def _error_tress(accion: str, exc: Exception) -> ServiceUnavailableError:
+    """503 con un texto que se pueda enseñar; el detalle técnico va al log.
+
+    El `detail` llega tal cual a la pantalla —el dashboard de RH lo pinta como
+    aviso—, así que no puede llevar trazas de pyodbc ni cadenas de conexión.
+    Misma regla que `descansos_empleado_service`.
+    """
+    logger.warning("No se pudo %s en datos-analisis: %s: %s", accion, type(exc).__name__, exc)
+    return ServiceUnavailableError(
+        f"No se pudo {accion}: sin conexión con nómina (TRESS). Intenta de nuevo en unos minutos."
+    )
 
 
 def _empleado_display_nombre(empleado: Empleado | None) -> str | None:
@@ -475,9 +492,7 @@ class FaltasRetardosService:
                     tipo=tipo,
                 )
         except SQLAlchemyError as exc:
-            raise ServiceUnavailableError(
-                f"Error al consultar incidencias en datos-analisis: {type(exc).__name__}: {exc}"
-            ) from exc
+            raise _error_tress("consultar las incidencias", exc) from exc
         finally:
             await engine.dispose()
 
@@ -657,9 +672,7 @@ class FaltasRetardosService:
                 repo, levelup_items, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
             )
         except SQLAlchemyError as exc:
-            raise ServiceUnavailableError(
-                f"Error al consultar estadísticas en datos-analisis: {type(exc).__name__}: {exc}"
-            ) from exc
+            raise _error_tress("consultar las estadísticas", exc) from exc
         finally:
             await engine.dispose()
 

@@ -68,10 +68,40 @@ function monthsCoveredByIsoRange(startIso: string, endIso: string): Array<{ year
   return out;
 }
 
+/** KPIs de vacaciones y home office. Van aparte porque leen de TRESS (ver abajo). */
+export type EmpleadoDashboardKpis = Pick<
+  EmpleadoDashboardPayload,
+  "vacation_available_days" | "vacation_used_days" | "home_office_dias_anio"
+>;
+
 /**
- * Dashboard personal (rol `empleado`): los KPIs de vacaciones y home office vienen de
- * `GET /api/v1/dashboard/mis-kpis` (TRESS); el calendario marca solicitudes propias
- * pendientes (amarillo) y aprobadas (verde).
+ * Los tres KPIs de TRESS, en su propia petición.
+ *
+ * No entran en `fetchEmpleadoDashboard` a propósito: TRESS es una BD externa y
+ * cuando no responde, `GET /mis-kpis` tarda lo que tarde el timeout de conexión.
+ * Metido en el `Promise.all` del dashboard, esa espera bloqueaba el render
+ * completo aunque solicitudes y comedor ya hubieran respondido en ~50 ms.
+ */
+export async function fetchEmpleadoDashboardKpis(): Promise<EmpleadoDashboardKpis | null> {
+  try {
+    const kpis = await fetchDashboardKpis();
+    if (!kpis) return null;
+    return {
+      vacation_available_days: kpis.vacaciones_disponibles ?? null,
+      vacation_used_days: kpis.vacaciones_tomadas_ciclo ?? null,
+      home_office_dias_anio: kpis.home_office_dias_anio ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Dashboard personal (rol `empleado`): solicitudes propias y reservas de comedor.
+ * El calendario marca solicitudes propias pendientes (amarillo) y aprobadas (verde).
+ *
+ * Los KPIs de vacaciones y home office **no** se piden aquí: ver
+ * `fetchEmpleadoDashboardKpis`.
  */
 export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget): Promise<EmpleadoDashboardPayload | null> {
   const rol = getRolFromAccessToken();
@@ -93,12 +123,11 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
   const monthsToLoad = monthsCoveredByIsoRange(rangeStartIso, rangeEndIso);
 
   try {
-    const [rows, reservasPorMes, kpis] = await Promise.all([
+    const [rows, reservasPorMes] = await Promise.all([
       getSolicitudesRows(100),
       Promise.all(
         monthsToLoad.map(({ year, month }) => getComedorMisReservasMes(year, month).catch(() => [])),
       ),
-      fetchDashboardKpis(),
     ]);
     const comedorReservas = reservasPorMes
       .flat()
@@ -141,11 +170,10 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
 
     return {
       ...base,
-      // Los tres KPIs salen de TRESS (DATOS_ANALISIS), no de las solicitudes de la app:
-      // es la misma fuente que valida el formulario de nueva solicitud.
-      vacation_available_days: kpis?.vacaciones_disponibles ?? null,
-      vacation_used_days: kpis?.vacaciones_tomadas_ciclo ?? null,
-      home_office_dias_anio: kpis?.home_office_dias_anio ?? null,
+      // Los tres KPIs de TRESS llegan después, por `fetchEmpleadoDashboardKpis`.
+      vacation_available_days: null,
+      vacation_used_days: null,
+      home_office_dias_anio: null,
       calendar: {
         ...base.calendar,
         day_entries,

@@ -136,6 +136,10 @@ class Settings(BaseSettings):
     DATOS_ANALISIS_DB_USER: str = ""
     DATOS_ANALISIS_DB_PASSWORD: str = ""
     DATOS_ANALISIS_DB_DRIVER: str = "ODBC Driver 18 for SQL Server"
+    # Segundos para ESTABLECER la conexión (no para ejecutar consultas). El default
+    # del driver son 15 s: con TRESS caído, cada petición que lo toque se cuelga ese
+    # tiempo. Con el server sano la conexión tarda milisegundos.
+    DATOS_ANALISIS_DB_CONNECT_TIMEOUT: int = 5
 
     # Vacaciones → TRESS (INSERT dbo.VACACION al aprobar)
     TRESS_VACACIONES_NOM_TIPO: int = 1

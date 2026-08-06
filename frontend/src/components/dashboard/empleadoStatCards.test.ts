@@ -60,4 +60,36 @@ describe("renderEmpleadoStatCards", () => {
     expect(html).toContain("Este año");
     expect(html).not.toContain("Este mes");
   });
+
+  describe("mientras se esperan los KPIs de nómina", () => {
+    it("pinta esqueleto en las tarjetas de TRESS, no «—»", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      const html = renderEmpleadoStatCards(payload({}), { kpisCargando: true });
+      // Tres tarjetas vienen de TRESS: disponibles, utilizados y home office.
+      expect(html.match(/animate-pulse/g) ?? []).toHaveLength(3);
+      expect(html).toContain('aria-busy="true"');
+      expect(html).not.toContain("—");
+    });
+
+    it("la tarjeta de solicitudes en proceso no espera a nómina", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      const html = renderEmpleadoStatCards(payload({ pending_requests: 2 }), {
+        kpisCargando: true,
+      });
+      expect(html).toContain("2");
+      expect(html).toContain("Solicitudes pendientes");
+    });
+
+    it("al llegar sin dato vuelve a «—», no se queda cargando", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      const html = renderEmpleadoStatCards(payload({}), { kpisCargando: false });
+      expect(html).not.toContain("animate-pulse");
+      expect(html).toContain("—");
+    });
+  });
+
+  it("expone el id del bloque para sustituirlo al llegar los KPIs", async () => {
+    const mod = await import("./empleadoPersonalDashboard.ts");
+    expect(mod.renderEmpleadoStatCards(payload({}))).toContain(`id="${mod.EMPLEADO_STAT_CARDS_ID}"`);
+  });
 });

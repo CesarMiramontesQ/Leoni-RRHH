@@ -15,7 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.core.config import settings
-from app.core.db_engine_utils import build_mssql_aioodbc_url
+from app.core.db_engine_utils import build_mssql_aioodbc_url, mssql_connect_args
 
 
 class DatosAnalisisReadClient:
@@ -35,12 +35,20 @@ class DatosAnalisisReadClient:
         )
 
     @staticmethod
+    def _connect_args() -> dict:
+        return mssql_connect_args(settings.DATOS_ANALISIS_DB_CONNECT_TIMEOUT)
+
+    @staticmethod
     def create_read_engine() -> AsyncEngine | None:
         """Motor async dedicado; el llamador debe ``await engine.dispose()`` al terminar."""
         url = DatosAnalisisReadClient.build_async_database_url()
         if not url:
             return None
-        return create_async_engine(url, pool_pre_ping=True)
+        return create_async_engine(
+            url,
+            pool_pre_ping=True,
+            connect_args=DatosAnalisisReadClient._connect_args(),
+        )
 
     @staticmethod
     def create_write_engine() -> AsyncEngine | None:
@@ -56,6 +64,7 @@ class DatosAnalisisReadClient:
             url,
             pool_pre_ping=True,
             isolation_level="AUTOCOMMIT",
+            connect_args=DatosAnalisisReadClient._connect_args(),
         )
 
     @staticmethod
