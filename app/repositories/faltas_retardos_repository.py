@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Select, String, cast, func, or_, select
+from sqlalchemy import Select, String, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,14 +36,20 @@ class FaltasRetardosRepository(BaseRepository[FaltaRetardoEvento]):
             query = query.where(FaltaRetardoEvento.empleado_id == empleado_id)
         if tipo:
             query = query.where(FaltaRetardoEvento.tipo == tipo)
+        # Solape de rangos: el evento va de fecha_evento a fecha_fin (o un solo
+        # día si fecha_fin es NULL). Un filtro "desde X" sin "hasta" no debe
+        # acotar por arriba.
         if fecha_inicio is not None:
             query = query.where(
                 or_(
-                    FaltaRetardoEvento.fecha_fin.is_(None),
                     FaltaRetardoEvento.fecha_fin >= fecha_inicio,
+                    and_(
+                        FaltaRetardoEvento.fecha_fin.is_(None),
+                        FaltaRetardoEvento.fecha_evento >= fecha_inicio,
+                    ),
                 )
-            ).where(FaltaRetardoEvento.fecha_evento <= (fecha_fin or fecha_inicio))
-        if fecha_fin is not None and fecha_inicio is None:
+            )
+        if fecha_fin is not None:
             query = query.where(FaltaRetardoEvento.fecha_evento <= fecha_fin)
         if busqueda:
             term = f"%{busqueda.strip()}%"
@@ -208,3 +214,33 @@ class FaltasRetardosRepository(BaseRepository[FaltaRetardoEvento]):
         )
         rows = result.scalars().all()
         return {row.bono_origen_id: row for row in rows}
+
+    async def map_eventos_por_clave(
+        self,
+        claves: list[tuple[int, date, str]],
+    ) -> dict[tuple[int, date, str], FaltaRetardoEvento]:
+        """Mapa (empleado_id, fecha_evento, tipo) -> evento local.
+
+        Permite reconocer qué filas de TRESS las registró este sistema, para
+        devolver el motivo y el "registrado por" que TRESS no guarda.
+        """
+        if not claves:
+            return {}
+        empleado_ids = {empleado_id for empleado_id, _fecha, _tipo in claves}
+        fechas = [fecha for _empleado_id, fecha, _tipo in claves]
+        tipos = {tipo for _empleado_id, _fecha, tipo in claves}
+        result = await self.db.execute(
+            self._base_query().where(
+                FaltaRetardoEvento.empleado_id.in_(empleado_ids),
+                FaltaRetardoEvento.fecha_evento >= min(fechas),
+                FaltaRetardoEvento.fecha_evento <= max(fechas),
+                FaltaRetardoEvento.tipo.in_(tipos),
+            )
+        )
+        buscadas = set(claves)
+        salida: dict[tuple[int, date, str], FaltaRetardoEvento] = {}
+        for evento in result.scalars().unique().all():
+            clave = (evento.empleado_id, evento.fecha_evento, evento.tipo)
+            if clave in buscadas and clave not in salida:
+                salida[clave] = evento
+        return salida

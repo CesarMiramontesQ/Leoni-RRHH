@@ -2523,6 +2523,12 @@ components:
           format: date-time
         origen:
           type: [string, "null"]
+          description: >-
+            `ausencia` (fila diaria de TRESS), `permiso` (permiso con goce de
+            TRESS) o `manual` (registrado desde el sistema). Los valores
+            `importadas_historico`, `ponderaciones` y `evaluacion_historica` son
+            del origen anterior en bono y ya no aparecen en el listado.
+          examples: [ausencia, permiso, manual]
         origen_id:
           type: [integer, "null"]
 
@@ -9601,6 +9607,13 @@ paths:
     get:
       tags: [Faltas y retardos]
       summary: Listar eventos de asistencia
+      description: >-
+        Se lee de DATOS_ANALISIS (TRESS): `dbo.AUSENCIA` día por día para faltas,
+        retardos, suspensiones e incapacidades, y `dbo.PERMISO` con goce como un
+        solo renglón con rango (los días FJ cubiertos por ese permiso se excluyen
+        para no duplicarlos). Los permisos con goce e incapacidades internas
+        registrados desde el sistema se completan con la copia local, que aporta
+        el motivo y quién los capturó.
       operationId: faltas_retardos_list
       security:
         - BearerAuth: []
@@ -9628,6 +9641,9 @@ paths:
             $ref: "#/components/schemas/FaltaRetardoTipo"
         - name: fecha_inicio
           in: query
+          description: >-
+            Sin `fecha_inicio` ni `fecha_fin` se aplica una ventana de los últimos
+            12 meses; indicar una fecha anterior consulta todo el histórico.
           schema:
             type: string
             format: date
@@ -9648,6 +9664,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FaltasRetardosPageResponse"
+        "503":
+          description: DATOS_ANALISIS no está configurada o no responde
     post:
       tags: [Faltas y retardos]
       summary: Registrar evento de asistencia
@@ -9707,6 +9725,12 @@ paths:
     get:
       tags: [Faltas y retardos]
       summary: Estadísticas de eventos de asistencia
+      description: >-
+        Se agrega sobre la misma fuente que el listado (DATOS_ANALISIS + los
+        eventos locales), de modo que los KPIs cuadran con el total de la tabla.
+        Aplica la misma ventana de 12 meses cuando no se indican fechas. El
+        filtro `area` se resuelve contra el organigrama local y viaja como lista
+        de números de empleado.
       operationId: faltas_retardos_estadisticas
       security:
         - BearerAuth: []
