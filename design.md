@@ -517,6 +517,17 @@ Todos los componentes generan HTML strings via funciones TypeScript. Los tokens 
 
 El criterio es **la frecuencia de uso, no el número de ítems**: el supervisor tiene sus dos secciones de equipo estáticas y las tres personales plegables, aunque sumen 19 ítems.
 
+**Una sección plegable que queda con un solo ítem visible pierde el acordeón**: dos niveles y un clic extra no aportan jerarquía para un único enlace, y los ítems se filtran por permiso, así que a muchos usuarios les queda uno solo. Cómo se sustituye depende del menú, porque su gramática es distinta:
+
+| Menú | Sustitución | Por qué |
+|---|---|---|
+| Supervisor / empleado | Sección **estática** (encabezado + ítem), vía `renderFlatNavSection` | Todos los grupos llevan encabezado; sin él el enlace flota suelto entre ellos |
+| RH estructurado | Enlace de primer nivel con el nombre y el icono del **ítem** | Su sidebar es una lista plana de hubs, sin encabezados de sección |
+
+Las secciones plegables del supervisor se envuelven en el mismo `<ul class="-mx-2 mt-2 …">` que usan las estáticas (`wrapSupervisorCollapsible`). Sin esa envoltura se cuelgan del `<ul>` del shell, pierden el `-mx-2` y **todo el bloque queda 8px a la derecha** del resto del menú. En RH no hace falta: `sectionLis` ya vive dentro de un `<ul>` con `-mx-2`.
+
+El encabezado plegable **no lleva fondo al abrirse**: competiría con el ítem activo, que es el único que debe verse seleccionado. El estado abierto lo comunica el chevron. Los subítems se leen como subordinados por tamaño y color (`lg:min-h-9`, `text-text-secondary`, icono `size-4`), no por indentación sola, y no llevan la barra `before:` del activo de primer nivel: quedaría pegada a la guía vertical y se leerían como dos líneas paralelas. La guía usa `border-border`, no un azul, para no competir con el estado activo.
+
 Toda sección plegable **necesita icono**. El encabezado estático lleva `md:max-lg:hidden`, así que en el rail de tablet desaparece; una sección plegable sin icono se quedaría sin ningún control visible y sus ítems serían inalcanzables. De dónde sale ese icono depende de quién arma la sección: RH (`rhNav.ts`) usa el icono propio del hub (`LABORALES_SIDEBAR_ITEM.svgPaths`, `COMEDOR_SIDEBAR_ITEM.svgPaths`, etc.), mientras que el supervisor reusa el icono de su primer ítem.
 
 ### 8.2 Topbar

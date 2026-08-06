@@ -37,7 +37,6 @@ import {
 import {
   getVisibleRhGeneralItems,
   getVisibleRhNavSections,
-  type RhNavItem,
   type RhNavKey,
 } from "../navigation/rhNav.ts";
 import { clearAuth } from "../auth/session.ts";
@@ -170,17 +169,43 @@ const rhPrimaryChevronIcon = `<svg viewBox="0 0 20 20" fill="currentColor" aria-
           <path fill-rule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
         </svg>`;
 
+/**
+ * Sin fondo al abrir: el encabezado no debe competir con el ítem activo real, y el
+ * estado abierto ya lo comunica el chevron.
+ */
 const rhSectionSummaryClass =
-  `${navLinkBase} list-none cursor-pointer justify-between [&::-webkit-details-marker]:hidden group-open/rh-nav-section:bg-shell-hover/50`;
+  `${navLinkBase} list-none cursor-pointer justify-between [&::-webkit-details-marker]:hidden`;
 
+/**
+ * Los subítems se leen como subordinados: en `lg` bajan de altura y usan texto
+ * secundario. En móvil conservan `min-h-11` para no perder el área táctil.
+ */
 const rhSubNavLinkBase =
-  "group/rh-sub relative flex min-h-11 w-full items-center gap-x-3 rounded px-3 py-2 text-sm leading-snug outline-none transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:max-lg:justify-center md:max-lg:px-2 lg:justify-start";
+  "group/rh-sub relative flex min-h-11 w-full items-center gap-x-3 rounded px-3 py-2 text-sm leading-snug outline-none transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white md:max-lg:justify-center md:max-lg:px-2 lg:min-h-9 lg:justify-start lg:py-1.5";
 
 const rhSubNavInactive =
-  `${rhSubNavLinkBase} border border-transparent font-medium text-text-primary hover:bg-shell-hover hover:text-text-primary`;
+  `${rhSubNavLinkBase} border border-transparent font-medium text-text-secondary hover:bg-shell-hover hover:text-text-primary`;
 
+/**
+ * Sin la barra `before:` de los ítems de primer nivel: quedaría a milímetros de la
+ * guía vertical del submenú y se leerían como dos líneas paralelas.
+ */
 const rhSubNavActive =
-  `${rhSubNavLinkBase} border border-transparent bg-shell-active-ring font-semibold text-text-primary before:pointer-events-none before:absolute before:start-0 before:top-1/2 before:h-[1.875rem] before:w-[3px] before:-translate-y-1/2 before:rounded-e before:bg-accent`;
+  `${rhSubNavLinkBase} border border-transparent bg-shell-active-ring font-semibold text-text-primary`;
+
+const rhSubIconInactive =
+  "size-4 shrink-0 text-text-muted transition-colors duration-150 group-hover/rh-sub:text-text-primary md:max-lg:mx-auto md:max-lg:size-5";
+
+const rhSubIconActive =
+  "size-4 shrink-0 text-text-primary md:max-lg:mx-auto md:max-lg:size-5";
+
+/**
+ * La guía vertical se alinea con el icono del encabezado (`px-3` + media `size-5`
+ * ≈ 20px) y usa `border` en vez de un azul: compite menos con el ítem activo.
+ * En el rail de tablet no hay guía porque los labels están ocultos.
+ */
+const RH_SUB_NAV_LIST_CLASS =
+  "space-y-0.5 py-0.5 pl-9 md:max-lg:pl-0 lg:ml-5 lg:mb-1 lg:space-y-px lg:border-l lg:border-border lg:pl-3";
 
 const RH_PRIMARY_LIST_CLASS = "-mx-2 flex flex-col space-y-0.5 md:max-lg:-mx-0";
 
@@ -189,9 +214,10 @@ function rhPrimaryIcon(svgPaths: string, isActive: boolean): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${ic}">${svgPaths}</svg>`;
 }
 
+/** También sirve a las secciones del supervisor, de ahí `SidebarNavKey` y no `RhNavKey`. */
 function renderRhPrimaryLinkLi(
-  item: Pick<RhNavItem, "id" | "key" | "href" | "label" | "svgPaths">,
-  activeNav: RhNavKey | undefined,
+  item: SidebarNavItemShape,
+  activeNav: SidebarNavKey | undefined,
   rol: string | null,
 ): string {
   if (!isShellNavItemVisibleForRol(rol, item.id)) return "";
@@ -229,7 +255,7 @@ function rhSubNavItemLi(
   const cls = isActive ? rhSubNavActive : rhSubNavInactive;
   const escapedLabel = escapeHtmlText(item.label);
   const ariaCurrent = isActive ? ` aria-current="page"` : "";
-  const ic = isActive ? navIconActive : navIconInactive;
+  const ic = isActive ? rhSubIconActive : rhSubIconInactive;
   return `<li>
     <a href="${item.href}" class="${cls}" title="${escapedLabel}"${ariaCurrent}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="${ic}">
@@ -248,10 +274,19 @@ function renderCollapsibleNavSection(
   activeNav: SidebarNavKey | undefined,
   rol: string | null,
 ): string {
-  const subLis = items.map((item) => rhSubNavItemLi(activeNav, rol, item)).filter(Boolean);
-  if (subLis.length === 0) return "";
+  const visibles = items.filter((item) => isShellNavItemVisibleForRol(rol, item.id));
+  if (visibles.length === 0) return "";
 
-  const isOpen = activeNav != null && items.some((item) => item.key === activeNav);
+  // Los ítems de la sección se filtran por permiso, así que a muchos usuarios les
+  // queda uno solo. Un acordeón de dos niveles para un único enlace no aporta
+  // nada y cuesta un clic: se aplana al ítem, que además dice a dónde lleva.
+  // La separación del grupo anterior la pone el contenedor de la sección.
+  if (visibles.length === 1) {
+    return renderRhPrimaryLinkLi(visibles[0], activeNav, rol);
+  }
+
+  const subLis = visibles.map((item) => rhSubNavItemLi(activeNav, rol, item));
+  const isOpen = visibles.some((item) => item.key === activeNav);
   const panelId = `shell-rh-nav-panel-${sectionId}`;
 
   return `<li>
@@ -263,7 +298,7 @@ function renderCollapsibleNavSection(
         </span>
         ${rhPrimaryChevronIcon}
       </summary>
-      <ul id="${panelId}" role="list" class="space-y-0.5 py-0.5 pl-9 md:max-lg:pl-0 lg:border-l lg:border-shell-active-ring/80 lg:ml-5 lg:pl-2">
+      <ul id="${panelId}" role="list" class="${RH_SUB_NAV_LIST_CLASS}">
         ${subLis.join("")}
       </ul>
     </details>
@@ -410,6 +445,23 @@ export function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: strin
   </li>`;
 }
 
+/**
+ * Envuelve una sección plegable del supervisor con el mismo `<ul>` que usan las
+ * estáticas en `renderFlatNavSection`.
+ *
+ * Sin esto la sección se cuelga directamente del `<ul>` del shell y se pierde el
+ * `-mx-2` de las estáticas, así que todo el bloque queda 8px a la derecha del
+ * resto del menú. El `mt-2` da el mismo respiro que separa dos secciones.
+ */
+function wrapSupervisorCollapsible(sectionHtml: string): string {
+  if (sectionHtml.trim() === "") return "";
+  return `<li>
+    <ul role="list" class="-mx-2 mt-2 space-y-0.5 md:max-lg:-mx-0 md:max-lg:mt-3">
+      ${sectionHtml}
+    </ul>
+  </li>`;
+}
+
 function renderFlatNavSection(
   sectionId: string,
   title: string,
@@ -450,18 +502,26 @@ export function renderSupervisorSidebarSections(activeNav: ShellNavKey | undefin
     }),
   ).join("");
   const sectionLis = getVisibleSupervisorNavSections(rol)
-    .map((section) =>
-      section.tipo === "plegable" ?
-        renderCollapsibleNavSection(
-          section.id,
-          section.title,
-          section.iconSvgPaths ?? "",
-          section.items,
-          activeNav,
-          rol,
-        )
-      : renderFlatNavSection(section.id, section.title, section.items, activeNav, rol),
-    )
+    .map((section) => {
+      // Una plegable que queda con un solo ítem se pinta como estática: el
+      // acordeón no aporta jerarquía, pero el encabezado sí — sin él el enlace
+      // flota suelto entre grupos que todos llevan título.
+      const plegable =
+        section.tipo === "plegable" &&
+        section.items.filter((item) => isShellNavItemVisibleForRol(rol, item.id)).length > 1;
+      return plegable ?
+          wrapSupervisorCollapsible(
+            renderCollapsibleNavSection(
+              section.id,
+              section.title,
+              section.iconSvgPaths ?? "",
+              section.items,
+              activeNav,
+              rol,
+            ),
+          )
+        : renderFlatNavSection(section.id, section.title, section.items, activeNav, rol);
+    })
     .join("");
   return `${topLis ? `<li><ul role="list" class="-mx-2 space-y-0.5 md:max-lg:-mx-0">${topLis}</ul></li>` : ""}${sectionLis}`;
 }
