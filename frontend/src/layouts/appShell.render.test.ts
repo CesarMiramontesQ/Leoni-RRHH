@@ -64,8 +64,9 @@ describe("renderSupervisorSidebarSections", () => {
 
   it("pinta las secciones plegables como <details> y deja fuera de <details> las estáticas", () => {
     const html = renderSupervisorSidebarSections(undefined, "supervisor");
-    // Mis trámites, Pendientes y Mi desarrollo son "plegable" en SUPERVISOR_NAV_SECTIONS.
-    expect(countOccurrences(html, "<details")).toBe(3);
+    // Pendientes y Mi desarrollo. "Mis trámites" también es plegable, pero a este
+    // supervisor le queda un solo ítem visible y se aplana (ver test siguiente).
+    expect(countOccurrences(html, "<details")).toBe(2);
     // Mi equipo y Talento del equipo son "estatica": su título no debe quedar envuelto en <details>.
     expect(html).toContain("Mi equipo");
     expect(html).toContain("Talento del equipo");
@@ -73,6 +74,31 @@ describe("renderSupervisorSidebarSections", () => {
     for (const title of ["Mi equipo", "Talento del equipo"]) {
       expect(detailsBlocks.some((block) => block.includes(title))).toBe(false);
     }
+  });
+
+  it("alinea las secciones plegables con las estáticas", () => {
+    // Las estáticas traen su propio <ul class="-mx-2">; si las plegables se cuelgan
+    // del <ul> del shell sin esa compensación, todo su bloque queda 8px a la
+    // derecha del resto del menú.
+    const html = renderSupervisorSidebarSections(undefined, "supervisor");
+    const listas = html.match(/<ul[^>]*>/g) ?? [];
+    const deSeccion = listas.filter((ul) => !ul.includes("shell-rh-nav-panel-"));
+    expect(deSeccion.length).toBeGreaterThan(1);
+    for (const ul of deSeccion) {
+      expect(ul).toContain("-mx-2");
+    }
+  });
+
+  it("pinta como estática la sección plegable que queda con un solo ítem", () => {
+    const html = renderSupervisorSidebarSections(undefined, "supervisor");
+    const detailsBlocks = html.match(/<details[\s\S]*?<\/details>/g) ?? [];
+    // "Mis trámites" solo deja visible "Horas extra": sin acordeón (no aporta
+    // jerarquía para un solo enlace) pero conservando el encabezado, porque todos
+    // los demás grupos llevan uno y sin él el enlace flotaría suelto.
+    expect(html).toContain('href="#/horas-extra/solicitud"');
+    expect(detailsBlocks.some((block) => block.includes("Mis trámites"))).toBe(false);
+    expect(html).toContain("Mis trámites");
+    expect(html).toContain('aria-labelledby="shell-nav-section-tramites"');
   });
 
   it("abre la sección plegable que contiene la ruta activa", () => {

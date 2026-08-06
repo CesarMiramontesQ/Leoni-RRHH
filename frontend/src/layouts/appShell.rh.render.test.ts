@@ -14,7 +14,7 @@
  * que la que contiene la ruta activa abre, y que el `panelId` conserva el prefijo
  * `shell-rh-nav-panel-` (justo lo que la generalización pudo haber roto).
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../auth/jwt.ts", () => ({
   getRolFromAccessToken: () => "rh",
@@ -49,14 +49,26 @@ vi.mock("../auth/rhUiMode.ts", () => ({
 }));
 
 // Mismo patrón que `frontend/src/navigation/rhNav.test.ts`: `hasRhModule` decide qué
-// secciones de RH aparecen. Solo se otorgan dos módulos, uno por sección, para poder
-// distinguir la sección activa de la inactiva con el mínimo de ruido.
+// secciones de RH aparecen. El set es mutable porque el número de ítems visibles
+// cambia el render: con uno solo la sección se aplana a enlace directo.
+const mocks = vi.hoisted(() => ({ modulos: new Set<string>() }));
+
 vi.mock("../auth/rhModulePermissions.ts", () => ({
   canAccessRhPermisosAdmin: () => false,
   hasExplicitModuleGrant: () => false,
-  hasRhModule: (key: string) => key === "solicitudes" || key === "puestos",
+  hasRhModule: (key: string) => mocks.modulos.has(key),
   isModulosRhEnrolled: () => true,
 }));
+
+/** Dos ítems por sección: Laborales y Puestos se pintan como acordeón. */
+function otorgarDosPorSeccion(): void {
+  mocks.modulos = new Set(["solicitudes", "actas", "puestos", "competencias"]);
+}
+
+/** Un ítem por sección: ambas se aplanan a enlace directo. */
+function otorgarUnoPorSeccion(): void {
+  mocks.modulos = new Set(["solicitudes", "puestos"]);
+}
 
 import { renderRhStructuredSidebarSections } from "./appShell.ts";
 
@@ -66,9 +78,11 @@ function detailsBlocks(html: string): string[] {
 }
 
 describe("renderRhStructuredSidebarSections", () => {
+  beforeEach(otorgarDosPorSeccion);
+
   it("pinta las secciones de RH como <details>", () => {
     const html = renderRhStructuredSidebarSections(undefined, "rh");
-    // "solicitudes" vive en Laborales, "puestos" en Puestos: dos secciones.
+    // Laborales (solicitudes + actas) y Puestos (puestos + competencias).
     expect(detailsBlocks(html)).toHaveLength(2);
   });
 
@@ -88,5 +102,28 @@ describe("renderRhStructuredSidebarSections", () => {
     expect(html).toContain('id="shell-rh-nav-panel-puestos"');
     expect(html).toContain('aria-controls="shell-rh-nav-panel-laborales"');
     expect(html).toContain('aria-controls="shell-rh-nav-panel-puestos"');
+  });
+
+  describe("con un solo ítem visible por sección", () => {
+    beforeEach(otorgarUnoPorSeccion);
+
+    it("aplana la sección a un enlace directo, sin <details>", () => {
+      const html = renderRhStructuredSidebarSections(undefined, "rh");
+      expect(detailsBlocks(html)).toHaveLength(0);
+      expect(html).toContain('href="#/solicitudes"');
+      expect(html).toContain('href="#/puestos"');
+    });
+
+    it("usa el nombre del ítem, no el de la sección", () => {
+      const html = renderRhStructuredSidebarSections(undefined, "rh");
+      expect(html).toContain("Solicitudes");
+      // "Laborales" es el título de la sección: al aplanar ya no se pinta.
+      expect(html).not.toContain(">Laborales<");
+    });
+
+    it("marca el enlace aplanado como activo cuando es la ruta actual", () => {
+      const html = renderRhStructuredSidebarSections("solicitudes", "rh");
+      expect(html).toMatch(/href="#\/solicitudes"[^>]*aria-current="page"/);
+    });
   });
 });
