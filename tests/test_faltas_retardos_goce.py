@@ -1,4 +1,4 @@
-"""Registro directo de permisos con goce en Faltas y retardos."""
+"""Registro directo de permisos con goce en el módulo `faltas-retardos` (Incidencias en la UI)."""
 
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch

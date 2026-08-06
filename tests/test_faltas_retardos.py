@@ -1,4 +1,4 @@
-"""Tests del módulo Faltas y retardos."""
+"""Tests del módulo `faltas-retardos` (Incidencias en la UI)."""
 
 from contextlib import contextmanager
 from datetime import date, datetime, timezone

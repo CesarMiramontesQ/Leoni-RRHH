@@ -87,7 +87,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     ),
     "incidencias": RhModuleDef(
         key="incidencias",
-        label="Incidencias",
+        label="Seguridad y Calidad",
         group="Laborales",
         nav_item_ids=("incidencias",),
         hash_prefixes=("#/incidencias",),
@@ -103,7 +103,7 @@ RH_MODULES: dict[str, RhModuleDef] = {
     ),
     "faltas-retardos": RhModuleDef(
         key="faltas-retardos",
-        label="Faltas y retardos",
+        label="Incidencias",
         group="Laborales",
         nav_item_ids=("faltas-retardos",),
         hash_prefixes=("#/faltas-retardos",),

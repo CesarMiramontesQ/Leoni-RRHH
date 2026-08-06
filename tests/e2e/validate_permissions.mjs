@@ -27,22 +27,22 @@ const USERS = [
 const NAV_EXPECTATIONS = {
   empleado: {
     visible: ["Dashboard", "Solicitudes", "Comedor", "Notificaciones"],
-    hidden: ["Organigrama", "Incidencias", "Actas", "Reporte comedor", "Evaluaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
+    hidden: ["Organigrama", "Seguridad y Calidad", "Actas", "Reporte comedor", "Evaluaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
   },
   supervisor: {
-    visible: ["Dashboard", "Organigrama", "Solicitudes", "Incidencias", "Comedor", "Evaluaciones", "Notificaciones", "Empleados"],
+    visible: ["Dashboard", "Organigrama", "Solicitudes", "Seguridad y Calidad", "Comedor", "Evaluaciones", "Notificaciones", "Empleados"],
     hidden: ["Actas", "Reporte comedor", "Perfiles de Puesto", "Matriz de Competencias"],
   },
   gerente: {
-    visible: ["Dashboard", "Métricas", "Solicitudes", "Incidencias", "Comedor", "Notificaciones", "Empleados"],
+    visible: ["Dashboard", "Métricas", "Solicitudes", "Seguridad y Calidad", "Comedor", "Notificaciones", "Empleados"],
     hidden: ["Organigrama", "Actas", "Reporte comedor", "Evaluaciones", "Perfiles de Puesto", "Matriz de Competencias"],
   },
   director: {
-    visible: ["Dashboard", "Solicitudes", "Incidencias", "Actas", "Comedor", "Reporte comedor", "Evaluaciones", "Notificaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
+    visible: ["Dashboard", "Solicitudes", "Seguridad y Calidad", "Actas", "Comedor", "Reporte comedor", "Evaluaciones", "Notificaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
     hidden: ["Organigrama"],
   },
   rh: {
-    visible: ["Dashboard", "Organigrama", "Solicitudes", "Incidencias", "Actas", "Comedor", "Reporte comedor", "Evaluaciones", "Notificaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
+    visible: ["Dashboard", "Organigrama", "Solicitudes", "Seguridad y Calidad", "Actas", "Comedor", "Reporte comedor", "Evaluaciones", "Notificaciones", "Perfiles de Puesto", "Matriz de Competencias", "Empleados"],
     hidden: [],
   },
 };

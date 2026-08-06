@@ -951,7 +951,7 @@ class SolicitudService:
             raise DomainValidationError(
                 detail=(
                     "Los permisos con goce de sueldo (matrimonio, incapacidad interna, "
-                    "defunción, paternidad) se registran en Faltas y retardos, no como solicitud."
+                    "defunción, paternidad) se registran en Incidencias, no como solicitud."
                 )
             )
 
