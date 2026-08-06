@@ -61,6 +61,12 @@ docker-compose exec backend python -m app.scripts.sync_vacaciones_disponibles --
 docker-compose exec backend python -m app.scripts.sync_vacaciones_disponibles --no-empleado 553 --execute
 # En el servidor, la carga inicial va con el wrapper (valida migración, tabla y túnel):
 ./scripts/prod-sync-vacaciones-backfill.sh --execute
+
+# Home office tomado: DATOS_ANALISIS → levelup_homeoffice_tomados (Bono).
+# Mismo servicio que el job de las 06:00; necesario para el backfill inicial.
+docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados            # dry-run
+docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados --execute
+docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados --no-empleado 553 --execute
 ```
 > Todos los `--cleanup` son **dry-run** salvo que se pase `--execute`. Borran solo lo
 > marcado como demo; el residuo de catálogo (grupos, tipos, competencias, grados que los
@@ -100,6 +106,13 @@ Layered architecture: **router → service → repository → models/schemas**
   `python -m app.scripts.sync_vacaciones_disponibles`). `obtener_saldo_gozo_tress` /
   `GET_SALDOS_VACACION` solo los usa ese sync. Empleado sin fila ⇒ dashboards degradan
   a «—» y crear vacaciones se bloquea con 503.
+- **Home office tomado = caché en Bono.** Ninguna carga de página cuenta días de home
+  office en DATOS_ANALISIS: la fuente única de lectura es `levelup_homeoffice_tomados`
+  (una fila por empleado y año calendario), que escribe
+  `sync_homeoffice_tomados_service` (job 06:00, aprobación de home office y
+  `python -m app.scripts.sync_homeoffice_tomados`). La consulta a `dbo.PERMISO`
+  (`PM_TIPO = 'HO'`) es una sola, agregada por `CB_CODIGO`, y solo la hace ese sync.
+  Empleado sin fila ⇒ el dashboard muestra 0.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 
 ### Frontend (frontend/src/)
@@ -113,7 +126,8 @@ Layered architecture: **router → service → repository → models/schemas**
 ### Key Patterns
 - Async everywhere: asyncpg driver, async sessions, async test fixtures
 - Tests use SQLite in-memory with JSONB→JSON patch (see `tests/conftest.py`); no Docker required
-- APScheduler runs periodic jobs (recordatorios Eval360/Encuestas/Metas a las 08:00 y **sync de saldos de vacaciones a las 06:00**); se registran en `registrar_jobs_programados` (`app/main.py`). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
+- APScheduler runs periodic jobs (recordatorios Eval360/Encuestas/Metas a las 08:00 y **sync de saldos de vacaciones y de home office tomado a las 06:00**, en dos jobs
+  independientes (`sync_vacaciones_disponibles` y `sync_homeoffice_tomados`)); se registran en `registrar_jobs_programados` (`app/main.py`). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper
