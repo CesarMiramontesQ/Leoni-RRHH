@@ -247,3 +247,44 @@ async def test_el_sync_de_fondo_nunca_propaga(db, monkeypatch):
     await sincronizar_homeoffice_empleado_background(12345, solicitud_id=7)
 
     fallo.assert_awaited_once()
+
+
+def test_cli_es_dry_run_si_no_se_pasa_execute(monkeypatch):
+    """Sin --execute el CLI no debe persistir: se comprueba el flag que arma `main`."""
+    import app.scripts.sync_homeoffice_tomados as cli
+
+    recibido = {}
+
+    async def _fake_ejecutar(*, no_empleado, execute):
+        recibido.update({"no_empleado": no_empleado, "execute": execute})
+        return 0
+
+    monkeypatch.setattr(cli, "ejecutar", _fake_ejecutar)
+
+    assert cli.main([]) == 0
+    assert recibido == {"no_empleado": None, "execute": False}
+
+
+@pytest.mark.asyncio
+async def test_cli_pasa_los_argumentos_al_servicio(monkeypatch, capsys):
+    import app.scripts.sync_homeoffice_tomados as cli
+
+    llamado = {}
+
+    async def _fake_sync(db, *, no_empleado, origen, execute, anio=None):
+        llamado.update(
+            {"no_empleado": no_empleado, "origen": origen, "execute": execute}
+        )
+        from app.services.sync_homeoffice_tomados_service import SyncHomeOfficeStats
+
+        return SyncHomeOfficeStats(consultados=1, insertados=1)
+
+    monkeypatch.setattr(cli, "sincronizar_homeoffice_tomados", _fake_sync)
+
+    codigo = await cli.ejecutar(no_empleado=553, execute=True)
+
+    assert codigo == 0
+    assert llamado == {"no_empleado": 553, "origen": "manual", "execute": True}
+    salida = capsys.readouterr().out
+    assert "EXECUTE" in salida
+    assert "empleado 553" in salida
