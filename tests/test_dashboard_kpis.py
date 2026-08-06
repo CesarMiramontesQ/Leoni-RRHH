@@ -6,12 +6,15 @@ endpoint ya no consulta datos-analisis para nada.
 """
 
 from datetime import date
+from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 
 from app.repositories.datos_analisis_vacaciones_repository import load_kpis_ciclo_sql
+from app.services.sync_homeoffice_tomados_service import sincronizar_homeoffice_tomados
 from tests.conftest import (
     auth_headers,
     make_empleado,
@@ -175,6 +178,47 @@ async def test_si_falla_la_lectura_de_home_office_degrada_a_none(
     assert body["disponible"] is True
     assert body["vacaciones_disponibles"] == 8.0
     assert body["home_office_dias_anio"] is None
+
+
+@pytest.mark.asyncio
+async def test_sync_sin_anio_alimenta_el_dashboard_del_anio_en_curso(
+    client: AsyncClient, db, monkeypatch
+):
+    """Extremo a extremo: el sync corrido sin `anio` (como lo dispara el job de las 06:00,
+    la aprobación de una solicitud o el CLI sin --anio) debe escribir en el mismo año que
+    lee el dashboard (`hoy.year`). Es la única prueba de la rama que ejercita el camino
+    completo escritor → lector; si un día se desalinean los años, es la que lo detecta.
+
+    No siembra `levelup_homeoffice_tomados`: nace de `sincronizar_homeoffice_tomados`
+    contra datos-analisis simulada, igual que en `test_sync_homeoffice_tomados.py`.
+    `make_empleado` ya siembra `levelup_vacaciones_disponibles` (vía `saldo_vacaciones`
+    por defecto), que el endpoint necesita para no degradar.
+    """
+    emp = await make_empleado(db, rol="empleado", email="kpis-sync-e2e@test")
+
+    engine = AsyncMock()
+    engine.dispose = AsyncMock()
+    monkeypatch.setattr(
+        "app.services.sync_homeoffice_tomados_service."
+        "DatosAnalisisReadClient.create_read_engine",
+        lambda: engine,
+    )
+    repo = AsyncMock()
+    repo.get_dias_por_empleado = AsyncMock(return_value={emp.no_empleado: Decimal("5")})
+    monkeypatch.setattr(
+        "app.services.sync_homeoffice_tomados_service."
+        "DatosAnalisisHomeOfficeReadRepository",
+        lambda _engine: repo,
+    )
+
+    await sincronizar_homeoffice_tomados(db, no_empleado=emp.no_empleado, origen="manual")
+
+    res = await client.get(URL, headers=await auth_headers(client, emp))
+    assert res.status_code == 200
+    body = res.json()
+    assert body["disponible"] is True
+    assert body["home_office_dias_anio"] == 5
+    assert body["anio"] == date.today().year
 
 
 @pytest.mark.asyncio

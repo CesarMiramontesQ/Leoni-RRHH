@@ -134,6 +134,46 @@ async def test_es_idempotente_y_no_duplica(db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_sin_anio_usa_el_anio_en_curso(db, monkeypatch):
+    """El default `anio = anio or date.today().year` debe coincidir con lo que lee el
+    dashboard (`hoy.year` en `dashboard_kpis_service`). Si se desalinean, el sync escribe
+    en un año y el dashboard lee de otro sin que nada lo delate."""
+    emp = await make_empleado(db, email="ho-sync-sinanio@test")
+    _mock_tress(monkeypatch, dias={emp.no_empleado: Decimal("2")})
+
+    await sincronizar_homeoffice_tomados(
+        db, no_empleado=emp.no_empleado, origen="manual"
+    )
+
+    fila = await _fila(db, emp.no_empleado, date.today().year)
+    assert fila is not None
+    assert Decimal(str(fila.dias_tomados)) == Decimal("2.00")
+
+
+@pytest.mark.asyncio
+async def test_omitido_igual_refresca_actualizado_en(db, monkeypatch):
+    """`actualizado_en` debe avanzar aun sin cambio en `dias_tomados`: es la única señal
+    para distinguir «sin movimiento» de «caché rancia». La corrida debe contarse como
+    omitida, no como actualizada."""
+    emp = await make_empleado(db, email="ho-sync-refresca@test")
+    _mock_tress(monkeypatch, dias={emp.no_empleado: Decimal("4")})
+
+    await sincronizar_homeoffice_tomados(
+        db, no_empleado=emp.no_empleado, origen="manual"
+    )
+    primera = (await _fila(db, emp.no_empleado, date.today().year)).actualizado_en
+
+    stats = await sincronizar_homeoffice_tomados(
+        db, no_empleado=emp.no_empleado, origen="manual"
+    )
+
+    fila = await _fila(db, emp.no_empleado, date.today().year)
+    assert Decimal(str(fila.dias_tomados)) == Decimal("4.00")
+    assert fila.actualizado_en > primera
+    assert (stats.insertados, stats.actualizados, stats.omitidos) == (0, 0, 1)
+
+
+@pytest.mark.asyncio
 async def test_la_corrida_masiva_cubre_a_los_activos(db, monkeypatch):
     uno = await make_empleado(db, email="ho-sync-masivo-1@test")
     dos = await make_empleado(db, email="ho-sync-masivo-2@test")

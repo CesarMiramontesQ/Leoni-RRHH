@@ -17,6 +17,7 @@ from app.models.empleados_rh import (
 )
 from app.models.turnos_empleados import TurnoEmpleado
 from app.models.vacaciones_disponibles import VacacionesDisponibles
+from app.models.homeoffice_tomados import HomeOfficeTomados
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
 from app.models.actas import ActaAdministrativa, ActaAprobacion
@@ -269,4 +270,5 @@ __all__ = [
     "CicloDesempenoResultado",
     "VistaRol",
     "VacacionesDisponibles",
+    "HomeOfficeTomados",
 ]
