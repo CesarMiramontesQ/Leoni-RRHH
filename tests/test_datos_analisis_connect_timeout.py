@@ -1,8 +1,8 @@
 """La conexión a datos-analisis debe rendirse rápido cuando TRESS no responde.
 
-Sin acotar el login aplica el default del driver (15 s), y el dashboard del
-empleado se quedaba esperando ese tiempo completo en cada carga porque
-`/dashboard/mis-kpis` lee de ahí.
+Sin acotar el login aplica el default del driver (15 s), y el sync que llena
+`levelup_homeoffice_tomados` y `levelup_vacaciones_disponibles` se quedaba
+esperando ese tiempo completo por cada empleado.
 
 Ojo con el mecanismo: el driver **ignora** `Connection Timeout=N` dentro de la
 cadena ODBC (medido: tarda los 15 s igual). El que se respeta es `timeout` en

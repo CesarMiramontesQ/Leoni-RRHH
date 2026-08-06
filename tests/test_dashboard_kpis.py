@@ -153,6 +153,31 @@ async def test_empleado_sin_sincronizar_degrada(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
+async def test_si_falla_la_lectura_de_home_office_degrada_a_none(
+    client: AsyncClient, db, monkeypatch
+):
+    """Un fallo leyendo la caché de Bono no debe tumbar el dashboard: home office
+    queda en `None` (dato ausente) pero las vacaciones se sirven igual."""
+    def _falla(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "app.services.dashboard_kpis_service.HomeOfficeTomadosRepository"
+        ".get_by_no_empleado_anio",
+        _falla,
+    )
+    emp = await make_empleado(db, rol="empleado", email="kpis-ho-falla@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
+
+    res = await client.get(URL, headers=await auth_headers(client, emp))
+    assert res.status_code == 200
+    body = res.json()
+    assert body["disponible"] is True
+    assert body["vacaciones_disponibles"] == 8.0
+    assert body["home_office_dias_anio"] is None
+
+
+@pytest.mark.asyncio
 async def test_es_autoservicio_para_los_tres_roles(client: AsyncClient, db):
     """Empleado, supervisor y gerente consultan sus KPIs sin permisos de RH."""
     for rol in ("empleado", "supervisor", "gerente"):
