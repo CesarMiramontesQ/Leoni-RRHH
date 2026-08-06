@@ -175,6 +175,9 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
       - sincronizar_vacaciones_empleado_background: el refresco de la cache tras aprobar
         vacaciones, que necesitaria datos-analisis. Los tests de ese flujo comprueban las
         llamadas a este mock.
+      - sincronizar_homeoffice_empleado_background: el refresco de la cache tras aprobar
+        home office, que necesitaria datos-analisis. Los tests de ese flujo comprueban las
+        llamadas a este mock.
 
     El saldo de vacaciones NO se mockea: `make_empleado` siembra la fila real en
     `levelup_vacaciones_disponibles` (999 dias por defecto), de modo que las lecturas
@@ -200,6 +203,11 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         ),
         patch(
             "app.services.solicitud_service.sincronizar_vacaciones_empleado_background",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.services.solicitud_service.sincronizar_homeoffice_empleado_background",
             new_callable=AsyncMock,
             return_value=None,
         ),

@@ -74,6 +74,9 @@ from app.schemas.solicitudes import (
 )
 from app.schemas.vacaciones import VacacionesDisponibleSolicitudResponse
 from app.services.notificacion_service import NotificacionService
+from app.services.sync_homeoffice_tomados_service import (
+    sincronizar_homeoffice_empleado_background,
+)
 from app.services.sync_vacaciones_disponibles_service import (
     sincronizar_vacaciones_empleado_background,
 )
@@ -1273,7 +1276,7 @@ class SolicitudService:
             },
         )
 
-        # Vacaciones aprobadas: el saldo en TRESS ya bajó, así que hay que refrescar la
+        # Vacaciones y home office aprobados: TRESS ya cambió, así que hay que refrescar la
         # caché de Bono de la que leen dashboards y formularios. Va en BackgroundTask
         # porque Starlette las ejecuta DESPUÉS de la respuesta, es decir después del commit
         # de `get_db`: nunca se sincroniza sobre una aprobación no confirmada, y un fallo
@@ -1282,6 +1285,12 @@ class SolicitudService:
             background_tasks.add_task(
                 sincronizar_vacaciones_empleado_background,
                 int(no_empleado_solicitante),
+            )
+        elif solicitud.tipo == "home_office":
+            background_tasks.add_task(
+                sincronizar_homeoffice_empleado_background,
+                int(no_empleado_solicitante),
+                solicitud_id,
             )
 
         solicitud_final = await self.repo.get_with_empleado(solicitud_id)
