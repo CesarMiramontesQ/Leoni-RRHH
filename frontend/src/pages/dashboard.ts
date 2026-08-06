@@ -36,12 +36,18 @@ import {
   readStoredRhDashboardPeriod,
   storeRhDashboardPeriod,
 } from "../dashboard/rh/filterRowsByPeriod.ts";
-import { fetchEmpleadoDashboard } from "../dashboard/empleado/fetchEmpleadoDashboard.ts";
-import { emptyEmpleadoDashboardPayload } from "../dashboard/empleado/mock.ts";
 import {
+  fetchEmpleadoDashboard,
+  fetchEmpleadoDashboardKpis,
+} from "../dashboard/empleado/fetchEmpleadoDashboard.ts";
+import { emptyEmpleadoDashboardPayload } from "../dashboard/empleado/mock.ts";
+import type { EmpleadoDashboardPayload } from "../dashboard/empleado/types.ts";
+import {
+  EMPLEADO_STAT_CARDS_ID,
   bindEmpleadoCalendarNavigation,
   renderEmpleadoDashboardSkeleton,
   renderEmpleadoPersonalDashboard,
+  renderEmpleadoStatCards,
 } from "../components/dashboard/empleadoPersonalDashboard.ts";
 import { resolveCalendarWeekStart } from "../components/dashboard/calendarShared.ts";
 import {
@@ -362,6 +368,22 @@ function mountRhOperationalDashboard(container: HTMLElement, signal?: AbortSigna
   void loadRhOperationalDashboard(container, period, signal);
 }
 
+/**
+ * Rellena las tarjetas de vacaciones y home office cuando responde TRESS.
+ *
+ * Si no responde, las tarjetas quedan con "—" en vez de un esqueleto eterno.
+ */
+async function hidratarKpisEmpleado(
+  container: HTMLElement,
+  payload: EmpleadoDashboardPayload,
+): Promise<void> {
+  const kpis = await fetchEmpleadoDashboardKpis().catch(() => null);
+  const host = container.querySelector<HTMLElement>(`#${EMPLEADO_STAT_CARDS_ID}`);
+  if (!host) return;
+  const conKpis: EmpleadoDashboardPayload = { ...payload, ...(kpis ?? {}) };
+  host.outerHTML = renderEmpleadoStatCards(conKpis, { kpisCargando: false });
+}
+
 async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<void> {
   const root = container.querySelector<HTMLElement>("#empleado-dashboard-root");
   if (!root) return;
@@ -383,11 +405,16 @@ async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<vo
   const calYear = cal.initial_year ?? now.getFullYear();
   const calMonth = cal.initial_month_index ?? now.getMonth();
 
-  root.innerHTML = renderEmpleadoPersonalDashboard(calYear, calMonth, payload);
+  root.innerHTML = renderEmpleadoPersonalDashboard(calYear, calMonth, payload, {
+    kpisCargando: true,
+  });
   bindEmpleadoCalendarNavigation(container, payload, calYear, calMonth, {
     loadMonthData: async (target) => fetchEmpleadoDashboard(target).catch(() => null),
   });
   void injectEncuestasPendientesBanner(container);
+  // Los KPIs de TRESS se piden aparte y sustituyen sus tarjetas al llegar: si esa
+  // BD no responde, el resto del dashboard ya está en pantalla.
+  void hidratarKpisEmpleado(container, payload);
 }
 
 function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {

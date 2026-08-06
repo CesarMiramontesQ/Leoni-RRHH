@@ -32,6 +32,9 @@ services:
       DATOS_ANALISIS_DB_USER: ${DATOS_ANALISIS_DB_USER:-}
       DATOS_ANALISIS_DB_PASSWORD: ${DATOS_ANALISIS_DB_PASSWORD:-}
       DATOS_ANALISIS_DB_DRIVER: ${DATOS_ANALISIS_DB_DRIVER:-ODBC Driver 18 for SQL Server}
+      # Segundos para establecer la conexion; el default del driver (15 s) cuelga
+      # cada peticion que toque TRESS cuando no responde.
+      DATOS_ANALISIS_DB_CONNECT_TIMEOUT: ${DATOS_ANALISIS_DB_CONNECT_TIMEOUT:-5}
       APP_ENV: development
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}
