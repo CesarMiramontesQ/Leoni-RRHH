@@ -169,10 +169,15 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     Integraciones externas mockeadas:
       - encolar_tress: no inserta en tress_robot_queue
       - _log_action_background: no abre sesion secundaria
-      - obtener_saldo_gozo_tress: saldo TRESS (datos-analisis) alto por defecto (999),
-        para que las creaciones de vacaciones no fallen con 503; los tests que necesiten
-        otro valor lo sobreescriben con monkeypatch.
       - registrar_vacaciones_en_tress: INSERT TRESS al aprobar; mockeado OK por defecto.
+      - sincronizar_vacaciones_empleado_background: el refresco de la cache tras aprobar
+        vacaciones, que necesitaria datos-analisis. Los tests de ese flujo comprueban las
+        llamadas a este mock.
+
+    El saldo de vacaciones NO se mockea: `make_empleado` siembra la fila real en
+    `levelup_vacaciones_disponibles` (999 dias por defecto), de modo que las lecturas
+    recorren el codigo de produccion. Los tests que necesiten otro valor la sobreescriben
+    con `make_vacaciones_disponibles`, o la borran para probar el caso sin sincronizar.
     """
 
     async def override_get_db():
@@ -192,9 +197,9 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             return_value=None,
         ),
         patch(
-            "app.services.vacaciones_service.obtener_saldo_gozo_tress",
+            "app.services.solicitud_service.sincronizar_vacaciones_empleado_background",
             new_callable=AsyncMock,
-            return_value=999.0,
+            return_value=None,
         ),
         patch(
             "app.services.faltas_retardos_service.obtener_descansos_tress",
@@ -264,11 +269,16 @@ async def make_empleado(
     inscrito_modulos_rh: bool = False,
     acceso_rh_removido: bool = False,
     puesto_id: int | None = None,
+    saldo_vacaciones: float | None = 999.0,
 ):
     """
     Factory para crear un Empleado con Rol asociado.
     Genera identificadores unicos automaticamente para evitar colisiones entre tests.
     ``lider_id`` debe ser el ``empleado_id`` del líder (no el ``id`` local).
+
+    ``saldo_vacaciones`` siembra la fila de `levelup_vacaciones_disponibles` (la fuente
+    que lee todo el sistema) con un valor alto, para que crear vacaciones no falle por
+    saldo. Con ``None`` no se crea la fila: el caso «empleado sin sincronizar».
     """
     import uuid
     from app.models.empleados import Empleado
@@ -330,7 +340,52 @@ async def make_empleado(
     empleado.rh_permisos = permisos
     core.rol = rol_obj
 
+    # Algunos tests usan no_empleado no numérico (datos legados); ahí no hay saldo que
+    # sembrar, igual que en Bono no habría fila.
+    if saldo_vacaciones is not None and str(_no_empleado).strip().isdigit():
+        await make_vacaciones_disponibles(
+            db, no_empleado=_no_empleado, dias_disponibles=saldo_vacaciones
+        )
+
     return empleado
+
+
+async def make_vacaciones_disponibles(
+    db: AsyncSession,
+    *,
+    no_empleado: int,
+    dias_disponibles: float,
+    derecho_ciclo: float | None = None,
+    tomados_ciclo: float | None = None,
+    aniversario: int | None = None,
+    fecha_vence: date | None = None,
+):
+    """Siembra (o actualiza) la caché de saldo de vacaciones de un empleado.
+
+    Es lo que el sync escribiría desde TRESS; los tests la usan para fijar el saldo que
+    verán dashboards, Vista 360 y el formulario de nueva solicitud.
+    """
+    from sqlalchemy import select
+
+    from app.models.vacaciones_disponibles import VacacionesDisponibles
+
+    result = await db.execute(
+        select(VacacionesDisponibles).where(
+            VacacionesDisponibles.no_empleado == int(no_empleado)
+        )
+    )
+    fila = result.scalar_one_or_none()
+    if fila is None:
+        fila = VacacionesDisponibles(no_empleado=int(no_empleado))
+        db.add(fila)
+    fila.dias_disponibles = dias_disponibles
+    fila.derecho_ciclo = derecho_ciclo
+    fila.tomados_ciclo = tomados_ciclo
+    fila.aniversario = aniversario
+    fila.fecha_vence = fecha_vence
+    await db.flush()
+    await db.refresh(fila)
+    return fila
 
 
 async def link_turno_comedor_empleado(

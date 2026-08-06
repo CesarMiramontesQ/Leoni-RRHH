@@ -10,7 +10,27 @@ from app.repositories.datos_analisis_vacaciones_repository import (
     DatosAnalisisVacacionesRepository,
 )
 from app.repositories.empleado_repository import EmpleadoRepository
+from app.repositories.vacaciones_disponibles_repository import (
+    VacacionesDisponiblesRepository,
+)
 from app.schemas.vacaciones import SaldoVacacionesRealResponse
+
+
+async def obtener_saldo_gozo_cache(db: AsyncSession, no_empleado: int) -> float:
+    """Saldo de días de gozo desde la caché en Bono (`levelup_vacaciones_disponibles`).
+
+    Fuente única de lectura del sistema: la escribe el sync desde TRESS (job diario de las
+    06:00 y aprobación de vacaciones), de modo que ninguna carga de página tiene que esperar
+    a la BD externa. **Bloquea** (``ServiceUnavailableError``) si el empleado todavía no se
+    ha sincronizado, en vez de fingir un 0 que parecería un saldo real.
+    """
+    fila = await VacacionesDisponiblesRepository(db).get_by_no_empleado(no_empleado)
+    if fila is None:
+        raise ServiceUnavailableError(
+            "El saldo de vacaciones de este empleado aún no se ha sincronizado. "
+            "Se actualiza automáticamente cada día; si persiste, contacta a RH."
+        )
+    return float(fila.dias_disponibles)
 
 
 async def obtener_saldo_gozo_tress(no_empleado: int) -> float:
@@ -19,6 +39,9 @@ async def obtener_saldo_gozo_tress(no_empleado: int) -> float:
     Crea un motor efímero de solo lectura y lo desecha. **Bloquea** (levanta
     ``ServiceUnavailableError``) si la BD externa no está configurada o falla, para que el
     llamador no continúe sin un saldo confiable. Devuelve 0.0 si el empleado no tiene periodos.
+
+    Solo lo usa el servicio de sincronización; la aplicación lee de
+    ``obtener_saldo_gozo_cache``.
     """
     engine = DatosAnalisisReadClient.create_read_engine()
     if engine is None:
@@ -77,13 +100,17 @@ class VacacionesService:
     async def obtener_saldo_real(
         self, empleado_id: int, current_user: Empleado
     ) -> SaldoVacacionesRealResponse:
-        """Saldo real de días de gozo desde SQL Server datos-analisis (función GET_SALDOS_VACACION)."""
+        """Saldo de días de gozo desde la caché en Bono, sincronizada desde TRESS.
+
+        Sin consultas a datos-analisis: el dato se refresca en el job de las 06:00 y al
+        aprobar vacaciones.
+        """
         empleado = await self.empleado_repo.get_by_empleado_id(empleado_id)
         if not empleado:
             raise NotFoundError(entidad="Empleado", id=empleado_id)
         await self._ensure_puede_ver_empleado(current_user, empleado_id)
 
-        total = await obtener_saldo_gozo_tress(empleado.no_empleado)
+        total = await obtener_saldo_gozo_cache(self.db, empleado.no_empleado)
 
         return SaldoVacacionesRealResponse(
             empleado_id=empleado_id,

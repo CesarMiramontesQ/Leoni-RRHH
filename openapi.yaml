@@ -364,7 +364,7 @@ components:
       properties:
         disponible:
           type: boolean
-          description: false si datos-analisis no está configurada o no respondió
+          description: false si el empleado aún no tiene saldo sincronizado en levelup_vacaciones_disponibles
         vacaciones_disponibles:
           type: number
           nullable: true
@@ -1599,7 +1599,7 @@ components:
         saldo_gozo_total:
           type: number
           nullable: true
-          description: Suma de VS_S_GOZO desde dbo.GET_SALDOS_VACACION(no_empleado); 0 si el empleado no tiene periodos
+          description: Días de gozo disponibles desde levelup_vacaciones_disponibles (caché en Bono del saldo de TRESS)
 
     DescansosEmpleadoResponse:
       type: object
@@ -1643,7 +1643,7 @@ components:
           type: integer
         saldo_tress:
           type: number
-          description: Saldo total de gozo desde TRESS (GET_SALDOS_VACACION)
+          description: Saldo total de gozo desde levelup_vacaciones_disponibles (caché del saldo de TRESS)
         dias_comprometidos:
           type: integer
           description: Días de solicitudes de vacaciones en curso (pending/changes_requested)
@@ -8726,7 +8726,7 @@ paths:
   /api/v1/empleados/{empleado_id}/saldo-vacaciones-real:
     get:
       tags: [Empleados]
-      summary: Saldo real de días de gozo (SQL Server datos-analisis, función GET_SALDOS_VACACION)
+      summary: Saldo de días de gozo (levelup_vacaciones_disponibles, caché del saldo de TRESS)
       operationId: empleados_saldo_vacaciones_real_get
       security:
         - BearerAuth: []
@@ -8748,7 +8748,7 @@ paths:
         "404":
           description: Empleado no encontrado
         "503":
-          description: Base datos-analisis no configurada o no disponible
+          description: El empleado aún no tiene saldo sincronizado en levelup_vacaciones_disponibles
 
   /api/v1/empleados/{empleado_id}/descansos:
     get:
@@ -8796,7 +8796,7 @@ paths:
   /api/v1/empleados/{empleado_id}/vacaciones-disponibles-solicitud:
     get:
       tags: [Empleados]
-      summary: Días disponibles para solicitar vacaciones (saldo TRESS − comprometidos en curso)
+      summary: Días disponibles para solicitar vacaciones (saldo sincronizado − comprometidos en curso)
       operationId: empleados_vacaciones_disponibles_solicitud_get
       security:
         - BearerAuth: []
@@ -8824,7 +8824,7 @@ paths:
         "404":
           description: Empleado no encontrado
         "503":
-          description: No se pudo verificar el saldo (datos-analisis no disponible)
+          description: El empleado aún no tiene saldo sincronizado en levelup_vacaciones_disponibles
 
   /api/v1/empleados/{empleado_id}/home-office/disponibilidad:
     get:

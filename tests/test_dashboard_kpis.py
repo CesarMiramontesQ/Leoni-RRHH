@@ -1,11 +1,12 @@
 """KPIs de nómina del dashboard (`GET /api/v1/dashboard/mis-kpis`).
 
-La BD externa datos-analisis no existe en el entorno de tests: se mockean los dos
-repositorios de lectura para probar el wiring del endpoint sin tocar SQL Server.
+Las vacaciones salen de `levelup_vacaciones_disponibles` (Bono): los tests siembran la fila
+real, sin mocks, para comprobar que el dashboard ya no depende de datos-analisis para ese
+dato. Solo el home office sigue leyéndose de SQL Server, y ese sí se mockea.
 """
 
 from datetime import date
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import AsyncClient
@@ -14,45 +15,41 @@ from sqlalchemy import text
 from app.repositories.datos_analisis_home_office_read_repository import (
     load_home_office_dias_sql,
 )
-from app.repositories.datos_analisis_vacaciones_repository import (
-    KpisVacacionesCiclo,
-    load_kpis_ciclo_sql,
-)
+from app.repositories.datos_analisis_vacaciones_repository import load_kpis_ciclo_sql
 from app.services.dashboard_kpis_service import rango_anio_en_curso
-from tests.conftest import auth_headers, make_empleado
+from tests.conftest import auth_headers, make_empleado, make_vacaciones_disponibles
 
 URL = "/api/v1/dashboard/mis-kpis"
 
-CICLO_VIGENTE = KpisVacacionesCiclo(
-    disponibles=8.0,
-    aniversario=12,
-    derecho_ciclo=24.0,
-    tomados_ciclo=16.0,
-    vence=date(2026, 2, 16),
-)
+
+async def _sembrar_ciclo(db, no_empleado: int):
+    """Ciclo vigente típico: 24 de derecho, 16 tomados, 8 disponibles."""
+    return await make_vacaciones_disponibles(
+        db,
+        no_empleado=no_empleado,
+        dias_disponibles=8.0,
+        derecho_ciclo=24.0,
+        tomados_ciclo=16.0,
+        aniversario=12,
+        fecha_vence=date(2026, 2, 16),
+    )
 
 
-def _mock_tress(monkeypatch, *, ciclo=CICLO_VIGENTE, dias_ho=3):
-    """Sustituye el motor y los dos repositorios de datos-analisis."""
+def _mock_home_office(monkeypatch, *, dias_ho=3):
+    """Sustituye el motor y el repositorio de home office (lo único que aún va a TRESS)."""
     engine = AsyncMock()
     engine.dispose = AsyncMock()
     monkeypatch.setattr(
         "app.services.dashboard_kpis_service.DatosAnalisisReadClient.create_read_engine",
         lambda: engine,
     )
-    vac_repo = AsyncMock()
-    vac_repo.get_kpis_ciclo = AsyncMock(return_value=ciclo)
     ho_repo = AsyncMock()
     ho_repo.get_dias_en_rango = AsyncMock(return_value=dias_ho)
-    monkeypatch.setattr(
-        "app.services.dashboard_kpis_service.DatosAnalisisVacacionesRepository",
-        lambda _engine: vac_repo,
-    )
     monkeypatch.setattr(
         "app.services.dashboard_kpis_service.DatosAnalisisHomeOfficeReadRepository",
         lambda _engine: ho_repo,
     )
-    return vac_repo, ho_repo, engine
+    return ho_repo, engine
 
 
 # ─────────────────────────── SQL (sin BD) ───────────────────────────
@@ -89,8 +86,9 @@ def test_rango_anio_en_curso_es_semiabierto():
 
 @pytest.mark.asyncio
 async def test_devuelve_los_kpis_del_ciclo_vigente(client: AsyncClient, db, monkeypatch):
-    _mock_tress(monkeypatch)
+    _mock_home_office(monkeypatch)
     emp = await make_empleado(db, rol="empleado", email="kpis-emp@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
 
     res = await client.get(URL, headers=await auth_headers(client, emp))
     assert res.status_code == 200
@@ -106,26 +104,51 @@ async def test_devuelve_los_kpis_del_ciclo_vigente(client: AsyncClient, db, monk
 
 
 @pytest.mark.asyncio
+async def test_las_vacaciones_no_consultan_datos_analisis(
+    client: AsyncClient, db, monkeypatch
+):
+    """Con datos-analisis fuera de juego, las vacaciones se sirven igual desde Bono."""
+    monkeypatch.setattr(
+        "app.services.dashboard_kpis_service.DatosAnalisisReadClient.create_read_engine",
+        lambda: None,
+    )
+    emp = await make_empleado(db, rol="empleado", email="kpis-sin-tress@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
+
+    body = (await client.get(URL, headers=await auth_headers(client, emp))).json()
+    assert body["disponible"] is True
+    assert body["vacaciones_disponibles"] == 8.0
+    assert body["vacaciones_tomadas_ciclo"] == 16.0
+    # Solo el home office se queda sin dato.
+    assert body["home_office_dias_anio"] is None
+
+
+@pytest.mark.asyncio
 async def test_consulta_por_el_numero_del_usuario_autenticado(
     client: AsyncClient, db, monkeypatch
 ):
     """No hay `empleado_id` en la ruta: siempre se consulta el propio."""
-    vac_repo, ho_repo, _ = _mock_tress(monkeypatch)
+    ho_repo, _ = _mock_home_office(monkeypatch)
     emp = await make_empleado(db, rol="empleado", email="kpis-propio@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
     otro = await make_empleado(db, rol="empleado", email="kpis-otro@test")
+    await make_vacaciones_disponibles(
+        db, no_empleado=otro.no_empleado, dias_disponibles=99.0
+    )
 
     res = await client.get(URL, headers=await auth_headers(client, emp))
     assert res.status_code == 200
 
-    vac_repo.get_kpis_ciclo.assert_awaited_once_with(cb_codigo=emp.no_empleado)
+    assert res.json()["vacaciones_disponibles"] == 8.0  # el suyo, no el de `otro`
     assert ho_repo.get_dias_en_rango.await_args.kwargs["cb_codigo"] == emp.no_empleado
     assert otro.no_empleado != emp.no_empleado
 
 
 @pytest.mark.asyncio
 async def test_home_office_se_pide_por_el_anio_en_curso(client: AsyncClient, db, monkeypatch):
-    _, ho_repo, _ = _mock_tress(monkeypatch)
+    ho_repo, _ = _mock_home_office(monkeypatch)
     emp = await make_empleado(db, rol="empleado", email="kpis-anio@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
 
     await client.get(URL, headers=await auth_headers(client, emp))
 
@@ -137,19 +160,12 @@ async def test_home_office_se_pide_por_el_anio_en_curso(client: AsyncClient, db,
 
 @pytest.mark.asyncio
 async def test_empleado_sin_periodos_en_tress(client: AsyncClient, db, monkeypatch):
-    """El SQL devuelve saldo 0 y el resto NULL; el endpoint no debe romperse."""
-    _mock_tress(
-        monkeypatch,
-        ciclo=KpisVacacionesCiclo(
-            disponibles=0.0,
-            aniversario=None,
-            derecho_ciclo=None,
-            tomados_ciclo=None,
-            vence=None,
-        ),
-        dias_ho=0,
-    )
+    """El sync guarda saldo 0 y el resto NULL; el endpoint no debe romperse."""
+    _mock_home_office(monkeypatch, dias_ho=0)
     emp = await make_empleado(db, rol="empleado", email="kpis-sinper@test")
+    await make_vacaciones_disponibles(
+        db, no_empleado=emp.no_empleado, dias_disponibles=0.0
+    )
 
     body = (await client.get(URL, headers=await auth_headers(client, emp))).json()
     assert body["disponible"] is True
@@ -160,25 +176,25 @@ async def test_empleado_sin_periodos_en_tress(client: AsyncClient, db, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_sin_configuracion_de_datos_analisis_degrada(client: AsyncClient, db, monkeypatch):
-    """`create_read_engine` devuelve None cuando falta config: 200 degradado, no 503."""
-    monkeypatch.setattr(
-        "app.services.dashboard_kpis_service.DatosAnalisisReadClient.create_read_engine",
-        lambda: None,
+async def test_empleado_sin_sincronizar_degrada(client: AsyncClient, db, monkeypatch):
+    """Sin fila en la caché: 200 degradado (la UI pinta «—»), nunca un 0 inventado."""
+    _mock_home_office(monkeypatch)
+    emp = await make_empleado(
+        db, rol="empleado", email="kpis-nosync@test", saldo_vacaciones=None
     )
-    emp = await make_empleado(db, rol="empleado", email="kpis-noconf@test")
 
     res = await client.get(URL, headers=await auth_headers(client, emp))
     assert res.status_code == 200
     body = res.json()
     assert body["disponible"] is False
     assert body["vacaciones_disponibles"] is None
-    assert body["home_office_dias_anio"] is None
     assert body["anio"] == date.today().year
 
 
 @pytest.mark.asyncio
-async def test_si_tress_falla_el_dashboard_sigue_cargando(client: AsyncClient, db, monkeypatch):
+async def test_si_el_home_office_falla_el_dashboard_sigue_cargando(
+    client: AsyncClient, db, monkeypatch
+):
     """Un dashboard no puede romperse por nómina: degrada en vez de levantar 503."""
     from sqlalchemy.exc import OperationalError
 
@@ -189,16 +205,22 @@ async def test_si_tress_falla_el_dashboard_sigue_cargando(client: AsyncClient, d
         lambda: engine,
     )
     repo = AsyncMock()
-    repo.get_kpis_ciclo = AsyncMock(side_effect=OperationalError("stmt", {}, Exception("boom")))
+    repo.get_dias_en_rango = AsyncMock(
+        side_effect=OperationalError("stmt", {}, Exception("boom"))
+    )
     monkeypatch.setattr(
-        "app.services.dashboard_kpis_service.DatosAnalisisVacacionesRepository",
+        "app.services.dashboard_kpis_service.DatosAnalisisHomeOfficeReadRepository",
         lambda _engine: repo,
     )
     emp = await make_empleado(db, rol="empleado", email="kpis-falla@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
 
     res = await client.get(URL, headers=await auth_headers(client, emp))
     assert res.status_code == 200
-    assert res.json()["disponible"] is False
+    body = res.json()
+    assert body["disponible"] is True
+    assert body["vacaciones_disponibles"] == 8.0
+    assert body["home_office_dias_anio"] is None
     # El motor se libera aunque la consulta falle.
     engine.dispose.assert_awaited()
 
@@ -206,9 +228,10 @@ async def test_si_tress_falla_el_dashboard_sigue_cargando(client: AsyncClient, d
 @pytest.mark.asyncio
 async def test_es_autoservicio_para_los_tres_roles(client: AsyncClient, db, monkeypatch):
     """Empleado, supervisor y gerente consultan sus KPIs sin permisos de RH."""
-    _mock_tress(monkeypatch)
+    _mock_home_office(monkeypatch)
     for rol in ("empleado", "supervisor", "gerente"):
         emp = await make_empleado(db, rol=rol, email=f"kpis-{rol}@test")
+        await _sembrar_ciclo(db, emp.no_empleado)
         res = await client.get(URL, headers=await auth_headers(client, emp))
         assert res.status_code == 200, f"{rol}: {res.text}"
         assert res.json()["disponible"] is True

@@ -1,7 +1,8 @@
-"""Solicitud de vacaciones con saldo desde TRESS (datos-analisis).
+"""Solicitud de vacaciones con el saldo sincronizado en Bono.
 
-`obtener_saldo_gozo_tress` está mockeada en el fixture `client` (conftest) a 999 por defecto;
-aquí se sobreescribe con monkeypatch para probar saldo bajo / servicio caído.
+El disponible del formulario sale de `levelup_vacaciones_disponibles` menos los días
+comprometidos. `make_empleado` siembra 999 días; aquí se baja el saldo (o se deja al
+empleado sin sincronizar) para probar los caminos de bloqueo.
 """
 
 from datetime import date
@@ -9,31 +10,12 @@ from datetime import date
 import pytest
 from httpx import AsyncClient
 
-from app.core.exceptions import ServiceUnavailableError
-from tests.conftest import auth_headers, make_empleado, make_solicitud
-
-
-@pytest.fixture
-def set_saldo_tress(monkeypatch):
-    def _apply(valor):
-        async def _fake(no_empleado):  # noqa: ANN001
-            return valor
-
-        monkeypatch.setattr(
-            "app.services.vacaciones_service.obtener_saldo_gozo_tress", _fake
-        )
-
-    return _apply
-
-
-@pytest.fixture
-def tress_caido(monkeypatch):
-    async def _fake(no_empleado):  # noqa: ANN001
-        raise ServiceUnavailableError("No se pudo verificar el saldo de vacaciones.")
-
-    monkeypatch.setattr(
-        "app.services.vacaciones_service.obtener_saldo_gozo_tress", _fake
-    )
+from tests.conftest import (
+    auth_headers,
+    make_empleado,
+    make_solicitud,
+    make_vacaciones_disponibles,
+)
 
 
 @pytest.mark.asyncio
@@ -114,9 +96,9 @@ async def test_disponible_excluir_solicitud_id(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_crear_bloquea_saldo_insuficiente(client: AsyncClient, db, set_saldo_tress):
-    set_saldo_tress(3.0)
+async def test_crear_bloquea_saldo_insuficiente(client: AsyncClient, db):
     emp = await make_empleado(db, rol="empleado", email="insuf@test")
+    await make_vacaciones_disponibles(db, no_empleado=emp.no_empleado, dias_disponibles=3.0)
     headers = await auth_headers(client, emp)
 
     res = await client.post(
@@ -134,8 +116,9 @@ async def test_crear_bloquea_saldo_insuficiente(client: AsyncClient, db, set_sal
 
 
 @pytest.mark.asyncio
-async def test_crear_bloquea_tress_caido(client: AsyncClient, db, tress_caido):
-    emp = await make_empleado(db, rol="empleado", email="caido@test")
+async def test_crear_bloquea_empleado_sin_sincronizar(client: AsyncClient, db):
+    """Sin saldo en la caché no se permite crear: el 0 implícito sería inventado."""
+    emp = await make_empleado(db, rol="empleado", email="caido@test", saldo_vacaciones=None)
     headers = await auth_headers(client, emp)
 
     res = await client.post(

@@ -549,16 +549,10 @@ async def test_crear_solicitud_vacaciones_administrativo_cuenta_dias_laborales(
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_vacaciones_sin_dias_disponibles_422(
-    client: AsyncClient, db, monkeypatch,
+    client: AsyncClient, db,
 ):
-    async def _saldo_cero(no_empleado):  # noqa: ANN001
-        return 0.0
-
-    monkeypatch.setattr(
-        "app.services.vacaciones_service.obtener_saldo_gozo_tress", _saldo_cero
-    )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol004c@leoni.test"
+        db, rol="empleado", email="sol004c@leoni.test", saldo_vacaciones=0.0
     )
     headers = await auth_headers(client, empleado)
     response = await client.post(
@@ -578,16 +572,10 @@ async def test_crear_solicitud_vacaciones_sin_dias_disponibles_422(
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_vacaciones_saldo_insuficiente_422(
-    client: AsyncClient, db, monkeypatch,
+    client: AsyncClient, db,
 ):
-    async def _saldo_dos(no_empleado):  # noqa: ANN001
-        return 2.0
-
-    monkeypatch.setattr(
-        "app.services.vacaciones_service.obtener_saldo_gozo_tress", _saldo_dos
-    )
     empleado = await make_empleado(
-        db, rol="empleado", email="sol004d@leoni.test"
+        db, rol="empleado", email="sol004d@leoni.test", saldo_vacaciones=2.0
     )
     headers = await auth_headers(client, empleado)
     response = await client.post(

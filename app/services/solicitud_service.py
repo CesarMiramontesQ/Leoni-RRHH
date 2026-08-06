@@ -74,6 +74,9 @@ from app.schemas.solicitudes import (
 )
 from app.schemas.vacaciones import VacacionesDisponibleSolicitudResponse
 from app.services.notificacion_service import NotificacionService
+from app.services.sync_vacaciones_disponibles_service import (
+    sincronizar_vacaciones_empleado_background,
+)
 from app.services.vacaciones_service import VacacionesService
 from app.utils.audit_logger import audit_background
 from app.utils import audit_logger as audit_logger_mod
@@ -693,12 +696,13 @@ class SolicitudService:
         current_user: Empleado,
         exclude_solicitud_id: int | None = None,
     ) -> VacacionesDisponibleSolicitudResponse:
-        """Días disponibles para solicitar = saldo TRESS − comprometidos en curso.
+        """Días disponibles para solicitar = saldo sincronizado − comprometidos en curso.
 
         ``exclude_solicitud_id`` omite esa solicitud al sumar comprometidos (útil en
         detalle de una pendiente: saldo *antes* de esa solicitud).
 
-        Bloquea (503) si TRESS no está disponible (vía ``obtener_saldo_real``).
+        El saldo sale de `levelup_vacaciones_disponibles` (vía ``obtener_saldo_real``), no
+        de datos-analisis. Bloquea (503) si ese empleado aún no se ha sincronizado.
         """
         saldo_resp = await VacacionesService(self.db).obtener_saldo_real(
             empleado_id, current_user
@@ -724,10 +728,13 @@ class SolicitudService:
         fecha_fin: date,
         exclude_solicitud_id: int | None = None,
     ) -> None:
-        """Impide alta de vacaciones sin saldo TRESS disponible o con días > disponible.
+        """Impide alta de vacaciones sin saldo disponible o con días > disponible.
 
-        Fuente del saldo: TRESS (``GET_SALDOS_VACACION``) menos días comprometidos en
-        solicitudes en curso. Si TRESS no responde, ``obtener_saldo_real`` bloquea (503).
+        Fuente del saldo: la caché `levelup_vacaciones_disponibles` menos días comprometidos
+        en solicitudes en curso — la misma que ve el usuario en el formulario, para que lo
+        mostrado y lo validado no puedan contradecirse. TRESS sigue siendo la autoridad
+        final: al aprobar, el INSERT rechaza con `SALDO_INSUFICIENTE` si la caché iba
+        desfasada. Si el empleado no está sincronizado, ``obtener_saldo_real`` bloquea (503).
         """
         saldo_resp = await VacacionesService(self.db).obtener_saldo_real(
             empleado_id, current_user
@@ -1265,6 +1272,17 @@ class SolicitudService:
                 ),
             },
         )
+
+        # Vacaciones aprobadas: el saldo en TRESS ya bajó, así que hay que refrescar la
+        # caché de Bono de la que leen dashboards y formularios. Va en BackgroundTask
+        # porque Starlette las ejecuta DESPUÉS de la respuesta, es decir después del commit
+        # de `get_db`: nunca se sincroniza sobre una aprobación no confirmada, y un fallo
+        # aquí no revierte nada (se corrige en la corrida diaria).
+        if solicitud.tipo == "vacaciones":
+            background_tasks.add_task(
+                sincronizar_vacaciones_empleado_background,
+                int(no_empleado_solicitante),
+            )
 
         solicitud_final = await self.repo.get_with_empleado(solicitud_id)
         if not solicitud_final:
