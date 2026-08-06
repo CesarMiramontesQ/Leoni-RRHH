@@ -230,12 +230,12 @@ _VISTAS: tuple[VistaRolDef, ...] = (
     ),
     _desde_modulo(
         "incidencias",
-        descripcion="Registro y seguimiento de incidencias de calidad y seguridad.",
+        descripcion="Registro y seguimiento de quejas de calidad y seguridad.",
         default_habilitado=_GESTORES,
     ),
     _desde_modulo(
         "faltas-retardos",
-        descripcion="Consulta de faltas y retardos importados de nómina.",
+        descripcion="Incidencias de asistencia importadas de nómina.",
         default_habilitado=_GESTORES,
     ),
     _desde_modulo(

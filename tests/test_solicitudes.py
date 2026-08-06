@@ -2043,7 +2043,7 @@ async def test_get_home_office_disponibilidad_empleado(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_goce_redirige_a_faltas_retardos(client: AsyncClient, db):
-    """Alta de goce ya no va por Solicitudes: debe usarse Faltas y retardos."""
+    """Alta de goce ya no va por Solicitudes: debe usarse Incidencias (módulo faltas-retardos)."""
     rh = await make_empleado(db, rol="rh", email="sol027b_rh@leoni.test")
     empleado = await make_empleado(db, rol="empleado", email="sol027b_emp@leoni.test")
     headers = await auth_headers(client, rh)
@@ -2065,7 +2065,7 @@ async def test_crear_solicitud_goce_redirige_a_faltas_retardos(client: AsyncClie
         )
         assert response.status_code == 422, tipo
         detail = response.json().get("detail", "").lower()
-        assert "faltas" in detail and "retardos" in detail
+        assert "incidencias" in detail
 
 
 # ---------------------------------------------------------------------------

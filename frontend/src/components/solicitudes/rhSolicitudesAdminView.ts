@@ -1216,12 +1216,12 @@ export function renderRhMetricasView(
       )}
       ${renderMetricasDomainSection(
         "rh-metricas-seccion-incidencias",
-        "Incidencias",
+        "Seguridad y Calidad",
         renderRhIncidenciasChartsSection(incidenciasVm),
       )}
       ${renderMetricasDomainSection(
         "rh-metricas-seccion-faltas-retardos",
-        "Faltas y retardos",
+        "Incidencias",
         renderRhFaltasRetardosMetricasSection(faltasRetardosVm),
       )}
     </div>`;

@@ -3,7 +3,7 @@
  */
 
 export const FR_COPY = {
-  tituloPagina: "Faltas y retardos",
+  tituloPagina: "Incidencias",
   listadoTitulo: "Listado de eventos",
   listadoSubtitulo: (total: number) =>
     total === 1 ? "1 evento encontrado" : `${total} eventos encontrados`,

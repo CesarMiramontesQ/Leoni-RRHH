@@ -3,7 +3,7 @@
  */
 
 export const INC_COPY = {
-  tituloPagina: "Incidencias",
+  tituloPagina: "Seguridad y Calidad",
   listadoTitulo: "Listado de incidencias",
   listadoSubtitulo: (total: number) =>
     total === 1 ? "1 incidencia encontrada" : `${total} incidencias encontradas`,
