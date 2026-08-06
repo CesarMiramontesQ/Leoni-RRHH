@@ -154,6 +154,27 @@ class EmpleadoRepository(BaseRepository[Empleado]):
                 salida.append(parsed)
         return sorted(set(salida))
 
+    async def list_no_empleados_activos(self, estados_activos: Sequence[int]) -> list[int]:
+        """Números de empleado (`CB_CODIGO` en TRESS) de los empleados activos.
+
+        Universo del sync de saldos de vacaciones: solo activos, ya que TRESS no tiene
+        periodos vigentes para las bajas.
+        """
+        if not estados_activos:
+            return []
+        result = await self.db.execute(
+            select(Empleado.no_empleado).where(
+                Empleado.no_empleado.is_not(None),
+                Empleado.estado_id.in_(list(estados_activos)),
+            )
+        )
+        salida: list[int] = []
+        for (no_empleado,) in result.all():
+            parsed = self._no_empleado_int(no_empleado)
+            if parsed is not None:
+                salida.append(parsed)
+        return sorted(set(salida))
+
     async def map_por_no_empleados(
         self, no_empleados: Sequence[int]
     ) -> dict[int, tuple[int, str | None]]:

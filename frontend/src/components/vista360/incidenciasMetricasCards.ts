@@ -79,7 +79,7 @@ function renderVacacionesCard(saldoVacacionesReal: number | null): string {
   const disponible = saldoVacacionesReal !== null;
   const valor = disponible ? String(saldoVacacionesReal) : "—";
   const nota = disponible
-    ? "Días de gozo disponibles (SQL Server datos-analisis)."
+    ? "Días de gozo disponibles (saldo de nómina sincronizado)."
     : "Saldo no disponible.";
   return `
     <article class="rh-dash-kpi-card flex h-full flex-col rounded-[18px] p-5" data-v360-estadistica="${def.id}">

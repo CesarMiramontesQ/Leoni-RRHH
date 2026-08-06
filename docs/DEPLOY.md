@@ -65,6 +65,22 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d
 > `prod-build-frontend.sh`, el navegador seguirá sirviendo el bundle anterior y parecerá que
 > el deploy no surtió efecto.
 
+### Carga inicial de saldos de vacaciones (una sola vez)
+
+El release que introduce `levelup_vacaciones_disponibles` (revisión `w1c2a3c4h5e6`) crea la
+tabla **vacía**. Hasta llenarla, los dashboards pintan «—» en vacaciones y crear una
+solicitud responde 503. Después del `prod-migrate.sh`, con el túnel a datos-analisis arriba:
+
+```bash
+./scripts/prod-sync-vacaciones-backfill.sh              # dry-run: no escribe
+./scripts/prod-sync-vacaciones-backfill.sh --execute    # carga real (~800 empleados)
+```
+
+El script verifica antes que la migración esté en la imagen, que la tabla exista y que
+datos-analisis responda; al terminar imprime cuántos empleados quedaron cargados. A partir
+de ahí la mantienen al día el job de las **06:00** y la aprobación de solicitudes de
+vacaciones, así que no hay que repetirlo (`--no-empleado N` refresca a uno suelto).
+
 ### Antes de un release con migraciones destructivas
 
 Revisa las revisiones nuevas (`git log --oneline <tag-anterior>..HEAD -- alembic/versions/`).

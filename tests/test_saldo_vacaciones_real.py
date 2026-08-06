@@ -1,7 +1,8 @@
-"""Tests del saldo real de vacaciones (SQL Server datos-analisis, función GET_SALDOS_VACACION).
+"""Tests del saldo de vacaciones que expone `/empleados/{id}/saldo-vacaciones-real`.
 
-La BD externa no existe en el entorno de tests: se mockea `obtener_saldo_gozo_tress` (el
-helper que consulta datos-analisis) para probar el wiring del endpoint sin tocar SQL Server.
+La fuente es `levelup_vacaciones_disponibles` (Bono), la caché que el sync alimenta desde
+datos-analisis: los tests siembran la fila real y el endpoint la lee sin mocks, así que
+también verifican que no queda ninguna llamada a la BD externa en la ruta de lectura.
 """
 
 import pytest
@@ -9,7 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy import text
 
 from app.repositories.datos_analisis_vacaciones_repository import load_saldo_vacaciones_sql
-from tests.conftest import auth_headers, make_empleado
+from tests.conftest import auth_headers, make_empleado, make_vacaciones_disponibles
 
 
 def test_sql_saldo_tiene_un_solo_bind_cb_codigo():
@@ -20,26 +21,11 @@ def test_sql_saldo_tiene_un_solo_bind_cb_codigo():
     assert set(parsed._bindparams.keys()) == {"cb_codigo"}
 
 
-@pytest.fixture
-def mock_saldo_tress(monkeypatch):
-    """Fija el saldo TRESS que devuelve `obtener_saldo_gozo_tress`."""
-
-    def _apply(valor):
-        async def _fake(no_empleado):  # noqa: ANN001
-            return valor
-
-        monkeypatch.setattr(
-            "app.services.vacaciones_service.obtener_saldo_gozo_tress", _fake
-        )
-
-    return _apply
-
-
 @pytest.mark.asyncio
-async def test_saldo_real_happy_path(client: AsyncClient, db, mock_saldo_tress):
-    mock_saldo_tress(15.5)
+async def test_saldo_real_happy_path(client: AsyncClient, db):
     rh = await make_empleado(db, rol="rh", email="saldo-rh@test")
     emp = await make_empleado(db, rol="empleado", email="saldo-emp@test")
+    await make_vacaciones_disponibles(db, no_empleado=emp.no_empleado, dias_disponibles=15.5)
     headers = await auth_headers(client, rh)
 
     res = await client.get(
@@ -54,11 +40,34 @@ async def test_saldo_real_happy_path(client: AsyncClient, db, mock_saldo_tress):
 
 
 @pytest.mark.asyncio
-async def test_saldo_real_sin_periodos_devuelve_cero(client: AsyncClient, db, mock_saldo_tress):
-    # ISNULL(SUM,0) en el SQL => un empleado sin periodos da 0 (no None).
-    mock_saldo_tress(0.0)
+async def test_saldo_real_no_consulta_datos_analisis(client: AsyncClient, db, monkeypatch):
+    """La lectura sale de Bono: crear un motor a datos-analisis sería un fallo."""
+
+    def _boom():
+        raise AssertionError("el saldo no debe consultar datos-analisis")
+
+    monkeypatch.setattr(
+        "app.integrations.datos_analisis_db.DatosAnalisisReadClient.create_read_engine",
+        staticmethod(_boom),
+    )
+    emp = await make_empleado(db, rol="empleado", email="saldo-sin-tress@test")
+    await make_vacaciones_disponibles(db, no_empleado=emp.no_empleado, dias_disponibles=7.0)
+    headers = await auth_headers(client, emp)
+
+    res = await client.get(
+        f"/api/v1/empleados/{emp.id}/saldo-vacaciones-real",
+        headers=headers,
+    )
+    assert res.status_code == 200
+    assert res.json()["saldo_gozo_total"] == 7.0
+
+
+@pytest.mark.asyncio
+async def test_saldo_real_sin_periodos_devuelve_cero(client: AsyncClient, db):
+    # ISNULL(SUM,0) en el SQL => un empleado sin periodos se sincroniza como 0 (no None).
     rh = await make_empleado(db, rol="rh", email="saldo-cero-rh@test")
     emp = await make_empleado(db, rol="empleado", email="saldo-cero-emp@test")
+    await make_vacaciones_disponibles(db, no_empleado=emp.no_empleado, dias_disponibles=0.0)
     headers = await auth_headers(client, rh)
 
     res = await client.get(
@@ -67,6 +76,22 @@ async def test_saldo_real_sin_periodos_devuelve_cero(client: AsyncClient, db, mo
     )
     assert res.status_code == 200
     assert res.json()["saldo_gozo_total"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_saldo_real_empleado_sin_sincronizar_503(client: AsyncClient, db):
+    """Sin fila en la caché no se inventa un 0: la UI debe pintar «—», no «0 días»."""
+    rh = await make_empleado(db, rol="rh", email="saldo-nosync-rh@test")
+    emp = await make_empleado(
+        db, rol="empleado", email="saldo-nosync-emp@test", saldo_vacaciones=None
+    )
+    headers = await auth_headers(client, rh)
+
+    res = await client.get(
+        f"/api/v1/empleados/{emp.id}/saldo-vacaciones-real",
+        headers=headers,
+    )
+    assert res.status_code == 503
 
 
 @pytest.mark.asyncio

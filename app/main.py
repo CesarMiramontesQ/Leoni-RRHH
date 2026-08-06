@@ -96,6 +96,71 @@ async def _metas_recordatorios_job():
         logger.error("Error en Metas recordatorios job: %s", str(exc), exc_info=True)
 
 
+async def _sync_vacaciones_disponibles_job():
+    """Refresca la caché de saldos de vacaciones desde DATOS_ANALISIS (diario, 06:00).
+
+    Es lo que permite que dashboards y formularios lean el saldo de Bono en vez de esperar
+    a la BD de nómina en cada carga de página.
+    """
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.sync_vacaciones_disponibles_service import (
+            sincronizar_vacaciones_disponibles,
+        )
+
+        async with AsyncSessionLocal() as db:
+            stats = await sincronizar_vacaciones_disponibles(db, origen="scheduler")
+        logger.info(
+            "Sync vacaciones disponibles job | consultados=%d | insertados=%d | "
+            "actualizados=%d | omitidos=%d | errores=%d",
+            stats.consultados,
+            stats.insertados,
+            stats.actualizados,
+            stats.omitidos,
+            stats.errores,
+        )
+    except Exception as exc:
+        logger.error(
+            "Error en sync de vacaciones disponibles job: %s", str(exc), exc_info=True
+        )
+
+
+def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
+    """Registra los jobs periódicos. La zona horaria la fija el scheduler (APP_TIMEZONE)."""
+    # Recordatorios Evaluación 360: una vez al día (08:00).
+    sched.add_job(
+        _eval360_recordatorios_job,
+        "cron",
+        hour=8,
+        minute=0,
+        id="eval360_recordatorios",
+    )
+    # Recordatorios + cierre automático Encuestas RH: una vez al día (08:00).
+    sched.add_job(
+        _encuestas_rh_recordatorios_job,
+        "cron",
+        hour=8,
+        minute=0,
+        id="encuestas_rh_recordatorios",
+    )
+    # Recordatorios de Metas (OKR): una vez al día (08:00).
+    sched.add_job(
+        _metas_recordatorios_job,
+        "cron",
+        hour=8,
+        minute=0,
+        id="metas_recordatorios",
+    )
+    # Caché de saldos de vacaciones: una vez al día (06:00), antes de la jornada.
+    sched.add_job(
+        _sync_vacaciones_disponibles_job,
+        "cron",
+        hour=6,
+        minute=0,
+        id="sync_vacaciones_disponibles",
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──────────────────────────────────────────────
@@ -117,30 +182,7 @@ async def lifespan(app: FastAPI):
         )
 
     # 2. APScheduler — jobs periódicos (sin cola TRESS/RPA; nómina = DATOS_ANALISIS directo)
-    # Recordatorios Evaluación 360: una vez al día (08:00).
-    scheduler.add_job(
-        _eval360_recordatorios_job,
-        "cron",
-        hour=8,
-        minute=0,
-        id="eval360_recordatorios",
-    )
-    # Recordatorios + cierre automático Encuestas RH: una vez al día (08:00).
-    scheduler.add_job(
-        _encuestas_rh_recordatorios_job,
-        "cron",
-        hour=8,
-        minute=0,
-        id="encuestas_rh_recordatorios",
-    )
-    # Recordatorios de Metas (OKR): una vez al día (08:00).
-    scheduler.add_job(
-        _metas_recordatorios_job,
-        "cron",
-        hour=8,
-        minute=0,
-        id="metas_recordatorios",
-    )
+    registrar_jobs_programados(scheduler)
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))
 
