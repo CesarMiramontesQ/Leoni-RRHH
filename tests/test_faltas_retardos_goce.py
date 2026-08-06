@@ -371,7 +371,7 @@ async def test_create_matrimonio_rango_invalido(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_list_incluye_goce_levelup_sin_bono(client: AsyncClient, db, monkeypatch):
+async def test_list_incluye_goce_levelup_sin_tress(client: AsyncClient, db, monkeypatch):
     """Listado mezcla eventos levelup goce aunque Bono esté vacío / mockeado."""
     rh = await make_empleado(db, rol="rh", nombre="RH List Goce", no_empleado=92005)
     empleado = await make_empleado(db, rol="empleado", nombre="Emp List Goce", no_empleado=92006)
@@ -390,26 +390,17 @@ async def test_list_incluye_goce_levelup_sin_bono(client: AsyncClient, db, monke
     )
     assert create.status_code == 201, create.text
 
-    mock_engine = MagicMock()
-    mock_engine.dispose = AsyncMock()
-    repo = AsyncMock(
-        count=AsyncMock(return_value=0),
-        list_offset=AsyncMock(return_value=[]),
-    )
-    with (
-        patch(
-            "app.services.faltas_retardos_service.BonoProductividadReadClient.create_read_engine",
-            return_value=mock_engine,
-        ),
-        patch(
-            "app.services.faltas_retardos_service.BonoFaltasRetardosRepository",
-            return_value=repo,
-        ),
+    # incapacidad_interna no existe en TRESS: el listado no debe consultarlo.
+    create_engine = MagicMock()
+    with patch(
+        "app.services.faltas_retardos_service.DatosAnalisisReadClient.create_read_engine",
+        create_engine,
     ):
         res = await client.get(
             "/api/v1/faltas-retardos?tipo=incapacidad_interna",
             headers=headers,
         )
+    create_engine.assert_not_called()
     assert res.status_code == 200
     body = res.json()
     assert body["total"] >= 1

@@ -27,6 +27,7 @@ export const FR_COPY = {
   limpiarFiltros: "Limpiar filtros",
   aplicarFiltros: "Aplicar filtros",
   filtrosAplicadosHint: "Ajusta los campos y pulsa «Aplicar filtros» para consultar el servidor.",
+  ventanaDefaultHint: "Último año. Elige una fecha desde para consultar el histórico completo.",
   filtrosTitulo: "Filtros de búsqueda",
   filtrosSeccionAria: "Filtros de búsqueda",
   filtrosToggleMobile: "Filtros de búsqueda",
@@ -122,5 +123,7 @@ export const FR_COPY = {
   detalleModalCerrar: "Cerrar",
   detalleColOrigen: "Origen",
   detalleOrigenManual: "Creado en el sistema",
+  detalleOrigenAusencia: "Nómina · asistencia diaria",
+  detalleOrigenPermiso: "Nómina · permiso",
   detalleAriaAbrir: "Ver detalle del evento",
 } as const;

@@ -281,26 +281,28 @@ def test_map_bono_row_no_usa_tipo_descripcion_como_observaciones():
 
 
 @pytest.mark.asyncio
-async def test_enrich_registrado_por_restaura_motivo_y_origen_manual(db):
-    from app.models.faltas_retardos import FaltaRetardoRegistroAuditoria
+async def test_enriquecer_con_levelup_restaura_motivo_y_origen_manual(db):
+    """TRESS no guarda quién capturó desde la app; se recupera de la copia local."""
     from app.services.faltas_retardos_service import FaltasRetardosService
 
     rh = await make_empleado(db, rol="rh", nombre="RH Enrich")
-    audit = FaltaRetardoRegistroAuditoria(
-        bono_origen="importadas_historico",
-        bono_origen_id=4242,
-        registrado_por_id=rh.empleado_id,
-        observaciones="MOTIVO SUSPENSION",
+    empleado = await make_empleado(db, rol="empleado", nombre="EMP Enrich")
+    svc = FaltasRetardosService(db)
+    await svc.audit_repo.create_evento(
+        empleado_id=empleado.empleado_id,
+        tipo="suspension",
+        fecha_evento=date(2026, 7, 20),
         fecha_fin=date(2026, 7, 22),
+        observaciones="MOTIVO SUSPENSION",
+        registrado_por_id=rh.empleado_id,
     )
-    db.add(audit)
     await db.commit()
 
     item = FaltaRetardoResponse(
-        id=1_000_004_242,
-        empleado_id=1,
-        empleado_nombre="EMP",
-        numero_empleado="1",
+        id=5_006_589_700,
+        empleado_id=empleado.empleado_id,
+        empleado_nombre="EMP Enrich",
+        numero_empleado=str(empleado.no_empleado),
         tipo="suspension",
         fecha_evento=date(2026, 7, 20),
         fecha_fin=None,
@@ -308,14 +310,37 @@ async def test_enrich_registrado_por_restaura_motivo_y_origen_manual(db):
         registrado_por_id=None,
         registrado_por_nombre=None,
         created_at=datetime.now(timezone.utc),
-        origen="importadas_historico",
-        origen_id=4242,
+        origen="ausencia",
+        origen_id=6_589_700,
     )
-    svc = FaltasRetardosService(db)
-    enriched = await svc._enrich_registrado_por([item])
+    enriched = await svc._enriquecer_con_levelup([item])
     assert len(enriched) == 1
     assert enriched[0].origen == "manual"
     assert enriched[0].observaciones == "MOTIVO SUSPENSION"
     assert enriched[0].fecha_fin == date(2026, 7, 22)
     assert enriched[0].registrado_por_id == rh.empleado_id
-    assert enriched[0].id == 1_000_004_242
+
+
+@pytest.mark.asyncio
+async def test_enriquecer_con_levelup_deja_intactas_las_filas_sin_copia(db):
+    from app.services.faltas_retardos_service import FaltasRetardosService
+
+    empleado = await make_empleado(db, rol="empleado", nombre="EMP Sin Copia")
+    item = FaltaRetardoResponse(
+        id=5_000_000_001,
+        empleado_id=empleado.empleado_id,
+        empleado_nombre="EMP Sin Copia",
+        numero_empleado=str(empleado.no_empleado),
+        tipo="retardo",
+        fecha_evento=date(2026, 7, 20),
+        fecha_fin=None,
+        observaciones=None,
+        registrado_por_id=None,
+        registrado_por_nombre=None,
+        created_at=datetime.now(timezone.utc),
+        origen="ausencia",
+        origen_id=1,
+    )
+    enriched = await FaltasRetardosService(db)._enriquecer_con_levelup([item])
+    assert enriched[0].origen == "ausencia"
+    assert enriched[0].registrado_por_id is None

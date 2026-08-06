@@ -1,10 +1,11 @@
 from typing import Sequence
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.catalogos import Area
 from app.models.empleados import Empleado
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.base import BaseRepository
@@ -111,6 +112,65 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             eid: (str(no) if no is not None else None, nombre)
             for eid, no, nombre in result.all()
         }
+
+    async def list_no_empleados_filtrados(
+        self,
+        *,
+        empleado_ids_scope: Sequence[int] | None = None,
+        empleado_id: int | None = None,
+        busqueda: str | None = None,
+        area: str | None = None,
+    ) -> list[int]:
+        """Números de empleado (`CB_CODIGO` en TRESS) que pasan los filtros locales.
+
+        Los nombres y el organigrama viven en Postgres, así que el filtro por
+        nombre/área se resuelve aquí y viaja a datos-analisis como lista de
+        números. Mismos predicados que `FaltasRetardosRepository._apply_filters`.
+        """
+        query = select(Empleado.no_empleado).where(Empleado.no_empleado.is_not(None))
+        if empleado_ids_scope is not None:
+            if not empleado_ids_scope:
+                return []
+            query = query.where(Empleado.empleado_id.in_(empleado_ids_scope))
+        if empleado_id is not None:
+            query = query.where(Empleado.empleado_id == empleado_id)
+        if busqueda and busqueda.strip():
+            term = f"%{busqueda.strip()}%"
+            query = query.where(
+                or_(
+                    Empleado.nombre.ilike(term),
+                    cast(Empleado.no_empleado, String).ilike(term),
+                )
+            )
+        if area and area.strip():
+            query = query.join(Area, Area.area_id == Empleado.area_id).where(
+                func.lower(func.trim(Area.descripcion)) == area.strip().lower()
+            )
+        result = await self.db.execute(query)
+        salida: list[int] = []
+        for (no_empleado,) in result.all():
+            parsed = self._no_empleado_int(no_empleado)
+            if parsed is not None:
+                salida.append(parsed)
+        return sorted(set(salida))
+
+    async def map_por_no_empleados(
+        self, no_empleados: Sequence[int]
+    ) -> dict[int, tuple[int, str | None]]:
+        """Mapa `no_empleado` -> (`empleado_id`, `nombre`) para hidratar filas de TRESS."""
+        if not no_empleados:
+            return {}
+        result = await self.db.execute(
+            select(Empleado.empleado_id, Empleado.no_empleado, Empleado.nombre).where(
+                Empleado.no_empleado.in_(list({int(n) for n in no_empleados}))
+            )
+        )
+        salida: dict[int, tuple[int, str | None]] = {}
+        for empleado_id, no_empleado, nombre in result.all():
+            parsed = self._no_empleado_int(no_empleado)
+            if parsed is not None:
+                salida[parsed] = (int(empleado_id), nombre)
+        return salida
 
     async def get_with_rol(self, id: int) -> Empleado | None:
         result = await self.db.execute(

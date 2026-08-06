@@ -27,6 +27,8 @@ function labelOrigen(origen: string | null | undefined): string {
   if (!origen?.trim()) return "—";
   const map: Record<string, string> = {
     manual: FR_COPY.detalleOrigenManual,
+    ausencia: FR_COPY.detalleOrigenAusencia,
+    permiso: FR_COPY.detalleOrigenPermiso,
     importadas_historico: "Historial de asistencia (importadas)",
     ponderaciones: "Ponderaciones",
     evaluacion_historica: "Evaluación histórica",

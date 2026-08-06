@@ -75,9 +75,14 @@ function renderFilters(vm: FaltasRetardosAdminViewModel, resultCount: number | n
   const f = vm.filterDraft;
   const clearVisible =
     filtrosFaltasRetardosActivos(f) || filtrosFaltasRetardosActivos(vm.appliedFilters);
+  // Sin fechas el backend acota al último año; conviene decirlo donde se ve el conteo.
+  const ventanaHtml =
+    !vm.appliedFilters.fecha_inicio && !vm.appliedFilters.fecha_fin
+      ? `<p class="text-xs text-[color:var(--color-text-secondary)]">${escapeHtml(FR_COPY.ventanaDefaultHint)}</p>`
+      : "";
   const countHtml =
     resultCount !== null
-      ? `<p class="rh-sol-filters__count text-xs font-medium text-[color:var(--color-text-secondary)]" aria-live="polite">Mostrando <span class="tabular-nums font-semibold text-[color:var(--color-text-primary)]">${escapeHtml(String(resultCount))}</span> eventos</p>`
+      ? `<div class="flex flex-col gap-0.5"><p class="rh-sol-filters__count text-xs font-medium text-[color:var(--color-text-secondary)]" aria-live="polite">Mostrando <span class="tabular-nums font-semibold text-[color:var(--color-text-primary)]">${escapeHtml(String(resultCount))}</span> eventos</p>${ventanaHtml}</div>`
       : "";
 
   const clearBtn = clearVisible
