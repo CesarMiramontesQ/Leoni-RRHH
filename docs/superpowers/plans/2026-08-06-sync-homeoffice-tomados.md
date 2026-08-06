@@ -865,8 +865,20 @@ async def test_error_de_consulta_no_escribe_nada(db, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_el_sync_de_fondo_nunca_propaga(monkeypatch):
+async def test_el_sync_de_fondo_nunca_propaga(db, monkeypatch):
     """La aprobación ya está confirmada: un fallo aquí se registra, no revienta."""
+    import contextlib
+
+    @contextlib.asynccontextmanager
+    async def _sesion_de_test():
+        yield db
+
+    # `sincronizar_homeoffice_empleado_background` abre su propia sesión (en tests
+    # apuntaría a la BD real de Bono); se sustituye por la sesión del fixture para que el
+    # fallo que se prueba sea el del sync, no el de la conexión.
+    monkeypatch.setattr(
+        "app.core.database.AsyncSessionLocal", lambda: _sesion_de_test()
+    )
     fallo = AsyncMock(side_effect=RuntimeError("boom"))
     monkeypatch.setattr(
         "app.services.sync_homeoffice_tomados_service.sincronizar_homeoffice_tomados",
@@ -874,6 +886,8 @@ async def test_el_sync_de_fondo_nunca_propaga(monkeypatch):
     )
 
     await sincronizar_homeoffice_empleado_background(12345, solicitud_id=7)
+
+    fallo.assert_awaited_once()
 ```
 
 - [ ] **Step 2: Correr el test y verificar que falla**
