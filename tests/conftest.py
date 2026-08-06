@@ -28,6 +28,7 @@ _pg_dialect.JSONB = _JSON  # type: ignore[attr-defined]
 import pytest
 import pytest_asyncio
 from datetime import date
+from decimal import Decimal
 from typing import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
@@ -61,6 +62,7 @@ import app.models.encuestas_rh  # noqa: F401
 import app.models.metas  # noqa: F401
 import app.models.ciclo_desempeno  # noqa: F401
 import app.models.vistas_rol  # noqa: F401
+import app.models.homeoffice_tomados  # noqa: F401
 
 from app.core.database import Base, get_db
 from app.core.security import hash_password
@@ -173,6 +175,9 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
       - sincronizar_vacaciones_empleado_background: el refresco de la cache tras aprobar
         vacaciones, que necesitaria datos-analisis. Los tests de ese flujo comprueban las
         llamadas a este mock.
+      - sincronizar_homeoffice_empleado_background: el refresco de la cache tras aprobar
+        home office, que necesitaria datos-analisis. Los tests de ese flujo comprueban las
+        llamadas a este mock.
 
     El saldo de vacaciones NO se mockea: `make_empleado` siembra la fila real en
     `levelup_vacaciones_disponibles` (999 dias por defecto), de modo que las lecturas
@@ -198,6 +203,11 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         ),
         patch(
             "app.services.solicitud_service.sincronizar_vacaciones_empleado_background",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "app.services.solicitud_service.sincronizar_homeoffice_empleado_background",
             new_callable=AsyncMock,
             return_value=None,
         ),
@@ -383,6 +393,38 @@ async def make_vacaciones_disponibles(
     fila.tomados_ciclo = tomados_ciclo
     fila.aniversario = aniversario
     fila.fecha_vence = fecha_vence
+    await db.flush()
+    await db.refresh(fila)
+    return fila
+
+
+async def make_homeoffice_tomados(
+    db: AsyncSession,
+    *,
+    no_empleado: int,
+    anio: int,
+    dias_tomados: float | Decimal = 0,
+):
+    """Siembra (o actualiza) la caché de home office tomado de un empleado en un año.
+
+    Es lo que el sync escribiría desde TRESS; los tests la usan para fijar los días que
+    verá el dashboard sin tocar datos-analisis.
+    """
+    from sqlalchemy import select
+
+    from app.models.homeoffice_tomados import HomeOfficeTomados
+
+    result = await db.execute(
+        select(HomeOfficeTomados).where(
+            HomeOfficeTomados.no_empleado == int(no_empleado),
+            HomeOfficeTomados.anio == int(anio),
+        )
+    )
+    fila = result.scalar_one_or_none()
+    if fila is None:
+        fila = HomeOfficeTomados(no_empleado=int(no_empleado), anio=int(anio))
+        db.add(fila)
+    fila.dias_tomados = dias_tomados
     await db.flush()
     await db.refresh(fila)
     return fila

@@ -81,6 +81,23 @@ datos-analisis responda; al terminar imprime cuántos empleados quedaron cargado
 de ahí la mantienen al día el job de las **06:00** y la aprobación de solicitudes de
 vacaciones, así que no hay que repetirlo (`--no-empleado N` refresca a uno suelto).
 
+### Carga inicial de días de home office tomados (una sola vez)
+
+El release que introduce `levelup_homeoffice_tomados` (revisión `x1h2o3f4f5i6`) crea la
+tabla **vacía**. Hasta llenarla, el dashboard pinta 0 días de home office —un dato
+plausible pero falso, no un «—»— para todos los empleados. Después del `prod-migrate.sh`,
+con el túnel a datos-analisis arriba:
+
+```bash
+./scripts/prod-sync-homeoffice-backfill.sh              # dry-run: no escribe
+./scripts/prod-sync-homeoffice-backfill.sh --execute    # carga real (~800 empleados)
+```
+
+El script verifica antes que la migración esté en la imagen, que la tabla exista y que
+datos-analisis responda; al terminar imprime cuántos empleados quedaron cargados. A partir
+de ahí la mantienen al día el job de las **06:00** y la aprobación de solicitudes de home
+office, así que no hay que repetirlo (`--no-empleado N` refresca a uno suelto).
+
 ### Antes de un release con migraciones destructivas
 
 Revisa las revisiones nuevas (`git log --oneline <tag-anterior>..HEAD -- alembic/versions/`).
