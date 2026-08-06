@@ -125,6 +125,32 @@ async def _sync_vacaciones_disponibles_job():
         )
 
 
+async def _sync_homeoffice_tomados_job():
+    """Refresca la caché de home office tomado desde DATOS_ANALISIS (diario, 06:00).
+
+    Job aparte del de vacaciones aunque compartan hora: un fallo de uno no debe impedir el
+    otro.
+    """
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.sync_homeoffice_tomados_service import (
+            sincronizar_homeoffice_tomados,
+        )
+
+        async with AsyncSessionLocal() as db:
+            stats = await sincronizar_homeoffice_tomados(db, origen="scheduler")
+        logger.info(
+            "Sync home office job | consultados=%d | insertados=%d | actualizados=%d "
+            "| omitidos=%d",
+            stats.consultados,
+            stats.insertados,
+            stats.actualizados,
+            stats.omitidos,
+        )
+    except Exception as exc:
+        logger.error("Error en sync de home office job: %s", str(exc), exc_info=True)
+
+
 def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
     """Registra los jobs periódicos. La zona horaria la fija el scheduler (APP_TIMEZONE)."""
     # Recordatorios Evaluación 360: una vez al día (08:00).
@@ -158,6 +184,14 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         hour=6,
         minute=0,
         id="sync_vacaciones_disponibles",
+    )
+    # Caché de home office tomado: una vez al día (06:00), antes de la jornada.
+    sched.add_job(
+        _sync_homeoffice_tomados_job,
+        "cron",
+        hour=6,
+        minute=0,
+        id="sync_homeoffice_tomados",
     )
 
 
