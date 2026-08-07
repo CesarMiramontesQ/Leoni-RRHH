@@ -72,6 +72,26 @@ async def test_insert_evento_sin_estado_manda_null():
 
 
 @pytest.mark.asyncio
+async def test_insert_evento_escribe_semana_incidencia():
+    """La semana a la que corresponde el evento, aparte de id_semana."""
+    conn = _FakeConn()
+    await _insert(conn, semana_incidencia=78)
+
+    assert conn.params is not None
+    assert conn.params["semana_incidencia"] == 78
+    assert "semana_incidencia" in (conn.sql or "")
+
+
+@pytest.mark.asyncio
+async def test_insert_evento_sin_semana_incidencia_manda_null():
+    conn = _FakeConn()
+    await _insert(conn)
+
+    assert conn.params is not None
+    assert conn.params["semana_incidencia"] is None
+
+
+@pytest.mark.asyncio
 async def test_insert_evento_devuelve_id():
     conn = _FakeConn(new_id=1234)
     assert await _insert(conn, estado=1) == 1234

@@ -84,6 +84,21 @@ def _clave_evento(
     return (int(no_empleado), fecha_incidencia, str(tipo_inc).strip().upper())
 
 
+async def _resolver_semana_evento(
+    bono_repo: BonoImportadasHistoricoRepository,
+    fecha: date,
+    cache: dict[date, int | None],
+) -> int | None:
+    """Semana de `semana_historico` que contiene `fecha`, memoizada por fecha.
+
+    Un rango de una semana trae a lo sumo 7 fechas distintas: sin la caché serían
+    tantas consultas como eventos.
+    """
+    if fecha not in cache:
+        cache[fecha] = await bono_repo.resolve_semana_id(fecha)
+    return cache[fecha]
+
+
 class SyncAusenciasService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -214,6 +229,7 @@ class SyncAusenciasService:
             to_insert: list[dict[str, Any]] = []
             to_update: list[tuple[dict[str, Any], dict[str, Any]]] = []
             to_delete: list[dict[str, Any]] = []
+            cache_semanas: dict[date, int | None] = {}
 
             for clave, src in fuente.items():
                 existing = dest.get(clave)
@@ -236,10 +252,17 @@ class SyncAusenciasService:
                     if semana is None:
                         stats.omitidos_sin_semana += 1
                         continue
+                    # `semana_incidencia` es la semana de la fecha del evento, que no
+                    # tiene por qué ser la del rango sincronizado: una falta del domingo
+                    # y otra del lunes caen en semanas distintas de semana_historico.
+                    semana_evento = await _resolver_semana_evento(
+                        bono_repo, src["fecha_incidencia"], cache_semanas
+                    )
                     to_insert.append(
                         {
                             **src,
                             "id_semana": semana,
+                            "semana_incidencia": semana_evento,
                             "area_empleado": empleado.area_id,
                             "subarea_empleado": empleado.subarea_id,
                         }
@@ -304,6 +327,7 @@ class SyncAusenciasService:
                         subarea_empleado=item["subarea_empleado"],
                         fecha_incidencia=item["fecha_incidencia"],
                         estado=ESTADO_SINCRONIZADO,
+                        semana_incidencia=item["semana_incidencia"],
                         conn=conn,
                     )
                     stats.insertados += 1
