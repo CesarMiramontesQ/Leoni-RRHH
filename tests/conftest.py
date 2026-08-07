@@ -430,6 +430,45 @@ async def make_homeoffice_tomados(
     return fila
 
 
+async def make_incidencia_tress(
+    db: AsyncSession,
+    *,
+    origen: str = "ausencia",
+    origen_id: int,
+    no_empleado: int,
+    tipo: str,
+    fecha_evento,
+    empleado_id: int | None = None,
+    fecha_fin=None,
+    observaciones: str | None = None,
+    fecha_registro=None,
+    registrado_por_id: int | None = None,
+):
+    """Siembra una fila en la caché de incidencias de TRESS.
+
+    Es lo que el sync escribiría desde datos-analisis; los tests la usan para fijar lo
+    que verá la página Incidencias sin tocar esa BD externa.
+    """
+    from app.models.incidencias_tress import IncidenciaTress
+
+    fila = IncidenciaTress(
+        origen=origen,
+        origen_id=int(origen_id),
+        no_empleado=int(no_empleado),
+        empleado_id=empleado_id,
+        tipo=tipo,
+        fecha_evento=fecha_evento,
+        fecha_fin=fecha_fin,
+        observaciones=observaciones,
+        fecha_registro=fecha_registro,
+        registrado_por_id=registrado_por_id,
+    )
+    db.add(fila)
+    await db.flush()
+    await db.refresh(fila)
+    return fila
+
+
 async def link_turno_comedor_empleado(
     db: AsyncSession,
     empleado,

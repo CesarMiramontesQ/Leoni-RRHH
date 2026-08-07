@@ -98,6 +98,113 @@ datos-analisis responda; al terminar imprime cuántos empleados quedaron cargado
 de ahí la mantienen al día el job de las **06:00** y la aprobación de solicitudes de home
 office, así que no hay que repetirlo (`--no-empleado N` refresca a uno suelto).
 
+### Carga inicial de incidencias (levelup_incidencias_tress)
+
+El release que introduce `levelup_incidencias_tress` (revisión `y1i2n3c4t5r6`) crea la
+tabla **vacía**. Hasta llenarla, la página Incidencias muestra 0 resultados para cualquier
+filtro. La carga inicial trae todo el histórico excluyendo la semana en curso: medido
+contra DATOS_ANALISIS el 2026-08-06, eran 180,816 filas en `dbo.AUSENCIA` de los tipos
+relevantes (`FI, RE, FJ, SUS, INC, IN1, IAC, ITR`, desde 1999-09-27) más 6,946 permisos en
+`dbo.PERMISO` con `PM_TIPO='FJ' AND PM_CLASIFI=0` (desde 2001-08-16). Es una referencia de
+orden de magnitud, no un conteo exacto a esperar: crece con el tiempo, y el total que
+termina sincronizado es **algo menor** que la suma, porque el SQL descarta los días `FJ`
+que ya están cubiertos por un permiso con goce (para no duplicarlos). Después del
+`prod-migrate.sh`, con el túnel a datos-analisis arriba:
+
+```bash
+# 1. Dry-run: valida conexión a datos-analisis y reporta conteos sin escribir.
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_incidencias_tress
+
+# 2. Carga real, por tramos anuales (recomendado, ver abajo).
+for anio in $(seq 1999 $(date +%Y)); do
+  docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+    python -m app.scripts.sync_incidencias_tress \
+      --desde ${anio}-01-01 --hasta ${anio}-12-31 --execute
+done
+
+# 3. Cerrar con la corrida sin flags: histórico hasta el domingo anterior y, en una
+#    segunda pasada, la ventana viva —que llega un año al futuro y trae los permisos
+#    ya capturados por adelantado (matrimonio, paternidad)—.
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_incidencias_tress --execute
+```
+
+**Correr el backfill por tramos anuales.** De un solo golpe el proceso acumula las ~187k
+filas en memoria y resuelve un `IN` con todos los números de empleado distintos del
+histórico, que puede acercarse al límite de 32 767 parámetros de asyncpg. Por tramos
+(`--desde 1999-01-01 --hasta 1999-12-31`, y así año por año) desaparecen los dos riesgos:
+cada corrida trae unos miles de filas y unos cientos de empleados.
+
+Es idempotente: reejecutarla no duplica filas. **No es reanudable**: cada corrida va en una
+transacción única, así que si se corta a la mitad no continúa donde iba — vuelve a empezar
+ese tramo desde cero. Lo que sí es cierto es que no deja efectos colaterales: la
+transacción hace rollback y la tabla queda como estaba antes del tramo.
+
+Las dos pasadas del paso 3 tampoco son atómicas entre sí: si la segunda revienta, la
+primera ya quedó comiteada. Basta con relanzar la ventana viva —no el histórico completo—
+con `--desde <lunes de hace 8 semanas> --hasta <hoy + 1 año>`, o repetir el paso 3 entero,
+que por idempotencia solo confirmará lo ya cargado.
+
+**No lanzar el backfill un miércoles a las 10:00.** El `asyncio.Lock` del servicio es
+intra-proceso, y el CLI corre en un proceso aparte (`exec`): no comparte lock con el
+backend que dispara el job semanal, así que nada impide que coincidan. El choque sería
+ruidoso —violaciones del `UNIQUE (origen, origen_id)` que abortan la transacción— pero no
+corrompe nada: la corrida perdedora hace rollback. Aun así, elegir otra franja.
+
+**Verificar que quedó bien:**
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec backend python -c "
+import asyncio
+from sqlalchemy import text
+from app.core.database import AsyncSessionLocal
+
+async def main():
+    async with AsyncSessionLocal() as db:
+        r = await db.execute(text('SELECT count(*), max(synced_at) FROM levelup_incidencias_tress'))
+        print(r.first())
+
+asyncio.run(main())
+"
+```
+
+A partir de ahí el job semanal (miércoles 10:00, `America/Mexico_City`) mantiene al día
+las últimas `SYNC_INCIDENCIAS_TRESS_SEMANAS` semanas (default 8) y hasta un año hacia
+adelante, así que no hay que repetir la carga inicial. Para comprobar que el job quedó
+registrado, buscar `APScheduler iniciado con N jobs` en los logs del backend al arrancar, y
+`Sync incidencias job |` tras cada corrida.
+
+**Reparar un hueco si el job no corrió.** La ventana es móvil, no acumulativa: si el
+backend estuvo caído más de 8 semanas seguidas (o el job falló todas esas veces), el
+periodo perdido queda fuera de la ventana y **no se recupera solo**. Hay que lanzar el CLI
+sobre ese periodo:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_incidencias_tress \
+    --desde 2026-01-01 --hasta 2026-03-31 --execute
+```
+
+Buscar en los logs `Sync incidencias | fin |` para saber cuándo fue la última corrida
+buena, y cubrir desde ahí. Si el rango es largo, partirlo por años como en el backfill.
+
+**Si el log dice `borrado omitido`**, la corrida escribió altas y cambios pero **no** borró:
+el sync frena la reconciliación cuando TRESS devuelve cero filas, o cuando desaparecería
+más de la mitad de lo que había en el rango. Casi siempre significa que datos-analisis
+estaba en recarga; basta con volver a lanzar la corrida más tarde.
+
+Si las bajas resultan legítimas y realmente masivas, la vía es relanzar el sync sobre un
+rango **más amplio** —más semanas o el año completo—, para que las bajas queden por debajo
+de la mitad del total del rango y la reconciliación proceda. **Acotar el rango es
+contraproducente**: sube la fracción de bajas sobre el total y garantiza que la guarda
+vuelva a dispararse. Y si las bajas no son legítimas, el freno hizo exactamente su trabajo:
+revisar el estado de la réplica de nómina antes de insistir. No hay flag de forzado a
+propósito.
+
+No hay wrapper como `prod-sync-vacaciones-backfill.sh`: la carga inicial se corre a mano
+con el CLI de arriba.
+
 ### Antes de un release con migraciones destructivas
 
 Revisa las revisiones nuevas (`git log --oneline <tag-anterior>..HEAD -- alembic/versions/`).

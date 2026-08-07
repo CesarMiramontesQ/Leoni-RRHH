@@ -13,7 +13,7 @@ from app.core.exceptions import ServiceUnavailableError
 from app.repositories.datos_analisis_permiso_goce_write_repository import (
     InsertarPermisoGoceResult,
 )
-from tests.conftest import auth_headers, make_empleado
+from tests.conftest import auth_headers, make_empleado, make_incidencia_tress
 
 
 def _ok_goce_result() -> InsertarPermisoGoceResult:
@@ -372,7 +372,15 @@ async def test_create_matrimonio_rango_invalido(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_list_incluye_goce_levelup_sin_tress(client: AsyncClient, db, monkeypatch):
-    """Listado mezcla eventos levelup goce aunque Bono esté vacío / mockeado."""
+    """incapacidad_interna solo vive en levelup: el listado no consulta TRESS por ella.
+
+    Decisión de negocio: lo recién registrado no aparece de inmediato en el listado —
+    éste lee `levelup_incidencias_tress`, y esa caché solo refleja los eventos locales
+    cuando corre el sync semanal (`sync_incidencias_tress_service`), no al crearlos. El
+    registro (POST) sigue funcionando igual que antes; solo cambia cuándo se ve reflejado
+    en la tabla. Una vez que el sync lo refleja (aquí simulado sembrando la caché
+    directamente), el listado lo muestra con los mismos datos que antes.
+    """
     rh = await make_empleado(db, rol="rh", nombre="RH List Goce", no_empleado=92005)
     empleado = await make_empleado(db, rol="empleado", nombre="Emp List Goce", no_empleado=92006)
     headers = await auth_headers(client, rh)
@@ -393,7 +401,35 @@ async def test_list_incluye_goce_levelup_sin_tress(client: AsyncClient, db, monk
     # incapacidad_interna no existe en TRESS: el listado no debe consultarlo.
     create_engine = MagicMock()
     with patch(
-        "app.services.faltas_retardos_service.DatosAnalisisReadClient.create_read_engine",
+        "app.integrations.datos_analisis_db.DatosAnalisisReadClient.create_read_engine",
+        create_engine,
+    ):
+        res = await client.get(
+            "/api/v1/faltas-retardos?tipo=incapacidad_interna",
+            headers=headers,
+        )
+    create_engine.assert_not_called()
+    assert res.status_code == 200
+    body = res.json()
+    # Todavía no corrió el sync: la caché sigue vacía, así que no aparece.
+    assert body["total"] == 0
+    assert body["items"] == []
+
+    # El sync semanal refleja el evento en la caché (aquí, sembrado directo).
+    await make_incidencia_tress(
+        db,
+        origen="manual",
+        origen_id=1,
+        no_empleado=92006,
+        empleado_id=empleado.empleado_id,
+        tipo="incapacidad_interna",
+        fecha_evento=date(2026, 6, 1),
+        fecha_fin=date(2026, 6, 5),
+        observaciones="Incapacidad interna RH",
+    )
+
+    with patch(
+        "app.integrations.datos_analisis_db.DatosAnalisisReadClient.create_read_engine",
         create_engine,
     ):
         res = await client.get(

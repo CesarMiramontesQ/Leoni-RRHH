@@ -151,6 +151,43 @@ async def _sync_homeoffice_tomados_job():
         logger.error("Error en sync de home office job: %s", str(exc), exc_info=True)
 
 
+async def _sync_incidencias_tress_job():
+    """Refresca la caché de incidencias desde DATOS_ANALISIS (semanal, miércoles 10:00).
+
+    Relee una ventana móvil de semanas en vez de solo la anterior: nómina captura y
+    corrige de forma retroactiva. Nunca propaga la excepción — un fallo de TRESS no debe
+    tumbar el scheduler, y la caché queda como estaba.
+    """
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.sync_incidencias_tress_service import (
+            rango_semanas,
+            sincronizar_incidencias_tress,
+        )
+
+        desde, hasta = rango_semanas(settings.SYNC_INCIDENCIAS_TRESS_SEMANAS)
+        async with AsyncSessionLocal() as db:
+            stats = await sincronizar_incidencias_tress(
+                db, desde=desde, hasta=hasta, origen="scheduler"
+            )
+        logger.info(
+            "Sync incidencias job | desde=%s | hasta=%s | leidos=%d | insertados=%d | "
+            "actualizados=%d | omitidos=%d | eliminados=%d | errores=%d",
+            desde,
+            hasta,
+            stats.leidos,
+            stats.insertados,
+            stats.actualizados,
+            stats.omitidos,
+            stats.eliminados,
+            stats.errores,
+        )
+    except Exception as e:  # noqa: BLE001 — el scheduler no debe caerse por esto
+        logger.error(
+            "Error en job de sync de incidencias: %s: %s", type(e).__name__, str(e), exc_info=True
+        )
+
+
 def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
     """Registra los jobs periódicos. La zona horaria la fija el scheduler (APP_TIMEZONE)."""
     # Recordatorios Evaluación 360: una vez al día (08:00).
@@ -192,6 +229,15 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         hour=6,
         minute=0,
         id="sync_homeoffice_tomados",
+    )
+    # Caché de incidencias de TRESS: semanal, miércoles a las 10:00.
+    sched.add_job(
+        _sync_incidencias_tress_job,
+        "cron",
+        day_of_week="wed",
+        hour=10,
+        minute=0,
+        id="sync_incidencias_tress",
     )
 
 

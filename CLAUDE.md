@@ -67,6 +67,14 @@ docker-compose exec backend python -m app.scripts.sync_vacaciones_disponibles --
 docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados            # dry-run
 docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados --execute
 docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados --no-empleado 553 --execute
+
+# Incidencias de TRESS: DATOS_ANALISIS → levelup_incidencias_tress (Bono).
+# Mismo servicio que el job semanal de los miércoles 10:00; necesario para la carga inicial.
+# Sin --desde/--hasta va en dos pasadas: el histórico (excluye la semana en curso) y
+# después la ventana viva, que llega un año al futuro. En prod, hacerlo por tramos anuales.
+docker-compose exec backend python -m app.scripts.sync_incidencias_tress            # dry-run
+docker-compose exec backend python -m app.scripts.sync_incidencias_tress --execute
+docker-compose exec backend python -m app.scripts.sync_incidencias_tress --desde 2026-01-01 --hasta 2026-06-30 --execute
 ```
 > Todos los `--cleanup` son **dry-run** salvo que se pase `--execute`. Borran solo lo
 > marcado como demo; el residuo de catálogo (grupos, tipos, competencias, grados que los
@@ -113,6 +121,21 @@ Layered architecture: **router → service → repository → models/schemas**
   `python -m app.scripts.sync_homeoffice_tomados`). La consulta a `dbo.PERMISO`
   (`PM_TIPO = 'HO'`) es una sola, agregada por `CB_CODIGO`, y solo la hace ese sync.
   Empleado sin fila ⇒ el dashboard muestra 0.
+- **Incidencias (página "Incidencias", módulo `faltas-retardos`) = caché en Bono.** Ninguna
+  carga de página consulta `dbo.AUSENCIA` ni `dbo.PERMISO`: la fuente única de lectura es
+  `levelup_incidencias_tress`, que escribe `sync_incidencias_tress_service` (job semanal
+  de los miércoles 10:00 y `python -m app.scripts.sync_incidencias_tress`). El SQL
+  `app/repositories/sql/datos_analisis_faltas_retardos_base.sql` ya solo lo usa ese sync.
+  La caché es **solo lectura de TRESS**: el sync nunca escribe en DATOS_ANALISIS. Lo que
+  RH registra **no aparece** en la tabla hasta la siguiente corrida semanal — es
+  intencional, no un bug. Los eventos que RH capturó y que también llegaron a TRESS se
+  siguen viendo con origen "Manual" y con el nombre de quien los registró; lo único que
+  cambia es la fecha de registro, que pasa a ser la de captura en nómina. Caché vacía ⇒
+  la página muestra 0 resultados, no 503. El rango del sync **llega un año al futuro**
+  (`hasta_efectivo`): los permisos con goce se capturan por adelantado y deben entrar a la
+  caché antes de su fecha de inicio. La reconciliación de bajas **no borra** si TRESS
+  devolvió 0 filas o si desaparecería más de la mitad del rango: cuenta el hecho como
+  error y lo registra con `borrado omitido`.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 
 ### Frontend (frontend/src/)
@@ -126,8 +149,11 @@ Layered architecture: **router → service → repository → models/schemas**
 ### Key Patterns
 - Async everywhere: asyncpg driver, async sessions, async test fixtures
 - Tests use SQLite in-memory with JSONB→JSON patch (see `tests/conftest.py`); no Docker required
-- APScheduler runs periodic jobs (recordatorios Eval360/Encuestas/Metas a las 08:00 y **sync de saldos de vacaciones y de home office tomado a las 06:00**, en dos jobs
-  independientes (`sync_vacaciones_disponibles` y `sync_homeoffice_tomados`)); se registran en `registrar_jobs_programados` (`app/main.py`). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
+- APScheduler runs periodic jobs (recordatorios Eval360/Encuestas/Metas a las 08:00,
+  **sync de saldos de vacaciones y de home office tomado a las 06:00** en dos jobs
+  independientes (`sync_vacaciones_disponibles` y `sync_homeoffice_tomados`), y **sync de
+  incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`)); se
+  registran en `registrar_jobs_programados` (`app/main.py`). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper
