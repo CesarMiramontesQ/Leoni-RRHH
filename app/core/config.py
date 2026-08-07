@@ -141,6 +141,10 @@ class Settings(BaseSettings):
     # tiempo. Con el server sano la conexión tarda milisegundos.
     DATOS_ANALISIS_DB_CONNECT_TIMEOUT: int = 5
 
+    # Ventana del sync semanal de incidencias (miércoles 10:00): cuántas semanas hacia
+    # atrás se releen para capturar capturas y correcciones retroactivas de nómina.
+    SYNC_INCIDENCIAS_TRESS_SEMANAS: int = 8
+
     # Vacaciones → TRESS (INSERT dbo.VACACION al aprobar)
     TRESS_VACACIONES_NOM_TIPO: int = 1
     TRESS_VACACIONES_US_CODIGO: str = "49"
