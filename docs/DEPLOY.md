@@ -117,7 +117,7 @@ docker compose -f docker-compose.prod.yml --env-file .env exec backend \
   python -m app.scripts.sync_incidencias_tress
 
 # 2. Carga real, por tramos anuales (recomendado, ver abajo).
-for anio in $(seq 1999 2026); do
+for anio in $(seq 1999 $(date +%Y)); do
   docker compose -f docker-compose.prod.yml --env-file .env exec backend \
     python -m app.scripts.sync_incidencias_tress \
       --desde ${anio}-01-01 --hasta ${anio}-12-31 --execute
@@ -140,6 +140,11 @@ Es idempotente: reejecutarla no duplica filas. **No es reanudable**: cada corrid
 transacción única, así que si se corta a la mitad no continúa donde iba — vuelve a empezar
 ese tramo desde cero. Lo que sí es cierto es que no deja efectos colaterales: la
 transacción hace rollback y la tabla queda como estaba antes del tramo.
+
+Las dos pasadas del paso 3 tampoco son atómicas entre sí: si la segunda revienta, la
+primera ya quedó comiteada. Basta con relanzar la ventana viva —no el histórico completo—
+con `--desde <lunes de hace 8 semanas> --hasta <hoy + 1 año>`, o repetir el paso 3 entero,
+que por idempotencia solo confirmará lo ya cargado.
 
 **No lanzar el backfill un miércoles a las 10:00.** El `asyncio.Lock` del servicio es
 intra-proceso, y el CLI corre en un proceso aparte (`exec`): no comparte lock con el
@@ -187,8 +192,15 @@ buena, y cubrir desde ahí. Si el rango es largo, partirlo por años como en el 
 **Si el log dice `borrado omitido`**, la corrida escribió altas y cambios pero **no** borró:
 el sync frena la reconciliación cuando TRESS devuelve cero filas, o cuando desaparecería
 más de la mitad de lo que había en el rango. Casi siempre significa que datos-analisis
-estaba en recarga; basta con volver a lanzar la corrida más tarde. Si las bajas son reales,
-relanzar acotando el rango a lo que sí cambió.
+estaba en recarga; basta con volver a lanzar la corrida más tarde.
+
+Si las bajas resultan legítimas y realmente masivas, la vía es relanzar el sync sobre un
+rango **más amplio** —más semanas o el año completo—, para que las bajas queden por debajo
+de la mitad del total del rango y la reconciliación proceda. **Acotar el rango es
+contraproducente**: sube la fracción de bajas sobre el total y garantiza que la guarda
+vuelva a dispararse. Y si las bajas no son legítimas, el freno hizo exactamente su trabajo:
+revisar el estado de la réplica de nómina antes de insistir. No hay flag de forzado a
+propósito.
 
 No hay wrapper como `prod-sync-vacaciones-backfill.sh`: la carga inicial se corre a mano
 con el CLI de arriba.

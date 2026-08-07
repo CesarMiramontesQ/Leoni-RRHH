@@ -211,8 +211,10 @@ def _motivo_para_frenar_borrado(
     if obsoletas > no_manual_previas * _UMBRAL_BORRADO_MASIVO:
         return (
             f"borrado omitido: desaparecieron {obsoletas} de {no_manual_previas} filas "
-            f"de TRESS en el rango, más del {_UMBRAL_BORRADO_MASIVO:.0%}; si la baja es "
-            "real, relanzar el sync acotando el rango a lo que sí cambió"
+            f"de TRESS en el rango, más del {_UMBRAL_BORRADO_MASIVO:.0%}; si las bajas "
+            "son reales, relanzar el sync sobre un rango MÁS AMPLIO (acotarlo sube la "
+            "fracción y vuelve a frenar); si no lo son, revisar la réplica de nómina "
+            "antes de insistir"
         )
     return None
 

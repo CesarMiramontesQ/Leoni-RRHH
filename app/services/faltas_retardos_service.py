@@ -57,10 +57,11 @@ _DIAS_GOCE = {
     "paternidad": 7,
 }
 
-# Sin filtro de fechas el listado recorrería el histórico completo de TRESS
-# (desde 1999, ~166k filas y varios segundos). Con esta ventana la consulta baja
-# a decenas de milisegundos; pedir una fecha "desde" anterior sigue llegando a
-# todo el histórico.
+# Ventana por defecto al entrar a la página, sin filtro de fechas. Ya no es un
+# problema de costo —la caché en Bono responde rápido incluso sobre todo el
+# histórico—, sino de utilidad: entrar y ver de golpe 27 años de incidencias
+# (desde 1999) no le sirve a nadie. Pedir una fecha "desde" anterior sigue
+# llegando a todo el histórico.
 VENTANA_DEFAULT_MESES = 12
 
 
