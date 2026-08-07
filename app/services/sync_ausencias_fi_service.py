@@ -260,9 +260,7 @@ class SyncAusenciasService:
                     to_insert.append(
                         {
                             **src,
-                            # Las dos columnas llevan el mismo valor: la semana de la
-                            # fecha del evento.
-                            "id_semana": semana,
+                            # `id_semana` no se manda: la calcula un trigger de Bono.
                             "semana_incidencia": semana,
                             "area_empleado": empleado.area_id,
                             "subarea_empleado": empleado.subarea_id,
@@ -277,18 +275,12 @@ class SyncAusenciasService:
                 subarea = (
                     empleado.subarea_id if empleado else existing.get("subarea_empleado")
                 )
-                # Mismo criterio que en el alta, para que un evento ya existente no oscile
-                # entre la semana del rango y la de su fecha en cada corrida.
-                semana = await _resolver_semana_evento(
-                    bono_repo, src["fecha_incidencia"], cache_semanas, id_semana
-                )
-                if semana is None:
-                    semana = existing.get("id_semana")
-
+                # `id_semana` la administra el trigger de Bono: el sync ni la compara ni
+                # la escribe. Compararla dispararía un UPDATE en cada corrida, porque el
+                # valor del trigger no tiene por qué coincidir con el de la fecha.
                 desired_inc = src["inc_id"]
                 changed = (
                     int(existing.get("inc_id") or 0) != int(desired_inc)
-                    or int(existing.get("id_semana") or 0) != int(semana or 0)
                     or existing.get("area_empleado") != area
                     or existing.get("subarea_empleado") != subarea
                 )
@@ -298,7 +290,6 @@ class SyncAusenciasService:
                             existing,
                             {
                                 "inc_id": desired_inc,
-                                "id_semana": int(semana),
                                 "area_empleado": area,
                                 "subarea_empleado": subarea,
                             },
@@ -325,20 +316,18 @@ class SyncAusenciasService:
                         no_empleado=item["no_empleado"],
                         tipo_inc=item["tipo_inc"],
                         inc_id=item["inc_id"],
-                        id_semana=item["id_semana"],
                         area_empleado=item["area_empleado"],
                         subarea_empleado=item["subarea_empleado"],
                         fecha_incidencia=item["fecha_incidencia"],
                         estado=ESTADO_SINCRONIZADO,
                         semana_incidencia=item["semana_incidencia"],
                         conn=conn,
-                    )
+                    )  # sin id_semana: la pone el trigger de Bono
                     stats.insertados += 1
                 for existing, patch in to_update:
                     await bono_repo.update_evento(
                         evento_id=int(existing["id"]),
                         inc_id=patch["inc_id"],
-                        id_semana=patch["id_semana"],
                         area_empleado=patch["area_empleado"],
                         subarea_empleado=patch["subarea_empleado"],
                         conn=conn,

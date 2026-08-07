@@ -175,7 +175,7 @@ class BonoImportadasHistoricoRepository:
         no_empleado: int,
         tipo_inc: str,
         inc_id: int,
-        id_semana: int,
+        id_semana: int | None = None,
         area_empleado: int | None,
         subarea_empleado: int | None,
         fecha_incidencia: date | None,
@@ -187,38 +187,27 @@ class BonoImportadasHistoricoRepository:
         # ``estado`` y ``semana_incidencia`` son nullables: quien no los pase (registro
         # manual de RH) deja NULL. El mirror de faltas y retardos manda estado=1 y la
         # semana de semana_historico que contiene la fecha del evento.
-        sql = """
-            INSERT INTO importadas_historico (
-                no_empleado,
-                tipo_inc,
-                inc_id,
-                id_semana,
-                area_empleado,
-                subarea_empleado,
-                fecha_incidencia,
-                fecha_registro,
-                estado,
-                semana_incidencia
-            )
-            VALUES (
-                :no_empleado,
-                :tipo_inc,
-                :inc_id,
-                :id_semana,
-                :area_empleado,
-                :subarea_empleado,
-                :fecha_incidencia,
-                COALESCE(:fecha_registro, NOW()),
-                :estado,
-                :semana_incidencia
-            )
-            RETURNING id
-        """
+        #
+        # ``id_semana`` se OMITE de la sentencia cuando no se pasa: un trigger de Bono la
+        # calcula, y mandarla desde aquí producía un valor distinto al de
+        # ``semana_incidencia``. El registro manual de RH sí la manda, porque inserta una
+        # fila por semana con ``fecha_incidencia`` nula y el trigger no tendría de dónde
+        # deducirla.
+        columnas = [
+            ("no_empleado", ":no_empleado"),
+            ("tipo_inc", ":tipo_inc"),
+            ("inc_id", ":inc_id"),
+            ("area_empleado", ":area_empleado"),
+            ("subarea_empleado", ":subarea_empleado"),
+            ("fecha_incidencia", ":fecha_incidencia"),
+            ("fecha_registro", "COALESCE(:fecha_registro, NOW())"),
+            ("estado", ":estado"),
+            ("semana_incidencia", ":semana_incidencia"),
+        ]
         params = {
             "no_empleado": no_empleado,
             "tipo_inc": tipo_inc,
             "inc_id": inc_id,
-            "id_semana": id_semana,
             "area_empleado": area_empleado,
             "subarea_empleado": subarea_empleado,
             "fecha_incidencia": fecha_incidencia,
@@ -226,6 +215,19 @@ class BonoImportadasHistoricoRepository:
             "estado": estado,
             "semana_incidencia": semana_incidencia,
         }
+        if id_semana is not None:
+            columnas.insert(3, ("id_semana", ":id_semana"))
+            params["id_semana"] = id_semana
+
+        sql = f"""
+            INSERT INTO importadas_historico (
+                {", ".join(c for c, _ in columnas)}
+            )
+            VALUES (
+                {", ".join(v for _, v in columnas)}
+            )
+            RETURNING id
+        """
         if conn is not None:
             result = await conn.execute(text(sql), params)
             new_id = result.scalar()
@@ -242,27 +244,34 @@ class BonoImportadasHistoricoRepository:
         *,
         evento_id: int,
         inc_id: int,
-        id_semana: int,
+        id_semana: int | None = None,
         area_empleado: int | None,
         subarea_empleado: int | None,
         conn: AsyncConnection | None = None,
     ) -> None:
-        sql = """
-            UPDATE importadas_historico
-            SET
-                inc_id = :inc_id,
-                id_semana = :id_semana,
-                area_empleado = :area_empleado,
-                subarea_empleado = :subarea_empleado
-            WHERE id = :evento_id
-        """
+        # Igual que en el alta: ``id_semana`` solo entra al SET si se pasa. El mirror no
+        # la manda porque la administra un trigger de Bono.
+        asignaciones = [
+            "inc_id = :inc_id",
+            "area_empleado = :area_empleado",
+            "subarea_empleado = :subarea_empleado",
+        ]
         params = {
             "evento_id": evento_id,
             "inc_id": inc_id,
-            "id_semana": id_semana,
             "area_empleado": area_empleado,
             "subarea_empleado": subarea_empleado,
         }
+        if id_semana is not None:
+            asignaciones.insert(1, "id_semana = :id_semana")
+            params["id_semana"] = id_semana
+
+        sql = f"""
+            UPDATE importadas_historico
+            SET
+                {", ".join(asignaciones)}
+            WHERE id = :evento_id
+        """
         if conn is not None:
             await conn.execute(text(sql), params)
         else:
