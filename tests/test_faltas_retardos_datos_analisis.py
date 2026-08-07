@@ -6,11 +6,12 @@ y los empleados son reales (SQLite) y datos-analisis se sabotea a propósito par
 comprobar que la página no lo toca.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from httpx import AsyncClient
 
+from app.services.faltas_retardos.constants import synthetic_falta_retardo_id
 from tests.conftest import auth_headers, make_empleado, make_incidencia_tress
 
 
@@ -207,3 +208,153 @@ async def test_cache_vacia_devuelve_lista_vacia_no_error(
 
     assert resp.status_code == 200
     assert resp.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_ventana_por_defecto_excluye_dieciocho_meses_atras(
+    db, client: AsyncClient, monkeypatch
+):
+    """VENTANA_DEFAULT_MESES sigue siendo 12: fuera de ahí no sale sin fecha explícita."""
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    fecha_vieja = date.today() - timedelta(days=548)  # ~18 meses
+    await make_incidencia_tress(
+        db, origen="ausencia", origen_id=1, no_empleado=553, empleado_id=10,
+        tipo="retardo", fecha_evento=fecha_vieja,
+    )
+
+    resp_default = await client.get(
+        "/api/v1/faltas-retardos", headers=await auth_headers(client, rh)
+    )
+    assert resp_default.status_code == 200
+    assert resp_default.json()["total"] == 0
+
+    resp_explicito = await client.get(
+        f"/api/v1/faltas-retardos?fecha_inicio={fecha_vieja.isoformat()}",
+        headers=await auth_headers(client, rh),
+    )
+    assert resp_explicito.status_code == 200
+    assert resp_explicito.json()["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_pagina_fuera_de_rango_se_normaliza_a_la_ultima_con_datos(
+    db, client: AsyncClient, monkeypatch
+):
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    for i in range(1, 4):
+        await make_incidencia_tress(
+            db, origen="ausencia", origen_id=i, no_empleado=553, empleado_id=10,
+            tipo="retardo", fecha_evento=date.today(),
+        )
+
+    resp = await client.get(
+        "/api/v1/faltas-retardos?page=99&page_size=2", headers=await auth_headers(client, rh)
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 3
+    assert data["page"] == 2  # ceil(3 / 2)
+    assert len(data["items"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_page_size_se_topa_a_cien(db, monkeypatch):
+    """El router ya rechaza page_size > 100 con 422 (`Query(..., le=100)`); el service
+    también lo topa como defensa en profundidad, así que se prueba llamándolo directo."""
+    from app.services.faltas_retardos_service import FaltasRetardosService
+
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+
+    pagina = await FaltasRetardosService(db).list_eventos(rh, page=1, page_size=500)
+
+    assert pagina.page_size == 100
+
+
+@pytest.mark.asyncio
+async def test_id_sintetico_usa_el_offset_del_origen_permiso(
+    db, client: AsyncClient, monkeypatch
+):
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_incidencia_tress(
+        db, origen="permiso", origen_id=42, no_empleado=553, empleado_id=10,
+        tipo="incapacidad", fecha_evento=date.today(), fecha_fin=date.today(),
+    )
+
+    resp = await client.get("/api/v1/faltas-retardos", headers=await auth_headers(client, rh))
+
+    assert resp.status_code == 200
+    item = resp.json()["items"][0]
+    assert item["id"] == synthetic_falta_retardo_id("permiso", 42)
+    assert item["id"] == 6_000_000_042
+
+
+@pytest.mark.asyncio
+async def test_busqueda_sin_coincidencias_no_devuelve_todo(
+    db, client: AsyncClient, monkeypatch
+):
+    """cb_codigos == [] significa "ningún empleado pasa el filtro", no "sin filtro"."""
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_incidencia_tress(
+        db, origen="ausencia", origen_id=1, no_empleado=553, empleado_id=10,
+        tipo="retardo", fecha_evento=date.today(),
+    )
+
+    resp = await client.get(
+        "/api/v1/faltas-retardos?busqueda=NO_EXISTE_ESTE_NOMBRE",
+        headers=await auth_headers(client, rh),
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 0
+
+
+@pytest.mark.asyncio
+async def test_fila_de_tress_capturada_por_rh_se_muestra_como_manual(
+    db, client: AsyncClient, monkeypatch
+):
+    """El sync estampa registrado_por_id sobre la fila de TRESS; la UI sigue viendo "Manual"."""
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_incidencia_tress(
+        db, origen="permiso", origen_id=77, no_empleado=553, empleado_id=10,
+        tipo="incapacidad", fecha_evento=date.today(), fecha_fin=date.today(),
+        registrado_por_id=rh.empleado_id,
+    )
+
+    resp = await client.get("/api/v1/faltas-retardos", headers=await auth_headers(client, rh))
+
+    assert resp.status_code == 200
+    item = resp.json()["items"][0]
+    assert item["origen"] == "manual"
+    # El id sigue usando el offset del origen real de la fila (permiso), no "manual".
+    assert item["id"] == synthetic_falta_retardo_id("permiso", 77)
+
+
+@pytest.mark.asyncio
+async def test_fila_de_tress_sin_captura_local_conserva_su_origen(
+    db, client: AsyncClient, monkeypatch
+):
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_incidencia_tress(
+        db, origen="permiso", origen_id=78, no_empleado=553, empleado_id=10,
+        tipo="incapacidad", fecha_evento=date.today(), fecha_fin=date.today(),
+    )
+
+    resp = await client.get("/api/v1/faltas-retardos", headers=await auth_headers(client, rh))
+
+    assert resp.status_code == 200
+    item = resp.json()["items"][0]
+    assert item["origen"] == "permiso"
