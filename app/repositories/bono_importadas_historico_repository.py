@@ -181,10 +181,12 @@ class BonoImportadasHistoricoRepository:
         fecha_incidencia: date | None,
         fecha_registro: datetime | None = None,
         estado: int | None = None,
+        semana_incidencia: int | None = None,
         conn: AsyncConnection | None = None,
     ) -> int:
-        # ``estado`` es nullable: quien no lo pase (registro manual de RH) deja NULL.
-        # El mirror de faltas y retardos manda 1.
+        # ``estado`` y ``semana_incidencia`` son nullables: quien no los pase (registro
+        # manual de RH) deja NULL. El mirror de faltas y retardos manda estado=1 y la
+        # semana de semana_historico que contiene la fecha del evento.
         sql = """
             INSERT INTO importadas_historico (
                 no_empleado,
@@ -195,7 +197,8 @@ class BonoImportadasHistoricoRepository:
                 subarea_empleado,
                 fecha_incidencia,
                 fecha_registro,
-                estado
+                estado,
+                semana_incidencia
             )
             VALUES (
                 :no_empleado,
@@ -206,7 +209,8 @@ class BonoImportadasHistoricoRepository:
                 :subarea_empleado,
                 :fecha_incidencia,
                 COALESCE(:fecha_registro, NOW()),
-                :estado
+                :estado,
+                :semana_incidencia
             )
             RETURNING id
         """
@@ -220,6 +224,7 @@ class BonoImportadasHistoricoRepository:
             "fecha_incidencia": fecha_incidencia,
             "fecha_registro": fecha_registro,
             "estado": estado,
+            "semana_incidencia": semana_incidencia,
         }
         if conn is not None:
             result = await conn.execute(text(sql), params)
