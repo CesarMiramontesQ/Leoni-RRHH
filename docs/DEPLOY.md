@@ -98,6 +98,53 @@ datos-analisis responda; al terminar imprime cuántos empleados quedaron cargado
 de ahí la mantienen al día el job de las **06:00** y la aprobación de solicitudes de home
 office, así que no hay que repetirlo (`--no-empleado N` refresca a uno suelto).
 
+### Carga inicial de incidencias (levelup_incidencias_tress)
+
+El release que introduce `levelup_incidencias_tress` (revisión `y1i2n3c4t5r6`) crea la
+tabla **vacía**. Hasta llenarla, la página Incidencias muestra 0 resultados para cualquier
+filtro. La carga inicial trae todo el histórico —~180,800 filas de `dbo.AUSENCIA` desde
+1999 más ~6,900 de `dbo.PERMISO` con goce desde 2001, ~187,700 en total— excluyendo la
+semana en curso. Después del `prod-migrate.sh`, con el túnel a datos-analisis arriba:
+
+```bash
+# 1. Dry-run: valida conexión a datos-analisis y reporta conteos sin escribir.
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_incidencias_tress
+
+# 2. Carga real.
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_incidencias_tress --execute
+```
+
+Es idempotente: reejecutarla no duplica filas. Si se corta a la mitad, volver a lanzarla
+continúa sin efectos colaterales.
+
+**Verificar que quedó bien:**
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec backend python -c "
+import asyncio
+from sqlalchemy import text
+from app.core.database import AsyncSessionLocal
+
+async def main():
+    async with AsyncSessionLocal() as db:
+        r = await db.execute(text('SELECT count(*), max(synced_at) FROM levelup_incidencias_tress'))
+        print(r.first())
+
+asyncio.run(main())
+"
+```
+
+A partir de ahí el job semanal (miércoles 10:00, `America/Mexico_City`) mantiene al día
+las últimas `SYNC_INCIDENCIAS_TRESS_SEMANAS` semanas (default 8), así que no hay que
+repetir la carga inicial. Para comprobar que el job quedó registrado, buscar
+`APScheduler iniciado con N jobs` en los logs del backend al arrancar, y
+`Sync incidencias job |` tras cada corrida.
+
+No hay wrapper como `prod-sync-vacaciones-backfill.sh`: la carga inicial se corre a mano
+con el CLI de arriba.
+
 ### Antes de un release con migraciones destructivas
 
 Revisa las revisiones nuevas (`git log --oneline <tag-anterior>..HEAD -- alembic/versions/`).
