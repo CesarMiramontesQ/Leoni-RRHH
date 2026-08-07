@@ -2468,12 +2468,25 @@ components:
         (PM_TIPO='FJ ', PM_NUMERO='PERMISO', PM_CLASIFI=0) y una fila en
         levelup_faltas_retardos por tramo. incapacidad_interna solo se guarda en levelup
         (sin cola RPA). No se usa tress_robot_queue.
+        `falta_injustificada` y `retardo` NO se aceptan (422): TRESS los calcula desde
+        las checadas y llegan a importadas_historico por el sync de faltas y retardos.
       properties:
         empleado_id:
           type: integer
           minimum: 1
         tipo:
-          $ref: "#/components/schemas/FaltaRetardoTipo"
+          allOf:
+            - $ref: "#/components/schemas/FaltaRetardoTipo"
+          description: >
+            Excluye falta_injustificada y retardo, que solo entran por el sync desde TRESS.
+          enum:
+            - falta_justificada
+            - incapacidad
+            - suspension
+            - matrimonio
+            - incapacidad_interna
+            - defuncion
+            - paternidad
         fecha_evento:
           type: string
           format: date

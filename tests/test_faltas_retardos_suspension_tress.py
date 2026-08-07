@@ -285,29 +285,32 @@ async def test_create_suspension_observaciones_max_30(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_create_retardo_no_llama_tress(client: AsyncClient, db, monkeypatch):
+async def test_create_incapacidad_no_llama_tress(client: AsyncClient, db, monkeypatch):
+    """Solo la suspensión dispara el INSERT a dbo.PERMISO; otros tipos no."""
     registrar = AsyncMock()
     monkeypatch.setattr(
         "app.services.faltas_retardos_service.registrar_suspension_en_tress",
         registrar,
     )
-    rh = await make_empleado(db, rol="rh", nombre="RH Retardo", no_empleado=91005)
-    empleado = await make_empleado(db, rol="empleado", nombre="Emp Ret", no_empleado=1263)
+    rh = await make_empleado(db, rol="rh", nombre="RH Incap", no_empleado=91005)
+    empleado = await make_empleado(db, rol="empleado", nombre="Emp Inc", no_empleado=1263)
     headers = await auth_headers(client, rh)
 
     with _mock_bono_importadas_repo(
         origen_id=9201,
-        tipo_codigo="RE",
+        tipo_codigo="INC",
         empleado_id=empleado.empleado_id,
         no_empleado=str(empleado.no_empleado),
+        insert_ids=[9201, 9202],
     ):
         res = await client.post(
             "/api/v1/faltas-retardos",
             headers=headers,
             json={
                 "empleado_id": empleado.empleado_id,
-                "tipo": "retardo",
+                "tipo": "incapacidad",
                 "fecha_evento": "2026-06-20",
+                "fecha_fin": "2026-06-22",
                 "observaciones": "15 min",
             },
         )
