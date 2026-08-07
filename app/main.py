@@ -184,7 +184,7 @@ async def _sync_incidencias_tress_job():
         )
     except Exception as e:  # noqa: BLE001 — el scheduler no debe caerse por esto
         logger.error(
-            "Error en job de sync de incidencias: %s: %s", type(e).__name__, str(e)
+            "Error en job de sync de incidencias: %s: %s", type(e).__name__, str(e), exc_info=True
         )
 
 
