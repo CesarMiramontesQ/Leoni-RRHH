@@ -17,11 +17,11 @@ from app.models.faltas_retardos import (
     FaltaRetardoEvento,
 )
 from app.repositories.bono_importadas_historico_repository import BonoImportadasHistoricoRepository
-from app.repositories.datos_analisis_faltas_retardos_repository import (
-    DatosAnalisisFaltasRetardosRepository,
-)
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.faltas_retardos_repository import FaltasRetardosRepository
+from app.repositories.incidencias_tress_cache_repository import (
+    IncidenciasTressCacheRepository,
+)
 from app.schemas.faltas_retardos import (
     FaltaRetardoCreateRequest,
     FaltaRetardoResponse,
@@ -35,7 +35,7 @@ from app.services.faltas_retardos.constants import (
     synthetic_falta_retardo_id,
 )
 from app.services.faltas_retardos.mapper import map_bono_row
-from app.services.faltas_retardos.mapper_tress import map_tress_row
+from app.services.faltas_retardos.mapper_cache import map_cache_row
 from app.services.descansos_empleado_service import obtener_descansos_tress
 from app.services.tress_goce_service import (
     FALTA_RETARDO_TIPOS_GOCE_FJ,
@@ -65,15 +65,6 @@ _DIAS_GOCE = {
 # todo el histórico.
 VENTANA_DEFAULT_MESES = 12
 
-# `incapacidad_interna` no existe en TRESS (el código II del catálogo dbo.INCIDEN
-# tiene cero uso y este sistema nunca la escribe allí), así que solo vive en
-# levelup_faltas_retardos.
-_TIPOS_SOLO_LEVELUP = frozenset({"incapacidad_interna"})
-
-# Tope al mezclar eventos locales con los de TRESS: sin él, pedir una página
-# lejana traería medio histórico a memoria.
-_MAX_PREFETCH_TRESS = 5000
-
 
 def _ventana_por_defecto(
     fecha_inicio: date | None, fecha_fin: date | None
@@ -85,19 +76,6 @@ def _ventana_por_defecto(
 
 
 logger = logging.getLogger(__name__)
-
-
-def _error_tress(accion: str, exc: Exception) -> ServiceUnavailableError:
-    """503 con un texto que se pueda enseñar; el detalle técnico va al log.
-
-    El `detail` llega tal cual a la pantalla —el dashboard de RH lo pinta como
-    aviso—, así que no puede llevar trazas de pyodbc ni cadenas de conexión.
-    Misma regla que `descansos_empleado_service`.
-    """
-    logger.warning("No se pudo %s en datos-analisis: %s: %s", accion, type(exc).__name__, exc)
-    return ServiceUnavailableError(
-        f"No se pudo {accion}: sin conexión con nómina (TRESS). Intenta de nuevo en unos minutos."
-    )
 
 
 def _empleado_display_nombre(empleado: Empleado | None) -> str | None:
@@ -117,6 +95,7 @@ class FaltasRetardosService:
         self.db = db
         self.empleado_repo = EmpleadoRepository(db)
         self.audit_repo = FaltasRetardosRepository(db)
+        self.cache_repo = IncidenciasTressCacheRepository(db)
 
     async def _empleado_ids_scope(
         self,
@@ -175,46 +154,6 @@ class FaltasRetardosService:
                 "Base bono_productividad no configurada (variables BONO_DB_*)."
             )
         return engine, BonoImportadasHistoricoRepository(engine)
-
-    async def _enriquecer_con_levelup(
-        self, items: list[FaltaRetardoResponse]
-    ) -> list[FaltaRetardoResponse]:
-        """Restaura motivo y "registrado por" de las filas que registró este sistema.
-
-        TRESS no guarda quién capturó desde la app, así que se empata por
-        (empleado_id, fecha_evento, tipo) contra `levelup_faltas_retardos`. El
-        cruce es 1:1, de modo que no altera el conteo ni la paginación.
-        """
-        claves = [
-            (item.empleado_id, item.fecha_evento, item.tipo)
-            for item in items
-            if item.empleado_id
-        ]
-        if not claves:
-            return items
-        eventos = await self.audit_repo.map_eventos_por_clave(claves)
-        if not eventos:
-            return items
-        enriched: list[FaltaRetardoResponse] = []
-        for item in items:
-            evento = eventos.get((item.empleado_id, item.fecha_evento, item.tipo))
-            if evento is None:
-                enriched.append(item)
-                continue
-            update: dict = {
-                "id": synthetic_falta_retardo_id(ORIGEN_MANUAL, evento.id),
-                "origen": ORIGEN_MANUAL,
-                "origen_id": evento.id,
-                "registrado_por_id": evento.registrado_por_id,
-                "registrado_por_nombre": _empleado_display_nombre(evento.registrado_por),
-                "created_at": evento.created_at,
-            }
-            if evento.observaciones is not None:
-                update["observaciones"] = evento.observaciones
-            if evento.fecha_fin is not None:
-                update["fecha_fin"] = evento.fecha_fin
-            enriched.append(item.model_copy(update=update))
-        return enriched
 
     async def _insertar_en_importadas_historico(
         self,
@@ -279,20 +218,6 @@ class FaltasRetardosService:
         finally:
             await engine.dispose()
 
-    def _with_datos_analisis_repo(self) -> tuple:
-        """Motor efímero de datos-analisis; el llamador hace dispose() en finally."""
-        try:
-            engine = DatosAnalisisReadClient.create_read_engine()
-        except Exception as exc:  # noqa: BLE001 - driver/configuración de integración
-            raise ServiceUnavailableError(
-                "No se pudieron consultar las incidencias en datos-analisis."
-            ) from exc
-        if engine is None:
-            raise ServiceUnavailableError(
-                "Base datos-analisis no configurada (variables DATOS_ANALISIS_DB_*)."
-            )
-        return engine, DatosAnalisisFaltasRetardosRepository(engine)
-
     async def _cb_codigos_filtrados(
         self,
         *,
@@ -321,64 +246,6 @@ class FaltasRetardosService:
             area=area,
         )
 
-    async def _map_tress_rows(
-        self, rows: list[dict]
-    ) -> list[FaltaRetardoResponse]:
-        nos = [row["no_empleado"] for row in rows if row.get("no_empleado") is not None]
-        empleados = await self.empleado_repo.map_por_no_empleados(nos)
-        items: list[FaltaRetardoResponse] = []
-        for row in rows:
-            empleado_id, nombre = empleados.get(row.get("no_empleado"), (None, None))
-            mapped = map_tress_row(row, empleado_id=empleado_id, empleado_nombre=nombre)
-            if mapped is not None:
-                items.append(mapped)
-        return await self._enriquecer_con_levelup(items)
-
-    async def _extras_levelup(
-        self,
-        repo: DatosAnalisisFaltasRetardosRepository,
-        levelup_items: list[FaltaRetardoResponse],
-        *,
-        fecha_inicio: date | None,
-        fecha_fin: date | None,
-    ) -> list[FaltaRetardoResponse]:
-        """Eventos locales con goce que TRESS no tiene (no se pueden contar allá).
-
-        `incapacidad_interna` nunca llega a TRESS. Del resto, quedan como extra
-        solo los que no empatan con un permiso de TRESS — típicamente altas
-        anteriores a que existiera el INSERT directo a nómina.
-        """
-        if not levelup_items:
-            return []
-        solo_locales = [i for i in levelup_items if i.tipo in _TIPOS_SOLO_LEVELUP]
-        candidatos = [i for i in levelup_items if i.tipo not in _TIPOS_SOLO_LEVELUP]
-        if not candidatos:
-            return solo_locales
-
-        nos = {
-            int(i.numero_empleado)
-            for i in candidatos
-            if i.numero_empleado and i.numero_empleado.isdigit()
-        }
-        claves_tress = await repo.list_claves_permisos_goce(
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            cb_codigos=sorted(nos) if nos else None,
-        )
-        extras = list(solo_locales)
-        for item in candidatos:
-            no_empleado = (
-                int(item.numero_empleado)
-                if item.numero_empleado and item.numero_empleado.isdigit()
-                else None
-            )
-            if no_empleado is None:
-                extras.append(item)
-                continue
-            if (no_empleado, item.fecha_evento, item.tipo) not in claves_tress:
-                extras.append(item)
-        return extras
-
     def _map_levelup_evento(self, ev: FaltaRetardoEvento) -> FaltaRetardoResponse:
         return FaltaRetardoResponse(
             id=synthetic_falta_retardo_id(ORIGEN_MANUAL, ev.id),
@@ -396,29 +263,6 @@ class FaltasRetardosService:
             origen_id=ev.id,
         )
 
-    async def _list_levelup_items(
-        self,
-        *,
-        empleado_id: int | None,
-        tipo: str | None,
-        fecha_inicio: date | None,
-        fecha_fin: date | None,
-        busqueda: str | None,
-        scope_ids: list[int] | None,
-    ) -> list[FaltaRetardoResponse]:
-        if tipo is not None and tipo not in FALTA_RETARDO_TIPOS_GOCE:
-            return []
-        rows = await self.audit_repo.list_levelup_filtered(
-            empleado_id=empleado_id,
-            tipo=tipo,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            busqueda=busqueda,
-            empleado_ids_scope=scope_ids,
-            tipos_permitidos=FALTA_RETARDO_TIPOS_GOCE if tipo is None else None,
-        )
-        return [self._map_levelup_evento(r) for r in rows]
-
     async def list_eventos(
         self,
         current_user: Empleado,
@@ -432,79 +276,32 @@ class FaltasRetardosService:
         fecha_fin: date | None = None,
         busqueda: str | None = None,
     ) -> FaltasRetardosPageResponse:
+        """Listado paginado desde la caché en Bono (`levelup_incidencias_tress`).
+
+        La caché la escribe el sync semanal; esta ruta nunca toca datos-analisis.
+        """
         scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
         page = max(1, page)
         page_size = min(100, max(1, page_size))
         fecha_inicio, fecha_fin = _ventana_por_defecto(fecha_inicio, fecha_fin)
 
-        levelup_items = await self._list_levelup_items(
-            empleado_id=empleado_id,
-            tipo=tipo,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            busqueda=busqueda,
-            scope_ids=scope_ids,
-        )
-
-        # incapacidad_interna solo existe en levelup: paginar sin tocar TRESS.
-        if tipo is not None and tipo in _TIPOS_SOLO_LEVELUP:
-            return self._paginar_en_memoria(levelup_items, page, page_size)
-
         cb_codigos = await self._cb_codigos_filtrados(
             empleado_id=empleado_id, busqueda=busqueda, scope_ids=scope_ids
         )
-        if cb_codigos is not None and not cb_codigos:
-            return self._paginar_en_memoria(levelup_items, page, page_size)
+        filtros = {
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
+            "cb_codigos": cb_codigos,
+            "tipo": tipo,
+        }
 
-        engine, repo = self._with_datos_analisis_repo()
-        try:
-            tress_total = await repo.count(
-                fecha_inicio=fecha_inicio,
-                fecha_fin=fecha_fin,
-                cb_codigos=cb_codigos,
-                tipo=tipo,
-            )
-            extras = await self._extras_levelup(
-                repo, levelup_items, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
-            )
-            total = tress_total + len(extras)
-            page, offset = self._normalizar_pagina(page, page_size, total)
+        total = await self.cache_repo.count(**filtros)
+        page, offset = self._normalizar_pagina(page, page_size, total)
+        rows = await self.cache_repo.list_offset(offset, page_size, **filtros)
 
-            # Sin extras la paginación es íntegra del lado de SQL Server. Con
-            # extras hay que mezclar, y para eso se traen las filas hasta el
-            # final de la página pedida (tope duro para no barrer el histórico).
-            if extras:
-                rows = await repo.list_offset(
-                    0,
-                    min(offset + page_size, _MAX_PREFETCH_TRESS),
-                    fecha_inicio=fecha_inicio,
-                    fecha_fin=fecha_fin,
-                    cb_codigos=cb_codigos,
-                    tipo=tipo,
-                )
-            else:
-                rows = await repo.list_offset(
-                    offset,
-                    page_size,
-                    fecha_inicio=fecha_inicio,
-                    fecha_fin=fecha_fin,
-                    cb_codigos=cb_codigos,
-                    tipo=tipo,
-                )
-        except SQLAlchemyError as exc:
-            raise _error_tress("consultar las incidencias", exc) from exc
-        finally:
-            await engine.dispose()
-
-        items = await self._map_tress_rows(rows)
-        if extras:
-            merged = sorted(
-                [*extras, *items],
-                key=lambda x: (x.fecha_evento, x.id),
-                reverse=True,
-            )
-            items = merged[offset : offset + page_size]
-
+        items = [
+            mapped for mapped in (map_cache_row(row) for row in rows) if mapped is not None
+        ]
         return FaltasRetardosPageResponse(
             items=items,
             total=total,
@@ -521,18 +318,6 @@ class FaltasRetardosService:
             page = max(1, (total + page_size - 1) // page_size)
             offset = (page - 1) * page_size
         return page, offset
-
-    def _paginar_en_memoria(
-        self, items: list[FaltaRetardoResponse], page: int, page_size: int
-    ) -> FaltasRetardosPageResponse:
-        total = len(items)
-        page, offset = self._normalizar_pagina(page, page_size, total)
-        return FaltasRetardosPageResponse(
-            items=items[offset : offset + page_size],
-            total=total,
-            page=page,
-            page_size=page_size,
-        )
 
     def _normalizar_por_tipo(self, por_tipo: dict[str, int]) -> dict[str, int]:
         salida: dict[str, int] = {t: 0 for t in FALTA_RETARDO_TIPOS}
@@ -626,6 +411,7 @@ class FaltasRetardosService:
         area: str | None = None,
         tendencia_agrupacion: str | None = None,
     ) -> FaltasRetardosEstadisticasResponse:
+        """Agregados desde la caché, con los mismos filtros que el listado."""
         scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
         fecha_inicio, fecha_fin = _ventana_por_defecto(fecha_inicio, fecha_fin)
         agr = (
@@ -635,54 +421,26 @@ class FaltasRetardosService:
         )
         agr = agr if agr in ("dia", "semana", "mes") else None
 
-        # Los eventos locales (incapacidad interna y goce previo a la escritura
-        # directa a TRESS) se agregan aparte para que los KPIs cuadren con la tabla.
-        levelup_items = await self._list_levelup_items(
-            empleado_id=empleado_id,
-            tipo=tipo,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            busqueda=busqueda,
-            scope_ids=scope_ids,
-        )
-
         cb_codigos = await self._cb_codigos_filtrados(
             empleado_id=empleado_id, busqueda=busqueda, scope_ids=scope_ids, area=area
         )
-        if cb_codigos is not None and not cb_codigos:
-            return self._estadisticas_solo_levelup(levelup_items, agr)
+        filtros = {
+            "fecha_inicio": fecha_inicio,
+            "fecha_fin": fecha_fin,
+            "cb_codigos": cb_codigos,
+            "tipo": tipo,
+        }
 
-        engine, repo = self._with_datos_analisis_repo()
-        try:
-            filters = {
-                "fecha_inicio": fecha_inicio,
-                "fecha_fin": fecha_fin,
-                "cb_codigos": cb_codigos,
-                "tipo": tipo,
-            }
-            por_tipo = await repo.aggregate_por_tipo(**filters)
-            por_mes = await repo.aggregate_por_mes(**filters)
-            top_tress = await repo.aggregate_empleados_top(limit=10, **filters)
-            periodo_rows = (
-                await repo.aggregate_por_periodo_y_tipo(agrupacion=agr, **filters)
-                if agr
-                else []
-            )
-            extras = await self._extras_levelup(
-                repo, levelup_items, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
-            )
-        except SQLAlchemyError as exc:
-            raise _error_tress("consultar las estadísticas", exc) from exc
-        finally:
-            await engine.dispose()
+        por_tipo = await self.cache_repo.aggregate_por_tipo(**filtros)
+        por_mes = await self.cache_repo.aggregate_por_mes(**filtros)
+        top = await self.cache_repo.aggregate_empleados_top(limit=10, **filtros)
+        periodo_rows = (
+            await self.cache_repo.aggregate_por_periodo_y_tipo(agrupacion=agr, **filtros)
+            if agr
+            else []
+        )
 
-        for item in extras:
-            por_tipo[item.tipo] = por_tipo.get(item.tipo, 0) + 1
-        por_mes = self._sumar_periodos(por_mes, [i.fecha_evento for i in extras], "mes")
-        if agr:
-            periodo_rows = [*periodo_rows, *self._periodos_de_extras(extras, agr)]
-
-        empleados_top = await self._hidratar_empleados_top(top_tress, extras)
+        empleados_top = await self._hidratar_empleados_top(top, [])
         return self._build_estadisticas_response(
             por_tipo,
             por_mes,
@@ -690,31 +448,6 @@ class FaltasRetardosService:
             por_periodo_y_tipo=self._map_periodo_tipo_rows(periodo_rows) if agr else None,
             tendencia_agrupacion=agr,
         )
-
-    @staticmethod
-    def _periodo_de_fecha(fecha: date, agrupacion: str) -> str:
-        if agrupacion == "dia":
-            return fecha.isoformat()
-        if agrupacion == "semana":
-            return (fecha - timedelta(days=fecha.weekday())).isoformat()
-        return fecha.strftime("%Y-%m")
-
-    def _periodos_de_extras(
-        self, extras: list[FaltaRetardoResponse], agrupacion: str
-    ) -> list[tuple[str, str, int]]:
-        return [
-            (self._periodo_de_fecha(item.fecha_evento, agrupacion), item.tipo, 1)
-            for item in extras
-        ]
-
-    def _sumar_periodos(
-        self, por_periodo: list[tuple[str, int]], fechas: list[date], agrupacion: str
-    ) -> list[tuple[str, int]]:
-        merged = dict(por_periodo)
-        for fecha in fechas:
-            periodo = self._periodo_de_fecha(fecha, agrupacion)
-            merged[periodo] = merged.get(periodo, 0) + 1
-        return sorted(merged.items())
 
     async def _hidratar_empleados_top(
         self,
@@ -738,40 +471,6 @@ class FaltasRetardosService:
             salida.append((empleado_id, str(no_empleado), nombre, sum(por_tipo.values()), por_tipo))
         salida.sort(key=lambda row: (-row[3], row[0]))
         return salida[:10]
-
-    def _estadisticas_solo_levelup(
-        self, items: list[FaltaRetardoResponse], agrupacion: str | None
-    ) -> FaltasRetardosEstadisticasResponse:
-        por_tipo: dict[str, int] = {}
-        for item in items:
-            por_tipo[item.tipo] = por_tipo.get(item.tipo, 0) + 1
-        por_mes = self._sumar_periodos([], [i.fecha_evento for i in items], "mes")
-        periodo_rows = self._periodos_de_extras(items, agrupacion) if agrupacion else []
-        empleados: dict[int, dict[str, int]] = {}
-        for item in items:
-            destino = empleados.setdefault(item.empleado_id, {})
-            destino[item.tipo] = destino.get(item.tipo, 0) + 1
-        empleados_top = [
-            (
-                empleado_id,
-                next(
-                    (i.numero_empleado for i in items if i.empleado_id == empleado_id),
-                    None,
-                ),
-                next((i.empleado_nombre for i in items if i.empleado_id == empleado_id), None),
-                sum(tipos.values()),
-                tipos,
-            )
-            for empleado_id, tipos in empleados.items()
-        ]
-        empleados_top.sort(key=lambda row: (-row[3], row[0]))
-        return self._build_estadisticas_response(
-            por_tipo,
-            por_mes,
-            empleados_top[:10],
-            por_periodo_y_tipo=self._map_periodo_tipo_rows(periodo_rows) if agrupacion else None,
-            tendencia_agrupacion=agrupacion,
-        )
 
     def _validar_fechas_goce(self, data: FaltaRetardoCreateRequest, *, administrativo: bool) -> None:
         assert data.fecha_fin is not None
