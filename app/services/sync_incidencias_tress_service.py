@@ -53,6 +53,11 @@ _sync_lock = asyncio.Lock()
 # Sin `desde`, el barrido arranca aquí: el AU_FECHA más viejo de TRESS es de 1999.
 _INICIO_HISTORIA = date(1990, 1, 1)
 
+# Freno al borrado: si en una corrida desaparece más de esta fracción de las filas de
+# TRESS que había en el rango, se asume lectura mutilada (datos-analisis es una réplica y
+# un ETL puede vaciarla sin que la consulta falle) en vez de un borrado real en nómina.
+_UMBRAL_BORRADO_MASIVO = 0.5
+
 
 @dataclass
 class SyncIncidenciasTressStats:
@@ -147,6 +152,33 @@ async def _leer_tress(desde: date | None, hasta: date | None) -> list[dict[str, 
     return filas
 
 
+def _motivo_para_frenar_borrado(
+    *, leidos: int, obsoletas: int, no_manual_previas: int
+) -> str | None:
+    """Devuelve el motivo por el que NO se debe borrar, o `None` si el borrado es creíble.
+
+    La reconciliación borra «lo que estaba en la caché y ya no vino de TRESS», así que
+    una lectura vacía o mutilada —datos-analisis es una réplica de análisis y un ETL
+    recargándola a las 10:00 de un miércoles es exactamente ese escenario— vaciaría la
+    ventana entera, o la tabla completa en una carga inicial. `_leer_tress` solo detecta
+    el fallo si la conexión revienta; estos dos frenos cubren el caso en que responde.
+    """
+    if obsoletas == 0:
+        return None
+    if leidos == 0:
+        return (
+            f"borrado omitido: TRESS devolvió 0 filas y la caché tenía "
+            f"{no_manual_previas} filas de TRESS en el rango; se asume lectura fallida"
+        )
+    if obsoletas > no_manual_previas * _UMBRAL_BORRADO_MASIVO:
+        return (
+            f"borrado omitido: desaparecieron {obsoletas} de {no_manual_previas} filas "
+            f"de TRESS en el rango, más del {_UMBRAL_BORRADO_MASIVO:.0%}; si la baja es "
+            "real, relanzar el sync acotando el rango a lo que sí cambió"
+        )
+    return None
+
+
 def _clave_evento(fila: IncidenciaTress) -> tuple[int, date, str] | None:
     if fila.empleado_id is None:
         return None
@@ -199,6 +231,11 @@ async def _sincronizar(
 
     cache_repo = IncidenciasTressCacheRepository(db)
     existentes = await cache_repo.map_existentes(desde, hasta)
+    # Foto previa: `existentes` crece con los upserts de esta corrida, y el umbral de
+    # borrado se mide contra lo que había antes de empezar.
+    no_manual_previas = sum(
+        1 for fila in existentes.values() if fila.origen != ORIGEN_MANUAL
+    )
 
     try:
         vistas: set[tuple[str, int]] = set()
@@ -223,6 +260,13 @@ async def _sincronizar(
             if fila.origen != ORIGEN_MANUAL and llave not in vistas
         }
 
+        # El freno se mide sobre las bajas de TRESS, antes de sumar las llaves `manual`.
+        freno = _motivo_para_frenar_borrado(
+            leidos=len(filas_tress),
+            obsoletas=len(obsoletas),
+            no_manual_previas=no_manual_previas,
+        )
+
         manuales_obsoletos = await _reflejar_locales(
             db,
             desde=desde,
@@ -234,7 +278,20 @@ async def _sincronizar(
         obsoletas |= manuales_obsoletos
 
         await db.flush()
-        stats.eliminados = await cache_repo.delete_llaves(obsoletas)
+        if freno is None:
+            stats.eliminados = await cache_repo.delete_llaves(obsoletas)
+        else:
+            logger.warning(
+                "Sync incidencias | borrado omitido | origen=%s | desde=%s | hasta=%s | "
+                "leidos=%d | candidatas=%d | %s",
+                origen,
+                desde,
+                hasta,
+                stats.leidos,
+                len(obsoletas),
+                freno,
+            )
+            stats.registrar_error(freno)
 
         if execute:
             await db.commit()

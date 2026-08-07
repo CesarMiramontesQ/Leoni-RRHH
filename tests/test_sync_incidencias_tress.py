@@ -152,6 +152,51 @@ async def test_borra_lo_que_desaparecio_de_tress_en_el_rango(db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_no_borra_nada_si_tress_devuelve_cero_filas(db, monkeypatch):
+    """Piso de seguridad: una lectura vacía es más probable que un vaciado real.
+
+    datos-analisis es una réplica de análisis; un ETL recargándola puede contestar sin
+    error y con cero filas. Sin este freno, la reconciliación vaciaría la ventana entera
+    (o la tabla completa en una carga inicial).
+    """
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    _mock_tress(monkeypatch, [_fila(origen_id=1), _fila(origen_id=2, tipo="retardo")])
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    _mock_tress(monkeypatch, [])
+    stats = await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    assert [f.origen_id for f in await _filas_cache(db)] == [1, 2]
+    assert stats.eliminados == 0
+    assert stats.errores > 0
+    assert "borrado omitido" in stats.mensajes_error[0]
+
+
+@pytest.mark.asyncio
+async def test_no_borra_si_desaparece_mas_de_la_mitad_del_rango(db, monkeypatch):
+    """Lectura mutilada: responde, pero le faltan filas. Tampoco se borra."""
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    _mock_tress(
+        monkeypatch,
+        [
+            _fila(origen_id=1),
+            _fila(origen_id=2, tipo="retardo"),
+            _fila(origen_id=3, tipo="falta_justificada"),
+        ],
+    )
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    # Vuelve solo una de las tres: 2 bajas sobre 3 filas supera el 50%.
+    _mock_tress(monkeypatch, [_fila(origen_id=1)])
+    stats = await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    assert [f.origen_id for f in await _filas_cache(db)] == [1, 2, 3]
+    assert stats.eliminados == 0
+    assert stats.errores > 0
+    assert "borrado omitido" in stats.mensajes_error[0]
+
+
+@pytest.mark.asyncio
 async def test_no_borra_fuera_del_rango_sincronizado(db, monkeypatch):
     await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
     _mock_tress(monkeypatch, [_fila(origen_id=1, fecha_evento=date(2025, 1, 15))])
