@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.integrations.datos_analisis_db import DatosAnalisisReadClient
-from app.models.faltas_retardos import FALTA_RETARDO_TIPOS
+from app.models.faltas_retardos import FALTA_RETARDO_TIPOS, FALTA_RETARDO_TIPOS_GOCE
 from app.models.incidencias_tress import IncidenciaTress
 from app.repositories.datos_analisis_faltas_retardos_repository import (
     DatosAnalisisFaltasRetardosRepository,
@@ -429,15 +429,19 @@ async def _reflejar_locales(
     por_clave: dict[tuple[int, date, str], IncidenciaTress],
     stats: SyncIncidenciasTressStats,
 ) -> set[tuple[str, int]]:
-    """Refleja `levelup_faltas_retardos` en la caché.
+    """Refleja `levelup_faltas_retardos` en la caché. Los dos filos van por separado:
 
-    - Si el evento local empata con una fila de TRESS por (empleado, fecha, tipo), le
-      estampa `registrado_por_id` y `observaciones`: es la atribución que TRESS no guarda.
-    - Si no empata, entra como fila `manual` (siempre el caso de `incapacidad_interna`,
-      que no existe en TRESS).
+    - **Estampar** `registrado_por_id` / `observaciones` sobre la fila de TRESS que empata
+      por (empleado, fecha, tipo): para **todos** los tipos, suspensión incluida. Es la
+      atribución que TRESS no guarda, y en `main` el listado la empataba sin filtrar por
+      tipo; restringirla perdería el "registrado por" de las suspensiones que capturó RH.
+    - **Insertar** como fila `manual` cuando no empata: solo para
+      `FALTA_RETARDO_TIPOS_GOCE` (incluye `incapacidad_interna`, que no existe en TRESS).
+      Una suspensión sí vive en TRESS: su copia local existe solo para la atribución, y
+      convertirla en renglón propio duplicaría lo que el sync traerá de nómina.
 
-    Devuelve las llaves `manual` que dejaron de hacer falta porque el evento ya llegó a
-    TRESS.
+    Devuelve las llaves `manual` que ya no hacen falta: las de eventos que llegaron a
+    TRESS y las de tipos que nunca debieron entrar como `manual`.
     """
     eventos = await FaltasRetardosRepository(db).list_levelup_filtered(
         fecha_inicio=desde, fecha_fin=hasta
@@ -454,6 +458,13 @@ async def _reflejar_locales(
             if evento.fecha_fin is not None:
                 gemela.fecha_fin = evento.fecha_fin
             # Si en una corrida previa entró como manual, ya sobra.
+            if (ORIGEN_MANUAL, evento.id) in existentes:
+                obsoletos.add((ORIGEN_MANUAL, evento.id))
+            continue
+
+        if evento.tipo not in FALTA_RETARDO_TIPOS_GOCE:
+            # No empata todavía (la suspensión llega a TRESS por su propia vía). No se
+            # inventa el renglón; si una corrida vieja lo creó, se retira.
             if (ORIGEN_MANUAL, evento.id) in existentes:
                 obsoletos.add((ORIGEN_MANUAL, evento.id))
             continue

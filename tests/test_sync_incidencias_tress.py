@@ -381,6 +381,76 @@ async def test_elimina_el_manual_cuando_el_evento_ya_llego_a_tress(db, monkeypat
 
 
 @pytest.mark.asyncio
+async def test_suspension_local_que_empata_conserva_registrado_por(db, monkeypatch):
+    """La suspensión sí vive en TRESS; lo que solo vive en levelup es quién la capturó.
+
+    En `main` el listado empataba por (empleado, fecha, tipo) sin filtrar por tipo, así
+    que la atribución de una suspensión se veía. La caché tiene que estamparla igual.
+    """
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_empleado(db, empleado_id=11, no_empleado=554, nombre="Beto")
+    db.add(
+        FaltaRetardoEvento(
+            empleado_id=10,
+            tipo="suspension",
+            fecha_evento=date(2026, 7, 6),
+            fecha_fin=date(2026, 7, 8),
+            observaciones="ACTA 123",
+            registrado_por_id=11,
+        )
+    )
+    await db.flush()
+    _mock_tress(
+        monkeypatch,
+        [
+            _fila(
+                origen="ausencia",
+                origen_id=500,
+                tipo="suspension",
+                fecha_evento=date(2026, 7, 6),
+                fecha_fin=date(2026, 7, 8),
+            )
+        ],
+    )
+
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    filas = await _filas_cache(db)
+    assert len(filas) == 1
+    assert filas[0].origen == "ausencia"
+    assert filas[0].registrado_por_id == 11
+    assert filas[0].observaciones == "ACTA 123"
+
+
+@pytest.mark.asyncio
+async def test_suspension_local_que_no_empata_no_genera_fila_manual(db, monkeypatch):
+    """Solo los tipos con goce entran como `manual`.
+
+    La copia local de una suspensión existe para la atribución, no como renglón propio:
+    TRESS la traerá por su cuenta y un `manual` la duplicaría.
+    """
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_empleado(db, empleado_id=11, no_empleado=554, nombre="Beto")
+    db.add(
+        FaltaRetardoEvento(
+            empleado_id=10,
+            tipo="suspension",
+            fecha_evento=date(2026, 7, 6),
+            fecha_fin=date(2026, 7, 8),
+            observaciones="ACTA 123",
+            registrado_por_id=11,
+        )
+    )
+    await db.flush()
+    _mock_tress(monkeypatch, [])
+
+    stats = await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    assert await _filas_cache(db) == []
+    assert stats.insertados == 0
+
+
+@pytest.mark.asyncio
 async def test_fila_con_fecha_futura_entra_en_la_corrida_del_job(db, monkeypatch):
     """Un permiso capturado por adelantado tiene que entrar antes de que llegue su fecha.
 
