@@ -53,6 +53,13 @@ _sync_lock = asyncio.Lock()
 # Sin `desde`, el barrido arranca aquí: el AU_FECHA más viejo de TRESS es de 1999.
 _INICIO_HISTORIA = date(1990, 1, 1)
 
+# Sin `hasta`, el barrido llega hasta aquí. No termina en «hoy» porque nómina captura
+# permisos con goce por adelantado (matrimonio, paternidad) y esas filas ya existen en
+# `dbo.PERMISO` con `fecha_evento` futura: con el corte en hoy no entrarían a la caché
+# hasta que llegara su fecha de inicio, y la página dejaría de mostrarlas por adelantado
+# como sí hacía leyendo TRESS en vivo.
+_HORIZONTE_FUTURO_DIAS = 365
+
 # Freno al borrado: si en una corrida desaparece más de esta fracción de las filas de
 # TRESS que había en el rango, se asume lectura mutilada (datos-analisis es una réplica y
 # un ETL puede vaciarla sin que la consulta falle) en vez de un borrado real en nómina.
@@ -89,15 +96,46 @@ def _ahora() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def hasta_efectivo(hasta: date | None, hoy: date | None = None) -> date:
+    """Cota superior concreta del rango; `None` ⇒ hoy + `_HORIZONTE_FUTURO_DIAS`.
+
+    Las tres piezas de una corrida —la lectura de TRESS, `map_existentes` y la
+    reconciliación de bajas— tienen que usar exactamente esta misma cota. Si la lectura
+    abarcara el futuro y `map_existentes` no (o al revés), las filas futuras se borrarían
+    y reinsertarían en cada corrida, o chocarían contra el UNIQUE (origen, origen_id).
+    """
+    if hasta is not None:
+        return hasta
+    return (hoy or _hoy_app()) + timedelta(days=_HORIZONTE_FUTURO_DIAS)
+
+
 def rango_semanas(semanas: int, hoy: date | None = None) -> tuple[date, date]:
-    """Ventana móvil: del lunes de hace `semanas` semanas hasta hoy (inclusive)."""
+    """Ventana móvil: del lunes de hace `semanas` semanas al horizonte futuro.
+
+    El fin no es hoy a propósito: lo ya capturado en TRESS con fecha futura (un permiso
+    de matrimonio dentro de tres semanas, una paternidad) tiene que entrar a la caché en
+    la corrida siguiente a su captura, no cuando llegue su fecha de inicio.
+    """
     dia = hoy or _hoy_app()
     lunes_actual = dia - timedelta(days=dia.weekday())
-    return lunes_actual - timedelta(weeks=max(1, int(semanas)) - 1), dia
+    return (
+        lunes_actual - timedelta(weeks=max(1, int(semanas)) - 1),
+        hasta_efectivo(None, dia),
+    )
 
 
 def rango_carga_inicial(hoy: date | None = None) -> tuple[None, date]:
-    """Todo el histórico hasta el domingo anterior: excluye la semana en curso."""
+    """Histórico completo hasta el domingo anterior: excluye la semana en curso.
+
+    Esta cota se queda en el pasado a propósito. Un rango contiguo no puede a la vez
+    excluir la semana en curso y llegar al horizonte futuro, y partir el rango en dos
+    con un hueco en medio rompería la simetría entre lectura, `map_existentes` y
+    reconciliación (lo que hay en el hueco se vería como obsoleto y se borraría). Por eso
+    la carga inicial se hace en **dos pasadas contiguas**, cada una internamente
+    simétrica (ver `app/scripts/sync_incidencias_tress.py`): este histórico congelado y
+    después `rango_semanas(...)`, la misma ventana viva que relee el job y que sí llega
+    al futuro. Así nada queda fuera de la caché al terminar el backfill.
+    """
     dia = hoy or _hoy_app()
     lunes_actual = dia - timedelta(days=dia.weekday())
     return None, lunes_actual - timedelta(days=1)
@@ -106,7 +144,7 @@ def rango_carga_inicial(hoy: date | None = None) -> tuple[None, date]:
 def _tramos_anuales(desde: date | None, hasta: date | None) -> list[tuple[date, date]]:
     """Parte el rango en tramos de año calendario para no leer 27 años de una vez."""
     inicio = desde or _INICIO_HISTORIA
-    fin = hasta or _hoy_app()
+    fin = hasta_efectivo(hasta)
     if fin < inicio:
         return []
     tramos: list[tuple[date, date]] = []
@@ -195,6 +233,9 @@ async def sincronizar_incidencias_tress(
 ) -> SyncIncidenciasTressStats:
     """Refresca la caché para el rango indicado (`fecha_evento`, ambos inclusive).
 
+    `hasta=None` no significa «hasta hoy» sino hasta el horizonte futuro
+    (`hasta_efectivo`), para que lo capturado por adelantado en TRESS también entre.
+
     Levanta `ConnectionError` si datos-analisis no está configurada o no responde: en ese
     caso no se escribe nada.
     """
@@ -212,6 +253,8 @@ async def _sincronizar(
     origen: str,
     execute: bool,
 ) -> SyncIncidenciasTressStats:
+    # Una sola cota superior para las tres piezas de la corrida.
+    hasta = hasta_efectivo(hasta)
     stats = SyncIncidenciasTressStats(desde=desde, hasta=hasta)
     inicio = time.monotonic()
     logger.info(

@@ -6,7 +6,7 @@ upsert, la reconciliación de bajas, el reflejo de los eventos locales y la idem
 contra la BD.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
@@ -15,6 +15,8 @@ from sqlalchemy import select
 from app.models.faltas_retardos import FaltaRetardoEvento
 from app.models.incidencias_tress import IncidenciaTress
 from app.services.sync_incidencias_tress_service import (
+    _HORIZONTE_FUTURO_DIAS,
+    hasta_efectivo,
     rango_carga_inicial,
     rango_semanas,
     sincronizar_incidencias_tress,
@@ -379,6 +381,41 @@ async def test_elimina_el_manual_cuando_el_evento_ya_llego_a_tress(db, monkeypat
 
 
 @pytest.mark.asyncio
+async def test_fila_con_fecha_futura_entra_en_la_corrida_del_job(db, monkeypatch):
+    """Un permiso capturado por adelantado tiene que entrar antes de que llegue su fecha.
+
+    Con el fin de la ventana en «hoy» no entraba nunca hasta que empezaba, mientras que
+    leyendo TRESS en vivo se veía desde que nómina lo insertaba en `dbo.PERMISO`.
+    """
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    desde, hasta = rango_semanas(8)
+    futuro = date.today() + timedelta(weeks=5)
+    assert desde <= futuro <= hasta
+    fila_futura = _fila(
+        origen="permiso",
+        origen_id=900,
+        tipo="matrimonio",
+        fecha_evento=futuro,
+        fecha_fin=futuro + timedelta(days=1),
+    )
+
+    _mock_tress(monkeypatch, [fila_futura])
+    stats = await sincronizar_incidencias_tress(db, desde=desde, hasta=hasta)
+    assert stats.insertados == 1
+
+    # Segunda corrida del mismo rango: ni duplica ni borra.
+    _mock_tress(monkeypatch, [fila_futura])
+    stats = await sincronizar_incidencias_tress(db, desde=desde, hasta=hasta)
+
+    filas = await _filas_cache(db)
+    assert len(filas) == 1
+    assert filas[0].fecha_evento == futuro
+    assert stats.insertados == 0
+    assert stats.eliminados == 0
+    assert stats.errores == 0
+
+
+@pytest.mark.asyncio
 async def test_dry_run_no_escribe(db, monkeypatch):
     await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
     _mock_tress(monkeypatch, [_fila(origen_id=1)])
@@ -404,12 +441,20 @@ async def test_sin_configuracion_de_datos_analisis_no_escribe(db, monkeypatch):
     assert await _filas_cache(db) == []
 
 
-def test_rango_semanas_arranca_en_lunes():
+def test_rango_semanas_arranca_en_lunes_y_llega_al_futuro():
     # 2026-08-06 es jueves; 8 semanas atrás arranca el lunes 2026-06-15.
     desde, hasta = rango_semanas(8, hoy=date(2026, 8, 6))
     assert desde == date(2026, 6, 15)
     assert desde.weekday() == 0
-    assert hasta == date(2026, 8, 6)
+    # El fin no es hoy: lo capturado por adelantado en TRESS también debe entrar.
+    assert hasta == date(2026, 8, 6) + timedelta(days=_HORIZONTE_FUTURO_DIAS)
+
+
+def test_hasta_efectivo_respeta_el_hasta_explicito():
+    assert hasta_efectivo(date(2026, 3, 1), date(2026, 8, 6)) == date(2026, 3, 1)
+    assert hasta_efectivo(None, date(2026, 8, 6)) == date(2026, 8, 6) + timedelta(
+        days=_HORIZONTE_FUTURO_DIAS
+    )
 
 
 def test_rango_carga_inicial_excluye_la_semana_en_curso():
@@ -424,3 +469,21 @@ def test_rango_carga_inicial_en_lunes_excluye_ese_lunes():
     desde, hasta = rango_carga_inicial(hoy=date(2026, 8, 3))
     assert desde is None
     assert hasta == date(2026, 8, 2)
+
+
+def test_carga_inicial_se_hace_en_dos_pasadas_sin_hueco():
+    """El histórico no llega al futuro; la segunda pasada sí, y arrancan pegadas.
+
+    Un hueco entre ambas dejaría filas que ninguna corrida lee pero sí reconcilia.
+    """
+    from app.scripts.sync_incidencias_tress import pasadas_carga_inicial
+
+    pasadas = pasadas_carga_inicial()
+    assert [etiqueta for etiqueta, _d, _h in pasadas] == [
+        "histórico",
+        "ventana viva + futuro",
+    ]
+    (_, desde_hist, hasta_hist), (_, desde_viva, hasta_viva) = pasadas
+    assert desde_hist is None
+    assert desde_viva <= hasta_hist + timedelta(days=1)
+    assert hasta_viva > date.today()
