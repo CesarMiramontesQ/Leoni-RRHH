@@ -112,6 +112,19 @@ que ya están cubiertos por un permiso con goce (para no duplicarlos). Después 
 `prod-migrate.sh`, con el túnel a datos-analisis arriba:
 
 ```bash
+./scripts/prod-sync-incidencias-backfill.sh              # dry-run: no escribe
+./scripts/prod-sync-incidencias-backfill.sh --execute    # carga real, por tramos anuales
+```
+
+Como sus hermanos, el script verifica antes que la migración esté en la imagen, que la
+tabla exista y que datos-analisis responda; además recorre los tramos anuales, avisa si lo
+lanzas en la franja del job semanal y termina imprimiendo el estado de la tabla. Si un
+tramo falla, los años previos ya quedaron cargados y lo dice: se reanuda con
+`--desde-anio <año que falló> --execute`.
+
+A mano, si prefieres controlar cada paso:
+
+```bash
 # 1. Dry-run: valida conexión a datos-analisis y reporta conteos sin escribir.
 docker compose -f docker-compose.prod.yml --env-file .env exec backend \
   python -m app.scripts.sync_incidencias_tress
@@ -202,8 +215,12 @@ vuelva a dispararse. Y si las bajas no son legítimas, el freno hizo exactamente
 revisar el estado de la réplica de nómina antes de insistir. No hay flag de forzado a
 propósito.
 
-No hay wrapper como `prod-sync-vacaciones-backfill.sh`: la carga inicial se corre a mano
-con el CLI de arriba.
+**Si un chequeo previo falla.** `require_alembic_revision` distingue dos casos que antes se
+reportaban igual: que `alembic history` **no arranque** (cada llamada crea un contenedor
+nuevo, así que cualquier tropiezo lo tumba) y que la imagen **no traiga** la revisión. Si
+el mensaje dice *"no se pudo ejecutar 'alembic history'"*, la imagen puede estar bien —
+mira la salida que imprime debajo y revisa contenedores huérfanos (`docker ps -a | grep
+backend`, luego `docker container prune`), porque estos helpers corren sin `--rm`.
 
 ### Antes de un release con migraciones destructivas
 

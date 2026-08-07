@@ -179,11 +179,14 @@ async def _leer_tress(desde: date | None, hasta: date | None) -> list[dict[str, 
             )
     except SQLAlchemyError as exc:
         logger.error(
-            "Sync incidencias | error de lectura en datos-analisis | %s",
+            "Sync incidencias | error de lectura en datos-analisis | %s: %s",
             type(exc).__name__,
+            exc,
         )
+        # Con el detalle del driver: sin él, un timeout de red y un error de permisos
+        # sobre dbo.AUSENCIA se ven idénticos en el CLI.
         raise ConnectionError(
-            f"Error al leer incidencias de datos-analisis: {type(exc).__name__}"
+            f"Error al leer incidencias de datos-analisis: {type(exc).__name__}: {exc}"
         ) from exc
     finally:
         await engine.dispose()

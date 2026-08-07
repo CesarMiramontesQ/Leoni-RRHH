@@ -253,7 +253,9 @@ async def test_error_de_consulta_no_escribe_nada(db, monkeypatch):
         monkeypatch, side_effect=OperationalError("stmt", {}, Exception("boom"))
     )
 
-    with pytest.raises(ConnectionError):
+    # El mensaje debe traer el detalle del driver, no solo el nombre de la clase: en
+    # producción un "Login timeout expired" y un error de permisos se veían igual.
+    with pytest.raises(ConnectionError, match="boom"):
         await sincronizar_homeoffice_tomados(
             db, no_empleado=emp.no_empleado, anio=ANIO, origen="manual"
         )

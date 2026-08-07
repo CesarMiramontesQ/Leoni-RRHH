@@ -166,11 +166,16 @@ async def _sincronizar(
                 kpis = await repo_tress.get_kpis_ciclo(cb_codigo=numero)
             except SQLAlchemyError as exc:
                 fallos_consecutivos += 1
-                stats.registrar_error(f"empleado {numero}: {type(exc).__name__}")
+                # Con el detalle del driver: sin él, un timeout de red y un error de
+                # permisos se ven idénticos en el CLI.
+                stats.registrar_error(
+                    f"empleado {numero}: {type(exc).__name__}: {exc}"
+                )
                 logger.warning(
-                    "Sync vacaciones disponibles | error de lectura | no_empleado=%s | %s",
+                    "Sync vacaciones disponibles | error de lectura | no_empleado=%s | %s: %s",
                     numero,
                     type(exc).__name__,
+                    exc,
                 )
                 if fallos_consecutivos >= _MAX_FALLOS_CONSECUTIVOS:
                     logger.error(
