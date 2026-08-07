@@ -172,12 +172,15 @@ async def _sincronizar(
         ).get_dias_por_empleado(desde=desde, hasta=hasta)
     except SQLAlchemyError as exc:
         logger.error(
-            "Sync home office | error de lectura en datos-analisis | origen=%s | %s",
+            "Sync home office | error de lectura en datos-analisis | origen=%s | %s: %s",
             origen,
             type(exc).__name__,
+            exc,
         )
+        # Con el detalle del driver: sin él, un "Login timeout expired" y un error de
+        # permisos sobre dbo.PERMISO se ven idénticos en el CLI.
         raise ConnectionError(
-            f"Error al leer home office de datos-analisis: {type(exc).__name__}"
+            f"Error al leer home office de datos-analisis: {type(exc).__name__}: {exc}"
         ) from exc
     finally:
         await engine.dispose()

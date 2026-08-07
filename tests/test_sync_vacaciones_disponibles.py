@@ -179,6 +179,9 @@ async def test_error_de_consulta_se_cuenta_y_no_escribe(db, monkeypatch):
     assert stats.errores == 1
     assert stats.consultados == 0
     assert str(emp.no_empleado) in stats.mensajes_error[0]
+    # Con el detalle del driver: solo el nombre de la clase no permite distinguir un
+    # timeout de red de un error de permisos.
+    assert "boom" in stats.mensajes_error[0]
     assert await _fila(db, emp.no_empleado) is None
     engine.dispose.assert_awaited()
 

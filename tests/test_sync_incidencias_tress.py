@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from app.models.faltas_retardos import FaltaRetardoEvento
 from app.models.incidencias_tress import IncidenciaTress
@@ -506,6 +507,21 @@ async def test_sin_configuracion_de_datos_analisis_no_escribe(db, monkeypatch):
     )
 
     with pytest.raises(ConnectionError):
+        await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    assert await _filas_cache(db) == []
+
+
+@pytest.mark.asyncio
+async def test_error_de_lectura_conserva_el_detalle_del_driver(db, monkeypatch):
+    """Solo el nombre de la clase no distingue un timeout de red de uno de permisos."""
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    repo = _mock_tress(monkeypatch, [])
+    repo.list_todos = AsyncMock(
+        side_effect=OperationalError("stmt", {}, Exception("Login timeout expired"))
+    )
+
+    with pytest.raises(ConnectionError, match="Login timeout expired"):
         await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
 
     assert await _filas_cache(db) == []
