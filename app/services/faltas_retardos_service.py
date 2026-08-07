@@ -1,4 +1,3 @@
-import logging
 from datetime import date, timedelta
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -73,9 +72,6 @@ def _ventana_por_defecto(
         return fecha_inicio, fecha_fin
     hoy = date.today()
     return hoy - timedelta(days=365 * VENTANA_DEFAULT_MESES // 12), None
-
-
-logger = logging.getLogger(__name__)
 
 
 def _empleado_display_nombre(empleado: Empleado | None) -> str | None:
