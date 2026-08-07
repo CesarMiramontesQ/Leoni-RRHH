@@ -130,6 +130,28 @@ class DatosAnalisisFaltasRetardosRepository:
             result = await conn.execute(text(sql), params)
             return [self._normalizar(dict(row)) for row in result.mappings().all()]
 
+    async def list_todos(
+        self,
+        *,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        cb_codigos: list[int] | None = None,
+        tipo: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Todas las filas del rango, sin OFFSET.
+
+        El sync recorre la historia en tramos anuales: con OFFSET profundo SQL Server
+        vuelve a recorrer todo lo anterior en cada página, y el barrido completo se
+        vuelve cuadrático.
+        """
+        sql = f"SELECT * FROM ({self._filtrado()}) AS sub"
+        params = self._params(
+            fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, cb_codigos=cb_codigos, tipo=tipo
+        )
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql), params)
+            return [self._normalizar(dict(row)) for row in result.mappings().all()]
+
     def _normalizar(self, row: dict[str, Any]) -> dict[str, Any]:
         no_empleado = row.get("no_empleado")
         try:
