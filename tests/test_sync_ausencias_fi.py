@@ -118,8 +118,9 @@ async def test_sync_inserta_fi(db):
     assert kwargs["area_empleado"] == emp.area_id
     assert kwargs["subarea_empleado"] == emp.subarea_id
     assert kwargs["estado"] == 1
-    # La semana del evento, resuelta por su fecha (no la del rango).
+    # Las dos columnas de semana llevan el mismo valor: el de la fecha del evento.
     assert kwargs["semana_incidencia"] == 77
+    assert kwargs["id_semana"] == kwargs["semana_incidencia"]
     da_repo.list_ausencias.assert_awaited_once()
     assert da_repo.list_ausencias.await_args.kwargs["tipo_inc"] == "FI"
 
