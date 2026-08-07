@@ -88,15 +88,20 @@ async def _resolver_semana_evento(
     bono_repo: BonoImportadasHistoricoRepository,
     fecha: date,
     cache: dict[date, int | None],
+    respaldo: int | None = None,
 ) -> int | None:
     """Semana de `semana_historico` que contiene `fecha`, memoizada por fecha.
 
-    Un rango de una semana trae a lo sumo 7 fechas distintas: sin la caché serían
-    tantas consultas como eventos.
+    Es el valor que va tanto a `id_semana` como a `semana_incidencia`: las dos columnas
+    guardan la semana del evento. Un rango de una semana trae a lo sumo 7 fechas
+    distintas, así que la caché evita una consulta por evento.
+
+    `respaldo` es la semana del rango sincronizado, que se usa solo si la fecha no cae en
+    ninguna fila de `semana_historico`.
     """
     if fecha not in cache:
         cache[fecha] = await bono_repo.resolve_semana_id(fecha)
-    return cache[fecha]
+    return cache[fecha] if cache[fecha] is not None else respaldo
 
 
 class SyncAusenciasService:
@@ -246,23 +251,19 @@ class SyncAusenciasService:
                             src["fecha_incidencia"],
                         )
                         continue
-                    semana = id_semana or await bono_repo.resolve_semana_id(
-                        src["fecha_incidencia"]
+                    semana = await _resolver_semana_evento(
+                        bono_repo, src["fecha_incidencia"], cache_semanas, id_semana
                     )
                     if semana is None:
                         stats.omitidos_sin_semana += 1
                         continue
-                    # `semana_incidencia` es la semana de la fecha del evento, que no
-                    # tiene por qué ser la del rango sincronizado: una falta del domingo
-                    # y otra del lunes caen en semanas distintas de semana_historico.
-                    semana_evento = await _resolver_semana_evento(
-                        bono_repo, src["fecha_incidencia"], cache_semanas
-                    )
                     to_insert.append(
                         {
                             **src,
+                            # Las dos columnas llevan el mismo valor: la semana de la
+                            # fecha del evento.
                             "id_semana": semana,
-                            "semana_incidencia": semana_evento,
+                            "semana_incidencia": semana,
                             "area_empleado": empleado.area_id,
                             "subarea_empleado": empleado.subarea_id,
                         }
@@ -276,9 +277,11 @@ class SyncAusenciasService:
                 subarea = (
                     empleado.subarea_id if empleado else existing.get("subarea_empleado")
                 )
-                semana = id_semana
-                if semana is None:
-                    semana = await bono_repo.resolve_semana_id(src["fecha_incidencia"])
+                # Mismo criterio que en el alta, para que un evento ya existente no oscile
+                # entre la semana del rango y la de su fecha en cada corrida.
+                semana = await _resolver_semana_evento(
+                    bono_repo, src["fecha_incidencia"], cache_semanas, id_semana
+                )
                 if semana is None:
                     semana = existing.get("id_semana")
 
