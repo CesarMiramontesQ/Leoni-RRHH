@@ -180,9 +180,11 @@ class BonoImportadasHistoricoRepository:
         subarea_empleado: int | None,
         fecha_incidencia: date | None,
         fecha_registro: datetime | None = None,
+        estado: int | None = None,
         conn: AsyncConnection | None = None,
     ) -> int:
-        # Nota: en Bono actual, importadas_historico NO tiene columna ``estado``.
+        # ``estado`` es nullable: quien no lo pase (registro manual de RH) deja NULL.
+        # El mirror de faltas y retardos manda 1.
         sql = """
             INSERT INTO importadas_historico (
                 no_empleado,
@@ -192,7 +194,8 @@ class BonoImportadasHistoricoRepository:
                 area_empleado,
                 subarea_empleado,
                 fecha_incidencia,
-                fecha_registro
+                fecha_registro,
+                estado
             )
             VALUES (
                 :no_empleado,
@@ -202,7 +205,8 @@ class BonoImportadasHistoricoRepository:
                 :area_empleado,
                 :subarea_empleado,
                 :fecha_incidencia,
-                COALESCE(:fecha_registro, NOW())
+                COALESCE(:fecha_registro, NOW()),
+                :estado
             )
             RETURNING id
         """
@@ -215,6 +219,7 @@ class BonoImportadasHistoricoRepository:
             "subarea_empleado": subarea_empleado,
             "fecha_incidencia": fecha_incidencia,
             "fecha_registro": fecha_registro,
+            "estado": estado,
         }
         if conn is not None:
             result = await conn.execute(text(sql), params)
