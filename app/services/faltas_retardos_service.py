@@ -649,16 +649,34 @@ class FaltasRetardosService:
                     comentario=(data.observaciones or "").strip(),
                 )
 
-        datos_por_tramo = (
-            [
-                data.model_copy(
-                    update={"fecha_evento": inicio, "fecha_fin": fin}
+        observaciones_norm = data.observaciones.strip() if data.observaciones else None
+
+        # La suspensión ya quedó en TRESS (dbo.PERMISO). No se escribe en
+        # importadas_historico: esa tabla la actualiza solo el botón de sincronizar, que
+        # la traerá de vuelta como SUS. Aquí queda únicamente la fila local de
+        # atribución —quién la capturó y con qué motivo—, que TRESS no guarda y que el
+        # sync empata por (empleado, fecha, tipo). Mismo patrón que los permisos con goce.
+        if suspension_tramos is not None:
+            primer_ev: FaltaRetardoEvento | None = None
+            for inicio, fin in suspension_tramos:
+                ev = await self.audit_repo.create_evento(
+                    empleado_id=empleado.empleado_id,
+                    tipo=data.tipo,
+                    fecha_evento=inicio,
+                    fecha_fin=fin,
+                    observaciones=observaciones_norm,
+                    registrado_por_id=current_user.empleado_id,
                 )
-                for inicio, fin in suspension_tramos
-            ]
-            if suspension_tramos is not None
-            else [data]
-        )
+                if primer_ev is None:
+                    primer_ev = ev
+            assert primer_ev is not None
+            await self.db.commit()
+            cargado = await self.audit_repo.get_with_relations(primer_ev.id)
+            return self._map_levelup_evento(
+                cargado if cargado is not None else primer_ev
+            )
+
+        datos_por_tramo = [data]
         origen_ids_por_tramo: list[tuple[list[int], FaltaRetardoCreateRequest]] = []
         for datos_tramo in datos_por_tramo:
             ids = await self._insertar_en_importadas_historico(empleado, datos_tramo)
@@ -685,20 +703,6 @@ class FaltasRetardosService:
                     else None
                 ),
             )
-            # La suspensión sí llega a TRESS, pero allá no queda constancia de
-            # quién la capturó desde la app. Esta copia local es lo que el sync
-            # semanal empata por (empleado, fecha, tipo) con la fila de TRESS
-            # para estamparle usuario y motivo. No duplica renglones: el sync
-            # solo inserta filas `manual` para los tipos con goce.
-            if data.tipo == "suspension":
-                await self.audit_repo.create_evento(
-                    empleado_id=empleado.empleado_id,
-                    tipo=data.tipo,
-                    fecha_evento=datos_tramo.fecha_evento,
-                    fecha_fin=datos_tramo.fecha_fin,
-                    observaciones=observaciones,
-                    registrado_por_id=current_user.empleado_id,
-                )
         await self.db.commit()
 
         engine, repo = await self._with_bono_importadas_repo()

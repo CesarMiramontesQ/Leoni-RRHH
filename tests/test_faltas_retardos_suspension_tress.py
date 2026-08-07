@@ -8,7 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.core.exceptions import ConflictError
-from app.models.faltas_retardos import FaltaRetardoRegistroAuditoria
+from app.models.faltas_retardos import FaltaRetardoEvento, FaltaRetardoRegistroAuditoria
 from app.repositories.datos_analisis_suspension_write_repository import (
     InsertarSuspensionResult,
     _render_insertar_suspension_sql,
@@ -100,7 +100,7 @@ async def test_create_suspension_ok_llama_tress_y_bono(client: AsyncClient, db, 
         no_empleado=str(empleado.no_empleado),
         fecha_evento=date(2026, 7, 20),
         insert_ids=[9101, 9102],
-    ):
+    ) as repo:
         res = await client.post(
             "/api/v1/faltas-retardos",
             headers=headers,
@@ -118,7 +118,6 @@ async def test_create_suspension_ok_llama_tress_y_bono(client: AsyncClient, db, 
     assert data["fecha_fin"] == "2026-07-22"
     assert data["observaciones"] == "AUSENTISMO 3 DIAS"
     assert data["origen"] == "manual"
-    assert data["origen_id"] == 9101
     registrar.assert_awaited_once()
     kwargs = registrar.await_args.kwargs
     assert kwargs["no_empleado"] == 1259
@@ -126,16 +125,20 @@ async def test_create_suspension_ok_llama_tress_y_bono(client: AsyncClient, db, 
     assert kwargs["fecha_fin"] == date(2026, 7, 22)
     assert kwargs["comentario"] == "AUSENTISMO 3 DIAS"
 
-    audits = (
+    # Nada se escribe en importadas_historico: esa tabla la llena solo el sync.
+    repo.insert_evento.assert_not_awaited()
+
+    # Queda la fila local de atribución, una por tramo, que el sync empata con TRESS.
+    eventos = (
         await db.execute(
-            select(FaltaRetardoRegistroAuditoria).where(
-                FaltaRetardoRegistroAuditoria.bono_origen_id.in_([9101, 9102])
+            select(FaltaRetardoEvento).where(
+                FaltaRetardoEvento.empleado_id == empleado.empleado_id
             )
         )
     ).scalars().all()
-    assert len(audits) == 2
-    assert all(a.observaciones == "AUSENTISMO 3 DIAS" for a in audits)
-    assert all(a.fecha_fin == date(2026, 7, 22) for a in audits)
+    assert len(eventos) == 1
+    assert all(e.observaciones == "AUSENTISMO 3 DIAS" for e in eventos)
+    assert all(e.registrado_por_id == rh.empleado_id for e in eventos)
 
 
 @pytest.mark.asyncio
@@ -236,10 +239,16 @@ async def test_create_suspension_excluye_descanso_y_persiste_tramos(
         (date(2026, 7, 20), date(2026, 7, 21)),
         (date(2026, 7, 23), date(2026, 7, 23)),
     ]
-    assert [
-        (call.args[1].fecha_evento, call.args[1].fecha_fin)
-        for call in insertar_bono.await_args_list
-    ] == [
+    # Un evento local por tramo; importadas_historico no se toca.
+    insertar_bono.assert_not_awaited()
+    eventos = (
+        await db.execute(
+            select(FaltaRetardoEvento)
+            .where(FaltaRetardoEvento.empleado_id == empleado.empleado_id)
+            .order_by(FaltaRetardoEvento.fecha_evento)
+        )
+    ).scalars().all()
+    assert [(e.fecha_evento, e.fecha_fin) for e in eventos] == [
         (date(2026, 7, 20), date(2026, 7, 21)),
         (date(2026, 7, 23), date(2026, 7, 23)),
     ]
