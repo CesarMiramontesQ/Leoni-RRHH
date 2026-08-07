@@ -168,6 +168,65 @@ async def test_no_borra_fuera_del_rango_sincronizado(db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_no_revienta_con_fila_de_tress_que_empieza_antes_del_rango(db, monkeypatch):
+    """Una incidencia de rango (incapacidad, suspensión, permiso con goce) puede tener
+    `fecha_evento` anterior a `desde` y seguir vigente (`fecha_fin` dentro de la
+    ventana). TRESS la vuelve a traer en cada corrida que solapa esa ventana —igual
+    criterio que `sql/datos_analisis_faltas_retardos_base.sql`—, así que `map_existentes`
+    debe reconocerla como existente o se reinserta y revienta el UNIQUE."""
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    fila_rango = _fila(
+        origen="permiso",
+        origen_id=200,
+        tipo="incapacidad",
+        fecha_evento=date(2026, 5, 20),
+        fecha_fin=date(2026, 6, 5),
+    )
+    _mock_tress(monkeypatch, [fila_rango])
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    _mock_tress(monkeypatch, [fila_rango])
+    stats = await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    filas = await _filas_cache(db)
+    assert len(filas) == 1
+    assert stats.insertados == 0
+    assert stats.eliminados == 0
+
+
+@pytest.mark.asyncio
+async def test_no_revienta_con_evento_local_que_empieza_antes_del_rango(db, monkeypatch):
+    """Mismo defecto, otra fuente: un evento de `levelup_faltas_retardos` con
+    `fecha_evento` anterior a `desde` y `fecha_fin` dentro de la ventana.
+    `FaltasRetardosRepository.list_levelup_filtered` lo trae por solape en cada corrida
+    que toque esa ventana, así que el reflejo `manual` no debe reinsertarse."""
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_empleado(db, empleado_id=11, no_empleado=554, nombre="Beto")
+    db.add(
+        FaltaRetardoEvento(
+            empleado_id=10,
+            tipo="incapacidad_interna",
+            fecha_evento=date(2026, 5, 20),
+            fecha_fin=date(2026, 6, 5),
+            observaciones="reposo prolongado",
+            registrado_por_id=11,
+        )
+    )
+    await db.flush()
+    _mock_tress(monkeypatch, [])
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    _mock_tress(monkeypatch, [])
+    stats = await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    filas = await _filas_cache(db)
+    assert len(filas) == 1
+    assert filas[0].origen == "manual"
+    assert stats.insertados == 0
+    assert stats.eliminados == 0
+
+
+@pytest.mark.asyncio
 async def test_refleja_incapacidad_interna_que_solo_vive_en_levelup(db, monkeypatch):
     await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
     await make_empleado(db, empleado_id=11, no_empleado=554, nombre="Beto")

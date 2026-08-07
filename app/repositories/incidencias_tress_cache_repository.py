@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.incidencias_tress import IncidenciaTress
@@ -23,10 +23,22 @@ class IncidenciasTressCacheRepository:
     async def map_existentes(
         self, desde: date | None, hasta: date | None
     ) -> dict[tuple[str, int], IncidenciaTress]:
-        """Filas del rango indexadas por su llave de idempotencia."""
+        """Filas del rango indexadas por su llave de idempotencia.
+
+        Solape, no corte estricto por `fecha_evento`: mismo criterio que
+        `FaltasRetardosRepository._apply_filters` y la rama de permisos del SQL de
+        datos-analisis. Una fila de rango (incapacidad, suspensión, permiso con goce)
+        puede tener `fecha_evento` anterior a `desde` y seguir vigente (`fecha_fin`
+        dentro de la ventana); ambas fuentes la vuelven a traer en esa corrida, así que
+        también debe contar como "existente" aquí — si no, se reinserta y revienta el
+        `UNIQUE (origen, origen_id)`.
+        """
         stmt = select(IncidenciaTress)
         if desde is not None:
-            stmt = stmt.where(IncidenciaTress.fecha_evento >= desde)
+            stmt = stmt.where(
+                func.coalesce(IncidenciaTress.fecha_fin, IncidenciaTress.fecha_evento)
+                >= desde
+            )
         if hasta is not None:
             stmt = stmt.where(IncidenciaTress.fecha_evento <= hasta)
         result = await self.db.execute(stmt)
