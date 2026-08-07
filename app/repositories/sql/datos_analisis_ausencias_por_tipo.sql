@@ -13,6 +13,21 @@ WHERE
     a.AU_TIPO = :tipo_inc
     AND a.AU_FECHA >= :fecha_inicio
     AND a.AU_FECHA < DATEADD(day, 1, :fecha_fin)
+    -- Los dias FJ cubiertos por un permiso con goce llegan como FJG desde
+    -- datos_analisis_permisos_goce_dias.sql; sin esto el mismo dia entraria dos veces.
+    -- Solo actua cuando tipo_inc es FJ, porque el WHERE ya filtro AU_TIPO.
+    AND NOT (
+        a.AU_TIPO = 'FJ'
+        AND EXISTS (
+            SELECT 1
+            FROM dbo.PERMISO g
+            WHERE g.CB_CODIGO = a.CB_CODIGO
+              AND g.PM_TIPO = 'FJ'
+              AND g.PM_CLASIFI = 0
+              AND a.AU_FECHA >= g.PM_FEC_INI
+              AND a.AU_FECHA < g.PM_FEC_FIN
+        )
+    )
 ORDER BY
     a.AU_FECHA,
     a.CB_CODIGO;

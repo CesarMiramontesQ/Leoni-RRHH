@@ -431,7 +431,13 @@ async def test_sync_semana_anterior_resuelve_rango(db):
     async def list_ausencias(**kw):
         return [_fila(fecha=date(2026, 5, 12), tipo_inc=kw["tipo_inc"])]
 
-    da_repo = AsyncMock(list_ausencias=AsyncMock(side_effect=list_ausencias))
+    async def list_permisos_goce_dias(**kw):
+        return [_fila(fecha=date(2026, 5, 12), tipo_inc="FJG")]
+
+    da_repo = AsyncMock(
+        list_ausencias=AsyncMock(side_effect=list_ausencias),
+        list_permisos_goce_dias=AsyncMock(side_effect=list_permisos_goce_dias),
+    )
     da_engine = MagicMock()
     da_engine.dispose = AsyncMock()
 
@@ -461,16 +467,18 @@ async def test_sync_semana_anterior_resuelve_rango(db):
     assert stats.fecha_inicio == date(2026, 5, 11)
     assert stats.fecha_fin == date(2026, 5, 17)
     assert stats.id_semana == 20
-    # Una fila por cada tipo de `ponderaciones` que vive en dbo.AUSENCIA.
-    assert stats.insertados == 9
+    # Una fila por cada tipo de `ponderaciones`: 9 de dbo.AUSENCIA + FJG de dbo.PERMISO.
+    assert stats.insertados == 10
     bono_repo.resolve_rango_semana_anterior.assert_awaited_once_with(date(2026, 5, 20))
-    assert insert_mock.await_count == 9
+    assert insert_mock.await_count == 10
     tipos_consultados = {
         c.kwargs["tipo_inc"] for c in da_repo.list_ausencias.await_args_list
     }
     assert tipos_consultados == {
         "FI", "FJ", "RE", "INC", "IN1", "ITR", "IAC", "SUS", "VAC",
     }
+    # FJG no pasa por dbo.AUSENCIA.
+    da_repo.list_permisos_goce_dias.assert_awaited_once()
 
 
 @pytest.mark.asyncio
