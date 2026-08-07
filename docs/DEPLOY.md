@@ -102,9 +102,14 @@ office, así que no hay que repetirlo (`--no-empleado N` refresca a uno suelto).
 
 El release que introduce `levelup_incidencias_tress` (revisión `y1i2n3c4t5r6`) crea la
 tabla **vacía**. Hasta llenarla, la página Incidencias muestra 0 resultados para cualquier
-filtro. La carga inicial trae todo el histórico —~180,800 filas de `dbo.AUSENCIA` desde
-1999 más ~6,900 de `dbo.PERMISO` con goce desde 2001, ~187,700 en total— excluyendo la
-semana en curso. Después del `prod-migrate.sh`, con el túnel a datos-analisis arriba:
+filtro. La carga inicial trae todo el histórico excluyendo la semana en curso: medido
+contra DATOS_ANALISIS el 2026-08-06, eran 180,816 filas en `dbo.AUSENCIA` de los tipos
+relevantes (`FI, RE, FJ, SUS, INC, IN1, IAC, ITR`, desde 1999-09-27) más 6,946 permisos en
+`dbo.PERMISO` con `PM_TIPO='FJ' AND PM_CLASIFI=0` (desde 2001-08-16). Es una referencia de
+orden de magnitud, no un conteo exacto a esperar: crece con el tiempo, y el total que
+termina sincronizado es **algo menor** que la suma, porque el SQL descarta los días `FJ`
+que ya están cubiertos por un permiso con goce (para no duplicarlos). Después del
+`prod-migrate.sh`, con el túnel a datos-analisis arriba:
 
 ```bash
 # 1. Dry-run: valida conexión a datos-analisis y reporta conteos sin escribir.

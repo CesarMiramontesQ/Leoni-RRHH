@@ -126,11 +126,11 @@ Layered architecture: **router → service → repository → models/schemas**
   de los miércoles 10:00 y `python -m app.scripts.sync_incidencias_tress`). El SQL
   `app/repositories/sql/datos_analisis_faltas_retardos_base.sql` ya solo lo usa ese sync.
   La caché es **solo lectura de TRESS**: el sync nunca escribe en DATOS_ANALISIS. Lo que
-  RH registra aparece en la tabla hasta la siguiente corrida semanal —no antes; no es un
-  bug—. Los eventos que RH capturó y que también llegaron a TRESS se siguen viendo con
-  origen "Manual" y con el nombre de quien los registró; lo único que cambia es la fecha
-  de registro, que pasa a ser la de captura en nómina. Caché vacía ⇒ la página muestra 0
-  resultados, no 503.
+  RH registra **no aparece** en la tabla hasta la siguiente corrida semanal — es
+  intencional, no un bug. Los eventos que RH capturó y que también llegaron a TRESS se
+  siguen viendo con origen "Manual" y con el nombre de quien los registró; lo único que
+  cambia es la fecha de registro, que pasa a ser la de captura en nómina. Caché vacía ⇒
+  la página muestra 0 resultados, no 503.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 
 ### Frontend (frontend/src/)
