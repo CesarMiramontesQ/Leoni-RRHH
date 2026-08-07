@@ -17,10 +17,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 _SQL_FILE = (
     Path(__file__).resolve().parent / "sql" / "datos_analisis_ausencias_por_tipo.sql"
 )
+_SQL_GOCE_FILE = (
+    Path(__file__).resolve().parent / "sql" / "datos_analisis_permisos_goce_dias.sql"
+)
 
 
 def load_ausencias_por_tipo_sql() -> str:
     return _SQL_FILE.read_text(encoding="utf-8")
+
+
+def load_permisos_goce_dias_sql() -> str:
+    return _SQL_GOCE_FILE.read_text(encoding="utf-8")
 
 
 def load_ausencias_fi_sql() -> str:
@@ -44,6 +51,7 @@ class DatosAnalisisAusenciasRepository:
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
         self._sql = load_ausencias_por_tipo_sql()
+        self._sql_goce = load_permisos_goce_dias_sql()
 
     async def list_ausencias(
         self,
@@ -84,6 +92,42 @@ class DatosAnalisisAusenciasRepository:
                     "tipo_inc": str(row.get("tipo_inc") or tipo).strip().upper() or tipo,
                     "inc_id": inc_id,
                     "fecha_incidencia": fecha,
+                    "ausencia_llave": row.get("ausencia_llave"),
+                }
+            )
+        return out
+
+    async def list_permisos_goce_dias(
+        self,
+        *,
+        fecha_inicio: date,
+        fecha_fin: date,
+    ) -> list[dict[str, Any]]:
+        """Permisos con goce (FJG) expandidos a un día por fila.
+
+        No es un `AU_TIPO`: vive en `dbo.PERMISO`. Devuelve el mismo shape que
+        `list_ausencias` para que el sync los trate igual.
+        """
+        async with self._engine.connect() as conn:
+            result = await conn.execute(
+                text(self._sql_goce),
+                {"fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin},
+            )
+            rows = result.mappings().all()
+
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            no_empleado = row.get("no_empleado")
+            try:
+                no_empleado_int = int(no_empleado) if no_empleado is not None else None
+            except (TypeError, ValueError):
+                no_empleado_int = None
+            out.append(
+                {
+                    "no_empleado": no_empleado_int,
+                    "tipo_inc": "FJG",
+                    "inc_id": None,
+                    "fecha_incidencia": _as_date(row.get("fecha_incidencia")),
                     "ausencia_llave": row.get("ausencia_llave"),
                 }
             )

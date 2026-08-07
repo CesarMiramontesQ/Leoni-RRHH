@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 
 TipoAusenciaSync = Literal["FI", "RE"]
 
-# Todos los tipos de `ponderaciones` (area_id=1) que viven en dbo.AUSENCIA. Falta `FJG`
-# (Permiso con Goce), que no es un AU_TIPO: sale de dbo.PERMISO y necesita otra consulta.
+# Todos los tipos de `ponderaciones` (area_id=1). Los ocho primeros son AU_TIPO de
+# dbo.AUSENCIA; `FJG` (Permiso con Goce) sale de dbo.PERMISO y se expande a dias.
 _TIPOS_MIRROR: tuple[str, ...] = (
     "FI",
     "FJ",
@@ -41,7 +41,11 @@ _TIPOS_MIRROR: tuple[str, ...] = (
     "IAC",
     "SUS",
     "VAC",
+    "FJG",
 )
+
+# No es un AU_TIPO: se lee de dbo.PERMISO (PM_TIPO 'FJ', PM_CLASIFI 0).
+_TIPO_PERMISO_GOCE = "FJG"
 
 # El borrado de huérfanos sigue acotado a FI/RE, los únicos que nadie captura a mano.
 # Extenderlo a SUS o INC haría que el mirror borrara lo que RH registró desde el modal y
@@ -205,15 +209,26 @@ class SyncAusenciasService:
             fuente: dict[tuple[int, date, str], dict[str, Any]] = {}
             for tipo in tipos:
                 tipo_codigo, inc_id = _ponderacion_para(tipo, ponderaciones)
+                origen_tabla = (
+                    "dbo.PERMISO"
+                    if tipo_codigo == _TIPO_PERMISO_GOCE
+                    else "dbo.AUSENCIA"
+                )
                 try:
-                    filas = await da_repo.list_ausencias(
-                        fecha_inicio=fecha_inicio,
-                        fecha_fin=fecha_fin,
-                        tipo_inc=tipo_codigo,
-                    )
+                    if tipo_codigo == _TIPO_PERMISO_GOCE:
+                        filas = await da_repo.list_permisos_goce_dias(
+                            fecha_inicio=fecha_inicio,
+                            fecha_fin=fecha_fin,
+                        )
+                    else:
+                        filas = await da_repo.list_ausencias(
+                            fecha_inicio=fecha_inicio,
+                            fecha_fin=fecha_fin,
+                            tipo_inc=tipo_codigo,
+                        )
                 except Exception as exc:
                     raise ServiceUnavailableError(
-                        f"Error leyendo dbo.AUSENCIA ({tipo_codigo}): "
+                        f"Error leyendo {origen_tabla} ({tipo_codigo}): "
                         f"{type(exc).__name__}: {exc}"
                     ) from exc
                 stats.leidos += len(filas)
