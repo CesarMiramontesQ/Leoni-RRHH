@@ -26,6 +26,11 @@ FALTA_RETARDO_TIPOS_GOCE = frozenset(
     {"matrimonio", "incapacidad_interna", "defuncion", "paternidad"}
 )
 
+# TRESS los calcula solo a partir de checadas: nadie los captura a mano. Llegan a
+# importadas_historico por el mirror semanal de dbo.AUSENCIA, nunca por el alta de RH.
+# El modal tampoco los ofrece (frontend/src/faltasRetardos/rh/constants.ts).
+FALTA_RETARDO_TIPOS_CALCULADOS_TRESS = frozenset({"falta_injustificada", "retardo"})
+
 FALTA_RETARDO_TIPOS_RANGO = frozenset(
     {
         "incapacidad",

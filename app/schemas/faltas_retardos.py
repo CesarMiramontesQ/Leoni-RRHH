@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.faltas_retardos import (
     FALTA_RETARDO_TIPOS,
+    FALTA_RETARDO_TIPOS_CALCULADOS_TRESS,
     FALTA_RETARDO_TIPOS_GOCE,
     FALTA_RETARDO_TIPOS_RANGO,
 )
@@ -36,6 +37,11 @@ class FaltaRetardoCreateRequest(BaseModel):
     def validate_tipo(cls, value: str) -> str:
         if value not in FALTA_RETARDO_TIPOS:
             raise ValueError(f"Tipo inválido. Valores permitidos: {', '.join(FALTA_RETARDO_TIPOS)}")
+        if value in FALTA_RETARDO_TIPOS_CALCULADOS_TRESS:
+            raise ValueError(
+                f"Tipo {value!r} no se registra a mano: TRESS lo calcula desde las "
+                "checadas y llega por el sync de faltas y retardos."
+            )
         return value
 
     @model_validator(mode="after")

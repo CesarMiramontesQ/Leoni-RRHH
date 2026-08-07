@@ -136,36 +136,34 @@ async def test_estadisticas_faltas_retardos(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-async def test_create_falta_retardo_retardo(client: AsyncClient, db):
+@pytest.mark.parametrize("tipo", ["retardo", "falta_injustificada"])
+async def test_create_rechaza_tipos_que_calcula_tress(client: AsyncClient, db, tipo):
+    """FI y RE los calcula TRESS: no se capturan a mano ni por API.
+
+    El modal nunca los ofreció; esto cierra la superficie del endpoint.
+    """
     rh = await make_empleado(db, rol="rh", nombre="RH Creador")
     empleado = await make_empleado(db, rol="empleado", nombre="Empleado Afectado")
     headers = await auth_headers(client, rh)
 
     with _mock_bono_importadas_repo(
-        origen_id=9001,
-        tipo_codigo="RE",
         empleado_id=empleado.empleado_id,
         no_empleado=str(empleado.no_empleado),
-    ):
+    ) as repo:
         res = await client.post(
             "/api/v1/faltas-retardos",
             headers=headers,
             json={
                 "empleado_id": empleado.empleado_id,
-                "tipo": "retardo",
+                "tipo": tipo,
                 "fecha_evento": "2026-06-20",
                 "observaciones": "Llegó 15 min tarde",
             },
         )
-    assert res.status_code == 201, res.text
-    data = res.json()
-    assert data["empleado_id"] == empleado.empleado_id
-    assert data["tipo"] == "retardo"
-    assert data["fecha_evento"] == "2026-06-20"
-    assert data["registrado_por_id"] == rh.empleado_id
-    assert data["origen"] == "manual"
-    assert data["origen_id"] == 9001
-    assert data["observaciones"] == "Llegó 15 min tarde"
+
+    assert res.status_code == 422, res.text
+    # Nada llegó a importadas_historico.
+    repo.insert_evento.assert_not_awaited()
 
 
 @pytest.mark.asyncio
