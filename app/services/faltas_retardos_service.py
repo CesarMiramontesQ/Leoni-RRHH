@@ -7,7 +7,6 @@ from app.core.config import settings
 from app.core.data_scope import effective_data_scope_for_module
 from app.core.exceptions import DomainValidationError, ForbiddenError, NotFoundError, ServiceUnavailableError
 from app.integrations.bono_productividad_db import BonoProductividadReadClient
-from app.integrations.datos_analisis_db import DatosAnalisisReadClient
 from app.models.empleados import Empleado
 from app.models.faltas_retardos import (
     FALTA_RETARDO_TIPOS,
@@ -436,7 +435,7 @@ class FaltasRetardosService:
             else []
         )
 
-        empleados_top = await self._hidratar_empleados_top(top, [])
+        empleados_top = await self._hidratar_empleados_top(top)
         return self._build_estadisticas_response(
             por_tipo,
             por_mes,
@@ -447,19 +446,12 @@ class FaltasRetardosService:
 
     async def _hidratar_empleados_top(
         self,
-        top_tress: list[tuple[int, int, dict[str, int]]],
-        extras: list[FaltaRetardoResponse],
+        top_cache: list[tuple[int, int, dict[str, int]]],
     ) -> list[tuple[int, str | None, str | None, int, dict[str, int]]]:
-        """Convierte (no_empleado, total, por_tipo) de TRESS en el shape del schema."""
+        """Convierte (no_empleado, total, por_tipo) de la caché en el shape del schema."""
         acumulado: dict[int, dict[str, int]] = {
-            no_empleado: dict(por_tipo) for no_empleado, _total, por_tipo in top_tress
+            no_empleado: dict(por_tipo) for no_empleado, _total, por_tipo in top_cache
         }
-        for item in extras:
-            if not item.numero_empleado or not item.numero_empleado.isdigit():
-                continue
-            destino = acumulado.setdefault(int(item.numero_empleado), {})
-            destino[item.tipo] = destino.get(item.tipo, 0) + 1
-
         empleados = await self.empleado_repo.map_por_no_empleados(list(acumulado.keys()))
         salida: list[tuple[int, str | None, str | None, int, dict[str, int]]] = []
         for no_empleado, por_tipo in acumulado.items():
@@ -693,9 +685,10 @@ class FaltasRetardosService:
                 ),
             )
             # La suspensión sí llega a TRESS, pero allá no queda constancia de
-            # quién la capturó desde la app. La copia local permite recuperar
-            # usuario, motivo y fecha real de registro al listar desde TRESS. No
-            # duplica renglones: `_list_levelup_items` solo lee tipos con goce.
+            # quién la capturó desde la app. Esta copia local es lo que el sync
+            # semanal empata por (empleado, fecha, tipo) con la fila de TRESS
+            # para estamparle usuario y motivo. No duplica renglones: el sync
+            # solo inserta filas `manual` para los tipos con goce.
             if data.tipo == "suspension":
                 await self.audit_repo.create_evento(
                     empleado_id=empleado.empleado_id,

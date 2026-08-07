@@ -401,7 +401,7 @@ async def test_list_incluye_goce_levelup_sin_tress(client: AsyncClient, db, monk
     # incapacidad_interna no existe en TRESS: el listado no debe consultarlo.
     create_engine = MagicMock()
     with patch(
-        "app.services.faltas_retardos_service.DatosAnalisisReadClient.create_read_engine",
+        "app.integrations.datos_analisis_db.DatosAnalisisReadClient.create_read_engine",
         create_engine,
     ):
         res = await client.get(
@@ -429,7 +429,7 @@ async def test_list_incluye_goce_levelup_sin_tress(client: AsyncClient, db, monk
     )
 
     with patch(
-        "app.services.faltas_retardos_service.DatosAnalisisReadClient.create_read_engine",
+        "app.integrations.datos_analisis_db.DatosAnalisisReadClient.create_read_engine",
         create_engine,
     ):
         res = await client.get(

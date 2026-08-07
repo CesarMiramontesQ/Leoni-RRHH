@@ -25,13 +25,17 @@ _ERROR_ODBC = OperationalError(
 
 
 def _sabotear_datos_analisis(monkeypatch):
-    """Si algo intentara abrir datos-analisis, debe explotar con el error de ODBC."""
+    """Si algo intentara abrir datos-analisis, debe explotar con el error de ODBC.
+
+    Parcheado sobre la clase en su módulo de origen: el servicio ya no la importa, y el
+    parche al atributo de clase sigue alcanzando a cualquier módulo que la use.
+    """
 
     def _boom():
         raise _ERROR_ODBC
 
     monkeypatch.setattr(
-        "app.services.faltas_retardos_service.DatosAnalisisReadClient.create_read_engine",
+        "app.integrations.datos_analisis_db.DatosAnalisisReadClient.create_read_engine",
         _boom,
     )
 

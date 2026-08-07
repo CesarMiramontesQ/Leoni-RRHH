@@ -198,8 +198,9 @@ class IncidenciasTressCacheRepository:
     ) -> list[tuple[str, str, int]]:
         """Agrupa por día y tipo en SQL, y arma el periodo en Python.
 
-        `date_trunc` no existe en SQLite (los tests) y `strftime` no existe en
-        PostgreSQL: agrupar el día en la BD y el periodo aquí es lo único portable.
+        PostgreSQL sí tiene `date_trunc` y `to_char`, pero SQLite —donde corren los
+        tests— no: agrupar por día en la BD y armar el periodo aquí es lo único que
+        funciona igual en ambas. El agrupado por día ya reduce el volumen que viaja.
         """
         stmt = (
             select(

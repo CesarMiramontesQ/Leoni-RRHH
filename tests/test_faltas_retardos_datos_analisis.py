@@ -16,13 +16,17 @@ from tests.conftest import auth_headers, make_empleado, make_incidencia_tress
 
 
 def _sabotear_datos_analisis(monkeypatch):
-    """Cualquier intento de abrir datos-analisis revienta el test."""
+    """Cualquier intento de abrir datos-analisis revienta el test.
+
+    Se parchea la clase en su módulo de origen: el servicio ya no la importa, y como el
+    parche es sobre el propio atributo de clase, alcanza a cualquier módulo que la use.
+    """
 
     def _boom():
         raise AssertionError("la página no debe consultar datos-analisis")
 
     monkeypatch.setattr(
-        "app.services.faltas_retardos_service.DatosAnalisisReadClient.create_read_engine",
+        "app.integrations.datos_analisis_db.DatosAnalisisReadClient.create_read_engine",
         _boom,
     )
 
