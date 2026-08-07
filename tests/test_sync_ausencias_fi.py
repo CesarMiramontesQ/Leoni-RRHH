@@ -117,6 +117,7 @@ async def test_sync_inserta_fi(db):
     assert kwargs["no_empleado"] == 100
     assert kwargs["area_empleado"] == emp.area_id
     assert kwargs["subarea_empleado"] == emp.subarea_id
+    assert kwargs["estado"] == 1
     da_repo.list_ausencias.assert_awaited_once()
     assert da_repo.list_ausencias.await_args.kwargs["tipo_inc"] == "FI"
 

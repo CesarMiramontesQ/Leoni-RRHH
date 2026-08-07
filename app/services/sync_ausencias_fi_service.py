@@ -33,6 +33,9 @@ _TIPO_API_POR_CODIGO: dict[str, str] = {
 
 _TIPOS_MIRROR: tuple[str, ...] = ("FI", "RE")
 
+# Valor de importadas_historico.estado para los eventos que inserta el mirror.
+ESTADO_SINCRONIZADO = 1
+
 
 @dataclass
 class SyncAusenciasStats:
@@ -300,6 +303,7 @@ class SyncAusenciasService:
                         area_empleado=item["area_empleado"],
                         subarea_empleado=item["subarea_empleado"],
                         fecha_incidencia=item["fecha_incidencia"],
+                        estado=ESTADO_SINCRONIZADO,
                         conn=conn,
                     )
                     stats.insertados += 1
