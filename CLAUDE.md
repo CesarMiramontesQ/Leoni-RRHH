@@ -29,10 +29,24 @@ docker-compose logs -f backend    # ver logs del backend
 - API docs: http://localhost:8000/docs
 
 ### Tests
+Con el stack ya levantado, correr sobre el contenedor `backend` en vez de crear uno
+nuevo. El target `test` del Dockerfile es el mismo `base` que usa `development` y solo
+cambia el `CMD`, así que `backend` ya trae pytest; la suite usa SQLite en memoria y no
+toca ninguna BD.
+```bash
+docker-compose exec -T -e APP_ENV=test backend pytest tests/test_auth.py -q   # un archivo
+docker-compose exec -T -e APP_ENV=test backend pytest -k "test_login" -q      # un test
+docker-compose exec -T -e APP_ENV=test backend pytest -q                      # toda la suite (~7 min)
+```
+Sin nada levantado (o en CI), el servicio `test` hace lo mismo creando un contenedor
+efímero — cuesta ~1 s extra por invocación:
 ```bash
 docker-compose run --rm test                          # correr toda la suite
 docker-compose run --rm test pytest tests/test_auth.py -k "test_login"  # un solo test
 ```
+> Iterar con los archivos afectados (segundos) y dejar la suite completa para una sola
+> pasada antes del commit: son ~7 min y correrla de más es lo que alarga las sesiones,
+> no el contenedor.
 
 ### Database / Migraciones
 ```bash
