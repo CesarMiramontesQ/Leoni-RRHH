@@ -39,9 +39,28 @@ alembic_current_revision() {
 }
 
 # Falla con mensaje claro si la imagen no incluye una revisión Alembic.
+#
+# Distingue los dos fallos, que antes se reportaban igual: que `alembic history` no
+# arranque (contenedor nuevo por invocación: cualquier tropiezo lo tumba) NO es lo mismo
+# que la imagen no traiga la revisión. Silenciar stderr hacía que un contenedor caído se
+# leyera como "falta la migración" y mandaba a reconstruir una imagen que estaba bien.
 require_alembic_revision() {
   local rev="$1"
-  if ! alembic_run history 2>/dev/null | grep -q "$rev"; then
+  # `rc`, no `status`: esta lib se hace `source` y en zsh `status` es de solo lectura.
+  local salida rc=0
+  salida="$(alembic_run history 2>&1)" || rc=$?
+
+  if [[ $rc -ne 0 ]]; then
+    echo "ERROR: no se pudo ejecutar 'alembic history' (status ${rc})." >&2
+    echo "  Esto NO significa que falte la migración: el comando ni siquiera corrió." >&2
+    echo "  Salida:" >&2
+    echo "$salida" | sed 's/^/    /' >&2
+    echo "  Revisa contenedores huérfanos (este helper corre sin --rm):" >&2
+    echo "    docker ps -a | grep backend   →   docker container prune" >&2
+    exit 1
+  fi
+
+  if ! grep -q "$rev" <<<"$salida"; then
     echo "ERROR: Alembic no encuentra la revisión '${rev}' en la imagen Docker." >&2
     echo "  Host:  ls alembic/versions/*${rev}*" >&2
     echo "  Build: docker compose -f $COMPOSE_FILE --env-file $ENV_FILE build backend --no-cache" >&2
