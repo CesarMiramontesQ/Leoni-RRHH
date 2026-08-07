@@ -70,7 +70,8 @@ docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados --no-e
 
 # Incidencias de TRESS: DATOS_ANALISIS → levelup_incidencias_tress (Bono).
 # Mismo servicio que el job semanal de los miércoles 10:00; necesario para la carga inicial.
-# Sin --desde/--hasta importa todo el histórico excluyendo la semana en curso.
+# Sin --desde/--hasta va en dos pasadas: el histórico (excluye la semana en curso) y
+# después la ventana viva, que llega un año al futuro. En prod, hacerlo por tramos anuales.
 docker-compose exec backend python -m app.scripts.sync_incidencias_tress            # dry-run
 docker-compose exec backend python -m app.scripts.sync_incidencias_tress --execute
 docker-compose exec backend python -m app.scripts.sync_incidencias_tress --desde 2026-01-01 --hasta 2026-06-30 --execute
@@ -130,7 +131,11 @@ Layered architecture: **router → service → repository → models/schemas**
   intencional, no un bug. Los eventos que RH capturó y que también llegaron a TRESS se
   siguen viendo con origen "Manual" y con el nombre de quien los registró; lo único que
   cambia es la fecha de registro, que pasa a ser la de captura en nómina. Caché vacía ⇒
-  la página muestra 0 resultados, no 503.
+  la página muestra 0 resultados, no 503. El rango del sync **llega un año al futuro**
+  (`hasta_efectivo`): los permisos con goce se capturan por adelantado y deben entrar a la
+  caché antes de su fecha de inicio. La reconciliación de bajas **no borra** si TRESS
+  devolvió 0 filas o si desaparecería más de la mitad del rango: cuenta el hecho como
+  error y lo registra con `borrado omitido`.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 
 ### Frontend (frontend/src/)
