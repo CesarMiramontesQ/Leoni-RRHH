@@ -10,6 +10,20 @@ from app.repositories.bono_importadas_historico_repository import SemanaAnterior
 from app.services.sync_ausencias_fi_service import SyncAusenciasFiService, SyncAusenciasService
 from tests.conftest import make_empleado
 
+# Catálogo `ponderaciones` de Bono (area_id=1): código → inc_id.
+_PONDERACIONES = {
+    "FI": 6,
+    "FJ": 7,
+    "RE": 8,
+    "INC": 9,
+    "IN1": 10,
+    "ITR": 11,
+    "IAC": 12,
+    "SUS": 13,
+    "VAC": 14,
+    "FJG": 15,
+}
+
 
 def _fila(
     *,
@@ -87,6 +101,7 @@ async def test_sync_inserta_fi(db):
 
     insert_mock = AsyncMock(return_value=501)
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(return_value=[]),
         resolve_semana_id=AsyncMock(return_value=77),
         insert_evento=insert_mock,
@@ -113,8 +128,9 @@ async def test_sync_inserta_fi(db):
     kwargs = insert_mock.await_args.kwargs
     assert kwargs["tipo_inc"] == "FI"
     assert kwargs["inc_id"] == 6
-    # `id_semana` no viaja: la calcula un trigger de Bono.
-    assert "id_semana" not in kwargs
+    assert kwargs["id_semana"] == 77
+    # Las dos columnas de semana llevan el mismo valor.
+    assert kwargs["id_semana"] == kwargs["semana_incidencia"]
     assert kwargs["no_empleado"] == 100
     assert kwargs["area_empleado"] == emp.area_id
     assert kwargs["subarea_empleado"] == emp.subarea_id
@@ -131,6 +147,7 @@ async def test_sync_inserta_re_con_inc_id_8(db):
 
     insert_mock = AsyncMock(return_value=601)
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(return_value=[]),
         resolve_semana_id=AsyncMock(return_value=77),
         insert_evento=insert_mock,
@@ -167,6 +184,7 @@ async def test_sync_omite_sin_cambio_cuando_igual(db):
 
     insert_mock = AsyncMock()
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(
             return_value=[
                 _bono_row(
@@ -204,6 +222,7 @@ async def test_sync_actualiza_cuando_cambia(db):
 
     update_mock = AsyncMock()
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(
             return_value=[
                 _bono_row(
@@ -235,7 +254,7 @@ async def test_sync_actualiza_cuando_cambia(db):
     kwargs = update_mock.await_args.kwargs
     assert kwargs["area_empleado"] == emp.area_id
     assert kwargs["subarea_empleado"] == emp.subarea_id
-    # El UPDATE tampoco toca `id_semana`: es del trigger.
+    # El UPDATE no toca `id_semana`: solo el alta la fija.
     assert "id_semana" not in kwargs
 
 
@@ -245,6 +264,7 @@ async def test_sync_elimina_huerfanos(db):
 
     delete_mock = AsyncMock()
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(
             return_value=[_bono_row(evento_id=42, no_empleado=100)]
         ),
@@ -275,6 +295,7 @@ async def test_sync_no_toca_otros_tipos_en_listado(db):
     await make_empleado(db, rol="empleado", nombre="Emp Tipo", no_empleado=100)
 
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(return_value=[]),
         resolve_semana_id=AsyncMock(return_value=77),
         insert_evento=AsyncMock(return_value=1),
@@ -299,6 +320,7 @@ async def test_sync_no_toca_otros_tipos_en_listado(db):
 async def test_sync_omite_sin_empleado(db):
     insert_mock = AsyncMock()
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(return_value=[]),
         resolve_semana_id=AsyncMock(return_value=77),
         insert_evento=insert_mock,
@@ -329,6 +351,7 @@ async def test_sync_omite_sin_semana(db):
 
     insert_mock = AsyncMock()
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(return_value=[]),
         resolve_semana_id=AsyncMock(return_value=None),
         insert_evento=insert_mock,
@@ -357,6 +380,7 @@ async def test_sync_dry_run_no_inserta(db):
 
     insert_mock = AsyncMock()
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(return_value=[]),
         resolve_semana_id=AsyncMock(return_value=77),
         insert_evento=insert_mock,
@@ -395,6 +419,7 @@ async def test_sync_semana_anterior_resuelve_rango(db):
 
     insert_mock = AsyncMock(return_value=1)
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         resolve_rango_semana_anterior=AsyncMock(return_value=rango),
         list_eventos_en_rango=AsyncMock(return_value=[]),
         resolve_semana_id=AsyncMock(return_value=20),
@@ -436,9 +461,16 @@ async def test_sync_semana_anterior_resuelve_rango(db):
     assert stats.fecha_inicio == date(2026, 5, 11)
     assert stats.fecha_fin == date(2026, 5, 17)
     assert stats.id_semana == 20
-    assert stats.insertados == 2  # FI + RE
+    # Una fila por cada tipo de `ponderaciones` que vive en dbo.AUSENCIA.
+    assert stats.insertados == 9
     bono_repo.resolve_rango_semana_anterior.assert_awaited_once_with(date(2026, 5, 20))
-    assert insert_mock.await_count == 2
+    assert insert_mock.await_count == 9
+    tipos_consultados = {
+        c.kwargs["tipo_inc"] for c in da_repo.list_ausencias.await_args_list
+    }
+    assert tipos_consultados == {
+        "FI", "FJ", "RE", "INC", "IN1", "ITR", "IAC", "SUS", "VAC",
+    }
 
 
 @pytest.mark.asyncio
@@ -446,6 +478,7 @@ async def test_sync_semana_anterior_sin_catalogo(db):
     bono_engine = MagicMock()
     bono_engine.dispose = AsyncMock()
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         resolve_rango_semana_anterior=AsyncMock(return_value=None),
     )
     with patch(
@@ -477,6 +510,7 @@ async def test_sync_rollback_si_falla_insert(db):
 
     insert_mock = AsyncMock(side_effect=RuntimeError("boom"))
     bono_repo = AsyncMock(
+        map_ponderaciones_por_codigo=AsyncMock(return_value=_PONDERACIONES),
         list_eventos_en_rango=AsyncMock(return_value=[]),
         resolve_semana_id=AsyncMock(return_value=77),
         insert_evento=insert_mock,

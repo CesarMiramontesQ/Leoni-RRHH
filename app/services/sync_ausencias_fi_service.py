@@ -1,4 +1,8 @@
-"""Sincroniza ausencias (FI / RE) desde datos-analisis → importadas_historico."""
+"""Sincroniza ausencias desde datos-analisis → importadas_historico.
+
+Cubre los tipos de `ponderaciones` que viven en dbo.AUSENCIA: faltas, retardos,
+incapacidades, suspensiones y vacaciones.
+"""
 
 from __future__ import annotations
 
@@ -20,18 +24,29 @@ from app.repositories.bono_importadas_historico_repository import (
 )
 from app.repositories.datos_analisis_ausencias_repository import DatosAnalisisAusenciasRepository
 from app.repositories.empleado_repository import EmpleadoRepository
-from app.services.faltas_retardos.constants import TIPO_A_PONDERACION
 
 logger = logging.getLogger(__name__)
 
 TipoAusenciaSync = Literal["FI", "RE"]
 
-_TIPO_API_POR_CODIGO: dict[str, str] = {
-    "FI": "falta_injustificada",
-    "RE": "retardo",
-}
+# Todos los tipos de `ponderaciones` (area_id=1) que viven en dbo.AUSENCIA. Falta `FJG`
+# (Permiso con Goce), que no es un AU_TIPO: sale de dbo.PERMISO y necesita otra consulta.
+_TIPOS_MIRROR: tuple[str, ...] = (
+    "FI",
+    "FJ",
+    "RE",
+    "INC",
+    "IN1",
+    "ITR",
+    "IAC",
+    "SUS",
+    "VAC",
+)
 
-_TIPOS_MIRROR: tuple[str, ...] = ("FI", "RE")
+# El borrado de huérfanos sigue acotado a FI/RE, los únicos que nadie captura a mano.
+# Extenderlo a SUS o INC haría que el mirror borrara lo que RH registró desde el modal y
+# que nómina todavía no tiene en dbo.AUSENCIA.
+_TIPOS_CON_BORRADO: frozenset[str] = frozenset({"FI", "RE"})
 
 # Valor de importadas_historico.estado para los eventos que inserta el mirror.
 ESTADO_SINCRONIZADO = 1
@@ -65,13 +80,16 @@ class SyncAusenciasStats:
 SyncAusenciasFiStats = SyncAusenciasStats
 
 
-def _ponderacion_para(tipo_inc: str) -> tuple[str, int]:
+def _ponderacion_para(tipo_inc: str, ponderaciones: dict[str, int]) -> tuple[str, int]:
+    """Código normalizado e `inc_id`, tomando el id del catálogo `ponderaciones`."""
     codigo = str(tipo_inc).strip().upper()
-    api = _TIPO_API_POR_CODIGO.get(codigo)
-    if api is None:
-        raise ValueError(f"tipo_inc no soportado para sync: {tipo_inc!r}")
-    tipo_codigo, inc_id = TIPO_A_PONDERACION[api]
-    return tipo_codigo, int(inc_id)
+    inc_id = ponderaciones.get(codigo)
+    if inc_id is None:
+        raise ValueError(
+            f"tipo_inc sin ponderacion en Bono: {tipo_inc!r}. "
+            f"Conocidos: {', '.join(sorted(ponderaciones))}"
+        )
+    return codigo, int(inc_id)
 
 
 def _hoy_app() -> date:
@@ -115,7 +133,7 @@ class SyncAusenciasService:
         execute: bool = True,
         hoy: date | None = None,
     ) -> SyncAusenciasStats:
-        """Mirror FI+RE de la semana anterior a ``hoy`` (APP_TIMEZONE por defecto)."""
+        """Mirror de la semana anterior a ``hoy`` (APP_TIMEZONE por defecto)."""
         dia = hoy or _hoy_app()
         bono_engine = BonoProductividadReadClient.create_read_engine()
         if bono_engine is None:
@@ -153,12 +171,12 @@ class SyncAusenciasService:
         bono_repo: BonoImportadasHistoricoRepository | None = None,
     ) -> SyncAusenciasStats:
         """
-        Deja importadas_historico igual a dbo.AUSENCIA para FI/RE en el rango.
+        Deja importadas_historico igual a dbo.AUSENCIA para `tipos` en el rango.
 
         Inserta, actualiza y elimina en una sola transacción Bono.
         """
         stats = SyncAusenciasStats(
-            tipo_inc="FI+RE",
+            tipo_inc="+".join(tipos),
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
             id_semana=id_semana,
@@ -183,9 +201,10 @@ class SyncAusenciasService:
 
         try:
             da_repo = DatosAnalisisAusenciasRepository(da_engine)
+            ponderaciones = await bono_repo.map_ponderaciones_por_codigo()
             fuente: dict[tuple[int, date, str], dict[str, Any]] = {}
             for tipo in tipos:
-                tipo_codigo, inc_id = _ponderacion_para(tipo)
+                tipo_codigo, inc_id = _ponderacion_para(tipo, ponderaciones)
                 try:
                     filas = await da_repo.list_ausencias(
                         fecha_inicio=fecha_inicio,
@@ -260,7 +279,8 @@ class SyncAusenciasService:
                     to_insert.append(
                         {
                             **src,
-                            # `id_semana` no se manda: la calcula un trigger de Bono.
+                            # Las dos columnas llevan el mismo valor.
+                            "id_semana": semana,
                             "semana_incidencia": semana,
                             "area_empleado": empleado.area_id,
                             "subarea_empleado": empleado.subarea_id,
@@ -301,7 +321,10 @@ class SyncAusenciasService:
                     stats.omitidos_duplicado += 1
 
             for clave, row in dest.items():
-                if clave not in fuente:
+                if clave in fuente:
+                    continue
+                # `clave` es (no_empleado, fecha, tipo_inc).
+                if clave[2] in _TIPOS_CON_BORRADO:
                     to_delete.append(row)
 
             if not execute:
@@ -316,13 +339,14 @@ class SyncAusenciasService:
                         no_empleado=item["no_empleado"],
                         tipo_inc=item["tipo_inc"],
                         inc_id=item["inc_id"],
+                        id_semana=item["id_semana"],
                         area_empleado=item["area_empleado"],
                         subarea_empleado=item["subarea_empleado"],
                         fecha_incidencia=item["fecha_incidencia"],
                         estado=ESTADO_SINCRONIZADO,
                         semana_incidencia=item["semana_incidencia"],
                         conn=conn,
-                    )  # sin id_semana: la pone el trigger de Bono
+                    )
                     stats.insertados += 1
                 for existing, patch in to_update:
                     await bono_repo.update_evento(
@@ -380,7 +404,7 @@ class SyncAusenciasService:
         execute: bool = False,
     ) -> SyncAusenciasStats:
         """Compat CLI/tests: mirror de un solo tipo en el rango dado."""
-        tipo_codigo, _ = _ponderacion_para(tipo_inc)
+        tipo_codigo = str(tipo_inc).strip().upper()
         stats = await self.sincronizar_mirror(
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,

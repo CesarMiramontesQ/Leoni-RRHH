@@ -27,6 +27,22 @@ class BonoImportadasHistoricoRepository:
         self._engine = engine
         self._fetch_sql = _FETCH_SQL_FILE.read_text(encoding="utf-8")
 
+    async def map_ponderaciones_por_codigo(self) -> dict[str, int]:
+        """`codigo` → `id` de ponderaciones (el inc_id de importadas_historico).
+
+        Se lee de la tabla en vez de hardcodear los ids: son catálogo de Bono.
+        """
+        sql = """
+            SELECT codigo, id
+            FROM ponderaciones
+            WHERE codigo IS NOT NULL
+        """
+        async with self._engine.connect() as conn:
+            result = await conn.execute(text(sql))
+            return {
+                str(row[0]).strip().upper(): int(row[1]) for row in result.fetchall()
+            }
+
     async def resolve_semana_id(self, fecha: date) -> int | None:
         sql = """
             SELECT id
