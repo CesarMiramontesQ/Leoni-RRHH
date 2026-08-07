@@ -113,14 +113,14 @@ async def test_sync_inserta_fi(db):
     kwargs = insert_mock.await_args.kwargs
     assert kwargs["tipo_inc"] == "FI"
     assert kwargs["inc_id"] == 6
-    assert kwargs["id_semana"] == 77
+    # `id_semana` no viaja: la calcula un trigger de Bono.
+    assert "id_semana" not in kwargs
     assert kwargs["no_empleado"] == 100
     assert kwargs["area_empleado"] == emp.area_id
     assert kwargs["subarea_empleado"] == emp.subarea_id
     assert kwargs["estado"] == 1
-    # Las dos columnas de semana llevan el mismo valor: el de la fecha del evento.
+    # La semana del evento, resuelta por su fecha.
     assert kwargs["semana_incidencia"] == 77
-    assert kwargs["id_semana"] == kwargs["semana_incidencia"]
     da_repo.list_ausencias.assert_awaited_once()
     assert da_repo.list_ausencias.await_args.kwargs["tipo_inc"] == "FI"
 
@@ -235,7 +235,8 @@ async def test_sync_actualiza_cuando_cambia(db):
     kwargs = update_mock.await_args.kwargs
     assert kwargs["area_empleado"] == emp.area_id
     assert kwargs["subarea_empleado"] == emp.subarea_id
-    assert kwargs["id_semana"] == 77
+    # El UPDATE tampoco toca `id_semana`: es del trigger.
+    assert "id_semana" not in kwargs
 
 
 @pytest.mark.asyncio
