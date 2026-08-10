@@ -223,7 +223,11 @@ async def test_modulo_comedor_ajustes_concede_acceso(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_otro_modulo_de_comedor_no_alcanza(client: AsyncClient, db):
-    """`comedor-ajustes` queda fuera del alias legacy `comedor`: se concede aparte."""
+    """Los otros módulos de la sección no dan acceso a los ajustes.
+
+    Tener Registro Comedor o Planeación no basta: la administración de comedores y el
+    horario de comida son un permiso aparte (`comedor-ajustes`).
+    """
     await make_turno(db, "01", "Matutino")
     operador = await make_empleado(
         db,
@@ -231,11 +235,33 @@ async def test_otro_modulo_de_comedor_no_alcanza(client: AsyncClient, db):
         email="emp_turnos_otromod@test.leoni",
         password="Emp0Turn!",
         inscrito_modulos_rh=True,
-        modulos_rh={"comedor-gestion": True, "comedor-planear": True},
+        modulos_rh={"comedor-registro": True, "comedor-planear": True},
     )
     hdrs = await auth_headers(client, operador, password="Emp0Turn!")
 
     assert (await client.get(LISTA_URL, headers=hdrs)).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_el_mismo_permiso_cubre_comedores_y_horarios(client: AsyncClient, db):
+    """La pantalla fusionó ambas pestañas, así que un solo módulo abre las dos APIs."""
+    operador = await make_empleado(
+        db,
+        rol="empleado",
+        email="emp_turnos_fusion@test.leoni",
+        password="Emp0Turn!",
+        inscrito_modulos_rh=True,
+        modulos_rh={"comedor-ajustes": True},
+    )
+    hdrs = await auth_headers(client, operador, password="Emp0Turn!")
+
+    assert (await client.get(LISTA_URL, headers=hdrs)).status_code == 200
+    res = await client.post(
+        "/api/v1/comedor/comedores",
+        headers=hdrs,
+        json={"nombre": "Comedor fusión", "ubicacion": None, "capacidad": 50, "activo": True},
+    )
+    assert res.status_code == 200, res.text
 
 
 # ───────────────────────────── vistas por rol ─────────────────────────────

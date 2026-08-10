@@ -405,7 +405,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorResponse:
-        if not user_has_module(current_user, "comedor-gestion"):
+        if not user_has_module(current_user, "comedor-ajustes"):
             raise ForbiddenError(detail="Solo RH puede registrar comedores")
 
         ubic = (data.ubicacion or "").strip() or None
@@ -436,7 +436,7 @@ class ComedorService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> ComedorResponse:
-        if not user_has_module(current_user, "comedor-gestion"):
+        if not user_has_module(current_user, "comedor-ajustes"):
             raise ForbiddenError(detail="Solo RH puede editar comedores")
 
         comedor = await self.comedor_repo.get(comedor_id)
@@ -1267,7 +1267,7 @@ class ComedorService:
         hasta: date | None = None,
         estatus: str | None = None,
     ) -> list[ComedorCodigoExternoItem]:
-        if not user_has_module(current_user, "comedor-gestion"):
+        if not user_has_module(current_user, "comedor-ajustes"):
             raise ForbiddenError(detail="Solo RH puede consultar códigos externos")
         if desde and hasta and hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
@@ -1622,7 +1622,7 @@ class ComedorService:
         self,
         current_user: Empleado,
     ) -> ComedorRhEmpleadosSinComedorList:
-        if not user_has_module(current_user, "comedor-gestion"):
+        if not user_has_module(current_user, "comedor-ajustes"):
             raise ForbiddenError(detail="Solo RH puede consultar empleados sin comedor asignado")
         empleados = await self.empleado_repo.list_activos_sin_comedor_asignado()
         items = [
@@ -1655,7 +1655,7 @@ class ComedorService:
         # así que basta con cualquiera de los dos permisos de comedor.
         if not (
             user_has_module(current_user, "comedor-registro")
-            or user_has_module(current_user, "comedor-gestion")
+            or user_has_module(current_user, "comedor-ajustes")
         ):
             raise ForbiddenError(detail="No tienes acceso a la sección de comedor.")
 
@@ -1688,7 +1688,7 @@ class ComedorService:
         current_user: Empleado,
         data: ComedorRhAsignarComedorTurnosRequest,
     ) -> ComedorRhAsignarComedorTurnosResponse:
-        if not user_has_module(current_user, "comedor-gestion"):
+        if not user_has_module(current_user, "comedor-ajustes"):
             raise ForbiddenError(detail="Solo RH puede asignar comedor en turnos")
         actualizados = 0
         vistos: set[int] = set()
@@ -1813,6 +1813,8 @@ class ComedorService:
             tu_codigo=(turno.tu_codigo or "").strip(),
             descripcion=(turno.tu_descrip or "").strip(),
             activo=(turno.tu_activo or "").strip().upper() == "S",
+            jornada_horas=float(turno.tu_jornada) if turno.tu_jornada is not None else None,
+            dias_semana=turno.tu_dias,
             hora_inicio_comida=horario.hora_inicio_comida if horario else None,
             hora_fin_comida=horario.hora_fin_comida if horario else None,
             actualizado_en=horario.updated_at if horario else None,

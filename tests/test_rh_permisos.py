@@ -559,7 +559,7 @@ async def test_catalog_includes_submenu_modules(client: AsyncClient, db):
     for expected in (
         "nominas-horas-extra",
         "comedor-registro",
-        "comedor-gestion",
+        "comedor-ajustes",
         "comedor-planear",
         "sesiones",
         "cursos-ajustes",
@@ -770,7 +770,7 @@ async def test_middleware_blocks_rh_without_module(client: AsyncClient, db):
         db,
         rol="rh",
         email="rh_blocked@test.com",
-        modulos_rh={"comedor-gestion": False, "solicitudes": True},
+        modulos_rh={"comedor-ajustes": False, "solicitudes": True},
     )
 
     res_comedor = await client.get(
@@ -828,7 +828,7 @@ async def test_legacy_comedor_key_grants_split_modules(db):
         modulos_rh={"comedor": True},
     )
     assert user_has_module(rh, "comedor-registro") is True
-    assert user_has_module(rh, "comedor-gestion") is True
+    assert user_has_module(rh, "comedor-ajustes") is True
     assert user_has_module(rh, "comedor-planear") is True
 
 

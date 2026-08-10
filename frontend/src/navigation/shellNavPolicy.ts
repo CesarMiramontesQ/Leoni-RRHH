@@ -151,7 +151,6 @@ export type AppShellNavItemId =
   | "viajes-laborales"
   | "comedor"
   | "comedor-menu"
-  | "comedor-gestion"
   | "comedor-planear"
   | "comedor-ajustes"
   | "empleados"
@@ -366,11 +365,7 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
   // canAccessComedorRhPage (módulo `comedor`). Visibles solo para RH con el módulo o
   // no-RH con grant explícito; ocultas para roles sin acceso y para RH en Modo
   // empleado/gestor.
-  if (
-    itemId === "comedor-gestion" ||
-    itemId === "comedor-planear" ||
-    itemId === "comedor-ajustes"
-  ) {
+  if (itemId === "comedor-planear" || itemId === "comedor-ajustes") {
     if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) return false;
     const moduleKey = navItemIdToModuleKey(itemId);
     if (hasExplicitModuleGrant(moduleKey)) return true;
@@ -511,7 +506,10 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
       return hasRhModule("reportes");
     }
     if (h.startsWith("#/comedor/gestion") || h.startsWith("#/comedor/codigos-externos")) {
-      return hasRhModule("comedor-gestion");
+      return hasRhModule("comedor-ajustes");
+    }
+    if (h.startsWith("#/comedor/ajustes")) {
+      return hasRhModule("comedor-ajustes");
     }
     if (h.startsWith("#/comedor/planear")) {
       return hasRhModule("comedor-planear");

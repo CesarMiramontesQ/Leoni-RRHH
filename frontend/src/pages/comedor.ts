@@ -1,7 +1,6 @@
 import {
   canAccessComedorAjustesPage,
   canAccessComedorLiderPage,
-  canAccessComedorGestionPage,
   canAccessComedorPersonalForRh,
   canAccessComedorPlanearPage,
   canAccessComedorReportePage,
@@ -20,8 +19,6 @@ import { getAuthMe } from "../api/auth.ts";
 import { refreshAccessTokenSession } from "../api/http.ts";
 import { mountComedorAsignarComedorModal } from "../components/comedor/comedorAsignarComedorModal.ts";
 import { mountComedorCrearComedorModal } from "../components/comedor/comedorCrearComedorModal.ts";
-import { mountComedorEditarComedorModal } from "../components/comedor/comedorEditarComedorModal.ts";
-import { renderComedorGestionAdmin } from "../components/comedor/comedorGestionAdmin.ts";
 import { mountComedorNewRequestModal } from "../components/comedor/comedorNewRequestModal.ts";
 import {
   addYearsToIsoString,
@@ -157,7 +154,7 @@ import {
 } from "../comedor/reportes/reporteAggregations.ts";
 
 function esViewerRhComedor(
-  grantKey: "comedor-registro" | "comedor-gestion" | "comedor-planear" | "reportes",
+  grantKey: "comedor-registro" | "comedor-ajustes" | "comedor-planear" | "reportes",
 ): boolean {
   return hasRhOperativeViewerContextOrGrant(grantKey);
 }
@@ -281,12 +278,6 @@ type ReporteComedorState = ReporteComedorViewState;
 function toReporteViewState(state: ReporteComedorState): ReporteComedorViewState {
   return { ...state };
 }
-
-type ComedorGestionAdminState = {
-  panelState: "loading" | "ready" | "empty" | "error";
-  items: Awaited<ReturnType<typeof getComedoresActivos>>;
-  errorMessage: string | null;
-};
 
 function emptyCalendarMonth(year: number, monthIndex: number): ComedorCalendarMonth {
   return {
@@ -984,98 +975,6 @@ async function resolveEmpleadoOptionForComedor(
   } catch {
     return base;
   }
-}
-
-function mountComedorGestionAdmin(container: HTMLElement, signal: AbortSignal): void {
-  const state: ComedorGestionAdminState = {
-    panelState: "loading",
-    items: [],
-    errorMessage: null,
-  };
-
-  function paint(): void {
-    const root = container.querySelector<HTMLElement>("#comedor-admin-root");
-    if (!root) return;
-    root.innerHTML = renderComedorGestionAdmin(state);
-  }
-
-  async function loadComedores(): Promise<void> {
-    state.panelState = "loading";
-    state.errorMessage = null;
-    paint();
-    try {
-      const rows = await getComedoresActivos();
-      if (signal.aborted) return;
-      state.items = rows;
-      state.panelState = rows.length > 0 ? "ready" : "empty";
-    } catch (error) {
-      if (signal.aborted) return;
-      state.items = [];
-      state.panelState = "error";
-      state.errorMessage = error instanceof Error ? error.message : "Error al cargar comedores.";
-    }
-    paint();
-  }
-
-  mountAppShell(container, {
-    pageTitle: "Gestión de comedores",
-    activeNav: "comedor-gestion",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `${renderComedorBackBar()}<div id="comedor-admin-root">${renderComedorGestionAdmin(state)}</div><div id="comedor-admin-crear-host"></div><div id="comedor-admin-editar-host"></div>`,
-  });
-
-  const root = container.querySelector<HTMLElement>("#comedor-admin-root");
-  const crearHost = container.querySelector<HTMLElement>("#comedor-admin-crear-host");
-  const editarHost = container.querySelector<HTMLElement>("#comedor-admin-editar-host");
-  const crearModal =
-    crearHost ?
-      mountComedorCrearComedorModal(crearHost, {
-        toastContainer: container,
-        onCreated: async () => {
-          await loadComedores();
-        },
-      })
-    : null;
-  const editarModal =
-    editarHost ?
-      mountComedorEditarComedorModal(editarHost, {
-        toastContainer: container,
-        onUpdated: async () => {
-          await loadComedores();
-        },
-      })
-    : null;
-
-  root?.addEventListener(
-    "click",
-    (event) => {
-      const target = event.target as HTMLElement;
-      if (target.closest("[data-comedor-admin-add]")) {
-        crearModal?.open();
-        return;
-      }
-      if (target.closest("[data-comedor-admin-retry]")) {
-        void loadComedores();
-        return;
-      }
-      const editBtn = target.closest<HTMLButtonElement>("[data-comedor-admin-edit-id]");
-      if (editBtn) {
-        const comedorId = Number.parseInt(editBtn.getAttribute("data-comedor-admin-edit-id") ?? "", 10);
-        if (!Number.isFinite(comedorId)) return;
-        const comedor = state.items.find((item) => item.id === comedorId);
-        if (!comedor) return;
-        editarModal?.open(comedor);
-      }
-    },
-    { signal },
-  );
-
-  signal.addEventListener("abort", () => {
-    crearModal?.destroy();
-    editarModal?.destroy();
-  });
-
-  void loadComedores();
 }
 
 function mountComedorRh(container: HTMLElement, signal: AbortSignal): void {
@@ -3280,24 +3179,16 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
 
 export function mountComedor(container: HTMLElement, signal: AbortSignal): void {
   const hash = window.location.hash || "#/comedor";
-  const isGestionRoute = hash.startsWith("#/comedor/gestion");
-  if (isGestionRoute) {
-    if (canAccessComedorGestionPage()) {
-      mountComedorGestionAdmin(container, signal);
-      return;
-    }
-    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/");
-    if (canAccessComedorPersonalForRh()) {
-      mountComedorEmpleado(container, signal);
-    } else {
-      mountDashboardPlaceholder(container);
-    }
-    return;
-  }
 
-  const isAjustesRoute = hash.startsWith("#/comedor/ajustes");
+  // `#/comedor/gestion` se fusionó en Ajustes Comedor (pestaña «Comedores»). Se conserva
+  // el redirect para no romper enlaces guardados ni el historial de nadie.
+  const isAjustesRoute =
+    hash.startsWith("#/comedor/ajustes") || hash.startsWith("#/comedor/gestion");
   if (isAjustesRoute) {
     if (canAccessComedorAjustesPage()) {
+      if (hash.startsWith("#/comedor/gestion")) {
+        history.replaceState(null, "", "#/comedor/ajustes");
+      }
       mountComedorAjustes(container, signal);
       return;
     }
@@ -3338,7 +3229,7 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
 
   const isCodigosExternosRoute = hash.startsWith("#/comedor/codigos-externos");
   if (isCodigosExternosRoute) {
-    if (canAccessComedorGestionPage()) {
+    if (canAccessComedorAjustesPage()) {
       mountComedorRhCodigosExternos(container, signal);
       return;
     }

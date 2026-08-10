@@ -843,6 +843,49 @@ Vertical line con circulos por paso: completed (emerald), current (accent outlin
 
 Helpers en `uiTokens.ts` (misma estructura/rounded/padding, mensaje interpolado con `escapeHtml`): `alertSuccess(message, role = "status")`, `alertError(message, role = "alert")`, `alertInfo(message, role = "status")`, `alertWarning(message, role = "alert")`.
 
+### 8.18 Fila editable con guardado individual
+
+Tabla donde cada fila es un mini-formulario con su propio boton Guardar (sin modal). Usado
+en: Ajustes Comedor (horario de comida por turno).
+
+```html
+<!-- Fila con cambios sin guardar -->
+<tr class="hover:bg-active-tint bg-amber-50/40" data-{modulo}-row="{id}">
+  <td class="px-3 py-2.5 align-middle">
+    <div class="flex flex-col gap-0.5">
+      <span class="font-mono text-xs font-semibold text-text-primary">{codigo}</span>
+      <span class="text-sm text-text-secondary">{descripcion}</span>
+      <span data-{modulo}-sin-guardar
+        class="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Sin guardar</span>
+    </div>
+  </td>
+  <!-- inputs de la fila -->
+  <td class="px-3 py-2.5 text-right">
+    <button type="button" data-{modulo}-guardar="{id}"
+      class="{BTN_SECONDARY} !px-3 !py-1.5 disabled:cursor-not-allowed disabled:opacity-60">Guardar</button>
+  </td>
+</tr>
+```
+
+**Reglas que hacen que no pierda trabajo** (las tres son obligatorias):
+
+1. **Borradores en el estado.** Lo capturado y no guardado vive en el estado
+   (`borradores: Record<id, {...}>`), no solo en el DOM. Sin esto, filtrar o buscar
+   repinta desde los datos del servidor y descarta en silencio lo que el usuario escribio.
+2. **Guardar no repinta la tabla.** Se toca solo la fila afectada (boton a `disabled` +
+   "Guardando…", inputs actualizados con la respuesta del servidor). Un repintado
+   global perderia las ediciones pendientes de las **otras** filas.
+3. **La marca «Sin guardar» se aplica en vivo**, en el handler de `input`, no esperando al
+   siguiente render: sirve justo mientras se captura. Se retira sola si el valor vuelve a
+   coincidir con lo guardado.
+
+**Derivados en vivo**: si una celda muestra un calculo de los campos de la fila (duracion,
+total), se recalcula en el mismo handler de `input` reemplazando solo esa celda.
+
+**Cuando NO usarlo**: si la edicion tiene mas de ~3 campos o requiere validacion cruzada
+compleja, usar modal (§8.8). Esta variante es para ajustes cortos y repetitivos donde
+abrir un modal por fila seria mas lento que editar en linea.
+
 ---
 
 ## 9. Interaction Patterns

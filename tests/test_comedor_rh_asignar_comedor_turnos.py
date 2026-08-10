@@ -212,7 +212,7 @@ async def test_buscar_empleados_devuelve_el_comedor_actual(client: AsyncClient, 
 async def test_buscar_empleados_sirve_a_las_dos_pantallas_de_comedor(client: AsyncClient, db):
     """Lo usan el modal de registro y el de asignar, así que basta cualquiera de los dos
     permisos de la sección."""
-    for modulo in ("comedor-registro", "comedor-gestion"):
+    for modulo in ("comedor-registro", "comedor-ajustes"):
         usuario = await make_empleado(
             db,
             rol="empleado",

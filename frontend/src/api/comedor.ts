@@ -668,6 +668,9 @@ export type ComedorTurnoHorarioApi = {
   tu_codigo: string;
   descripcion: string;
   activo: boolean;
+  /** Contexto de solo lectura del catálogo de TRESS (`tu_jornada` / `tu_dias`). */
+  jornada_horas: number | null;
+  dias_semana: number | null;
   /** `HH:MM:SS` del backend; `null` cuando el turno no tiene horario asignado. */
   hora_inicio_comida: string | null;
   hora_fin_comida: string | null;

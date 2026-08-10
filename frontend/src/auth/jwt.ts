@@ -144,11 +144,6 @@ export function canAccessComedorRhPage(): boolean {
   return canAccessRhAssignedModule("comedor-registro", { blockGestorTeam: true, blockDirector: true });
 }
 
-/** Gestión de comedores (`#/comedor/gestion`, códigos externos). */
-export function canAccessComedorGestionPage(): boolean {
-  return canAccessRhAssignedModule("comedor-gestion", { blockGestorTeam: true, blockDirector: true });
-}
-
 /** Planeación de menú (`#/comedor/planear`). */
 export function canAccessComedorPlanearPage(): boolean {
   return canAccessRhAssignedModule("comedor-planear", { blockGestorTeam: true, blockDirector: true });

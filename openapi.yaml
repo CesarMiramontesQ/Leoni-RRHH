@@ -2907,6 +2907,12 @@ components:
         activo:
           type: boolean
           description: tu_activo del catalogo normalizado a booleano
+        jornada_horas:
+          type: [number, "null"]
+          description: Horas de jornada del turno en TRESS (tu_jornada), solo lectura
+        dias_semana:
+          type: [integer, "null"]
+          description: Dias por semana del turno en TRESS (tu_dias), solo lectura
         hora_inicio_comida:
           type: [string, "null"]
           format: time

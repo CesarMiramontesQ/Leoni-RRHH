@@ -153,7 +153,7 @@ def test_horas_extra_queda_fuera_del_gate_regla_b():
 def test_resolve_vista_from_hash_y_nav_item():
     assert resolve_vista_from_hash("#/") == "dashboard"
     assert resolve_vista_from_hash("#/comedor") == "comedor"
-    assert resolve_vista_from_hash("#/comedor/gestion") == "comedor-gestion"
+    assert resolve_vista_from_hash("#/comedor/gestion") == "comedor-ajustes"
     assert resolve_vista_from_hash("#/talento/mis-metas") == "mis-metas"
     assert nav_item_to_vista_key("mis-firmas") == "mis-firmas"
     assert nav_item_to_vista_key("no-existe") is None
@@ -306,11 +306,11 @@ async def test_apagar_una_vista_ya_apagada_de_fabrica_no_cierra_el_api_del_rol(
     admin_h = await auth_headers(client, admin)
     sup_h = await auth_headers(client, sup)
 
-    # `comedor-gestion` está apagada de fábrica para supervisor, pero su
+    # `comedor-ajustes` está apagada de fábrica para supervisor, pero su
     # `role_checker` sí lo admite: apagarla explícitamente no debe cambiar eso.
     await _configurar(
         client, admin_h,
-        [{"rol": "supervisor", "vista_key": "comedor-gestion", "habilitado": False}],
+        [{"rol": "supervisor", "vista_key": "comedor-ajustes", "habilitado": False}],
     )
     res = await client.get("/api/v1/comedor/comedores", headers=sup_h)
     assert res.status_code == 200
@@ -691,7 +691,7 @@ async def test_a_un_inscrito_se_le_mandan_las_vistas_de_su_rol(client: AsyncClie
         inscrito_modulos_rh=True,
         modulos_rh={
             "comedor-registro": True,
-            "comedor-gestion": True,
+            "comedor-ajustes": True,
             "comedor-planear": True,
             "reportes": True,
         },
