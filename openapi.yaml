@@ -2456,6 +2456,7 @@ components:
         - incapacidad_interna
         - defuncion
         - paternidad
+        - vacaciones
 
     FaltaRetardoCreateRequest:
       type: object
@@ -2468,8 +2469,8 @@ components:
         (PM_TIPO='FJ ', PM_NUMERO='PERMISO', PM_CLASIFI=0) y una fila en
         levelup_faltas_retardos por tramo. incapacidad_interna solo se guarda en levelup
         (sin cola RPA). No se usa tress_robot_queue.
-        `falta_injustificada` y `retardo` NO se aceptan (422): TRESS los calcula desde
-        las checadas y llegan a importadas_historico por el sync de faltas y retardos.
+        `falta_injustificada`, `retardo` y `vacaciones` NO se aceptan (422): los pone
+        nómina y llegan por el sync desde dbo.AUSENCIA, no por captura.
       properties:
         empleado_id:
           type: integer

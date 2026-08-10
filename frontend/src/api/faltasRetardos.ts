@@ -9,7 +9,8 @@ export type FaltaRetardoTipo =
   | "matrimonio"
   | "incapacidad_interna"
   | "defuncion"
-  | "paternidad";
+  | "paternidad"
+  | "vacaciones";
 
 export type FaltaRetardoListItem = {
   id: number;

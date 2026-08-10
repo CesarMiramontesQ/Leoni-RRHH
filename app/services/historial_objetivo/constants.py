@@ -72,6 +72,8 @@ PESOS_FALTAS: dict[str, float] = {
     "retardo": 3,
     "falta_justificada": 1,
     "incapacidad": 0,
+    # Ausencia planificada y autorizada: no es falta atribuible al empleado.
+    "vacaciones": 0,
     **{tipo: 0 for tipo in FALTA_RETARDO_TIPOS_GOCE},
 }
 

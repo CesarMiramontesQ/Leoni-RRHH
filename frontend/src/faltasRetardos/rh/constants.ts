@@ -10,6 +10,7 @@ export const FALTA_RETARDO_TIPOS: readonly FaltaRetardoTipo[] = [
   "incapacidad_interna",
   "defuncion",
   "paternidad",
+  "vacaciones",
 ] as const;
 
 /** Tipos disponibles al crear un registro manual desde RH. */
@@ -38,6 +39,7 @@ export const FALTA_RETARDO_TIPO_LABELS: Record<FaltaRetardoTipo, string> = {
   incapacidad_interna: "Incapacidad interna (goce)",
   defuncion: "Defunción (goce)",
   paternidad: "Paternidad (goce)",
+  vacaciones: "Vacaciones",
 };
 
 export const FALTA_RETARDO_TIPOS_RANGO: ReadonlySet<FaltaRetardoTipo> = new Set([
@@ -70,6 +72,8 @@ export function badgeClassFaltaRetardoTipo(tipo: FaltaRetardoTipo): string {
     case "defuncion":
     case "paternidad":
       return "rh-inc-type-pill--tiempo";
+    case "vacaciones":
+      return "rh-inc-type-pill--vacaciones";
     default:
       return "rh-inc-type-pill--default";
   }
