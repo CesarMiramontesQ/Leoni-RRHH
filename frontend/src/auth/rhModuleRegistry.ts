@@ -17,6 +17,7 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "comedor-gestion", prefix: "#/comedor/gestion" },
   { key: "comedor-gestion", prefix: "#/comedor/codigos-externos" },
   { key: "comedor-planear", prefix: "#/comedor/planear" },
+  { key: "comedor-ajustes", prefix: "#/comedor/ajustes" },
   { key: "comedor-registro", prefix: "#/comedor" },
   { key: "puestos-ajustes", prefix: "#/puestos/ajustes" },
   { key: "puestos", prefix: "#/puestos" },

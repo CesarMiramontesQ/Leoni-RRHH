@@ -1,9 +1,11 @@
 import enum
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Optional
 
 from sqlalchemy import (
+    CHAR,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum,
@@ -12,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Time,
     UniqueConstraint,
     func,
 )
@@ -224,4 +227,51 @@ class ComedorCodigoExterno(Base):
         return (
             f"<ComedorCodigoExterno id={self.id} codigo={self.codigo_acceso} "
             f"rango={self.fecha_inicio}:{self.fecha_fin}>"
+        )
+
+
+class ComedorHorarioTurno(Base):
+    """Franja de comida asignada a un turno del catálogo (`levelup_turnos`).
+
+    Vive en tabla aparte y no como columnas de `levelup_turnos` porque esa tabla es la
+    réplica 1:1 de ``[Datos].[dbo].[TURNO]`` de TRESS (ver el docstring de
+    :class:`app.models.turnos.Turno`): un dato propio del proyecto no debe viajar dentro
+    del espejo, que se recarga desde el origen.
+
+    ``tu_codigo`` es ``CHAR(6)`` con relleno de espacios en el origen (``'01    '``). Aquí
+    se guarda **tal cual viene del catálogo** para que la FK case; la normalización con
+    ``RTRIM`` se hace al consultar y al exponer el dato.
+    """
+
+    __tablename__ = "levelup_comedor_horarios_turno"
+    __table_args__ = (
+        UniqueConstraint("tu_codigo", name="uq_levelup_comedor_horarios_turno_tu_codigo"),
+        CheckConstraint(
+            "hora_inicio_comida < hora_fin_comida",
+            name="ck_levelup_comedor_horarios_turno_rango",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    tu_codigo: Mapped[str] = mapped_column(
+        CHAR(6),
+        ForeignKey("levelup_turnos.tu_codigo", ondelete="CASCADE"),
+        nullable=False,
+    )
+    hora_inicio_comida: Mapped[time] = mapped_column(Time, nullable=False)
+    hora_fin_comida: Mapped[time] = mapped_column(Time, nullable=False)
+    actualizado_por_empleado_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("empleados.empleado_id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ComedorHorarioTurno tu_codigo={self.tu_codigo!r} "
+            f"{self.hora_inicio_comida}-{self.hora_fin_comida}>"
         )

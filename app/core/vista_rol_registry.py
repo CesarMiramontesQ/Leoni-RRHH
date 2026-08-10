@@ -259,6 +259,11 @@ _VISTAS: tuple[VistaRolDef, ...] = (
         "comedor-planear",
         descripcion="Planeación del menú del comedor.",
     ),
+    # Sin `default_habilitado`: hoy ningún rol base ve esta pantalla, así que nace apagada.
+    _desde_modulo(
+        "comedor-ajustes",
+        descripcion="Horario de comida asignado a cada turno.",
+    ),
     # ---------------------------------------------------------------- Nóminas
     _desde_modulo(
         "nominas-horas-extra",

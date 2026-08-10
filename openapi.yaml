@@ -2895,6 +2895,42 @@ components:
           type: integer
 
     # ── Comedor ───────────────────────────────────────
+    ComedorTurnoHorarioItem:
+      type: object
+      required: [tu_codigo, descripcion, activo]
+      properties:
+        tu_codigo:
+          type: string
+          description: Codigo del turno sin relleno de espacios
+        descripcion:
+          type: string
+        activo:
+          type: boolean
+          description: tu_activo del catalogo normalizado a booleano
+        hora_inicio_comida:
+          type: [string, "null"]
+          format: time
+          description: HH:MM:SS; null cuando el turno aun no tiene horario
+        hora_fin_comida:
+          type: [string, "null"]
+          format: time
+        actualizado_en:
+          type: [string, "null"]
+          format: date-time
+
+    ComedorTurnoHorarioUpsert:
+      type: object
+      required: [hora_inicio_comida, hora_fin_comida]
+      properties:
+        hora_inicio_comida:
+          type: string
+          format: time
+          description: HH:MM o HH:MM:SS en formato de 24 horas
+        hora_fin_comida:
+          type: string
+          format: time
+          description: Debe ser mayor que hora_inicio_comida
+
     ComedorResponse:
       type: object
       required: [id, nombre, activo]
@@ -11313,6 +11349,67 @@ paths:
                   empleados_sin_comedor_asignado:
                     type: integer
                     description: Empleados activos sin comedor en turnos_empleados (alertas operativas)
+
+  /api/v1/comedor/turnos-horario:
+    get:
+      tags: [Comedor]
+      summary: Turnos del catalogo con su horario de comida (Ajustes Comedor)
+      operationId: comedor_turnos_horario_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: incluir_inactivos
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Incluye los turnos con tu_activo distinto de "S"
+      responses:
+        "200":
+          description: Turnos ordenados por codigo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorTurnoHorarioItem"
+        "403":
+          description: Sin permiso para el modulo comedor-ajustes
+
+  /api/v1/comedor/turnos-horario/{tu_codigo}:
+    put:
+      tags: [Comedor]
+      summary: Asignar o actualizar el horario de comida de un turno
+      operationId: comedor_turnos_horario_upsert
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tu_codigo
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Codigo del turno en levelup_turnos, sin relleno de espacios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComedorTurnoHorarioUpsert"
+      responses:
+        "200":
+          description: Turno con su horario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorTurnoHorarioItem"
+        "403":
+          description: Sin permiso para el modulo comedor-ajustes
+        "404":
+          description: El turno no existe en el catalogo
+        "422":
+          description: Hora de inicio ausente, hora de fin ausente o inicio >= fin
 
   # ── Reportes ────────────────────────────────────────
   /api/v1/reportes/dashboard/kpis:

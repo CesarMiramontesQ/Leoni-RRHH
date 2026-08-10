@@ -662,3 +662,42 @@ export async function cancelarComedorAcceso(accesoId: number): Promise<void> {
   });
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
 }
+
+/** Turno del catálogo `levelup_turnos` con su franja de comida (Ajustes Comedor). */
+export type ComedorTurnoHorarioApi = {
+  tu_codigo: string;
+  descripcion: string;
+  activo: boolean;
+  /** `HH:MM:SS` del backend; `null` cuando el turno no tiene horario asignado. */
+  hora_inicio_comida: string | null;
+  hora_fin_comida: string | null;
+  actualizado_en: string | null;
+};
+
+export async function getComedorTurnosHorario(
+  incluirInactivos = false,
+): Promise<ComedorTurnoHorarioApi[]> {
+  const query = incluirInactivos ? "?incluir_inactivos=true" : "";
+  const res = await fetchWithAuth(`/api/v1/comedor/turnos-horario${query}`);
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorTurnoHorarioApi[];
+}
+
+export async function guardarComedorTurnoHorario(
+  tuCodigo: string,
+  payload: { horaInicioComida: string; horaFinComida: string },
+): Promise<ComedorTurnoHorarioApi> {
+  const res = await fetchWithAuth(
+    `/api/v1/comedor/turnos-horario/${encodeURIComponent(tuCodigo)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hora_inicio_comida: payload.horaInicioComida,
+        hora_fin_comida: payload.horaFinComida,
+      }),
+    },
+  );
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorTurnoHorarioApi;
+}

@@ -21,7 +21,7 @@ const VISTA_KEYS = [
   "comedor", "mis-evaluaciones", "mis-encuestas", "mis-encuestas-rh", "mis-firmas",
   "mis-aprobaciones-opl", "mis-metas", "mi-desempeno",
   "solicitudes", "metricas", "incidencias", "faltas-retardos", "actas", "viajes-laborales",
-  "reportes", "comedor-gestion", "comedor-planear",
+  "reportes", "comedor-gestion", "comedor-planear", "comedor-ajustes",
   "nominas-horas-extra", "nominas-conciliacion", "nominas-ajustes",
   "puestos", "competencias", "tareas-catalogo", "puestos-ajustes",
   "dashboard-talento", "encuestas-rh", "operaciones",
@@ -49,7 +49,8 @@ describe("vistaRolRegistry", () => {
       "dashboard", "organigrama", "empleados", "level-up", "comedor", "mis-evaluaciones",
       "mis-encuestas", "mis-encuestas-rh", "mis-firmas", "mis-aprobaciones-opl", "mis-metas",
       "mi-desempeno", "solicitudes", "metricas", "incidencias", "faltas-retardos", "actas",
-      "viajes-laborales", "reportes", "comedor-gestion", "comedor-planear", "horas-extra",
+      "viajes-laborales", "reportes", "comedor-gestion", "comedor-planear", "comedor-ajustes",
+      "horas-extra",
       "conciliacion", "nominas-ajustes", "puestos", "wtw", "competencias", "capacidades",
       "tareas-catalogo", "puestos-ajustes", "dashboard-talento", "encuestas-rh", "operaciones",
       "evaluaciones", "metas", "ciclo-desempeno", "historial-objetivo", "evaluacion-360",
@@ -74,6 +75,7 @@ describe("vistaRolRegistry", () => {
     expect(resolveVistaFromHash("#/comedor")).toBe("comedor");
     expect(resolveVistaFromHash("#/comedor/gestion")).toBe("comedor-gestion");
     expect(resolveVistaFromHash("#/comedor/planear")).toBe("comedor-planear");
+    expect(resolveVistaFromHash("#/comedor/ajustes")).toBe("comedor-ajustes");
     expect(resolveVistaFromHash("#/comedor/reporte")).toBe("reportes");
     expect(resolveVistaFromHash("#/puestos")).toBe("puestos");
     expect(resolveVistaFromHash("#/puestos/ajustes")).toBe("puestos-ajustes");

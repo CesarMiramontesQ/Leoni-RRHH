@@ -36,9 +36,10 @@ from app.core.exceptions import (
     UnauthorizedError,
 )
 from app.core.rh_module_registry import user_has_module
-from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
+from app.models.comedor import ComedorAccesoEstado, ComedorHorarioTurno, ComedorTipoComida
 from app.models.empleados import Empleado
 from app.models.roles import Rol
+from app.models.turnos import Turno
 from app.models.turnos_empleados import TurnoEmpleado
 from app.utils.turno_empleado_match import turno_no_empleado_matches
 from app.repositories.usuario_repository import UsuarioRepository
@@ -46,6 +47,7 @@ from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
     ComedorCodigoExternoRepository,
     ComedorExternoCorrelativoRepository,
+    ComedorHorarioTurnoRepository,
     ComedorRegistroRepository,
     ComedorRepository,
     MenuSemanalRepository,
@@ -86,6 +88,8 @@ from app.schemas.comedor import (
     ComedorTerminalAccederResponse,
     ComedorTerminalConsumirRequest,
     ComedorTerminalConsumirResponse,
+    ComedorTurnoHorarioItem,
+    ComedorTurnoHorarioUpsert,
     HuellaValidarRequest,
     HuellaValidarResponse,
     MenuSemanalCreate,
@@ -121,6 +125,7 @@ class ComedorService:
         self.acceso_repo = ComedorAccesoRepository(db)
         self.codigo_externo_repo = ComedorCodigoExternoRepository(db)
         self.externo_corr_repo = ComedorExternoCorrelativoRepository(db)
+        self.horario_turno_repo = ComedorHorarioTurnoRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
 
     async def _get_rol(self, user: Empleado) -> str:
@@ -1797,3 +1802,74 @@ class ComedorService:
             "promedio_semanal": round(promedio, 1),
             "empleados_sin_comedor_asignado": empleados_sin_comedor,
         }
+
+    # --- Ajustes Comedor: horario de comida por turno ---
+
+    @staticmethod
+    def _turno_horario_item(
+        turno: Turno, horario: "ComedorHorarioTurno | None"
+    ) -> ComedorTurnoHorarioItem:
+        return ComedorTurnoHorarioItem(
+            tu_codigo=(turno.tu_codigo or "").strip(),
+            descripcion=(turno.tu_descrip or "").strip(),
+            activo=(turno.tu_activo or "").strip().upper() == "S",
+            hora_inicio_comida=horario.hora_inicio_comida if horario else None,
+            hora_fin_comida=horario.hora_fin_comida if horario else None,
+            actualizado_en=horario.updated_at if horario else None,
+        )
+
+    async def list_turnos_horario(
+        self, *, incluir_inactivos: bool = False
+    ) -> list[ComedorTurnoHorarioItem]:
+        filas = await self.horario_turno_repo.list_turnos_con_horario(
+            incluir_inactivos=incluir_inactivos
+        )
+        return [self._turno_horario_item(turno, horario) for turno, horario in filas]
+
+    async def guardar_horario_turno(
+        self,
+        tu_codigo: str,
+        data: ComedorTurnoHorarioUpsert,
+        current_user: Empleado,
+        background_tasks: BackgroundTasks,
+    ) -> ComedorTurnoHorarioItem:
+        codigo = (tu_codigo or "").strip()
+        if not codigo:
+            raise DomainValidationError(detail="Falta el código de turno.")
+
+        turno = await self.horario_turno_repo.get_turno(codigo)
+        if turno is None:
+            raise NotFoundError("Turno", codigo)
+
+        anterior = await self.horario_turno_repo.get_horario(codigo)
+        datos_antes = (
+            {
+                "hora_inicio_comida": anterior.hora_inicio_comida.isoformat(),
+                "hora_fin_comida": anterior.hora_fin_comida.isoformat(),
+            }
+            if anterior
+            else None
+        )
+
+        horario = await self.horario_turno_repo.upsert_horario(
+            turno=turno,
+            hora_inicio=data.hora_inicio_comida,
+            hora_fin=data.hora_fin_comida,
+            empleado_id=current_user.empleado_id,
+        )
+
+        audit_background(
+            background_tasks,
+            self.db,
+            accion="COMEDOR_HORARIO_TURNO_GUARDADO",
+            modulo="comedor",
+            usuario_id=current_user.id,
+            entidad_id=horario.id,
+            datos_antes=datos_antes,
+            datos_despues={
+                "tu_codigo": codigo,
+                "hora_inicio_comida": data.hora_inicio_comida.isoformat(),
+                "hora_fin_comida": data.hora_fin_comida.isoformat(),
+            },
+        )
+        return self._turno_horario_item(turno, horario)

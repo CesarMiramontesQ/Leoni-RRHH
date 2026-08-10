@@ -154,6 +154,11 @@ export function canAccessComedorPlanearPage(): boolean {
   return canAccessRhAssignedModule("comedor-planear", { blockGestorTeam: true, blockDirector: true });
 }
 
+/** Ajustes Comedor (`#/comedor/ajustes`): horario de comida por turno. */
+export function canAccessComedorAjustesPage(): boolean {
+  return canAccessRhAssignedModule("comedor-ajustes", { blockGestorTeam: true, blockDirector: true });
+}
+
 /** Comedor personal para RH en modo empleado. */
 export function canAccessComedorPersonalForRh(): boolean {
   return isRhEmpleadoUiMode();

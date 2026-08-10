@@ -159,6 +159,16 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/comedor/planear",),
         api_prefixes=("/api/v1/comedor/menu",),
     ),
+    # Fuera del alias legacy "comedor" a propósito: el horario de comida por turno se
+    # concede y se retira por separado de las otras tres pantallas de la sección.
+    "comedor-ajustes": RhModuleDef(
+        key="comedor-ajustes",
+        label="Ajustes Comedor",
+        group="Comedor",
+        nav_item_ids=("comedor-ajustes",),
+        hash_prefixes=("#/comedor/ajustes",),
+        api_prefixes=("/api/v1/comedor/turnos-horario",),
+    ),
     "nominas-horas-extra": RhModuleDef(
         key="nominas-horas-extra",
         label="Horas Extra",

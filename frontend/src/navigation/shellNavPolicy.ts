@@ -153,6 +153,7 @@ export type AppShellNavItemId =
   | "comedor-menu"
   | "comedor-gestion"
   | "comedor-planear"
+  | "comedor-ajustes"
   | "empleados"
   | "evaluaciones"
   | "pdi-gestion"
@@ -361,10 +362,15 @@ export function isShellNavItemVisibleForRol(rol: string | null, itemId: AppShell
   if (itemId === "comedor-menu") {
     return isComedorHubVisibleForRol(rol);
   }
-  // Gestión de comedores y Planeación: mismas reglas de acceso que canAccessComedorRhPage
-  // (módulo `comedor`). Visibles solo para RH con el módulo o no-RH con grant explícito;
-  // ocultas para roles sin acceso y para RH en Modo empleado/gestor.
-  if (itemId === "comedor-gestion" || itemId === "comedor-planear") {
+  // Gestión de comedores, Planeación y Ajustes Comedor: mismas reglas de acceso que
+  // canAccessComedorRhPage (módulo `comedor`). Visibles solo para RH con el módulo o
+  // no-RH con grant explícito; ocultas para roles sin acceso y para RH en Modo
+  // empleado/gestor.
+  if (
+    itemId === "comedor-gestion" ||
+    itemId === "comedor-planear" ||
+    itemId === "comedor-ajustes"
+  ) {
     if (isRhEmpleadoUiMode() || isRhGestorTeamUiMode() || isRhDirectorUiMode()) return false;
     const moduleKey = navItemIdToModuleKey(itemId);
     if (hasExplicitModuleGrant(moduleKey)) return true;
@@ -394,6 +400,8 @@ export function empleadoMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/horas-extra/solicitud")) return canRegisterOvertime();
   if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
   if (h.startsWith("#/solicitudes")) return true;
+  // Antes del catch-all de comedor: Ajustes Comedor es pantalla de administración.
+  if (h.startsWith("#/comedor/ajustes")) return false;
   if (h.startsWith("#/comedor")) return true;
   if (h.startsWith("#/mis-firmas")) return true;
   if (h.startsWith("#/mis-aprobaciones-opl")) return true;
@@ -413,6 +421,7 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/nominas/horas-extra/aprobaciones")) return canApproveOvertime();
   if (h.startsWith("#/nominas/ajustes")) return false;
   if (h.startsWith("#/actas")) return false;
+  if (h.startsWith("#/comedor/ajustes")) return false;
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
   if (h.startsWith("#/viajes-laborales")) return false;

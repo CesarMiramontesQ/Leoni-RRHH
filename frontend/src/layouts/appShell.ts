@@ -104,6 +104,7 @@ export type ShellNavKey =
   | "comedor"
   | "comedor-gestion"
   | "comedor-planear"
+  | "comedor-ajustes"
   | "reportes"
   | "puestos"
   | "puestos-ajustes"
