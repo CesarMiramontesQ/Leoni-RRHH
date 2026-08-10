@@ -151,6 +151,32 @@ async def _sync_homeoffice_tomados_job():
         logger.error("Error en sync de home office job: %s", str(exc), exc_info=True)
 
 
+async def _sync_turnos_uso_job():
+    """Refresca la caché de personal activo por turno desde DATOS_ANALISIS (diario, 04:00).
+
+    A las 04:00 y no a las 06:00 como los otros: el primer turno de la planta entra a las
+    06:00, así que el conteo debe estar al día antes de que alguien abra la pantalla. Un
+    cambio de turno en nómina se refleja a la mañana siguiente.
+    """
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.sync_turnos_uso_service import sincronizar_turnos_uso
+
+        async with AsyncSessionLocal() as db:
+            stats = await sincronizar_turnos_uso(db, origen="scheduler")
+        logger.info(
+            "Sync turnos en uso job | turnos_origen=%d | insertados=%d | actualizados=%d "
+            "| omitidos=%d | puestos_a_cero=%d",
+            stats.turnos_origen,
+            stats.insertados,
+            stats.actualizados,
+            stats.omitidos,
+            stats.puestos_a_cero,
+        )
+    except Exception as exc:
+        logger.error("Error en sync de turnos en uso job: %s", str(exc), exc_info=True)
+
+
 async def _sync_incidencias_tress_job():
     """Refresca la caché de incidencias desde DATOS_ANALISIS (semanal, miércoles 10:00).
 
@@ -229,6 +255,15 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         hour=6,
         minute=0,
         id="sync_homeoffice_tomados",
+    )
+    # Caché de personal activo por turno: diario a las 04:00, antes del primer turno, para
+    # que un cambio de turno en nómina se refleje en Ajustes Comedor al día siguiente.
+    sched.add_job(
+        _sync_turnos_uso_job,
+        "cron",
+        hour=4,
+        minute=0,
+        id="sync_turnos_uso",
     )
     # Caché de incidencias de TRESS: semanal, miércoles a las 10:00.
     sched.add_job(

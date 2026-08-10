@@ -2913,6 +2913,11 @@ components:
         dias_semana:
           type: [integer, "null"]
           description: Dias por semana del turno en TRESS (tu_dias), solo lectura
+        empleados_activos:
+          type: [integer, "null"]
+          description: >-
+            Personal activo del turno segun la cache levelup_turnos_uso.
+            null = la cache nunca se ha sincronizado (distinto de 0 empleados).
         hora_inicio_comida:
           type: [string, "null"]
           format: time
@@ -11371,6 +11376,15 @@ paths:
             type: boolean
             default: false
           description: Incluye los turnos con tu_activo distinto de "S"
+        - name: solo_en_uso
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: >-
+            Solo turnos con personal activo segun levelup_turnos_uso. Si la cache esta
+            vacia no se filtra, y un turno con horario ya configurado nunca se oculta.
       responses:
         "200":
           description: Turnos ordenados por codigo

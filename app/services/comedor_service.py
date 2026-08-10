@@ -53,6 +53,7 @@ from app.repositories.comedor_repository import (
     MenuSemanalRepository,
 )
 from app.repositories.empleado_repository import EmpleadoRepository
+from app.repositories.turnos_uso_repository import TurnosUsoRepository
 from app.schemas import PaginatedResponse
 from app.schemas.comedor import (
     ComedorAccesoReservaCreate,
@@ -126,6 +127,7 @@ class ComedorService:
         self.codigo_externo_repo = ComedorCodigoExternoRepository(db)
         self.externo_corr_repo = ComedorExternoCorrelativoRepository(db)
         self.horario_turno_repo = ComedorHorarioTurnoRepository(db)
+        self.turnos_uso_repo = TurnosUsoRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
 
     async def _get_rol(self, user: Empleado) -> str:
@@ -1807,7 +1809,9 @@ class ComedorService:
 
     @staticmethod
     def _turno_horario_item(
-        turno: Turno, horario: "ComedorHorarioTurno | None"
+        turno: Turno,
+        horario: "ComedorHorarioTurno | None",
+        empleados_activos: int | None = None,
     ) -> ComedorTurnoHorarioItem:
         return ComedorTurnoHorarioItem(
             tu_codigo=(turno.tu_codigo or "").strip(),
@@ -1815,18 +1819,44 @@ class ComedorService:
             activo=(turno.tu_activo or "").strip().upper() == "S",
             jornada_horas=float(turno.tu_jornada) if turno.tu_jornada is not None else None,
             dias_semana=turno.tu_dias,
+            empleados_activos=empleados_activos,
             hora_inicio_comida=horario.hora_inicio_comida if horario else None,
             hora_fin_comida=horario.hora_fin_comida if horario else None,
             actualizado_en=horario.updated_at if horario else None,
         )
 
     async def list_turnos_horario(
-        self, *, incluir_inactivos: bool = False
+        self, *, incluir_inactivos: bool = False, solo_en_uso: bool = True
     ) -> list[ComedorTurnoHorarioItem]:
+        """Turnos del catálogo con su horario y su personal activo.
+
+        `solo_en_uso` recorta el catálogo (76 turnos) a los que TRESS reporta con gente
+        —hoy 25— usando la caché `levelup_turnos_uso`. Dos salvaguardas:
+
+        - **Caché vacía ⇒ no se filtra.** Antes de la primera corrida del sync, filtrar
+          dejaría la pantalla sin un solo turno; es preferible mostrar el catálogo
+          completo a mostrar nada.
+        - **Un turno con horario ya configurado nunca se oculta**, aunque se quede sin
+          personal: esconder un dato que alguien capturó sería peor que una fila de más.
+        """
         filas = await self.horario_turno_repo.list_turnos_con_horario(
             incluir_inactivos=incluir_inactivos
         )
-        return [self._turno_horario_item(turno, horario) for turno, horario in filas]
+        conteos = await self.turnos_uso_repo.map_conteos()
+
+        items: list[ComedorTurnoHorarioItem] = []
+        for turno, horario in filas:
+            codigo = (turno.tu_codigo or "").strip()
+            empleados = conteos.get(codigo)
+            if (
+                solo_en_uso
+                and conteos
+                and horario is None
+                and not (empleados or 0) > 0
+            ):
+                continue
+            items.append(self._turno_horario_item(turno, horario, empleados))
+        return items
 
     async def guardar_horario_turno(
         self,

@@ -671,6 +671,8 @@ export type ComedorTurnoHorarioApi = {
   /** Contexto de solo lectura del catálogo de TRESS (`tu_jornada` / `tu_dias`). */
   jornada_horas: number | null;
   dias_semana: number | null;
+  /** Personal activo segun `levelup_turnos_uso`; `null` = cache nunca sincronizada. */
+  empleados_activos: number | null;
   /** `HH:MM:SS` del backend; `null` cuando el turno no tiene horario asignado. */
   hora_inicio_comida: string | null;
   hora_fin_comida: string | null;
@@ -678,9 +680,12 @@ export type ComedorTurnoHorarioApi = {
 };
 
 export async function getComedorTurnosHorario(
-  incluirInactivos = false,
+  opts: { incluirInactivos?: boolean; soloEnUso?: boolean } = {},
 ): Promise<ComedorTurnoHorarioApi[]> {
-  const query = incluirInactivos ? "?incluir_inactivos=true" : "";
+  const params = new URLSearchParams();
+  if (opts.incluirInactivos) params.set("incluir_inactivos", "true");
+  if (opts.soloEnUso === false) params.set("solo_en_uso", "false");
+  const query = params.toString() ? `?${params}` : "";
   const res = await fetchWithAuth(`/api/v1/comedor/turnos-horario${query}`);
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
   return (await res.json()) as ComedorTurnoHorarioApi[];

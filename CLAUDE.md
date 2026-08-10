@@ -79,6 +79,12 @@ docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados       
 docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados --execute
 docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados --no-empleado 553 --execute
 
+# Turnos en uso: DATOS_ANALISIS → levelup_turnos_uso (Bono).
+# Mismo servicio que el job de las 04:00; necesario para la carga inicial (sin él,
+# Ajustes Comedor cae de vuelta al catálogo completo de 76 turnos).
+docker-compose exec backend python -m app.scripts.sync_turnos_uso            # dry-run
+docker-compose exec backend python -m app.scripts.sync_turnos_uso --execute
+
 # Incidencias de TRESS: DATOS_ANALISIS → levelup_incidencias_tress (Bono).
 # Mismo servicio que el job semanal de los miércoles 10:00; necesario para la carga inicial.
 # Sin --desde/--hasta va en dos pasadas: el histórico (excluye la semana en curso) y
@@ -132,6 +138,14 @@ Layered architecture: **router → service → repository → models/schemas**
   `python -m app.scripts.sync_homeoffice_tomados`). La consulta a `dbo.PERMISO`
   (`PM_TIPO = 'HO'`) es una sola, agregada por `CB_CODIGO`, y solo la hace ese sync.
   Empleado sin fila ⇒ el dashboard muestra 0.
+- **Turnos en uso = caché en Bono.** La pestaña «Horarios de comida» de Ajustes Comedor no
+  cuenta personal en DATOS_ANALISIS: la fuente única de lectura es `levelup_turnos_uso`
+  (una fila por turno con su personal activo), que escribe `sync_turnos_uso_service`
+  (job diario 04:00 y `python -m app.scripts.sync_turnos_uso`). El origen es una sola
+  consulta agregada a `dbo.COLABORA` (`CB_TURNO` con `CB_ACTIVO = 'S'`). Caché vacía ⇒ la
+  pantalla **no filtra** y muestra el catálogo completo, en vez de quedarse sin turnos. Un
+  turno que se queda sin personal conserva su fila en 0, no se borra. Si TRESS devuelve 0
+  turnos el sync aborta sin escribir: es señal de consulta rota, no de planta vacía.
 - **Incidencias (página "Incidencias", módulo `faltas-retardos`) = caché en Bono.** Ninguna
   carga de página consulta `dbo.AUSENCIA` ni `dbo.PERMISO`: la fuente única de lectura es
   `levelup_incidencias_tress`, que escribe `sync_incidencias_tress_service` (job semanal
@@ -163,7 +177,8 @@ Layered architecture: **router → service → repository → models/schemas**
 - APScheduler runs periodic jobs (recordatorios Eval360/Encuestas/Metas a las 08:00,
   **sync de saldos de vacaciones y de home office tomado a las 06:00** en dos jobs
   independientes (`sync_vacaciones_disponibles` y `sync_homeoffice_tomados`), y **sync de
-  incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`)); se
+  incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`), y **sync de
+  turnos en uso a las 04:00** (`sync_turnos_uso`)); se
   registran en `registrar_jobs_programados` (`app/main.py`). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).

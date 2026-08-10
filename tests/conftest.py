@@ -57,6 +57,7 @@ import app.models.level_up  # noqa: F401
 import app.models.cursos_catalogo  # noqa: F401
 import app.models.proveedores_externos  # noqa: F401
 import app.models.turnos  # noqa: F401  (catálogo replicado; FK de levelup_comedor_horarios_turno)
+import app.models.turnos_uso  # noqa: F401  (caché de personal activo por turno)
 import app.models.turnos_empleados  # noqa: F401
 import app.models.evaluacion360  # noqa: F401  (incluye plantillas)
 import app.models.encuestas_rh  # noqa: F401
@@ -560,6 +561,17 @@ async def make_turno(
     return turno
 
 
+async def make_turno_uso(db: AsyncSession, tu_codigo: str, empleados_activos: int):
+    """Fila de `levelup_turnos_uso` (caché de personal activo por turno)."""
+    from app.models.turnos_uso import TurnoUso
+
+    fila = TurnoUso(tu_codigo=tu_codigo.strip(), empleados_activos=empleados_activos)
+    db.add(fila)
+    await db.flush()
+    await db.refresh(fila)
+    return fila
+
+
 async def reset_turnos_horario(db: AsyncSession) -> None:
     """Vacía el catálogo de turnos y sus horarios de comida.
 
@@ -570,8 +582,10 @@ async def reset_turnos_horario(db: AsyncSession) -> None:
 
     from app.models.comedor import ComedorHorarioTurno
     from app.models.turnos import Turno
+    from app.models.turnos_uso import TurnoUso
 
     await db.execute(delete(ComedorHorarioTurno))
+    await db.execute(delete(TurnoUso))
     await db.execute(delete(Turno))
     await db.flush()
 

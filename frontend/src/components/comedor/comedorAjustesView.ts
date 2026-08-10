@@ -43,6 +43,8 @@ export type ComedorAjustesViewState = {
     filtroHorario: TurnoFiltroHorario;
     busqueda: string;
     incluirInactivos: boolean;
+    /** `false` = pedir el catálogo completo, no solo los turnos con personal. */
+    soloEnUso: boolean;
     guardandoCodigo: string | null;
     errorMessage: string | null;
     /**
@@ -83,6 +85,12 @@ export function formatDuracion(min: number | null): string {
   if (horas === 0) return `${resto} min`;
   if (resto === 0) return `${horas} h`;
   return `${horas} h ${resto} min`;
+}
+
+/** Personal activo del turno; «—» cuando la caché aún no se ha sincronizado. */
+function formatEmpleados(empleados: number | null): string {
+  if (empleados == null) return "—";
+  return String(empleados);
 }
 
 /** «45 h · 6 días» a partir de lo que TRESS define para el turno. */
@@ -315,6 +323,7 @@ function renderTurnoRow(
         </div>
       </td>
       <td class="${TD} text-sm tabular-nums text-text-secondary">${escapeHtml(formatJornada(item))}</td>
+      <td class="${TD} text-sm tabular-nums text-text-secondary">${formatEmpleados(item.empleados_activos)}</td>
       <td class="${TD}">
         <input type="time" step="60" value="${inicio}" data-turno-hora-inicio
           aria-label="Hora inicio comida del turno ${codigo}" class="${TIME_INPUT_CLS}" />
@@ -340,6 +349,7 @@ function renderTurnosPanel(state: ComedorAjustesViewState): string {
     filtroHorario,
     busqueda,
     incluirInactivos,
+    soloEnUso,
     guardandoCodigo,
     errorMessage,
     borradores,
@@ -377,6 +387,11 @@ function renderTurnosPanel(state: ComedorAjustesViewState): string {
         placeholder="Código o descripción del turno" class="${SEARCH_INPUT_CLS}" />
     </div>
     <label class="inline-flex shrink-0 items-center gap-2 py-2 text-sm text-text-secondary">
+      <input type="checkbox" data-turno-catalogo-completo ${!soloEnUso ? "checked" : ""}
+        class="h-4 w-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
+      Ver catálogo completo
+    </label>
+    <label class="inline-flex shrink-0 items-center gap-2 py-2 text-sm text-text-secondary">
       <input type="checkbox" data-turno-incluir-inactivos ${incluirInactivos ? "checked" : ""}
         class="h-4 w-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
       Mostrar turnos inactivos
@@ -387,9 +402,9 @@ function renderTurnosPanel(state: ComedorAjustesViewState): string {
   const filas =
     visibles.length === 0
       ? emptyRow(
-          6,
+          7,
           items.length === 0
-            ? "No hay turnos en el catálogo."
+            ? "No hay turnos con personal asignado."
             : "Ningún turno coincide con el filtro.",
         )
       : visibles
@@ -399,9 +414,10 @@ function renderTurnosPanel(state: ComedorAjustesViewState): string {
           .join("");
 
   const tabla = tableShell(
-    "min-w-[880px]",
+    "min-w-[980px]",
     `<th class="${TH} text-xs font-semibold uppercase">Turno</th>
      <th class="${TH} text-xs font-semibold uppercase">Jornada</th>
+     <th class="${TH} text-xs font-semibold uppercase">Empleados</th>
      <th class="${TH} text-xs font-semibold uppercase">Hora inicio comida</th>
      <th class="${TH} text-xs font-semibold uppercase">Hora fin comida</th>
      <th class="${TH} text-xs font-semibold uppercase">Duración</th>

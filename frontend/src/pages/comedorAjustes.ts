@@ -52,6 +52,7 @@ export function mountComedorAjustes(container: HTMLElement, signal: AbortSignal)
       filtroHorario: "todos",
       busqueda: "",
       incluirInactivos: false,
+      soloEnUso: true,
       guardandoCodigo: null,
       errorMessage: null,
       borradores: {},
@@ -101,7 +102,10 @@ export function mountComedorAjustes(container: HTMLElement, signal: AbortSignal)
     state.turnos.errorMessage = null;
     paint();
     try {
-      const rows = await getComedorTurnosHorario(state.turnos.incluirInactivos);
+      const rows = await getComedorTurnosHorario({
+        incluirInactivos: state.turnos.incluirInactivos,
+        soloEnUso: state.turnos.soloEnUso,
+      });
       if (signal.aborted) return;
       state.turnos.items = rows;
       state.turnos.panelState = "ready";
@@ -362,10 +366,17 @@ export function mountComedorAjustes(container: HTMLElement, signal: AbortSignal)
     "change",
     (event) => {
       const target = event.target as HTMLElement;
-      const toggle = target.closest<HTMLInputElement>("[data-turno-incluir-inactivos]");
-      if (!toggle) return;
-      state.turnos.incluirInactivos = toggle.checked;
-      void loadTurnos();
+      const inactivos = target.closest<HTMLInputElement>("[data-turno-incluir-inactivos]");
+      if (inactivos) {
+        state.turnos.incluirInactivos = inactivos.checked;
+        void loadTurnos();
+        return;
+      }
+      const catalogo = target.closest<HTMLInputElement>("[data-turno-catalogo-completo]");
+      if (catalogo) {
+        state.turnos.soloEnUso = !catalogo.checked;
+        void loadTurnos();
+      }
     },
     { signal },
   );

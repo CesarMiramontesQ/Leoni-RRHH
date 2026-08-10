@@ -377,6 +377,9 @@ class ComedorTurnoHorarioItem(BaseModel):
     activo: bool
     jornada_horas: Optional[float] = None
     dias_semana: Optional[int] = None
+    # Personal activo según la caché `levelup_turnos_uso`. `None` = la caché nunca se ha
+    # sincronizado, que no es lo mismo que un turno con 0 empleados.
+    empleados_activos: Optional[int] = None
     hora_inicio_comida: Optional[time] = None
     hora_fin_comida: Optional[time] = None
     actualizado_en: Optional[datetime] = None
