@@ -1986,10 +1986,70 @@ body {
   background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
 }
 
-#rh-faltas-retardos-page .rh-inc-type-pill--vacaciones {
-  color: #065f46;
-  border-color: rgba(16, 185, 129, 0.28);
-  background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
+
+/* Tipos de incidencia: un color por tipo. Paleta categórica validada con el
+   validador de dataviz (banda de luminosidad, piso de croma, separación CVD y
+   contraste); los derivados pastel salen del hue base por cálculo, y el texto
+   de cada pill queda en AA (>= 4.5:1) sobre su propio fondo. El badge siempre
+   lleva la etiqueta escrita: el color refuerza, no identifica solo. */
+#rh-faltas-retardos-page .rh-inc-type-pill--t-falta-injustificada {
+  color: #842a2a;
+  border-color: #f4bab9;
+  background: linear-gradient(135deg, #fce9e9 0%, #fef7f7 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-retardo {
+  color: #895d00;
+  border-color: #f8db9e;
+  background: linear-gradient(135deg, #fdf4e0 0%, #fefbf4 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-falta-justificada {
+  color: #18467c;
+  border-color: #aeccef;
+  background: linear-gradient(135deg, #e5effa 0%, #f5f9fd 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-suspension {
+  color: #683005;
+  border-color: #e2bea2;
+  background: linear-gradient(135deg, #f6eae1 0%, #fcf7f4 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-incapacidad {
+  color: #08564f;
+  border-color: #a3d6d2;
+  background: linear-gradient(135deg, #e2f2f1 0%, #f4fafa 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-incapacidad-interna {
+  color: #004c00;
+  border-color: #9ed09e;
+  background: linear-gradient(135deg, #e0f0e0 0%, #f4f9f4 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-vacaciones {
+  color: #106647;
+  border-color: #a8e1cc;
+  background: linear-gradient(135deg, #e4f5ef 0%, #f5fbf9 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-matrimonio {
+  color: #883c1e;
+  border-color: #f7c6b2;
+  background: linear-gradient(135deg, #fdede7 0%, #fef8f6 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-paternidad {
+  color: #87475f;
+  border-color: #f6cddc;
+  background: linear-gradient(135deg, #fceff4 0%, #fef9fb 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-defuncion {
+  color: #2b2261;
+  border-color: #bab4de;
+  background: linear-gradient(135deg, #e9e7f4 0%, #f7f6fb 100%);
 }
 
 #rh-faltas-retardos-page .rh-inc-type-pill--default {
