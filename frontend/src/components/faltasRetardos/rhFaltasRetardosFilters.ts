@@ -75,7 +75,8 @@ function renderFilters(vm: FaltasRetardosAdminViewModel, resultCount: number | n
   const f = vm.filterDraft;
   const clearVisible =
     filtrosFaltasRetardosActivos(f) || filtrosFaltasRetardosActivos(vm.appliedFilters);
-  // Sin fechas el backend acota al último año; conviene decirlo donde se ve el conteo.
+  // Sin fechas el backend acota a los últimos 6 meses (VENTANA_DEFAULT_MESES en
+  // faltas_retardos_service.py); conviene decirlo donde se ve el conteo.
   const ventanaHtml =
     !vm.appliedFilters.fecha_inicio && !vm.appliedFilters.fecha_fin
       ? `<p class="text-xs text-[color:var(--color-text-secondary)]">${escapeHtml(FR_COPY.ventanaDefaultHint)}</p>`
