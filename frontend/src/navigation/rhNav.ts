@@ -24,7 +24,6 @@ export type RhNavKey =
   | "actas"
   | "faltas-retardos"
   | "comedor"
-  | "comedor-gestion"
   | "comedor-planear"
   | "comedor-ajustes"
   | "reportes"

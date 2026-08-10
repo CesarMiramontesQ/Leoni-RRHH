@@ -618,12 +618,18 @@ async def get_proyecciones(
 @router.get("/turnos-horario", response_model=list[ComedorTurnoHorarioItem])
 async def list_turnos_horario(
     incluir_inactivos: bool = Query(False),
+    solo_en_uso: bool = Query(True),
     current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Turnos del catálogo con su horario de comida (Ajustes Comedor)."""
+    """Turnos del catálogo con su horario de comida (Ajustes Comedor).
+
+    Por defecto solo los que tienen personal activo según `levelup_turnos_uso`.
+    """
     service = ComedorService(db)
-    return await service.list_turnos_horario(incluir_inactivos=incluir_inactivos)
+    return await service.list_turnos_horario(
+        incluir_inactivos=incluir_inactivos, solo_en_uso=solo_en_uso
+    )
 
 
 @router.put("/turnos-horario/{tu_codigo}", response_model=ComedorTurnoHorarioItem)

@@ -17,6 +17,7 @@ from app.models.empleados_rh import (
 )
 from app.models.turnos import Turno
 from app.models.turnos_empleados import TurnoEmpleado
+from app.models.turnos_uso import TurnoUso
 from app.models.vacaciones_disponibles import VacacionesDisponibles
 from app.models.homeoffice_tomados import HomeOfficeTomados
 from app.models.incidencias_tress import IncidenciaTress
@@ -159,6 +160,7 @@ __all__ = [
     "EmpleadoRhHorasExtra",
     "Turno",
     "TurnoEmpleado",
+    "TurnoUso",
     "Solicitud",
     "SolicitudAprobacion",
     "Incidencia",

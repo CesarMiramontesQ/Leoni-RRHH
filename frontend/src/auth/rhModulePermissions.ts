@@ -21,7 +21,7 @@ type RhModulePermissionsState = {
 
 /** Claves legacy → hijas (alineado con app/core/rh_module_registry.py). */
 const LEGACY_MODULE_ALIASES: Readonly<Record<string, readonly string[]>> = {
-  comedor: ["comedor-registro", "comedor-gestion", "comedor-planear"],
+  comedor: ["comedor-registro", "comedor-ajustes", "comedor-planear"],
   puestos: ["puestos-ajustes"],
   cursos: [
     "cursos-seguimiento",

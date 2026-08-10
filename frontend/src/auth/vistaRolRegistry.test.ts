@@ -21,7 +21,7 @@ const VISTA_KEYS = [
   "comedor", "mis-evaluaciones", "mis-encuestas", "mis-encuestas-rh", "mis-firmas",
   "mis-aprobaciones-opl", "mis-metas", "mi-desempeno",
   "solicitudes", "metricas", "incidencias", "faltas-retardos", "actas", "viajes-laborales",
-  "reportes", "comedor-gestion", "comedor-planear", "comedor-ajustes",
+  "reportes", "comedor-planear", "comedor-ajustes",
   "nominas-horas-extra", "nominas-conciliacion", "nominas-ajustes",
   "puestos", "competencias", "tareas-catalogo", "puestos-ajustes",
   "dashboard-talento", "encuestas-rh", "operaciones",
@@ -49,7 +49,7 @@ describe("vistaRolRegistry", () => {
       "dashboard", "organigrama", "empleados", "level-up", "comedor", "mis-evaluaciones",
       "mis-encuestas", "mis-encuestas-rh", "mis-firmas", "mis-aprobaciones-opl", "mis-metas",
       "mi-desempeno", "solicitudes", "metricas", "incidencias", "faltas-retardos", "actas",
-      "viajes-laborales", "reportes", "comedor-gestion", "comedor-planear", "comedor-ajustes",
+      "viajes-laborales", "reportes", "comedor-planear", "comedor-ajustes",
       "horas-extra",
       "conciliacion", "nominas-ajustes", "puestos", "wtw", "competencias", "capacidades",
       "tareas-catalogo", "puestos-ajustes", "dashboard-talento", "encuestas-rh", "operaciones",
@@ -73,7 +73,8 @@ describe("vistaRolRegistry", () => {
     expect(resolveVistaFromHash("#/")).toBe("dashboard");
     expect(resolveVistaFromHash("#")).toBe("dashboard");
     expect(resolveVistaFromHash("#/comedor")).toBe("comedor");
-    expect(resolveVistaFromHash("#/comedor/gestion")).toBe("comedor-gestion");
+    // `#/comedor/gestion` se fusionó en Ajustes Comedor; el hash viejo resuelve a la vista nueva.
+    expect(resolveVistaFromHash("#/comedor/gestion")).toBe("comedor-ajustes");
     expect(resolveVistaFromHash("#/comedor/planear")).toBe("comedor-planear");
     expect(resolveVistaFromHash("#/comedor/ajustes")).toBe("comedor-ajustes");
     expect(resolveVistaFromHash("#/comedor/reporte")).toBe("reportes");

@@ -16,6 +16,7 @@ from tests.conftest import (
     auth_headers,
     make_empleado,
     make_turno,
+    make_turno_uso,
     reset_turnos_horario,
 )
 
@@ -179,6 +180,70 @@ async def test_filtro_de_turnos_inactivos(client: AsyncClient, db):
     assert todos[1]["activo"] is False
 
 
+# ───────────────────────── filtro por turnos en uso ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_por_defecto_solo_lista_turnos_con_personal(client: AsyncClient, db):
+    await make_turno(db, "01", "Matutino")
+    await make_turno(db, "77", "Turno sin gente")
+    await make_turno_uso(db, "01", 181)
+    rh = await make_empleado(
+        db, rol="rh", email="rh_turnos_uso@test.leoni", password="RhTurn0s!"
+    )
+    hdrs = await auth_headers(client, rh, password="RhTurn0s!")
+
+    items = (await client.get(LISTA_URL, headers=hdrs)).json()
+    assert [i["tu_codigo"] for i in items] == ["01"]
+    assert items[0]["empleados_activos"] == 181
+
+    todos = (await client.get(f"{LISTA_URL}?solo_en_uso=false", headers=hdrs)).json()
+    assert [i["tu_codigo"] for i in todos] == ["01", "77"]
+    # Sin fila en la caché el conteo es desconocido, que no es lo mismo que cero.
+    assert todos[1]["empleados_activos"] is None
+
+
+@pytest.mark.asyncio
+async def test_cache_vacia_no_filtra_nada(client: AsyncClient, db):
+    """Antes de la primera corrida del sync, filtrar dejaría la pantalla sin turnos."""
+    await make_turno(db, "01", "Matutino")
+    await make_turno(db, "77", "Otro")
+    rh = await make_empleado(
+        db, rol="rh", email="rh_turnos_cachevacia@test.leoni", password="RhTurn0s!"
+    )
+    hdrs = await auth_headers(client, rh, password="RhTurn0s!")
+
+    items = (await client.get(LISTA_URL, headers=hdrs)).json()
+    assert [i["tu_codigo"] for i in items] == ["01", "77"]
+
+
+@pytest.mark.asyncio
+async def test_un_turno_con_horario_no_se_oculta_aunque_se_quede_sin_gente(
+    client: AsyncClient, db
+):
+    """Esconder un dato ya capturado sería peor que mostrar una fila de más."""
+    await make_turno(db, "01", "Matutino")
+    await make_turno(db, "77", "Turno vaciado")
+    await make_turno_uso(db, "01", 181)
+    await make_turno_uso(db, "77", 0)
+    rh = await make_empleado(
+        db, rol="rh", email="rh_turnos_conservar@test.leoni", password="RhTurn0s!"
+    )
+    hdrs = await auth_headers(client, rh, password="RhTurn0s!")
+
+    assert [i["tu_codigo"] for i in (await client.get(LISTA_URL, headers=hdrs)).json()] == ["01"]
+
+    res = await client.put(
+        guardar_url("77"),
+        headers=hdrs,
+        json={"hora_inicio_comida": "13:00", "hora_fin_comida": "14:00"},
+    )
+    assert res.status_code == 200, res.text
+
+    items = (await client.get(LISTA_URL, headers=hdrs)).json()
+    assert [i["tu_codigo"] for i in items] == ["01", "77"]
+
+
 # ───────────────────────────── permisos RH por módulo ─────────────────────────────
 
 
@@ -223,7 +288,11 @@ async def test_modulo_comedor_ajustes_concede_acceso(client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_otro_modulo_de_comedor_no_alcanza(client: AsyncClient, db):
-    """`comedor-ajustes` queda fuera del alias legacy `comedor`: se concede aparte."""
+    """Los otros módulos de la sección no dan acceso a los ajustes.
+
+    Tener Registro Comedor o Planeación no basta: la administración de comedores y el
+    horario de comida son un permiso aparte (`comedor-ajustes`).
+    """
     await make_turno(db, "01", "Matutino")
     operador = await make_empleado(
         db,
@@ -231,11 +300,33 @@ async def test_otro_modulo_de_comedor_no_alcanza(client: AsyncClient, db):
         email="emp_turnos_otromod@test.leoni",
         password="Emp0Turn!",
         inscrito_modulos_rh=True,
-        modulos_rh={"comedor-gestion": True, "comedor-planear": True},
+        modulos_rh={"comedor-registro": True, "comedor-planear": True},
     )
     hdrs = await auth_headers(client, operador, password="Emp0Turn!")
 
     assert (await client.get(LISTA_URL, headers=hdrs)).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_el_mismo_permiso_cubre_comedores_y_horarios(client: AsyncClient, db):
+    """La pantalla fusionó ambas pestañas, así que un solo módulo abre las dos APIs."""
+    operador = await make_empleado(
+        db,
+        rol="empleado",
+        email="emp_turnos_fusion@test.leoni",
+        password="Emp0Turn!",
+        inscrito_modulos_rh=True,
+        modulos_rh={"comedor-ajustes": True},
+    )
+    hdrs = await auth_headers(client, operador, password="Emp0Turn!")
+
+    assert (await client.get(LISTA_URL, headers=hdrs)).status_code == 200
+    res = await client.post(
+        "/api/v1/comedor/comedores",
+        headers=hdrs,
+        json={"nombre": "Comedor fusión", "ubicacion": None, "capacidad": 50, "activo": True},
+    )
+    assert res.status_code == 200, res.text
 
 
 # ───────────────────────────── vistas por rol ─────────────────────────────

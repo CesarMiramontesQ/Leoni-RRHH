@@ -30,7 +30,7 @@ class RhModuleDef:
 
 # Claves legacy → nuevas (si la legacy está en true, otorga las hijas).
 _LEGACY_MODULE_ALIASES: dict[str, tuple[str, ...]] = {
-    "comedor": ("comedor-registro", "comedor-gestion", "comedor-planear"),
+    "comedor": ("comedor-registro", "comedor-ajustes", "comedor-planear"),
     "puestos": ("puestos-ajustes",),
     "cursos": (
         "cursos-seguimiento", "sesiones", "cursos-ajustes", "juntas",
@@ -139,18 +139,6 @@ RH_MODULES: dict[str, RhModuleDef] = {
             "/api/v1/comedor/proyecciones",
         ),
     ),
-    "comedor-gestion": RhModuleDef(
-        key="comedor-gestion",
-        label="Comedores",
-        group="Comedor",
-        nav_item_ids=("comedor-gestion",),
-        hash_prefixes=("#/comedor/gestion", "#/comedor/codigos-externos"),
-        api_prefixes=(
-            "/api/v1/comedor/comedores",
-            "/api/v1/comedor/codigos-externos",
-            "/api/v1/comedor/accesos/rh/codigos-externos",
-        ),
-    ),
     "comedor-planear": RhModuleDef(
         key="comedor-planear",
         label="Planeación",
@@ -159,15 +147,27 @@ RH_MODULES: dict[str, RhModuleDef] = {
         hash_prefixes=("#/comedor/planear",),
         api_prefixes=("/api/v1/comedor/menu",),
     ),
-    # Fuera del alias legacy "comedor" a propósito: el horario de comida por turno se
-    # concede y se retira por separado de las otras tres pantallas de la sección.
+    # Absorbió al antiguo `comedor-gestion`: la administración de comedores y el horario
+    # de comida por turno viven en la misma pantalla (`#/comedor/ajustes`), con pestañas.
+    # Conserva los hashes viejos para que los enlaces guardados y el redirect resuelvan
+    # al módulo correcto, y los prefijos de API de códigos externos, cuya pantalla sigue
+    # colgando de este permiso aunque se llegue a ella desde el dashboard de comedor.
     "comedor-ajustes": RhModuleDef(
         key="comedor-ajustes",
         label="Ajustes Comedor",
         group="Comedor",
         nav_item_ids=("comedor-ajustes",),
-        hash_prefixes=("#/comedor/ajustes",),
-        api_prefixes=("/api/v1/comedor/turnos-horario",),
+        hash_prefixes=(
+            "#/comedor/ajustes",
+            "#/comedor/gestion",
+            "#/comedor/codigos-externos",
+        ),
+        api_prefixes=(
+            "/api/v1/comedor/turnos-horario",
+            "/api/v1/comedor/comedores",
+            "/api/v1/comedor/codigos-externos",
+            "/api/v1/comedor/accesos/rh/codigos-externos",
+        ),
     ),
     "nominas-horas-extra": RhModuleDef(
         key="nominas-horas-extra",
@@ -458,7 +458,7 @@ RH_MODULE_GROUP_ORDER: tuple[str, ...] = (
 RH_MODULE_EXEMPT_API_PREFIXES: tuple[str, ...] = (
     "/api/v1/auth",
     # Buscador de empleados de la sección Comedor: lo usan el modal de registro
-    # (`comedor-registro`) y el de asignar comedor (`comedor-gestion`), y un path solo
+    # (`comedor-registro`) y el de asignar comedor (`comedor-ajustes`), y un path solo
     # resuelve a UN módulo. La autorización la hace `buscar_empleados_para_registro_rh`,
     # que acepta cualquiera de los dos.
     "/api/v1/comedor/rh/empleados-buscar",

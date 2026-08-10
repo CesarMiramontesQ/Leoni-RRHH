@@ -14,8 +14,8 @@ const HASH_RULES: ReadonlyArray<{ key: string; prefix: string }> = [
   { key: "actas", prefix: "#/actas" },
   { key: "reportes", prefix: "#/comedor/reporte" },
   { key: "reportes", prefix: "#/reportes" },
-  { key: "comedor-gestion", prefix: "#/comedor/gestion" },
-  { key: "comedor-gestion", prefix: "#/comedor/codigos-externos" },
+  { key: "comedor-ajustes", prefix: "#/comedor/gestion" },
+  { key: "comedor-ajustes", prefix: "#/comedor/codigos-externos" },
   { key: "comedor-planear", prefix: "#/comedor/planear" },
   { key: "comedor-ajustes", prefix: "#/comedor/ajustes" },
   { key: "comedor-registro", prefix: "#/comedor" },
@@ -73,7 +73,6 @@ export function navItemIdToModuleKey(navItemId: string): string {
   if (navItemId === "cursos-juntas") return "juntas";
   if (navItemId === "cursos-proveedores") return "proveedores-externos";
   if (navItemId === "comedor-menu" || navItemId === "comedor") return "comedor-registro";
-  if (navItemId === "comedor-gestion") return "comedor-gestion";
   if (navItemId === "comedor-planear") return "comedor-planear";
   if (navItemId === "laborales") return "dashboard";
   if (navItemId === "horas-extra") return "nominas-horas-extra";

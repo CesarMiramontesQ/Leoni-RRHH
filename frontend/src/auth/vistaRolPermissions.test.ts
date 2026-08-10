@@ -111,13 +111,13 @@ describe("vistaRolPermissions y el modo de UI", () => {
     respuesta = {
       rol: "empleado",
       configurable: true,
-      vistas: { "comedor-gestion": false, "comedor-planear": false, reportes: false, dashboard: true },
+      vistas: { "comedor-ajustes": false, "comedor-planear": false, reportes: false, dashboard: true },
     };
     const m = await cargar();
 
     expect(m.isVistaRolGateActivo()).toBe(false);
     // El gate ya no opina: deciden los permisos por módulo.
-    expect(m.vistaRolPermiteNavItem("comedor-gestion")).toBeNull();
+    expect(m.vistaRolPermiteNavItem("comedor-ajustes")).toBeNull();
     expect(m.vistaRolPermiteNavItem("comedor-planear")).toBeNull();
     expect(m.vistaRolPermiteNavItem("reportes")).toBeNull();
     expect(m.vistaRolPermiteNavItem("dashboard")).toBeNull();
@@ -126,11 +126,11 @@ describe("vistaRolPermissions y el modo de UI", () => {
 
   it("un rol base SIN módulos otorgados sí queda sujeto al gate", async () => {
     inscritoEnModulos = false;
-    respuesta = { rol: "empleado", configurable: true, vistas: { "comedor-gestion": false } };
+    respuesta = { rol: "empleado", configurable: true, vistas: { "comedor-ajustes": false } };
     const m = await cargar();
 
     expect(m.isVistaRolGateActivo()).toBe(true);
-    expect(m.vistaRolPermiteNavItem("comedor-gestion")).toBe(false);
+    expect(m.vistaRolPermiteNavItem("comedor-ajustes")).toBe(false);
   });
 
   it("el mismo inscrito EN MODO BASE sí ve su menú de rol limitado", async () => {
@@ -141,12 +141,12 @@ describe("vistaRolPermissions y el modo de UI", () => {
     respuesta = {
       rol: "empleado",
       configurable: true,
-      vistas: { "comedor-gestion": false, dashboard: true },
+      vistas: { "comedor-ajustes": false, dashboard: true },
     };
     const m = await cargar();
 
     expect(m.isVistaRolGateActivo()).toBe(true);
-    expect(m.vistaRolPermiteNavItem("comedor-gestion")).toBe(false);
+    expect(m.vistaRolPermiteNavItem("comedor-ajustes")).toBe(false);
     expect(m.vistaRolPermiteNavItem("dashboard")).toBe(true);
   });
 

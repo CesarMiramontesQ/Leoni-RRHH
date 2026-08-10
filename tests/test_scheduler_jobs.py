@@ -51,3 +51,23 @@ def test_home_office_y_vacaciones_son_jobs_independientes():
     jobs = _jobs()
     assert "sync_vacaciones_disponibles" in jobs
     assert "sync_homeoffice_tomados" in jobs
+
+
+def test_sync_de_turnos_en_uso_corre_diario_a_las_cuatro():
+    """A las 04:00, antes del primer turno: la pantalla debe abrir con el conteo al día."""
+    job = _jobs()["sync_turnos_uso"]
+    assert _campo(job, "hour") == "4"
+    assert _campo(job, "minute") == "0"
+    assert _campo(job, "day") == "*"
+    assert job.trigger.timezone.key == settings.APP_TIMEZONE
+
+
+def test_el_sync_de_turnos_no_desplazo_a_los_demas():
+    jobs = _jobs()
+    for job_id in (
+        "sync_vacaciones_disponibles",
+        "sync_homeoffice_tomados",
+        "sync_incidencias_tress",
+        "sync_turnos_uso",
+    ):
+        assert job_id in jobs
