@@ -231,6 +231,15 @@ Layered architecture: **router → service → repository → models/schemas**
 - Legacy Bono tables (`empleados`, `areas`, `puestos`, etc.) are **read-only** from this project: query and FK-reference only; no schema migrations or DDL on them.
 - In raw SQL, always derive the table name from the model (`Model.__tablename__`); never hardcode unprefixed table names.
 - New Alembic revisions may only `create_table` / `alter_column` / `drop_table` on `levelup_*` tables. If a change requires touching an unprefixed table, stop and ask for clarification.
+- **Única excepción, ya autorizada:** las columnas que este proyecto agregó a
+  `importadas_historico` (`estado`, `semana_incidencia`) no pueden viajar en una
+  migración —la tabla es de Bono— pero el INSERT del módulo las escribe, así que si
+  faltan se cae el sync **y** el registro manual. Las asegura
+  `python -m app.scripts.ensure_columnas_bono`, que corre dentro de `prod-migrate.sh`:
+  idempotente, solo aditivo, sobre una lista cerrada. Agregar una columna a esa lista
+  exige la misma autorización que cualquier cambio al esquema de Bono; un test
+  (`tests/test_ensure_columnas_bono.py`) falla si el INSERT escribe una columna que la
+  lista no declara.
 - **BD Bono nueva:** el esquema propio se crea con la migración baseline `v1l2u3p0base` (genera solo tablas `levelup_*`). **No** corras `alembic upgrade head` desde cero contra Bono: la cadena vieja (`c06e332f3cce` … `p2q3r4s5t6u7`) crea tablas sin prefijo y tocaría catálogos de Bono. Usa `scripts/bono-first-migrate.sh` (stamp `p2q3r4s5t6u7` → upgrade `v1l2u3p0base` → stamp head); `scripts/prod-migrate.sh` lo invoca solo si `alembic_version` está vacía. El merge `37a743fada1c` dejó un único head (ver `docs/DEPLOY.md`).
 
 ### OpenAPI spec (`openapi.yaml`)

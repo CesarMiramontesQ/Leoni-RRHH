@@ -65,6 +65,17 @@ docker compose -f docker-compose.prod.yml --env-file .env up -d
 > `prod-build-frontend.sh`, el navegador seguirá sirviendo el bundle anterior y parecerá que
 > el deploy no surtió efecto.
 
+`prod-migrate.sh` termina asegurando las columnas que este proyecto agregó a
+`importadas_historico` (`estado`, `semana_incidencia`). Son de una tabla de Bono, así que
+no viajan en una migración Alembic, pero el INSERT del módulo de faltas y retardos las
+escribe: si faltan se cae el sync **y** el registro manual de RH. El paso es idempotente y
+solo aditivo. Para comprobarlas sin alterar nada:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.ensure_columnas_bono --check
+```
+
 ### Carga inicial de saldos de vacaciones (una sola vez)
 
 El release que introduce `levelup_vacaciones_disponibles` (revisión `w1c2a3c4h5e6`) crea la

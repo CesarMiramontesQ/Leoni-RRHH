@@ -56,4 +56,11 @@ alembic_run upgrade head
 echo "=== Alinear alembic_version con head del repo (merge prod v1 + v2) ==="
 alembic_run stamp head
 
+# `importadas_historico` es de Bono y no lleva prefijo levelup_, asi que sus columnas no
+# pueden viajar en una migracion Alembic. Pero el INSERT de faltas y retardos las escribe:
+# si faltan, se cae el sync Y el registro manual de RH. Excepcion acotada, idempotente y
+# solo aditiva -- la lista cerrada vive en el script.
+echo "=== Columnas requeridas en tablas de Bono ==="
+backend_run_fresh python -m app.scripts.ensure_columnas_bono
+
 echo "=== Listo. Levanta o reinicia: docker compose -f $COMPOSE_FILE --env-file $ENV_FILE up -d ==="
