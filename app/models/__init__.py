@@ -15,6 +15,7 @@ from app.models.empleados_rh import (
     EmpleadoRhHorasExtra,
     EmpleadoRhPermisos,
 )
+from app.models.turnos import Turno
 from app.models.turnos_empleados import TurnoEmpleado
 from app.models.vacaciones_disponibles import VacacionesDisponibles
 from app.models.homeoffice_tomados import HomeOfficeTomados
@@ -155,6 +156,7 @@ __all__ = [
     "EmpleadoRhConfig",
     "EmpleadoRhPermisos",
     "EmpleadoRhHorasExtra",
+    "Turno",
     "TurnoEmpleado",
     "Solicitud",
     "SolicitudAprobacion",
