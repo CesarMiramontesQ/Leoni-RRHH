@@ -136,9 +136,9 @@ async def test_estadisticas_faltas_retardos(client: AsyncClient, db):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("tipo", ["retardo", "falta_injustificada"])
+@pytest.mark.parametrize("tipo", ["retardo", "falta_injustificada", "vacaciones"])
 async def test_create_rechaza_tipos_que_calcula_tress(client: AsyncClient, db, tipo):
-    """FI y RE los calcula TRESS: no se capturan a mano ni por API.
+    """Los pone nómina, no la app: no se capturan a mano ni por API.
 
     El modal nunca los ofreció; esto cierra la superficie del endpoint.
     """

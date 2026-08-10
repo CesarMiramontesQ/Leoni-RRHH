@@ -20,6 +20,7 @@ FaltaRetardoTipo = Literal[
     "incapacidad_interna",
     "defuncion",
     "paternidad",
+    "vacaciones",
 ]
 
 

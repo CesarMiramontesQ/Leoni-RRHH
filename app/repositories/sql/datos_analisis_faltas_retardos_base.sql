@@ -1,6 +1,6 @@
 -- Incidencias unificadas desde datos-analisis (TRESS). SOLO LECTURA.
 --
--- Rama A (dbo.AUSENCIA): un renglon por empleado por dia para FI, RE, SUS y las
+-- Rama A (dbo.AUSENCIA): un renglon por empleado por dia para FI, RE, SUS, VAC y las
 --   incapacidades del IMSS (INC, IN1, IAC, ITR), mas los dias FJ que NO estan
 --   cubiertos por un permiso con goce (esos salen de la rama B como un solo
 --   renglon con rango, para no duplicarlos).
@@ -32,6 +32,7 @@ SELECT
         WHEN 'FI'  THEN 'falta_injustificada'
         WHEN 'RE'  THEN 'retardo'
         WHEN 'SUS' THEN 'suspension'
+        WHEN 'VAC' THEN 'vacaciones'
         ELSE 'incapacidad'
     END                                                          AS tipo,
     CONVERT(date, a.AU_FECHA)                                    AS fecha_evento,
@@ -50,7 +51,7 @@ OUTER APPLY (
       AND a.AU_FECHA   < p2.PM_FEC_FIN
     ORDER BY p2.PM_FEC_INI DESC
 ) pm
-WHERE a.AU_TIPO IN ('FI', 'RE', 'FJ', 'SUS', 'INC', 'IN1', 'IAC', 'ITR')
+WHERE a.AU_TIPO IN ('FI', 'RE', 'FJ', 'SUS', 'INC', 'IN1', 'IAC', 'ITR', 'VAC')
   AND (CAST(:fecha_inicio AS date) IS NULL OR a.AU_FECHA >= CAST(:fecha_inicio AS date))
   AND (CAST(:fecha_fin AS date) IS NULL OR a.AU_FECHA < DATEADD(day, 1, CAST(:fecha_fin AS date)))
   AND (

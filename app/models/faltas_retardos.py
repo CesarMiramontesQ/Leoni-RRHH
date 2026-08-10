@@ -19,6 +19,8 @@ FALTA_RETARDO_TIPOS = (
     "incapacidad_interna",
     "defuncion",
     "paternidad",
+    # Llega solo por el sync desde dbo.AUSENCIA (AU_TIPO VAC); no se captura a mano.
+    "vacaciones",
 )
 
 # Tipos con goce de sueldo: registro directo RH en levelup (sin Bono).
@@ -26,10 +28,13 @@ FALTA_RETARDO_TIPOS_GOCE = frozenset(
     {"matrimonio", "incapacidad_interna", "defuncion", "paternidad"}
 )
 
-# TRESS los calcula solo a partir de checadas: nadie los captura a mano. Llegan a
-# importadas_historico por el mirror semanal de dbo.AUSENCIA, nunca por el alta de RH.
-# El modal tampoco los ofrece (frontend/src/faltasRetardos/rh/constants.ts).
-FALTA_RETARDO_TIPOS_CALCULADOS_TRESS = frozenset({"falta_injustificada", "retardo"})
+# Los pone nomina, no la app: FI y RE los calcula TRESS desde las checadas, y las
+# vacaciones llegan de la solicitud aprobada. Entran por el sync de dbo.AUSENCIA, nunca
+# por el alta de RH; el modal tampoco los ofrece
+# (frontend/src/faltasRetardos/rh/constants.ts).
+FALTA_RETARDO_TIPOS_CALCULADOS_TRESS = frozenset(
+    {"falta_injustificada", "retardo", "vacaciones"}
+)
 
 FALTA_RETARDO_TIPOS_RANGO = frozenset(
     {

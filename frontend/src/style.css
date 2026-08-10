@@ -1926,6 +1926,12 @@ body {
   background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%);
 }
 
+#rh-incidencias-page .rh-inc-type-pill--vacaciones {
+  color: #065f46;
+  border-color: rgba(16, 185, 129, 0.28);
+  background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
+}
+
 #rh-incidencias-page .rh-inc-type-pill--default {
   color: #0c4a6e;
   border-color: rgba(14, 165, 233, 0.25);
@@ -1978,6 +1984,12 @@ body {
   color: #1e3a8a;
   border-color: rgba(37, 99, 235, 0.28);
   background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--vacaciones {
+  color: #065f46;
+  border-color: rgba(16, 185, 129, 0.28);
+  background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
 }
 
 #rh-faltas-retardos-page .rh-inc-type-pill--default {
