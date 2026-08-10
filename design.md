@@ -603,6 +603,26 @@ Patron unificado: pill con dot indicator. Definidos como funciones en `uiTokens.
 
 **Priority badges** (variante uppercase bold): CRITICA (solid red bg/white text), ALTA (red-50), MEDIA (orange-50), BAJA (slate-100).
 
+**Categorical badges** (distinto de los de estado). Cuando el badge no marca un *estado*
+sino una *categoria* --el tipo de incidencia en la pagina Incidencias, con sus 10
+valores-- los 5 colores semanticos no alcanzan y ademas significan otra cosa. Para esos
+casos se usa una paleta **categorica**, no semantica:
+
+- Los hues salen de una paleta validada por separacion perceptual: banda de luminosidad,
+  piso de croma, separacion para daltonismo (protan/deutan/tritan) y contraste sobre la
+  superficie. No se eligen a ojo.
+- Los derivados pastel de cada pill (texto, fondo, borde) se calculan desde el hue base
+  mezclando con blanco/negro en proporciones fijas, para que los 10 se vean como una
+  familia y no como 10 decisiones sueltas.
+- El texto de cada pill queda en **AA (>= 4.5:1) sobre su propio fondo**; se verifica,
+  no se asume.
+- El pill **siempre** muestra la etiqueta escrita. El color refuerza la lectura pero
+  nunca es el unico identificador --requisito de accesibilidad y lo que permite usar 10
+  categorias, porque a partir de ~8 hues no todos los pares son distinguibles entre si--.
+
+Implementacion de referencia: `rh-inc-type-pill--t-<tipo>` en `style.css`, mapeadas en
+`frontend/src/faltasRetardos/rh/constants.ts`.
+
 ### 8.6 KPI Card
 
 **Variante A — Dashboard (grande, con icon + progress + pills):**

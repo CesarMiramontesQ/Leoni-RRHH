@@ -276,3 +276,31 @@ def test_map_bono_row_no_usa_tipo_descripcion_como_observaciones():
     assert mapped.tipo == "suspension"
     assert mapped.observaciones is None
     assert mapped.origen == "importadas_historico"
+
+
+def test_ventana_por_defecto_son_seis_meses():
+    """Sin filtro de fechas, la página arranca en los últimos 6 meses."""
+    from datetime import date, timedelta
+
+    from app.services.faltas_retardos_service import (
+        VENTANA_DEFAULT_MESES,
+        _ventana_por_defecto,
+    )
+
+    assert VENTANA_DEFAULT_MESES == 6
+    desde, hasta = _ventana_por_defecto(None, None)
+    assert hasta is None
+    assert desde is not None
+    dias = (date.today() - desde).days
+    # ~6 meses: medio año en días, con holgura por el redondeo entero.
+    assert 180 <= dias <= 185, dias
+
+
+def test_ventana_por_defecto_respeta_las_fechas_pedidas():
+    from datetime import date
+
+    from app.services.faltas_retardos_service import _ventana_por_defecto
+
+    pedida = date(2020, 1, 1)
+    assert _ventana_por_defecto(pedida, None) == (pedida, None)
+    assert _ventana_por_defecto(None, pedida) == (None, pedida)

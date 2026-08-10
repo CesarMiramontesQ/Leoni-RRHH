@@ -1986,10 +1986,119 @@ body {
   background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
 }
 
-#rh-faltas-retardos-page .rh-inc-type-pill--vacaciones {
-  color: #065f46;
-  border-color: rgba(16, 185, 129, 0.28);
-  background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%);
+
+/* Tipos de incidencia: un color por tipo.
+   El dot lleva el hue pleno --es el canal donde la diferencia se percibe-- y el
+   fondo queda suave para que el texto respire. Un pastel muy lavado hace que diez
+   tipos se vean casi iguales, que fue el primer intento. Paleta categorica validada
+   (luminosidad, croma, separacion CVD); texto en AA sobre su propio fondo. */
+#rh-faltas-retardos-page .rh-inc-type-pill[class*="--t-"]::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.4rem;
+  border-radius: 999px;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-falta-injustificada {
+  color: #6d2323;
+  border-color: #f09b9a;
+  background: linear-gradient(135deg, #f9d7d7 0%, #fceded 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-falta-injustificada::before {
+  background: #e34948;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-retardo {
+  color: #724d00;
+  border-color: #f5cb73;
+  background: linear-gradient(135deg, #fbeac7 0%, #fdf6e6 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-retardo::before {
+  background: #eda100;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-falta-justificada {
+  color: #143a67;
+  border-color: #8ab5e8;
+  background: linear-gradient(135deg, #d0e1f6 0%, #eaf2fb 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-falta-justificada::before {
+  background: #2a78d6;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-suspension {
+  color: #562804;
+  border-color: #d6a078;
+  background: linear-gradient(135deg, #eed9c9 0%, #f8eee6 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-suspension::before {
+  background: #b45309;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-incapacidad {
+  color: #064741;
+  border-color: #7ac4be;
+  background: linear-gradient(135deg, #cae7e5 0%, #e7f4f3 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-incapacidad::before {
+  background: #0d9488;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-incapacidad-interna {
+  color: #1e2f09;
+  border-color: #95a97d;
+  background: linear-gradient(135deg, #d5dccb 0%, #ecefe7 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-incapacidad-interna::before {
+  background: #3f6212;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-vacaciones {
+  color: #0d543b;
+  border-color: #82d3b6;
+  background: linear-gradient(135deg, #cdede2 0%, #e8f7f2 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-vacaciones::before {
+  background: #1baf7a;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-matrimonio {
+  color: #713219;
+  border-color: #f4ac8f;
+  background: linear-gradient(135deg, #fbded2 0%, #fdf0eb 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-matrimonio::before {
+  background: #eb6834;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-paternidad {
+  color: #5b0c2d;
+  border-color: #db80a6;
+  background: linear-gradient(135deg, #f1ccdb 0%, #f8e8ef 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-paternidad::before {
+  background: #be185d;
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-defuncion {
+  color: #241c50;
+  border-color: #9b93cf;
+  background: linear-gradient(135deg, #d7d4ec 0%, #edebf6 100%);
+}
+
+#rh-faltas-retardos-page .rh-inc-type-pill--t-defuncion::before {
+  background: #4a3aa7;
 }
 
 #rh-faltas-retardos-page .rh-inc-type-pill--default {

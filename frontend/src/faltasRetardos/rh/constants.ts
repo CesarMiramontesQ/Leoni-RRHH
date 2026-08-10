@@ -55,28 +55,27 @@ export function labelFaltaRetardoTipo(tipo: FaltaRetardoTipo): string {
   return FALTA_RETARDO_TIPO_LABELS[tipo] ?? tipo;
 }
 
+/**
+ * Un color por tipo. Los hues salen de una paleta categórica validada (banda de
+ * luminosidad, piso de croma, separación para daltonismo y contraste); los estilos
+ * viven en `style.css` como `--t-<tipo>`. El pill siempre muestra la etiqueta, así
+ * que el color refuerza la lectura pero no es el único identificador.
+ */
+const TIPO_PILL_CLASSES: Record<FaltaRetardoTipo, string> = {
+  falta_injustificada: "rh-inc-type-pill--t-falta-injustificada",
+  retardo: "rh-inc-type-pill--t-retardo",
+  falta_justificada: "rh-inc-type-pill--t-falta-justificada",
+  suspension: "rh-inc-type-pill--t-suspension",
+  incapacidad: "rh-inc-type-pill--t-incapacidad",
+  incapacidad_interna: "rh-inc-type-pill--t-incapacidad-interna",
+  vacaciones: "rh-inc-type-pill--t-vacaciones",
+  matrimonio: "rh-inc-type-pill--t-matrimonio",
+  paternidad: "rh-inc-type-pill--t-paternidad",
+  defuncion: "rh-inc-type-pill--t-defuncion",
+};
+
 export function badgeClassFaltaRetardoTipo(tipo: FaltaRetardoTipo): string {
-  switch (tipo) {
-    case "falta_justificada":
-      return "rh-inc-type-pill--tiempo";
-    case "falta_injustificada":
-      return "rh-inc-type-pill--seguridad";
-    case "retardo":
-      return "rh-inc-type-pill--tiempo";
-    case "incapacidad":
-      return "rh-inc-type-pill--evaluacion";
-    case "suspension":
-      return "rh-inc-type-pill--default";
-    case "matrimonio":
-    case "incapacidad_interna":
-    case "defuncion":
-    case "paternidad":
-      return "rh-inc-type-pill--tiempo";
-    case "vacaciones":
-      return "rh-inc-type-pill--vacaciones";
-    default:
-      return "rh-inc-type-pill--default";
-  }
+  return TIPO_PILL_CLASSES[tipo] ?? "rh-inc-type-pill--default";
 }
 
 export function formatFaltaRetardoFechas(

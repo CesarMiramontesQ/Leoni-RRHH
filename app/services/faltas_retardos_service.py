@@ -62,7 +62,7 @@ _DIAS_GOCE = {
 # histórico—, sino de utilidad: entrar y ver de golpe 27 años de incidencias
 # (desde 1999) no le sirve a nadie. Pedir una fecha "desde" anterior sigue
 # llegando a todo el histórico.
-VENTANA_DEFAULT_MESES = 12
+VENTANA_DEFAULT_MESES = 6
 
 
 def _ventana_por_defecto(
