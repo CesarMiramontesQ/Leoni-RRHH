@@ -26,6 +26,7 @@ export type RhNavKey =
   | "comedor"
   | "comedor-gestion"
   | "comedor-planear"
+  | "comedor-ajustes"
   | "reportes"
   | "level-up"
   | "puestos"

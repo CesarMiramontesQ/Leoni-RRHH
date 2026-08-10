@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
@@ -359,3 +359,28 @@ class ComedorRhAsignarComedorTurnosRequest(BaseModel):
 
 class ComedorRhAsignarComedorTurnosResponse(BaseModel):
     actualizados: int
+
+
+# --- Ajustes Comedor: horario de comida por turno ---
+
+
+class ComedorTurnoHorarioItem(BaseModel):
+    """Turno del catálogo (`levelup_turnos`) con su franja de comida, si ya tiene una."""
+
+    tu_codigo: str
+    descripcion: str
+    activo: bool
+    hora_inicio_comida: Optional[time] = None
+    hora_fin_comida: Optional[time] = None
+    actualizado_en: Optional[datetime] = None
+
+
+class ComedorTurnoHorarioUpsert(BaseModel):
+    hora_inicio_comida: time
+    hora_fin_comida: time
+
+    @model_validator(mode="after")
+    def validar_rango(self) -> "ComedorTurnoHorarioUpsert":
+        if self.hora_inicio_comida >= self.hora_fin_comida:
+            raise ValueError("La hora de inicio debe ser menor que la hora de fin.")
+        return self

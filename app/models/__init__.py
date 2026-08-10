@@ -30,6 +30,7 @@ from app.models.comedor import (
     ComedorAcceso,
     ComedorCodigoExterno,
     ComedorExternoCorrelativo,
+    ComedorHorarioTurno,
     ComedorRegistro,
     MenuSemanal,
 )
@@ -171,6 +172,7 @@ __all__ = [
     "ComedorAcceso",
     "ComedorCodigoExterno",
     "ComedorExternoCorrelativo",
+    "ComedorHorarioTurno",
     "MenuSemanal",
     "ComedorRegistro",
     "Notificacion",

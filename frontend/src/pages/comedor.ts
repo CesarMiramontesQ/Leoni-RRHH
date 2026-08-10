@@ -1,4 +1,5 @@
 import {
+  canAccessComedorAjustesPage,
   canAccessComedorLiderPage,
   canAccessComedorGestionPage,
   canAccessComedorPersonalForRh,
@@ -123,6 +124,7 @@ import {
   escapeComedorHtml,
   filterComedorKpisOpcionAb,
 } from "../components/comedor/comedorUiUtils.ts";
+import { mountComedorAjustes } from "./comedorAjustes.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderComedorBackBar } from "../navigation/comedorBackLink.ts";
 import {
@@ -3282,6 +3284,21 @@ export function mountComedor(container: HTMLElement, signal: AbortSignal): void 
   if (isGestionRoute) {
     if (canAccessComedorGestionPage()) {
       mountComedorGestionAdmin(container, signal);
+      return;
+    }
+    history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/");
+    if (canAccessComedorPersonalForRh()) {
+      mountComedorEmpleado(container, signal);
+    } else {
+      mountDashboardPlaceholder(container);
+    }
+    return;
+  }
+
+  const isAjustesRoute = hash.startsWith("#/comedor/ajustes");
+  if (isAjustesRoute) {
+    if (canAccessComedorAjustesPage()) {
+      mountComedorAjustes(container, signal);
       return;
     }
     history.replaceState(null, "", canAccessComedorPersonalForRh() ? "#/comedor" : "#/");

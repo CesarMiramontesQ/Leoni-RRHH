@@ -8,6 +8,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/comedor/reporte"), titulo: "Reporte comedor" },
   { match: (h) => h.startsWith("#/comedor/codigos-externos"), titulo: "Listado de códigos externos" },
   { match: (h) => h.startsWith("#/comedor/planear"), titulo: "Planeación de Menú" },
+  { match: (h) => h.startsWith("#/comedor/ajustes"), titulo: "Ajustes Comedor" },
   { match: (h) => h.startsWith("#/organigrama"), titulo: "Organigrama empresarial" },
   { match: (h) => h.startsWith("#/empleados"), titulo: "Empleados" },
   { match: (h) => h.startsWith("#/comedor"), titulo: "Comedor" },

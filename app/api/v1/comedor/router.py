@@ -46,6 +46,8 @@ from app.schemas.comedor import (
     ComedorTerminalAccederResponse,
     ComedorTerminalConsumirRequest,
     ComedorTerminalConsumirResponse,
+    ComedorTurnoHorarioItem,
+    ComedorTurnoHorarioUpsert,
     HuellaValidarRequest,
     HuellaValidarResponse,
     MenuSemanalCreate,
@@ -611,3 +613,32 @@ async def get_proyecciones(
 ):
     service = ComedorService(db)
     return await service.get_proyecciones(current_user=current_user, rh_ui_mode=rh_ui_mode)
+
+
+@router.get("/turnos-horario", response_model=list[ComedorTurnoHorarioItem])
+async def list_turnos_horario(
+    incluir_inactivos: bool = Query(False),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Turnos del catálogo con su horario de comida (Ajustes Comedor)."""
+    service = ComedorService(db)
+    return await service.list_turnos_horario(incluir_inactivos=incluir_inactivos)
+
+
+@router.put("/turnos-horario/{tu_codigo}", response_model=ComedorTurnoHorarioItem)
+async def guardar_turno_horario(
+    tu_codigo: str,
+    body: ComedorTurnoHorarioUpsert,
+    background_tasks: BackgroundTasks,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Asigna o actualiza el horario de comida de un turno."""
+    service = ComedorService(db)
+    return await service.guardar_horario_turno(
+        tu_codigo=tu_codigo,
+        data=body,
+        current_user=current_user,
+        background_tasks=background_tasks,
+    )

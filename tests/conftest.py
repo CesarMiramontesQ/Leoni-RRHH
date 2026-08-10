@@ -27,7 +27,7 @@ _pg_dialect.JSONB = _JSON  # type: ignore[attr-defined]
 # Ahora si importamos el resto
 import pytest
 import pytest_asyncio
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import AsyncGenerator
 from unittest.mock import AsyncMock, patch
@@ -56,6 +56,7 @@ import app.models.talento  # noqa: F401
 import app.models.level_up  # noqa: F401
 import app.models.cursos_catalogo  # noqa: F401
 import app.models.proveedores_externos  # noqa: F401
+import app.models.turnos  # noqa: F401  (catálogo replicado; FK de levelup_comedor_horarios_turno)
 import app.models.turnos_empleados  # noqa: F401
 import app.models.evaluacion360  # noqa: F401  (incluye plantillas)
 import app.models.encuestas_rh  # noqa: F401
@@ -490,6 +491,88 @@ async def link_turno_comedor_empleado(
             turno=turno,
         )
     )
+    await db.flush()
+
+
+async def make_turno(
+    db: AsyncSession,
+    tu_codigo: str,
+    descripcion: str,
+    *,
+    activo: str = "S",
+):
+    """Fila del catálogo replicado `levelup_turnos`.
+
+    Las 40 columnas del origen son NOT NULL, así que todas las que no interesan a la
+    prueba se rellenan con el valor neutro de TRESS (0 / cadena vacía / 1899-12-30).
+    `tu_codigo` se guarda con relleno a 6 posiciones, igual que llega de TRESS.
+    """
+    from decimal import Decimal
+
+    from app.models.turnos import Turno
+
+    codigo = tu_codigo.ljust(6)
+    turno = Turno(
+        tu_codigo=codigo,
+        tu_descrip=descripcion,
+        tu_dias=0,
+        tu_dobles=Decimal("0.00"),
+        tu_domingo=Decimal("0.00"),
+        tu_festivo="N",
+        tu_hor_1="      ",
+        tu_hor_2="      ",
+        tu_hor_3="      ",
+        tu_hor_4="      ",
+        tu_hor_5="      ",
+        tu_hor_6="      ",
+        tu_hor_7="      ",
+        tu_horario=0,
+        tu_jornada=Decimal("0.00"),
+        tu_nomina=0,
+        tu_rit_ini=datetime(1899, 12, 30),
+        tu_rit_pat="",
+        tu_tip_1=0,
+        tu_tip_2=0,
+        tu_tip_3=0,
+        tu_tip_4=0,
+        tu_tip_5=0,
+        tu_tip_6=0,
+        tu_tip_7=0,
+        tu_tip_jor=0,
+        tu_ingles="",
+        tu_texto="",
+        tu_numero=Decimal("0.00"),
+        tu_hor_fes="      ",
+        tu_vaca_ha=Decimal("0.00"),
+        tu_vaca_sa=Decimal("0.00"),
+        tu_vaca_de=Decimal("0.00"),
+        tu_sub_cta="",
+        tu_dias_ba=Decimal("0.00000"),
+        tu_activo=activo,
+        tu_tip_jt=0,
+        llave=0,
+        tu_nivel0="",
+        tu_sat_jor="      ",
+    )
+    db.add(turno)
+    await db.flush()
+    await db.refresh(turno)
+    return turno
+
+
+async def reset_turnos_horario(db: AsyncSession) -> None:
+    """Vacía el catálogo de turnos y sus horarios de comida.
+
+    Igual que `reset_comedor_transaccional`: los endpoints de Ajustes Comedor listan
+    estado **global** y las llamadas API commitean sobre la conexión SQLite compartida.
+    """
+    from sqlalchemy import delete
+
+    from app.models.comedor import ComedorHorarioTurno
+    from app.models.turnos import Turno
+
+    await db.execute(delete(ComedorHorarioTurno))
+    await db.execute(delete(Turno))
     await db.flush()
 
 
