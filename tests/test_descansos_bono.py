@@ -309,10 +309,10 @@ async def test_endpoint_descansos_rechaza_rango_mayor_a_366_dias(client, db):
     from tests.conftest import auth_headers
 
     rh = await make_empleado(db, rol="rh", email="descansos-rango-rh@test")
-    emp = await make_empleado(db, rol="empleado", email="descansos-rango-emp@test")
 
+    # El id no necesita existir: la validación de rango corta antes de buscar al empleado.
     res = await client.get(
-        f"/api/v1/empleados/{emp.id}/descansos",
+        "/api/v1/empleados/99999999/descansos",
         params={"fecha_inicio": "2025-01-01", "fecha_fin": "2026-01-02"},
         headers=await auth_headers(client, rh),
     )

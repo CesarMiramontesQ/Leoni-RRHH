@@ -622,7 +622,7 @@ class SolicitudService:
         *,
         validar_inicio_no_descanso: bool = False,
     ) -> int:
-        """Cuenta días de vacaciones excluyendo descansos TRESS (y fines de semana si admin)."""
+        """Cuenta días de vacaciones excluyendo descansos del turno (y fines de semana si admin)."""
         empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
         if empleado is None:
             raise DomainValidationError(detail="Empleado no encontrado.")

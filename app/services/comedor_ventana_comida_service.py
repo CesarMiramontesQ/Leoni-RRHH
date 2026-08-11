@@ -36,7 +36,6 @@ from app.models.horarios import Horario
 from app.models.turnos import Turno
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.comedor_repository import ComedorHorarioJornadaRepository
-from app.repositories.datos_analisis_descansos_repository import parse_hora_tress
 from app.repositories.turnos_uso_repository import TurnosUsoRepository
 from app.schemas.comedor import (
     ComedorJornadaComidaItem,
@@ -46,6 +45,7 @@ from app.schemas.comedor import (
     ComedorVentanaComidaResponse,
 )
 from app.utils.audit_logger import audit_background
+from app.utils.turno_calendario import parse_hora_tress
 from app.utils.turno_ciclo import (
     BloqueCiclo,
     TurnoCicloError,

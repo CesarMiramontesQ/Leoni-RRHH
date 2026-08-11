@@ -7,12 +7,9 @@ from datetime import date, time
 from decimal import Decimal
 
 from app.utils.turno_calendario import (
-    DiaCalendario,
     TurnoTress,
     aplanar_patron_rotativo,
-    aplicar_override_ausencia,
     expandir_patron_rotativo,
-    proyectar_calendario,
     proyectar_dia,
 )
 
@@ -142,48 +139,26 @@ def test_dia_rotativo_laborable_resuelve_horario():
     assert dia.hora_entrada == time(6, 0)
 
 
-def test_override_ausencia_pisa_proyeccion():
-    proyectados = [
-        DiaCalendario(
-            fecha=date(2026, 7, 1),
-            turno="G11",
-            tipo_turno="ROTATIVO",
-            codigo_horario="001",
-            estatus="LABORABLE",
-        ),
-        DiaCalendario(
-            fecha=date(2026, 7, 2),
-            turno="G11",
-            tipo_turno="ROTATIVO",
-            codigo_horario=None,
-            estatus="DESCANSO",
-        ),
-    ]
-    result = aplicar_override_ausencia(
-        proyectados,
-        {date(2026, 7, 1): 2, date(2026, 7, 2): 0},
-    )
+def test_parse_hora_tress_vive_en_turno_calendario():
+    """Es parseo de formatos de TRESS, no acceso a datos: su casa es este módulo."""
+    from datetime import time
 
-    assert result[0].estatus == "DESCANSO"
-    assert result[1].estatus == "LABORABLE"
+    from app.utils.turno_calendario import parse_hora_tress
+
+    assert parse_hora_tress("0600") == time(6, 0)
+    assert parse_hora_tress("2200") == time(22, 0)
+    assert parse_hora_tress("600") == time(6, 0)
+    assert parse_hora_tress(None) is None
+    assert parse_hora_tress("") is None
+    assert parse_hora_tress("2560") is None
+    assert parse_hora_tress("abcd") is None
 
 
-def test_proyectar_calendario_pares_de_descanso():
-    turno = TurnoTress(
-        codigo="G11",
-        rit_pat="2:001,2:001",
-        rit_ini=date(2026, 7, 1),
-        tips=(0, 0, 0, 0, 0, 0, 2),
-        hors=("", "", "", "", "", "", ""),
-    )
-    dias = proyectar_calendario(
-        turnos_por_fecha={
-            date(2026, 7, 1): turno,
-            date(2026, 7, 2): turno,
-            date(2026, 7, 3): turno,
-            date(2026, 7, 4): turno,
-        },
-        ausencias_por_fecha={},
-    )
+def test_no_queda_camino_odbc_de_descansos():
+    """Regresión del objetivo del cambio: el repositorio ODBC de descansos no debe volver."""
+    import importlib
 
-    assert [d.estatus for d in dias] == ["LABORABLE", "LABORABLE", "DESCANSO", "DESCANSO"]
+    import pytest as _pytest
+
+    with _pytest.raises(ModuleNotFoundError):
+        importlib.import_module("app.repositories.datos_analisis_descansos_repository")

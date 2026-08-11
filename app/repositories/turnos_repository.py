@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.horarios import Horario
 from app.models.turnos import Turno
 from app.models.turnos_empleados import TurnoEmpleado
-from app.repositories.datos_analisis_descansos_repository import parse_hora_tress
+from app.utils.turno_calendario import parse_hora_tress
 from app.utils.turno_empleado_match import turno_no_empleado_matches
 
 

@@ -1,4 +1,4 @@
-"""Consulta enfocada de descansos aplicados en TRESS."""
+"""Descansos por empleado, proyectados desde las cachés de Bono."""
 
 from __future__ import annotations
 
@@ -10,10 +10,6 @@ from app.core.exceptions import (
     DomainValidationError,
     NotFoundError,
     ServiceUnavailableError,
-)
-from app.integrations.datos_analisis_db import DatosAnalisisReadClient
-from app.repositories.datos_analisis_descansos_repository import (
-    DatosAnalisisDescansosRepository,
 )
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.turnos_repository import TurnosRepository
@@ -36,39 +32,6 @@ def validar_rango_descansos(*, fecha_inicio: date, fecha_fin: date) -> None:
             detail=f"El rango no puede exceder {MAX_DIAS_RANGO_DESCANSOS} días",
             field="fecha_fin",
         )
-
-
-async def obtener_descansos_tress(
-    *,
-    cb_codigo: int,
-    fecha_inicio: date,
-    fecha_fin: date,
-) -> list[date]:
-    """
-    Obtiene descansos TRESS (proyección Kardex+TURNO + override AUSENCIA).
-
-    Falla cerrado si DATOS_ANALISIS no responde. El contrato sigue siendo lista de fechas.
-    """
-    validar_rango_descansos(fecha_inicio=fecha_inicio, fecha_fin=fecha_fin)
-    try:
-        engine = DatosAnalisisReadClient.create_read_engine()
-    except Exception as exc:  # noqa: BLE001 - driver/configuración de integración
-        raise ServiceUnavailableError("No se pudieron consultar los descansos.") from exc
-    if engine is None:
-        raise ServiceUnavailableError(
-            "No se pudieron consultar los descansos (datos-analisis no configurada)."
-        )
-    try:
-        fechas = await DatosAnalisisDescansosRepository(engine).list_descansos(
-            cb_codigo=cb_codigo,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-        )
-    except Exception as exc:  # noqa: BLE001 - errores ODBC/SQL de la integración
-        raise ServiceUnavailableError("No se pudieron consultar los descansos.") from exc
-    finally:
-        await engine.dispose()
-    return sorted(set(fechas))
 
 
 _MSG_SIN_TURNO = (
