@@ -2775,6 +2775,7 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
     tabSearchEmpleado: "",
     tabSearchArea: "",
     selectedAreaFilter: "todos",
+    selectedHorarioFilter: "todos",
     kpisModo: esRhReporte ? "rh_resumen" : "comedor_semana",
     kpisState: "loading",
     kpis: null,
@@ -3118,6 +3119,15 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
         state.selectedAreaFilter = areaSel.value;
         state.reporteDetallePage = 1;
         void loadKpis();
+        paint();
+        return;
+      }
+      const horarioSel = target.closest<HTMLSelectElement>("[data-comedor-reporte-filter-horario]");
+      if (horarioSel) {
+        // El horario ya viene resuelto en cada fila, así que filtra en cliente: no hay
+        // que volver a bajar el rango.
+        state.selectedHorarioFilter = horarioSel.value;
+        state.reporteDetallePage = 1;
         paint();
         return;
       }

@@ -110,6 +110,13 @@ export type ReporteComedorViewState = {
   tabSearchArea: string;
   /** Filtro global por área del empleado (registros operativos / KPIs). `todos` = todas. */
   selectedAreaFilter: "todos" | string;
+  /**
+   * Ventana de comida (`"10:00-10:30"`), `"sin-horario"` o `"todos"`.
+   *
+   * Se aplica en `reporteOperativoRowsScoped`, el mismo embudo que comedor y área, para
+   * que lo que se ve en pantalla y lo que se descarga sean siempre el mismo corte.
+   */
+  selectedHorarioFilter: "todos" | string;
   /** KPIs usan resumen diario (RH) o estadísticas semanales (otros roles). */
   kpisModo: "rh_resumen" | "comedor_semana";
   kpisState: ComedorPanelState;

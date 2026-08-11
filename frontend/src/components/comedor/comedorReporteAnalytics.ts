@@ -15,6 +15,13 @@ import {
   type ReporteAggEmpleado,
 } from "../../comedor/reportes/reporteAggregations.ts";
 import {
+  SIN_HORARIO_ID,
+  agregarPlatillosPorHorario,
+  filtrarPorHorario,
+  opcionesHorario,
+  totalesPlatillos,
+} from "../../comedor/reportes/planeacionPlatillos.ts";
+import {
   BTN_PRIMARY,
   FIELD_FOCUS,
   RH_LISTADO_BTN_SECONDARY,
@@ -64,7 +71,7 @@ function emptyBlock(title: string, body: string): string {
     </div>`;
 }
 
-/** Filas operativas del periodo y filtros globales (comedor / área). */
+/** Filas operativas del periodo y filtros globales (comedor / área / horario de comida). */
 export function reporteOperativoRowsScoped(state: ReporteComedorViewState): readonly ComedorRhProximoRegistroRow[] {
   const base = filterProximosPorRango(
     state.rhAnalyticsRows,
@@ -72,7 +79,8 @@ export function reporteOperativoRowsScoped(state: ReporteComedorViewState): read
     state.selectedFechaFinIso,
   );
   const byComedor = filterPorComedorSeleccion(base, comedorLabelFromState(state));
-  return filterPorAreaSeleccion(byComedor, state.selectedAreaFilter);
+  const byArea = filterPorAreaSeleccion(byComedor, state.selectedAreaFilter);
+  return filtrarPorHorario(byArea, state.selectedHorarioFilter);
 }
 
 /** Mismas filas que la tabla de detalle, ordenadas por fecha e id (sin paginación). */
@@ -650,6 +658,22 @@ export function renderReporteFilterToolbarGlobal(state: ReporteComedorViewState)
     }),
   ].join("");
 
+  // Los horarios salen de los datos del periodo, no de un catálogo: solo se ofrecen las
+  // ventanas que de verdad aparecen en el rango consultado.
+  const horarioOpts = opcionesHorario(state.rhAnalyticsRows);
+  const horarioOptionsHtml = [
+    `<option value="todos"${state.selectedHorarioFilter === "todos" ? " selected" : ""}>Todos los horarios</option>`,
+    ...horarioOpts.map((o) => {
+      const sel = state.selectedHorarioFilter === o.id ? " selected" : "";
+      return `<option value="${escapeComedorHtml(o.id)}"${sel}>${escapeComedorHtml(o.label)}</option>`;
+    }),
+  ].join("");
+
+  const horarioLabel =
+    state.selectedHorarioFilter === "todos"
+      ? "Todos los horarios"
+      : (horarioOpts.find((o) => o.id === state.selectedHorarioFilter)?.label ?? "Horario seleccionado");
+
   const dept = state.filtersDataset.departamentos.find((d) => d.id === state.selectedDepartamentoId);
   const comedorLabel = dept?.label ?? "Todos los comedores";
   const areaLabel =
@@ -663,7 +687,7 @@ export function renderReporteFilterToolbarGlobal(state: ReporteComedorViewState)
         <h2 class="text-base font-semibold tracking-tight text-[#0A1628]">Filtros adicionales</h2>
         <p class="max-w-3xl text-sm leading-relaxed text-slate-600">Refina el reporte dentro del periodo seleccionado.</p>
       </div>
-      <div class="mt-5 grid gap-4 md:grid-cols-2">
+      <div class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div>
           <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-comedor-sel">Comedor</label>
           <div class="relative mt-1.5 grid w-full items-center">
@@ -691,9 +715,91 @@ export function renderReporteFilterToolbarGlobal(state: ReporteComedorViewState)
             ${SELECT_CHEVRON}
           </div>
         </div>
+        <div>
+          <label class="${RH_LISTADO_LABEL}" for="comedor-reporte-horario-sel">Horario de comida</label>
+          <div class="relative mt-1.5 grid w-full items-center">
+            <select
+              id="comedor-reporte-horario-sel"
+              data-comedor-reporte-filter-horario
+              class="col-start-1 row-start-1 w-full min-h-10 appearance-none rounded-[10px] border border-slate-300 bg-white py-2 pr-10 pl-3 text-sm font-semibold text-slate-900 shadow-sm ${FIELD_FOCUS}"
+              ${state.rhAnalyticsState === "loading" ? "disabled" : ""}
+            >
+              ${horarioOptionsHtml}
+            </select>
+            ${SELECT_CHEVRON}
+          </div>
+        </div>
       </div>
       <p class="mt-4 max-w-xl text-xs leading-snug text-slate-500">
-        Mostrando: ${escapeComedorHtml(comedorLabel)} · ${escapeComedorHtml(areaLabel)}. Filtra KPIs operativos y tablas; elige “Todas las áreas” para el consolidado general.
+        Mostrando: ${escapeComedorHtml(comedorLabel)} · ${escapeComedorHtml(areaLabel)} · ${escapeComedorHtml(horarioLabel)}. Filtra KPIs operativos y tablas; elige “Todas las áreas” para el consolidado general.
       </p>
+    </div>`;
+}
+
+/**
+ * Plan de producción: platillos por comedor, día y horario.
+ *
+ * Es la vista que usa planeación de comedor y la misma que baja en la primera hoja del
+ * Excel. Cuenta solo reservas vigentes, así que su total puede ser menor que el del
+ * detalle: ahí sí aparecen cancelados y segundas entradas.
+ */
+export function renderReportePlaneacionPlatillos(state: ReporteComedorViewState): string {
+  const buckets = agregarPlatillosPorHorario(reporteOperativoRowsScoped(state));
+  const t = totalesPlatillos(buckets);
+
+  const cuerpo =
+    buckets.length === 0
+      ? `<tr><td colspan="6" class="px-3 py-8 text-center text-sm text-slate-500">
+           No hay platillos que preparar con los filtros actuales.
+         </td></tr>`
+      : buckets
+          .map(
+            (b) => `
+        <tr class="hover:bg-slate-50/70">
+          <td class="px-3 py-2 text-sm text-slate-700">${escapeComedorHtml(b.comedor)}</td>
+          <td class="px-3 py-2 text-sm tabular-nums text-slate-700">${escapeComedorHtml(b.fechaIso)}</td>
+          <td class="px-3 py-2 text-sm tabular-nums ${
+            b.horarioId === SIN_HORARIO_ID ? "text-amber-600" : "text-slate-700"
+          }">${escapeComedorHtml(b.horarioLabel)}</td>
+          <td class="px-3 py-2 text-right text-sm tabular-nums text-slate-700">${b.opcionA}</td>
+          <td class="px-3 py-2 text-right text-sm tabular-nums text-slate-700">${b.opcionB}</td>
+          <td class="px-3 py-2 text-right text-sm font-semibold tabular-nums text-slate-900">${b.total}</td>
+        </tr>`,
+          )
+          .join("");
+
+  const th = "sticky top-0 z-10 bg-[#f8fafc] px-3 py-2 text-xs font-semibold uppercase text-slate-600";
+  return `
+    <div class="${RH_SURFACE_CARD} p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)] ring-1 ring-slate-900/5 sm:p-6">
+      <div class="space-y-1">
+        <h2 class="text-base font-semibold tracking-tight text-[#0A1628]">Platillos por horario</h2>
+        <p class="max-w-3xl text-sm leading-relaxed text-slate-600">
+          Cuántos platillos preparar por comedor, día y horario. Cuenta las reservas
+          vigentes; no incluye canceladas ni segundas entradas del mismo día.
+        </p>
+      </div>
+      <div class="mt-4 max-h-[60vh] overflow-auto rounded-lg border border-slate-200">
+        <table class="w-full min-w-[720px] text-left">
+          <thead><tr>
+            <th class="${th}">Comedor</th>
+            <th class="${th}">Fecha</th>
+            <th class="${th}">Horario de comida</th>
+            <th class="${th} text-right">Opción A</th>
+            <th class="${th} text-right">Opción B</th>
+            <th class="${th} text-right">Total</th>
+          </tr></thead>
+          <tbody class="divide-y divide-slate-100">${cuerpo}</tbody>
+          ${
+            buckets.length === 0
+              ? ""
+              : `<tfoot class="border-t-2 border-slate-200 bg-slate-50/70"><tr>
+                   <td colspan="3" class="px-3 py-2 text-sm font-semibold text-slate-900">Total</td>
+                   <td class="px-3 py-2 text-right text-sm font-semibold tabular-nums text-slate-900">${t.opcionA}</td>
+                   <td class="px-3 py-2 text-right text-sm font-semibold tabular-nums text-slate-900">${t.opcionB}</td>
+                   <td class="px-3 py-2 text-right text-sm font-semibold tabular-nums text-slate-900">${t.total}</td>
+                 </tr></tfoot>`
+          }
+        </table>
+      </div>
     </div>`;
 }

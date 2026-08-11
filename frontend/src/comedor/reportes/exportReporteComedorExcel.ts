@@ -1,6 +1,11 @@
 import * as XLSX from "xlsx";
 import type { ComedorRhProximoRegistroRow } from "../rh/types.ts";
 import { formatFechaServicioRhRegistro } from "../../components/comedor/comedorRhProximosRegistrosTable.ts";
+import {
+  agregarPlatillosPorHorario,
+  horarioLabelDeFila,
+  totalesPlatillos,
+} from "./planeacionPlatillos.ts";
 
 export type ReporteComedorExcelExportOptions = {
   rows: readonly ComedorRhProximoRegistroRow[];
@@ -33,17 +38,65 @@ export function buildReporteComedorExcelRows(
     "No. empleado": row.no_empleado.trim() || "—",
     Área: row.area.trim() || "—",
     Comedor: row.comedor_nombre.trim() || "—",
+    Turno: (row.tu_codigo ?? "").trim() || "—",
+    "Horario de comida": horarioLabelDeFila(row),
     Tipo: tipoComidaLabel(row.tipo_comida),
     Estado: estadoAccesoLabel(row.estado_acceso),
   }));
 }
 
-/** Descarga `reporte-comedor.xlsx` (o nombre indicado) con los registros indicados. */
+/**
+ * Plan de producción: platillos por comedor, día y horario.
+ *
+ * Es la hoja que usa planeación de comedor. Cuenta solo las reservas vigentes —ni
+ * canceladas ni segundas entradas— y separa las dos opciones de menú, que es lo que
+ * determina cuánto se prepara de cada una. Cierra con un renglón de totales.
+ */
+export function buildPlaneacionPlatillosExcelRows(
+  rows: readonly ComedorRhProximoRegistroRow[],
+): Record<string, string | number>[] {
+  const buckets = agregarPlatillosPorHorario(rows);
+  const filas: Record<string, string | number>[] = buckets.map((b) => ({
+    Comedor: b.comedor,
+    "Fecha servicio": formatFechaServicioRhRegistro(b.fechaIso),
+    "Horario de comida": b.horarioLabel,
+    "Opción A": b.opcionA,
+    "Opción B": b.opcionB,
+    "Total platillos": b.total,
+  }));
+  if (filas.length === 0) return filas;
+
+  const t = totalesPlatillos(buckets);
+  filas.push({
+    Comedor: "TOTAL",
+    "Fecha servicio": "",
+    "Horario de comida": "",
+    "Opción A": t.opcionA,
+    "Opción B": t.opcionB,
+    "Total platillos": t.total,
+  });
+  return filas;
+}
+
+/**
+ * Descarga `reporte-comedor.xlsx` (o nombre indicado) con dos hojas.
+ *
+ * Van en el mismo archivo y no en dos descargas porque son el mismo corte visto de dos
+ * formas: quien planea produce con la primera y verifica un caso puntual en la segunda,
+ * y separarlas obligaría a cuadrar dos archivos que pueden venir de rangos distintos.
+ */
 export function downloadReporteComedorExcel(options: ReporteComedorExcelExportOptions): void {
   const { rows, filename = "reporte-comedor.xlsx" } = options;
-  const sheetRows = buildReporteComedorExcelRows(rows);
-  const worksheet = XLSX.utils.json_to_sheet(sheetRows);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte comedor");
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet(buildPlaneacionPlatillosExcelRows(rows)),
+    "Planeación platillos",
+  );
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet(buildReporteComedorExcelRows(rows)),
+    "Detalle",
+  );
   XLSX.writeFile(workbook, filename);
 }

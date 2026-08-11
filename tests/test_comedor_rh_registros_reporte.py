@@ -237,3 +237,139 @@ async def test_rh_registros_reporte_no_permite_pasar_del_tope(client: AsyncClien
         headers=hdrs,
     )
     assert r.status_code == 422, r.text
+
+
+@pytest.mark.asyncio
+async def test_rh_registros_reporte_resuelve_el_horario_de_comida(client: AsyncClient, db):
+    """Planeación necesita a qué hora se sirve cada platillo, y eso no está en el acceso.
+
+    La ventana se calcula recorriendo el ciclo del turno de la persona, así que el
+    servidor la resuelve y la manda en la fila: el cliente no puede deducirla.
+    """
+    from datetime import datetime, time
+
+    from app.models.comedor import (
+        Comedor,
+        ComedorAcceso,
+        ComedorAccesoEstado,
+        ComedorRegistro,
+        ComedorTipoComida,
+    )
+    from tests.conftest import (
+        make_horario,
+        make_turno,
+        make_turno_empleado,
+        make_ventana_comida,
+        reset_turnos_horario,
+    )
+
+    await reset_turnos_horario(db)
+    # Patrón real de ROT321: días 1-5 en la jornada 003 (nocturna).
+    await make_horario(db, "003", "Nocturno 22:00 - 06:00", intime="2200", outtime="0600")
+    await make_ventana_comida(db, "003", time(2, 0), time(2, 30))
+    await make_turno(
+        db,
+        "ROT321",
+        "3a2a1a",
+        rit_pat="5:003,2:002,5:002,0,1:006,1:002,6:001,1:001",
+        rit_ini=datetime(2020, 3, 9),
+    )
+
+    comedor = Comedor(nombre="C-Horario", activo=True)
+    db.add(comedor)
+    await db.flush()
+    emp = await make_empleado(db, email="rep_hor_emp@test.leoni", no_empleado=8080)
+    rh = await make_empleado(db, rol="rh", email="rep_hor_rh@test.leoni", password="RhHor!!")
+    await make_turno_empleado(db, "8080", "Beto", tu_codigo="ROT321")
+
+    reg = ComedorRegistro(
+        empleado_id=emp.id,
+        comedor_id=comedor.id,
+        semana=date(2020, 3, 9),
+        tipo_platillo="normal",
+        acceso_concedido=True,
+    )
+    db.add(reg)
+    await db.flush()
+    db.add(
+        ComedorAcceso(
+            empleado_id=emp.id,
+            comedor_id=comedor.id,
+            comedor_registro_id=reg.id,
+            fecha_servicio=date(2020, 3, 9),  # día 1 del ciclo
+            tipo_comida=ComedorTipoComida.casera,
+            estado_acceso=ComedorAccesoEstado.PENDIENTE,
+        )
+    )
+    await db.commit()
+
+    hdrs = await auth_headers(client, rh, password="RhHor!!")
+    r = await client.get(
+        URL,
+        params={
+            "desde": "2020-03-09",
+            "hasta": "2020-03-09",
+            "page": 1,
+            "page_size": 50,
+        },
+        headers=hdrs,
+    )
+
+    assert r.status_code == 200, r.text
+    fila = r.json()["items"][0]
+    assert fila["tu_codigo"] == "ROT321"
+    assert fila["ho_codigo"] == "003"
+    assert fila["hora_inicio_comida"] == "02:00:00"
+    assert fila["hora_fin_comida"] == "02:30:00"
+
+
+@pytest.mark.asyncio
+async def test_rh_registros_reporte_sin_horario_no_inventa_uno(client: AsyncClient, db):
+    """Un acceso de alguien sin turno asignado viaja con la ventana vacía, no con horas falsas."""
+    from app.models.comedor import (
+        Comedor,
+        ComedorAcceso,
+        ComedorAccesoEstado,
+        ComedorRegistro,
+        ComedorTipoComida,
+    )
+    from tests.conftest import reset_turnos_horario
+
+    await reset_turnos_horario(db)
+    comedor = Comedor(nombre="C-SinHorario", activo=True)
+    db.add(comedor)
+    await db.flush()
+    emp = await make_empleado(db, email="rep_sinh_emp@test.leoni", no_empleado=9091)
+    rh = await make_empleado(db, rol="rh", email="rep_sinh_rh@test.leoni", password="RhSin!!")
+
+    reg = ComedorRegistro(
+        empleado_id=emp.id,
+        comedor_id=comedor.id,
+        semana=date(2030, 6, 10),
+        tipo_platillo="normal",
+        acceso_concedido=True,
+    )
+    db.add(reg)
+    await db.flush()
+    db.add(
+        ComedorAcceso(
+            empleado_id=emp.id,
+            comedor_id=comedor.id,
+            comedor_registro_id=reg.id,
+            fecha_servicio=date(2030, 6, 10),
+            tipo_comida=ComedorTipoComida.casera,
+            estado_acceso=ComedorAccesoEstado.PENDIENTE,
+        )
+    )
+    await db.commit()
+
+    hdrs = await auth_headers(client, rh, password="RhSin!!")
+    r = await client.get(
+        URL,
+        params={"desde": "2030-06-10", "hasta": "2030-06-10", "page": 1, "page_size": 50},
+        headers=hdrs,
+    )
+
+    fila = r.json()["items"][0]
+    assert fila["ho_codigo"] is None
+    assert fila["hora_inicio_comida"] is None

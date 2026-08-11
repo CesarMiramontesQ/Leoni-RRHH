@@ -3578,6 +3578,26 @@ components:
           type: string
         estado_acceso:
           type: string
+        tu_codigo:
+          type: [string, "null"]
+          description: Turno de la persona segun el ultimo sync empleado-turno
+        ho_codigo:
+          type: [string, "null"]
+          description: >-
+            Jornada que le toca ese dia, resuelta recorriendo el ciclo del turno.
+            null cuando ese dia no corresponde comida (descanso) o cuando el turno no
+            se pudo calcular. Solo lo llena el endpoint de reporte, no la tabla de
+            proximos registros.
+        hora_inicio_comida:
+          type: [string, "null"]
+          format: time
+          description: >-
+            Ventana de comida de esa jornada. null si la jornada aun no tiene horario
+            configurado. Puede terminar antes de empezar. hay jornadas cuya comida
+            cruza la medianoche.
+        hora_fin_comida:
+          type: [string, "null"]
+          format: time
 
     ComedorRhProximosRegistrosPage:
       type: object

@@ -176,6 +176,15 @@ Layered architecture: **router → service → repository → models/schemas**
   - Endpoints nuevos bajo `/api/v1/comedor/…` deben registrarse en `api_prefixes` del
     módulo `comedor-ajustes`: `role_checker` resuelve el módulo por prefijo más largo y sin
     eso da 403 a quien sí tiene el permiso.
+  - **El reporte de comedor trae la ventana ya resuelta.** `/accesos/rh/registros-reporte`
+    completa cada fila con `tu_codigo`, `ho_codigo` y las horas de comida usando
+    `resolver_ventanas`, que carga el contexto **una vez** y resuelve en memoria
+    (~52 000/s, contra ~890/s fila por fila). El cliente no puede deducir esa ventana: sale
+    de recorrer el ciclo del turno. De ahí sale el plan de producción de planeación
+    (`comedor/reportes/planeacionPlatillos.ts`), que cuenta **solo `PENDIENTE` y
+    `ACCEDIDO`** —un cancelado no se cocina y `REPETIDO` es una segunda entrada, no otro
+    platillo— y agrupa las comidas sin ventana aparte en vez de descartarlas, para que los
+    totales cuadren con el detalle.
 - **Turnos en uso = caché en Bono.** La pestaña «Horarios de comida» de Ajustes Comedor no
   cuenta personal en DATOS_ANALISIS: la fuente única de lectura es `levelup_turnos_uso`
   (una fila por turno con su personal activo), que escribe `sync_turnos_uso_service`
