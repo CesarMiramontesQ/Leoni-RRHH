@@ -233,6 +233,64 @@ el mensaje dice *"no se pudo ejecutar 'alembic history'"*, la imagen puede estar
 mira la salida que imprime debajo y revisa contenedores huérfanos (`docker ps -a | grep
 backend`, luego `docker container prune`), porque estos helpers corren sin `--rm`.
 
+### Carga inicial de turnos, turno por empleado y fecha de ingreso (una sola vez)
+
+El release que mueve los descansos y la fecha de ingreso de la Vista 360 a caché en Bono
+crea `levelup_empleados_tress` **vacía** y, más importante, cambia lo que pasa cuando
+`levelup_turnos_empleados` / `levelup_turnos` / `levelup_horarios` no tienen cobertura:
+antes esas tablas eran solo para Ajustes Comedor y una caché pobre degradaba a una
+pantalla lenta; ahora `/descansos` las usa para calcular el conteo de días de cualquier
+solicitud, y un empleado sin turno utilizable recibe un **503 duro en el modal de nueva
+solicitud**, no una respuesta lenta. Antes de dar el release por terminado, con el túnel a
+datos-analisis arriba y **en este orden** (el catálogo alimenta a los otros dos y a la
+proyección):
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_turnos_catalogo --execute
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_turnos_empleados --execute
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_empleados_tress --execute
+```
+
+**Verificar la cobertura — bloqueante.** Contar los empleados activos de Bono sin turno
+utilizable:
+
+```sql
+-- Activos sin turno utilizable: si esto no es ~0, el modal de nueva solicitud dará 503.
+SELECT count(*) AS activos,
+       count(te.tu_codigo)                            AS con_tu_codigo,
+       count(t.tu_codigo)                             AS con_turno_en_catalogo
+FROM empleados e
+LEFT JOIN levelup_turnos_empleados te
+       ON te.no_empleado IN (e.no_empleado::text, e.no_empleado::text || '.0')
+      AND te.activo
+LEFT JOIN levelup_turnos t
+       ON rtrim(t.tu_codigo) = te.tu_codigo
+WHERE e.estado_id = 1;
+```
+
+Criterio de salida: `con_turno_en_catalogo` debe ser prácticamente igual a `activos`. Si no
+lo es, **no se despliega**: se corrige el sync primero. (Ver el plan en
+`docs/superpowers/plans/2026-08-11-descansos-y-fecha-ingreso-desde-bono.md`, Task 8 Step 4,
+para el contexto completo de esta consulta.)
+
+Ojo: `TurnosRepository.get_tu_codigo_de_empleado` **no** filtra por `activo`, mientras que
+la consulta de arriba sí — así que el resultado es una cota inferior de la cobertura real,
+no un conteo exacto.
+
+Chequeo adicional, en la misma pasada:
+
+```sql
+SELECT max(tu_rit_ini) FROM levelup_turnos WHERE tu_rit_pat <> '';
+```
+
+Si nómina llegara a reanclar un turno rotativo a una fecha reciente, cualquier consulta con
+fecha anterior a ese nuevo `tu_rit_ini` empieza a devolver 503 para toda la población de
+ese turno de golpe — es la vía realista de que el fallo "fecha anterior al inicio de ciclo"
+se dispare en masa, así que vale la pena vigilarla junto con la cobertura.
+
 ### Antes de un release con migraciones destructivas
 
 Revisa las revisiones nuevas (`git log --oneline <tag-anterior>..HEAD -- alembic/versions/`).

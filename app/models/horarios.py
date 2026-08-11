@@ -33,7 +33,7 @@ class Horario(Base):
 
     ``ho_intime`` / ``ho_outtime`` son strings de 4 dígitos tipo ``'0600'`` / ``'2200'``,
     tal como los guarda TRESS; se convierten con
-    ``app.repositories.datos_analisis_descansos_repository.parse_hora_tress``. Una jornada
+    ``app.utils.turno_calendario.parse_hora_tress``. Una jornada
     puede cruzar medianoche (``'2200'`` → ``'0600'``), así que la salida **no** es
     necesariamente mayor que la entrada.
     """

@@ -216,12 +216,12 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             return_value=None,
         ),
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[],
         ),
         patch(
-            "app.services.solicitud_service.obtener_descansos_tress",
+            "app.services.solicitud_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[],
         ),
@@ -429,6 +429,21 @@ async def make_homeoffice_tomados(
         fila = HomeOfficeTomados(no_empleado=int(no_empleado), anio=int(anio))
         db.add(fila)
     fila.dias_tomados = dias_tomados
+    await db.flush()
+    await db.refresh(fila)
+    return fila
+
+
+async def make_empleado_tress(
+    db: AsyncSession,
+    no_empleado: int,
+    fecha_ingreso: date | None = None,
+):
+    """Fila de `levelup_empleados_tress` (caché de datos generales de dbo.COLABORA)."""
+    from app.models.empleados_tress import EmpleadoTress
+
+    fila = EmpleadoTress(no_empleado=int(no_empleado), fecha_ingreso=fecha_ingreso)
+    db.add(fila)
     await db.flush()
     await db.refresh(fila)
     return fila

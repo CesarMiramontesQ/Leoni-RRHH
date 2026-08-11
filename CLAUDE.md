@@ -98,6 +98,13 @@ docker-compose exec backend python -m app.scripts.sync_turnos_empleados         
 docker-compose exec backend python -m app.scripts.sync_turnos_empleados --execute
 docker-compose exec backend python -m app.scripts.sync_turnos_empleados --no-empleado 406
 
+# Datos generales del colaborador: dbo.COLABORA → levelup_empleados_tress (Bono).
+# Mismo servicio que el job de las 04:10; necesario para la carga inicial (sin él, la
+# Vista 360 muestra la fecha de ingreso vacía).
+docker-compose exec backend python -m app.scripts.sync_empleados_tress            # dry-run
+docker-compose exec backend python -m app.scripts.sync_empleados_tress --execute
+docker-compose exec backend python -m app.scripts.sync_empleados_tress --no-empleado 553 --execute
+
 # Incidencias de TRESS: DATOS_ANALISIS → levelup_incidencias_tress (Bono).
 # Mismo servicio que el job semanal de los miércoles 10:00; necesario para la carga inicial.
 # Sin --desde/--hasta va en dos pasadas: el histórico (excluye la semana en curso) y
@@ -208,6 +215,34 @@ Layered architecture: **router → service → repository → models/schemas**
   caché antes de su fecha de inicio. La reconciliación de bajas **no borra** si TRESS
   devolvió 0 filas o si desaparecería más de la mitad del rango: cuenta el hecho como
   error y lo registra con `borrado omitido`.
+- **Fecha de ingreso = caché en Bono.** La Vista 360 no consulta `dbo.COLABORA`: la fuente
+  única de lectura es `levelup_empleados_tress`, que escribe `sync_empleados_tress_service`
+  (job 04:10 y `python -m app.scripts.sync_empleados_tress`). El sync lee **toda**
+  `dbo.COLABORA`, sin filtrar `CB_ACTIVO` —la Vista 360 se abre también sobre bajas— y
+  **nunca borra**. Empleado sin fila ⇒ el campo viaja como `null`, igual que degradaba
+  antes ante un fallo de la BD externa.
+- **Descansos = proyección desde Bono, no lectura de TRESS.** Ninguna ruta que dispare un
+  usuario consulta el kardex (`SP_KARDEX_CB_TURNO`) ni `dbo.AUSENCIA`.
+  `obtener_descansos_bono` resuelve `empleado → turno vigente (levelup_turnos_empleados) →
+  catálogo (levelup_turnos) → jornadas (levelup_horarios) → proyección` con el motor de
+  `app/utils/turno_calendario.py`. Consecuencias que conviene no revertir:
+  - **Se proyecta con el turno vigente.** Para fechas anteriores a un cambio de turno la
+    proyección puede diferir de lo que nómina aplicó. Es una decisión, no un bug: el uso
+    real es hacia el futuro (pedir vacaciones, otorgar goce).
+  - **El override de `dbo.AUSENCIA` se descartó.** El motor ya fue validado día a día
+    contra `AUSENCIA.HO_CODIGO`, así que la proyección coincide con lo que TRESS computó
+    **para el turno vigente** — no para fechas de un turno anterior, ver el punto de arriba.
+  - **Falla cerrado con 503**, nunca con lista vacía: de esa lista sale el conteo de días
+    de una solicitud de vacaciones y un falso «no descansa» contaría días de más. Los cinco
+    casos son sin fila en la caché de turnos o `tu_codigo` vacío (una sola ruta: el
+    repositorio devuelve `None` en ambos), turno ausente del catálogo, rotativo sin ancla
+    válida, patrón no interpretable, y **fecha anterior al inicio de ciclo del turno
+    rotativo**: el ancla puede ser válida y aun así la fecha consultada caer antes de que
+    el ciclo empiece, y ahí el motor no puede ubicar la posición.
+  - **Los siete consumidores usan la misma función.** El endpoint y las seis validaciones de
+    `solicitud_service` / `faltas_retardos_service` comparten fuente: si el modal contara
+    con una y el servidor validara con otra, el usuario vería rechazada una solicitud por un
+    cálculo que la UI nunca le mostró.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 
 ### Frontend (frontend/src/)
@@ -226,8 +261,9 @@ Layered architecture: **router → service → repository → models/schemas**
   ambos alrededor del de turnos en uso de las 04:00; recordatorios Eval360/Encuestas/Metas a las 08:00,
   **sync de saldos de vacaciones y de home office tomado a las 06:00** en dos jobs
   independientes (`sync_vacaciones_disponibles` y `sync_homeoffice_tomados`), y **sync de
-  incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`), y **sync de
-  turnos en uso a las 04:00** (`sync_turnos_uso`)); se
+  incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`), **sync de
+  turnos en uso a las 04:00** (`sync_turnos_uso`), y **sync de datos generales del
+  colaborador a las 04:10** (`sync_empleados_tress`)); se
   registran en `registrar_jobs_programados` (`app/main.py`). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).

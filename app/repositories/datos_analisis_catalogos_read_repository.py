@@ -1,12 +1,18 @@
 """
-Lectura de los catálogos de turnos y jornadas desde SQL Server datos-analisis.
+Lectura directa a SQL Server datos-analisis para los syncs que alimentan caché en Bono.
 
-Solo lo usan los syncs que llenan ``levelup_turnos`` y ``levelup_horarios`` — ninguna
-carga de página pasa por aquí. Las consultas viven en ``sql/datos_analisis_*_catalogo.sql``.
+Reúne los cuatro SELECT de solo lectura (uno por archivo en ``sql/``, no todos con sufijo
+``_catalogo``): catálogo de turnos (``levelup_turnos``), catálogo de jornadas
+(``levelup_horarios``), turno vigente por empleado (``levelup_turnos_empleados``, vía
+``dbo.COLABORA``) y datos generales del colaborador —hoy solo fecha de ingreso—
+(``levelup_empleados_tress``, también desde ``dbo.COLABORA``). Solo lo usan esos syncs
+(``sync_turnos_catalogo``, ``sync_turnos_empleados``, ``sync_empleados_tress``); ninguna
+carga de página pasa por aquí.
 """
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +23,7 @@ _SQL_DIR = Path(__file__).resolve().parent / "sql"
 _SQL_TURNOS_CATALOGO_FILE = _SQL_DIR / "datos_analisis_turnos_catalogo.sql"
 _SQL_HORARIOS_CATALOGO_FILE = _SQL_DIR / "datos_analisis_horarios_catalogo.sql"
 _SQL_COLABORA_TURNOS_FILE = _SQL_DIR / "datos_analisis_colabora_turnos.sql"
+_SQL_COLABORA_DATOS_GENERALES_FILE = _SQL_DIR / "datos_analisis_colabora_datos_generales.sql"
 
 
 def load_turnos_catalogo_sql() -> str:
@@ -31,8 +38,12 @@ def load_colabora_turnos_sql() -> str:
     return _SQL_COLABORA_TURNOS_FILE.read_text(encoding="utf-8")
 
 
+def load_colabora_datos_generales_sql() -> str:
+    return _SQL_COLABORA_DATOS_GENERALES_FILE.read_text(encoding="utf-8")
+
+
 class DatosAnalisisCatalogosReadRepository:
-    """Ejecuta los tres SELECT de catálogo (una consulta cada uno, sin parámetros)."""
+    """Ejecuta los cuatro SELECT de catálogo (una consulta cada uno, sin parámetros)."""
 
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
@@ -63,4 +74,25 @@ class DatosAnalisisCatalogosReadRepository:
             if not no_empleado or not tu_codigo:
                 continue
             salida[no_empleado] = tu_codigo
+        return salida
+
+    async def get_datos_generales_por_empleado(self) -> dict[int, date | None]:
+        """``{no_empleado: fecha_ingreso}`` de todo ``dbo.COLABORA``.
+
+        La clave es ``int`` porque la columna destino lo es. ``CB_FEC_ING`` es ``datetime``
+        en TRESS y se normaliza a ``date``; un valor ausente viaja como ``None``.
+        """
+        salida: dict[int, date | None] = {}
+        for fila in await self._filas(load_colabora_datos_generales_sql()):
+            crudo = fila.get("no_empleado")
+            if crudo is None:
+                continue
+            try:
+                no_empleado = int(crudo)
+            except (TypeError, ValueError):
+                continue
+            valor = fila.get("fecha_ingreso")
+            if isinstance(valor, datetime):
+                valor = valor.date()
+            salida[no_empleado] = valor if isinstance(valor, date) else None
         return salida

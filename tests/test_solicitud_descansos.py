@@ -42,7 +42,7 @@ async def test_aprobar_solicitud_goce_reconsulta_y_escribe_solo_tramos_efectivos
 
     with (
         patch(
-            "app.services.solicitud_service.obtener_descansos_tress",
+            "app.services.solicitud_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[date(2026, 7, 21), date(2026, 7, 22)],
         ) as consultar,
@@ -60,6 +60,9 @@ async def test_aprobar_solicitud_goce_reconsulta_y_escribe_solo_tramos_efectivos
 
     assert response.status_code == 200, response.text
     consultar.assert_awaited_once()
+    # El AsyncMock no se queja si `self.db` se cae de la llamada: comprobar que la
+    # sesión sí viaja como primer posicional, no solo que cb_codigo llegó por kwarg.
+    assert consultar.await_args.args and consultar.await_args.args[0] is db
     assert consultar.await_args.kwargs["cb_codigo"] == 93002
     registrar.assert_awaited_once_with(
         no_empleado=93002,
@@ -90,7 +93,7 @@ async def test_revision_solicitud_goce_rechaza_inicio_en_descanso(
     headers = await auth_headers(client, empleado)
 
     with patch(
-        "app.services.solicitud_service.obtener_descansos_tress",
+        "app.services.solicitud_service.obtener_descansos_bono",
         new_callable=AsyncMock,
         return_value=[date(2026, 7, 20)],
     ):
@@ -113,7 +116,7 @@ async def test_crear_vacaciones_rechaza_inicio_en_descanso(client: AsyncClient, 
     headers = await auth_headers(client, emp)
 
     with patch(
-        "app.services.solicitud_service.obtener_descansos_tress",
+        "app.services.solicitud_service.obtener_descansos_bono",
         new_callable=AsyncMock,
         return_value=[date(2026, 7, 19), date(2026, 7, 20)],
     ):
@@ -147,7 +150,7 @@ async def test_crear_vacaciones_descuenta_solo_dias_efectivos(
 
     # Rango 18-21 jul: 19-20 descanso → 2 días efectivos = saldo exacto
     with patch(
-        "app.services.solicitud_service.obtener_descansos_tress",
+        "app.services.solicitud_service.obtener_descansos_bono",
         new_callable=AsyncMock,
         return_value=[date(2026, 7, 19), date(2026, 7, 20)],
     ):

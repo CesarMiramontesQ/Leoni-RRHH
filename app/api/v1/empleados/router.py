@@ -172,7 +172,7 @@ async def get_descansos_empleado(
     current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
     svc: DescansosEmpleadoService = Depends(_descansos_svc),
 ):
-    """Descansos del empleado (proyección TURNO + override AUSENCIA). Mismos roles que faltas/directorio."""
+    """Descansos del empleado, proyectados desde el turno vigente (cachés de Bono). Mismos roles que faltas/directorio."""
     return await svc.obtener_descansos(
         empleado_id=empleado_id,
         fecha_inicio=fecha_inicio,

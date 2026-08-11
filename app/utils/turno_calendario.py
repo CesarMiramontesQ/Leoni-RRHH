@@ -63,6 +63,23 @@ def normalizar_codigo(value: str | None) -> str:
     return (value or "").strip()
 
 
+def parse_hora_tress(value: str | None) -> time | None:
+    """Hora de TRESS (`'0600'`, `'600'`) a `time`. `None` si no es interpretable.
+
+    Una jornada puede cruzar medianoche (`'2200'` → `'0600'`), así que la salida **no** es
+    necesariamente mayor que la entrada.
+    """
+    raw = (value or "").strip()
+    if not raw or not raw.isdigit() or len(raw) not in (3, 4):
+        return None
+    padded = raw.zfill(4)
+    hour = int(padded[:2])
+    minute = int(padded[2:])
+    if hour > 23 or minute > 59:
+        return None
+    return time(hour, minute)
+
+
 def aplanar_patron_rotativo(patron: str) -> str:
     """Normaliza saltos de línea de ``TU_RIT_PAT`` a lista de tokens por coma."""
     parts: list[str] = []
@@ -229,50 +246,6 @@ def proyectar_dia(
         hora_salida=salida,
         jornada=jornada,
     )
-
-
-def aplicar_override_ausencia(
-    dias: list[DiaCalendario],
-    ausencias_por_fecha: dict[date, int],
-) -> list[DiaCalendario]:
-    """Si existe fila en AUSENCIA, AU_STATUS=2 pisa como DESCANSO; otro status como LABORABLE."""
-    result: list[DiaCalendario] = []
-    for dia in dias:
-        if dia.fecha not in ausencias_por_fecha:
-            result.append(dia)
-            continue
-        status = ausencias_por_fecha[dia.fecha]
-        estatus: EstatusDia = "DESCANSO" if status == 2 else "LABORABLE"
-        result.append(
-            DiaCalendario(
-                fecha=dia.fecha,
-                turno=dia.turno,
-                tipo_turno=dia.tipo_turno,
-                codigo_horario=None if estatus == "DESCANSO" else dia.codigo_horario,
-                estatus=estatus,
-                hora_entrada=None if estatus == "DESCANSO" else dia.hora_entrada,
-                hora_salida=None if estatus == "DESCANSO" else dia.hora_salida,
-                jornada=None if estatus == "DESCANSO" else dia.jornada,
-            )
-        )
-    return result
-
-
-def proyectar_calendario(
-    *,
-    turnos_por_fecha: dict[date, TurnoTress],
-    ausencias_por_fecha: dict[date, int],
-    horarios: dict[str, tuple[time | None, time | None, Decimal | None]] | None = None,
-) -> list[DiaCalendario]:
-    proyectados = [
-        proyectar_dia(turnos_por_fecha[fecha], fecha, horarios=horarios)
-        for fecha in sorted(turnos_por_fecha)
-    ]
-    return aplicar_override_ausencia(proyectados, ausencias_por_fecha)
-
-
-def fechas_descanso(dias: list[DiaCalendario]) -> list[date]:
-    return [d.fecha for d in dias if d.estatus == "DESCANSO"]
 
 
 def coerce_date(value: date | datetime | None) -> date | None:

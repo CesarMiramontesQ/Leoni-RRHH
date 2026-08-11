@@ -235,6 +235,35 @@ async def _sync_turnos_empleados_job():
         )
 
 
+async def _sync_empleados_tress_job():
+    """Refresca los datos generales del colaborador desde DATOS_ANALISIS (diario, 04:10).
+
+    Alimenta la fecha de ingreso que muestra la Vista 360. Va en la misma ventana que los
+    syncs de turnos; no hay dependencia entre ellos, solo se agrupan las lecturas a TRESS.
+    """
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.sync_empleados_tress_service import (
+            sincronizar_empleados_tress,
+        )
+
+        async with AsyncSessionLocal() as db:
+            stats = await sincronizar_empleados_tress(db, origen="scheduler")
+        logger.info(
+            "Sync datos generales job | origen=%d | insertados=%d | actualizados=%d "
+            "| omitidos=%d | sin_empleado_en_bono=%d",
+            stats.empleados_origen,
+            stats.insertados,
+            stats.actualizados,
+            stats.omitidos,
+            stats.sin_empleado_en_bono,
+        )
+    except Exception as exc:
+        logger.error(
+            "Error en sync de datos generales job: %s", str(exc), exc_info=True
+        )
+
+
 async def _sync_incidencias_tress_job():
     """Refresca la caché de incidencias desde DATOS_ANALISIS (semanal, miércoles 10:00).
 
@@ -333,6 +362,15 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         hour=4,
         minute=0,
         id="sync_turnos_uso",
+    )
+    # Datos generales del colaborador: diario a las 04:10, en la misma ventana que los
+    # syncs de turnos. Es la fuente de la fecha de ingreso de la Vista 360.
+    sched.add_job(
+        _sync_empleados_tress_job,
+        "cron",
+        hour=4,
+        minute=10,
+        id="sync_empleados_tress",
     )
     # Turno vigente por colaborador: diario a las 04:20, también antes del primer turno.
     sched.add_job(
