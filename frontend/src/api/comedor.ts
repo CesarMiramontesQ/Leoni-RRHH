@@ -663,40 +663,113 @@ export async function cancelarComedorAcceso(accesoId: number): Promise<void> {
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
 }
 
-/** Turno del catálogo `levelup_turnos` con su franja de comida (Ajustes Comedor). */
-export type ComedorTurnoHorarioApi = {
-  tu_codigo: string;
+/** Jornada de TRESS (`levelup_horarios`) con su ventana de comida (Ajustes Comedor). */
+export type ComedorJornadaComidaApi = {
+  ho_codigo: string;
   descripcion: string;
-  activo: boolean;
-  /** Contexto de solo lectura del catálogo de TRESS (`tu_jornada` / `tu_dias`). */
+  /** `HH:MM:SS`. La salida puede ser menor que la entrada: hay jornadas que cruzan medianoche. */
+  hora_entrada: string | null;
+  hora_salida: string | null;
   jornada_horas: number | null;
-  dias_semana: number | null;
-  /** Personal activo segun `levelup_turnos_uso`; `null` = cache nunca sincronizada. */
-  empleados_activos: number | null;
-  /** `HH:MM:SS` del backend; `null` cuando el turno no tiene horario asignado. */
+  activo: boolean;
+  /** `null` = la jornada todavia no tiene ventana de comida configurada. */
   hora_inicio_comida: string | null;
   hora_fin_comida: string | null;
   actualizado_en: string | null;
+  /** Turnos que recorren esta jornada: el alcance real de editarla. */
+  turnos: string[];
+  /** Personal de esos turnos segun `levelup_turnos_uso`; `null` = cache nunca sincronizada. */
+  empleados_activos: number | null;
+  en_catalogo: boolean;
 };
 
-export async function getComedorTurnosHorario(
+/** Tramo de dias consecutivos del ciclo con la misma jornada. */
+export type ComedorTurnoCicloBloqueApi = {
+  dia_inicio: number;
+  dia_fin: number;
+  dias: number;
+  /** "Dias 1-2" en un rotativo, "Lun-Vie" en un fijo. */
+  etiqueta: string;
+  estatus: "LABORABLE" | "DESCANSO";
+  ho_codigo: string | null;
+  ho_descripcion: string | null;
+  hora_entrada: string | null;
+  hora_salida: string | null;
+  hora_inicio_comida: string | null;
+  hora_fin_comida: string | null;
+  configurada: boolean;
+};
+
+/** Turno del catalogo `levelup_turnos` con su ciclo desglosado. */
+export type ComedorTurnoComidaApi = {
+  tu_codigo: string;
+  descripcion: string;
+  activo: boolean;
+  tipo_turno: "FIJO" | "ROTATIVO";
+  jornada_horas: number | null;
+  dias_semana: number | null;
+  empleados_activos: number | null;
+  /** Dias que dura el ciclo: 7 en un fijo, 21/28/56 en los rotativos reales. */
+  longitud_ciclo: number | null;
+  jornadas: string[];
+  jornadas_configuradas: number;
+  bloques: ComedorTurnoCicloBloqueApi[];
+  /** Texto para degradar la fila cuando el ciclo no se puede calcular. */
+  aviso: string | null;
+};
+
+/** Resultado de "que comida le toca a esta persona en esta fecha". */
+export type ComedorVentanaComidaApi = {
+  no_empleado: string;
+  nombre: string | null;
+  fecha: string;
+  tu_codigo: string | null;
+  turno_descripcion: string | null;
+  tipo_turno: "FIJO" | "ROTATIVO" | null;
+  estatus: "LABORABLE" | "DESCANSO" | null;
+  posicion_ciclo: number | null;
+  longitud_ciclo: number | null;
+  ho_codigo: string | null;
+  ho_descripcion: string | null;
+  hora_entrada: string | null;
+  hora_salida: string | null;
+  hora_inicio_comida: string | null;
+  hora_fin_comida: string | null;
+  /** DESCANSO | JORNADA_SIN_CONFIGURAR | SIN_TURNO | PATRON_INVALIDO | ... */
+  motivo_sin_ventana: string | null;
+  aviso: string | null;
+  turno_sincronizado_en: string | null;
+};
+
+export async function getComedorTurnosComida(
   opts: { incluirInactivos?: boolean; soloEnUso?: boolean } = {},
-): Promise<ComedorTurnoHorarioApi[]> {
+): Promise<ComedorTurnoComidaApi[]> {
   const params = new URLSearchParams();
   if (opts.incluirInactivos) params.set("incluir_inactivos", "true");
   if (opts.soloEnUso === false) params.set("solo_en_uso", "false");
   const query = params.toString() ? `?${params}` : "";
-  const res = await fetchWithAuth(`/api/v1/comedor/turnos-horario${query}`);
+  const res = await fetchWithAuth(`/api/v1/comedor/turnos-comida${query}`);
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
-  return (await res.json()) as ComedorTurnoHorarioApi[];
+  return (await res.json()) as ComedorTurnoComidaApi[];
 }
 
-export async function guardarComedorTurnoHorario(
-  tuCodigo: string,
+export async function getComedorJornadasComida(
+  opts: { soloEnUso?: boolean } = {},
+): Promise<ComedorJornadaComidaApi[]> {
+  const params = new URLSearchParams();
+  if (opts.soloEnUso === false) params.set("solo_en_uso", "false");
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetchWithAuth(`/api/v1/comedor/jornadas-comida${query}`);
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorJornadaComidaApi[];
+}
+
+export async function guardarComedorJornadaComida(
+  hoCodigo: string,
   payload: { horaInicioComida: string; horaFinComida: string },
-): Promise<ComedorTurnoHorarioApi> {
+): Promise<ComedorJornadaComidaApi> {
   const res = await fetchWithAuth(
-    `/api/v1/comedor/turnos-horario/${encodeURIComponent(tuCodigo)}`,
+    `/api/v1/comedor/jornadas-comida/${encodeURIComponent(hoCodigo)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -707,5 +780,15 @@ export async function guardarComedorTurnoHorario(
     },
   );
   if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
-  return (await res.json()) as ComedorTurnoHorarioApi;
+  return (await res.json()) as ComedorJornadaComidaApi;
+}
+
+export async function getComedorVentanaComida(
+  noEmpleado: number,
+  fecha: string,
+): Promise<ComedorVentanaComidaApi> {
+  const params = new URLSearchParams({ no_empleado: String(noEmpleado), fecha });
+  const res = await fetchWithAuth(`/api/v1/comedor/ventana-comida?${params}`);
+  if (!res.ok) throwComedorError(res.status, await readErrorDetail(res));
+  return (await res.json()) as ComedorVentanaComidaApi;
 }

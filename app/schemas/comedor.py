@@ -361,36 +361,114 @@ class ComedorRhAsignarComedorTurnosResponse(BaseModel):
     actualizados: int
 
 
-# --- Ajustes Comedor: horario de comida por turno ---
+# --- Ajustes Comedor: ventana de comida por jornada ---
 
 
-class ComedorTurnoHorarioItem(BaseModel):
-    """Turno del catálogo (`levelup_turnos`) con su franja de comida, si ya tiene una.
+class ComedorJornadaComidaItem(BaseModel):
+    """Jornada de TRESS (`levelup_horarios`) con su ventana de comida, si ya tiene una.
+
+    Es la única superficie editable de Ajustes Comedor: la hora de comer depende de la
+    jornada que toca ese día, no del turno, porque un turno rotativo recorre varias.
+
+    `turnos` y `empleados_activos` existen para que quien edita vea el alcance real del
+    cambio: la jornada `001` la comparten 8 turnos y más de 500 personas.
+    """
+
+    ho_codigo: str
+    descripcion: str
+    # De `HO_INTIME` / `HO_OUTTIME`. La salida puede ser menor que la entrada: hay
+    # jornadas que cruzan medianoche (18:00-06:00).
+    hora_entrada: Optional[time] = None
+    hora_salida: Optional[time] = None
+    jornada_horas: Optional[float] = None
+    activo: bool = True
+    hora_inicio_comida: Optional[time] = None
+    hora_fin_comida: Optional[time] = None
+    actualizado_en: Optional[datetime] = None
+    turnos: list[str] = []
+    # Personal de los turnos que usan esta jornada, según `levelup_turnos_uso`. `None` =
+    # la caché nunca se ha sincronizado, que no es lo mismo que 0 empleados.
+    empleados_activos: Optional[int] = None
+    # `False` = algún turno la referencia pero no está en el catálogo replicado.
+    en_catalogo: bool = True
+
+
+class ComedorJornadaComidaUpsert(BaseModel):
+    hora_inicio_comida: time
+    hora_fin_comida: time
+
+    @model_validator(mode="after")
+    def validar_rango(self) -> "ComedorJornadaComidaUpsert":
+        # A diferencia de la configuración por turno que esto sustituye, NO se exige
+        # inicio < fin: la jornada de 18:00-06:00 come alrededor de las 23:30-00:30, y
+        # rechazarlo dejaría al turno de noche sin poder configurarse. Cuando el fin es
+        # menor o igual que el inicio, la ventana cruza a la medianoche.
+        if self.hora_inicio_comida == self.hora_fin_comida:
+            raise ValueError("La hora de inicio y la de fin no pueden ser iguales.")
+        return self
+
+
+class ComedorTurnoCicloBloque(BaseModel):
+    """Tramo de días consecutivos del ciclo que comparten jornada y ventana de comida."""
+
+    dia_inicio: int
+    dia_fin: int
+    dias: int
+    # "Días 1–2" en un rotativo, "Lun–Vie" en un fijo.
+    etiqueta: str
+    estatus: Literal["LABORABLE", "DESCANSO"]
+    ho_codigo: Optional[str] = None
+    ho_descripcion: Optional[str] = None
+    hora_entrada: Optional[time] = None
+    hora_salida: Optional[time] = None
+    hora_inicio_comida: Optional[time] = None
+    hora_fin_comida: Optional[time] = None
+    configurada: bool = False
+
+
+class ComedorTurnoComidaItem(BaseModel):
+    """Turno del catálogo con su ciclo desglosado en bloques.
 
     `jornada_horas` y `dias_semana` vienen del catálogo de TRESS (`tu_jornada`, `tu_dias`)
-    y se exponen como contexto: ayudan a decidir la franja de comida sin salir de la
-    pantalla. Son de solo lectura; este sistema nunca los escribe.
+    y se exponen como contexto. Son de solo lectura; este sistema nunca los escribe.
     """
 
     tu_codigo: str
     descripcion: str
     activo: bool
+    tipo_turno: Literal["FIJO", "ROTATIVO"]
     jornada_horas: Optional[float] = None
     dias_semana: Optional[int] = None
-    # Personal activo según la caché `levelup_turnos_uso`. `None` = la caché nunca se ha
-    # sincronizado, que no es lo mismo que un turno con 0 empleados.
     empleados_activos: Optional[int] = None
+    longitud_ciclo: Optional[int] = None
+    jornadas: list[str] = []
+    jornadas_configuradas: int = 0
+    bloques: list[ComedorTurnoCicloBloque] = []
+    # Texto para degradar la fila cuando el ciclo no se puede calcular.
+    aviso: Optional[str] = None
+
+
+class ComedorVentanaComidaResponse(BaseModel):
+    """Resultado de «qué comida le toca a esta persona en esta fecha»."""
+
+    no_empleado: str
+    nombre: Optional[str] = None
+    fecha: date
+    tu_codigo: Optional[str] = None
+    turno_descripcion: Optional[str] = None
+    tipo_turno: Optional[Literal["FIJO", "ROTATIVO"]] = None
+    estatus: Optional[Literal["LABORABLE", "DESCANSO"]] = None
+    posicion_ciclo: Optional[int] = None
+    longitud_ciclo: Optional[int] = None
+    ho_codigo: Optional[str] = None
+    ho_descripcion: Optional[str] = None
+    hora_entrada: Optional[time] = None
+    hora_salida: Optional[time] = None
     hora_inicio_comida: Optional[time] = None
     hora_fin_comida: Optional[time] = None
-    actualizado_en: Optional[datetime] = None
-
-
-class ComedorTurnoHorarioUpsert(BaseModel):
-    hora_inicio_comida: time
-    hora_fin_comida: time
-
-    @model_validator(mode="after")
-    def validar_rango(self) -> "ComedorTurnoHorarioUpsert":
-        if self.hora_inicio_comida >= self.hora_fin_comida:
-            raise ValueError("La hora de inicio debe ser menor que la hora de fin.")
-        return self
+    motivo_sin_ventana: Optional[str] = None
+    aviso: Optional[str] = None
+    # Fecha del último sync empleado→turno. El turno es una foto de hoy, no un histórico:
+    # consultar una fecha pasada de alguien que cambió de rotación devuelve el turno
+    # actual, y quien lee el resultado necesita saberlo.
+    turno_sincronizado_en: Optional[datetime] = None

@@ -56,8 +56,10 @@ import app.models.talento  # noqa: F401
 import app.models.level_up  # noqa: F401
 import app.models.cursos_catalogo  # noqa: F401
 import app.models.proveedores_externos  # noqa: F401
-import app.models.turnos  # noqa: F401  (catálogo replicado; FK de levelup_comedor_horarios_turno)
+import app.models.turnos  # noqa: F401  (catálogo replicado de turnos)
+import app.models.horarios  # noqa: F401  (catálogo de jornadas; FK de levelup_comedor_horarios_jornada)
 import app.models.turnos_uso  # noqa: F401  (caché de personal activo por turno)
+import app.models.turnos_empleados  # noqa: F401  (turno vigente por persona)
 import app.models.turnos_empleados  # noqa: F401
 import app.models.evaluacion360  # noqa: F401  (incluye plantillas)
 import app.models.encuestas_rh  # noqa: F401
@@ -501,18 +503,28 @@ async def make_turno(
     descripcion: str,
     *,
     activo: str = "S",
+    rit_pat: str = "",
+    rit_ini: datetime | None = None,
+    tips: tuple[int, ...] = (0, 0, 0, 0, 0, 0, 0),
+    hors: tuple[str, ...] = ("", "", "", "", "", "", ""),
 ):
     """Fila del catálogo replicado `levelup_turnos`.
 
     Las 40 columnas del origen son NOT NULL, así que todas las que no interesan a la
     prueba se rellenan con el valor neutro de TRESS (0 / cadena vacía / 1899-12-30).
     `tu_codigo` se guarda con relleno a 6 posiciones, igual que llega de TRESS.
+
+    `rit_pat` vacío ⇒ turno **fijo**, definido por `tips`/`hors` por día de semana
+    (lunes primero, 2 = descanso). `rit_pat` con contenido ⇒ turno **rotativo**, y
+    entonces `rit_ini` es el ancla del ciclo: sin ella el ciclo no se puede ubicar en el
+    calendario y el turno se degrada a propósito.
     """
     from decimal import Decimal
 
     from app.models.turnos import Turno
 
     codigo = tu_codigo.ljust(6)
+    hors_pad = tuple((h or "").ljust(6) for h in hors)
     turno = Turno(
         tu_codigo=codigo,
         tu_descrip=descripcion,
@@ -520,25 +532,25 @@ async def make_turno(
         tu_dobles=Decimal("0.00"),
         tu_domingo=Decimal("0.00"),
         tu_festivo="N",
-        tu_hor_1="      ",
-        tu_hor_2="      ",
-        tu_hor_3="      ",
-        tu_hor_4="      ",
-        tu_hor_5="      ",
-        tu_hor_6="      ",
-        tu_hor_7="      ",
+        tu_hor_1=hors_pad[0],
+        tu_hor_2=hors_pad[1],
+        tu_hor_3=hors_pad[2],
+        tu_hor_4=hors_pad[3],
+        tu_hor_5=hors_pad[4],
+        tu_hor_6=hors_pad[5],
+        tu_hor_7=hors_pad[6],
         tu_horario=0,
         tu_jornada=Decimal("0.00"),
         tu_nomina=0,
-        tu_rit_ini=datetime(1899, 12, 30),
-        tu_rit_pat="",
-        tu_tip_1=0,
-        tu_tip_2=0,
-        tu_tip_3=0,
-        tu_tip_4=0,
-        tu_tip_5=0,
-        tu_tip_6=0,
-        tu_tip_7=0,
+        tu_rit_ini=rit_ini or datetime(1899, 12, 30),
+        tu_rit_pat=rit_pat,
+        tu_tip_1=tips[0],
+        tu_tip_2=tips[1],
+        tu_tip_3=tips[2],
+        tu_tip_4=tips[3],
+        tu_tip_5=tips[4],
+        tu_tip_6=tips[5],
+        tu_tip_7=tips[6],
         tu_tip_jor=0,
         tu_ingles="",
         tu_texto="",
@@ -572,20 +584,101 @@ async def make_turno_uso(db: AsyncSession, tu_codigo: str, empleados_activos: in
     return fila
 
 
+async def make_horario(
+    db: AsyncSession,
+    ho_codigo: str,
+    descripcion: str,
+    *,
+    intime: str = "0600",
+    outtime: str = "1400",
+    jornada: str = "8.00",
+    activo: str = "S",
+):
+    """Fila del catálogo replicado `levelup_horarios` (jornada de TRESS).
+
+    `ho_codigo` se guarda **sin relleno**, igual que lo escribe el sync: los códigos con
+    los que se consulta llegan normalizados desde el patrón de rotación.
+    """
+    from decimal import Decimal
+
+    from app.models.horarios import Horario
+
+    fila = Horario(
+        ho_codigo=ho_codigo.strip(),
+        ho_descrip=descripcion,
+        ho_intime=intime,
+        ho_outtime=outtime,
+        ho_jornada=Decimal(jornada),
+        ho_activo=activo,
+    )
+    db.add(fila)
+    await db.flush()
+    await db.refresh(fila)
+    return fila
+
+
+async def make_ventana_comida(
+    db: AsyncSession, ho_codigo: str, hora_inicio, hora_fin
+):
+    """Fila de `levelup_comedor_horarios_jornada` (ventana de comida configurada)."""
+    from app.models.comedor import ComedorHorarioJornada
+
+    fila = ComedorHorarioJornada(
+        ho_codigo=ho_codigo.strip(),
+        hora_inicio_comida=hora_inicio,
+        hora_fin_comida=hora_fin,
+    )
+    db.add(fila)
+    await db.flush()
+    await db.refresh(fila)
+    return fila
+
+
+async def make_turno_empleado(
+    db: AsyncSession,
+    no_empleado: str,
+    nombre: str,
+    *,
+    tu_codigo: str | None = None,
+    comedor: int | None = None,
+    activo: bool = True,
+):
+    """Fila de `levelup_turnos_empleados` (turno vigente por persona)."""
+    from app.models.turnos_empleados import TurnoEmpleado
+
+    fila = TurnoEmpleado(
+        no_empleado=str(no_empleado),
+        nombre=nombre,
+        tu_codigo=tu_codigo.strip() if tu_codigo else None,
+        turno=tu_codigo.strip() if tu_codigo else None,
+        comedor=comedor,
+        activo=activo,
+    )
+    db.add(fila)
+    await db.flush()
+    await db.refresh(fila)
+    return fila
+
+
 async def reset_turnos_horario(db: AsyncSession) -> None:
-    """Vacía el catálogo de turnos y sus horarios de comida.
+    """Vacía el catálogo de turnos y jornadas y sus ventanas de comida.
 
     Igual que `reset_comedor_transaccional`: los endpoints de Ajustes Comedor listan
     estado **global** y las llamadas API commitean sobre la conexión SQLite compartida.
+    Si aquí falta una tabla, un archivo de test contamina a otro con fallos intermitentes.
     """
     from sqlalchemy import delete
 
-    from app.models.comedor import ComedorHorarioTurno
+    from app.models.comedor import ComedorHorarioJornada
+    from app.models.horarios import Horario
     from app.models.turnos import Turno
+    from app.models.turnos_empleados import TurnoEmpleado
     from app.models.turnos_uso import TurnoUso
 
-    await db.execute(delete(ComedorHorarioTurno))
+    await db.execute(delete(ComedorHorarioJornada))
+    await db.execute(delete(Horario))
     await db.execute(delete(TurnoUso))
+    await db.execute(delete(TurnoEmpleado))
     await db.execute(delete(Turno))
     await db.flush()
 

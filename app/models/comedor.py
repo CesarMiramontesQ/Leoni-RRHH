@@ -3,7 +3,6 @@ from datetime import date, datetime, time
 from typing import Optional
 
 from sqlalchemy import (
-    CHAR,
     Boolean,
     CheckConstraint,
     Date,
@@ -230,32 +229,45 @@ class ComedorCodigoExterno(Base):
         )
 
 
-class ComedorHorarioTurno(Base):
-    """Franja de comida asignada a un turno del catálogo (`levelup_turnos`).
+class ComedorHorarioJornada(Base):
+    """Ventana de comida de una jornada de TRESS (`levelup_horarios`).
 
-    Vive en tabla aparte y no como columnas de `levelup_turnos` porque esa tabla es la
-    réplica 1:1 de ``[Datos].[dbo].[TURNO]`` de TRESS (ver el docstring de
-    :class:`app.models.turnos.Turno`): un dato propio del proyecto no debe viajar dentro
-    del espejo, que se recarga desde el origen.
+    Sustituye a la configuración por turno que existía antes. El motivo es que un turno
+    rotativo **no tiene una sola jornada**: G9 recorre un ciclo de 56 días que pasa por
+    7 jornadas distintas, así que una franja por turno le asignaría la misma hora de
+    comida al día que entra 06:00 y al que entra 22:00. La hora de comer depende de la
+    jornada que toca ese día, no del grupo de rotación al que pertenece la persona.
 
-    ``tu_codigo`` es ``CHAR(6)`` con relleno de espacios en el origen (``'01    '``). Aquí
-    se guarda **tal cual viene del catálogo** para que la FK case; la normalización con
-    ``RTRIM`` se hace al consultar y al exponer el dato.
+    Colgarla de la jornada evita además duplicar el dato: los 24 turnos con personal
+    activo usan 24 jornadas en total, y jornadas como ``001`` (06:00-14:00) las comparten
+    8 turnos. Un patrón de rotación nuevo no requiere capturar nada extra ni tocar código.
+
+    Vive en tabla aparte y no como columnas de ``levelup_horarios`` porque esa tabla es
+    una caché que se recarga desde TRESS; un dato propio del proyecto no debe viajar
+    dentro del espejo.
+
+    **La ventana puede cruzar medianoche.** La jornada ``011`` es 18:00-06:00, y su
+    comida natural cae alrededor de las 23:30-00:30. Por eso aquí ``hora_fin_comida``
+    **no** tiene que ser mayor que ``hora_inicio_comida``: cuando lo es o son iguales,
+    la ventana se interpreta como que termina al día siguiente. Lo único que se prohíbe
+    es una ventana de duración cero.
     """
 
-    __tablename__ = "levelup_comedor_horarios_turno"
+    __tablename__ = "levelup_comedor_horarios_jornada"
     __table_args__ = (
-        UniqueConstraint("tu_codigo", name="uq_levelup_comedor_horarios_turno_tu_codigo"),
+        UniqueConstraint(
+            "ho_codigo", name="uq_levelup_comedor_horarios_jornada_ho_codigo"
+        ),
         CheckConstraint(
-            "hora_inicio_comida < hora_fin_comida",
-            name="ck_levelup_comedor_horarios_turno_rango",
+            "hora_inicio_comida <> hora_fin_comida",
+            name="ck_levelup_comedor_horarios_jornada_rango",
         ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    tu_codigo: Mapped[str] = mapped_column(
-        CHAR(6),
-        ForeignKey("levelup_turnos.tu_codigo", ondelete="CASCADE"),
+    ho_codigo: Mapped[str] = mapped_column(
+        String(6),
+        ForeignKey("levelup_horarios.ho_codigo", ondelete="CASCADE"),
         nullable=False,
     )
     hora_inicio_comida: Mapped[time] = mapped_column(Time, nullable=False)
@@ -270,8 +282,12 @@ class ComedorHorarioTurno(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
+    @property
+    def cruza_medianoche(self) -> bool:
+        return self.hora_fin_comida <= self.hora_inicio_comida
+
     def __repr__(self) -> str:
         return (
-            f"<ComedorHorarioTurno tu_codigo={self.tu_codigo!r} "
+            f"<ComedorHorarioJornada ho_codigo={self.ho_codigo!r} "
             f"{self.hora_inicio_comida}-{self.hora_fin_comida}>"
         )

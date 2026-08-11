@@ -400,7 +400,13 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         comedor_id: int,
         clasificacion: str | None = None,
     ) -> None:
-        """Crea o actualiza `turnos_empleados` con el comedor indicado."""
+        """Crea o actualiza `turnos_empleados` con el comedor indicado.
+
+        Solo toca el comedor: **el turno se deja vacío** y lo llena el sync de las 04:20
+        desde `dbo.COLABORA`. Antes se escribía `"G1"` fijo, lo que hacía pasar por turno
+        real un valor inventado y, ahora que de él depende la ventana de comida, le habría
+        asignado a esa persona el horario de otra rotación.
+        """
         no_int = self._no_empleado_int(no_empleado)
         if no_int is None:
             raise ValueError(f"no_empleado inválido: {no_empleado!r}")
@@ -416,7 +422,8 @@ class EmpleadoRepository(BaseRepository[Empleado]):
                     nombre=nombre,
                     clasificacion=clasificacion,
                     comedor=comedor_id,
-                    turno="G1",
+                    turno=None,
+                    tu_codigo=None,
                 )
             )
         else:
