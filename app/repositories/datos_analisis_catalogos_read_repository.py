@@ -7,6 +7,7 @@ carga de página pasa por aquí. Las consultas viven en ``sql/datos_analisis_*_c
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ _SQL_DIR = Path(__file__).resolve().parent / "sql"
 _SQL_TURNOS_CATALOGO_FILE = _SQL_DIR / "datos_analisis_turnos_catalogo.sql"
 _SQL_HORARIOS_CATALOGO_FILE = _SQL_DIR / "datos_analisis_horarios_catalogo.sql"
 _SQL_COLABORA_TURNOS_FILE = _SQL_DIR / "datos_analisis_colabora_turnos.sql"
+_SQL_COLABORA_DATOS_GENERALES_FILE = _SQL_DIR / "datos_analisis_colabora_datos_generales.sql"
 
 
 def load_turnos_catalogo_sql() -> str:
@@ -31,8 +33,12 @@ def load_colabora_turnos_sql() -> str:
     return _SQL_COLABORA_TURNOS_FILE.read_text(encoding="utf-8")
 
 
+def load_colabora_datos_generales_sql() -> str:
+    return _SQL_COLABORA_DATOS_GENERALES_FILE.read_text(encoding="utf-8")
+
+
 class DatosAnalisisCatalogosReadRepository:
-    """Ejecuta los tres SELECT de catálogo (una consulta cada uno, sin parámetros)."""
+    """Ejecuta los cuatro SELECT de catálogo (una consulta cada uno, sin parámetros)."""
 
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
@@ -63,4 +69,25 @@ class DatosAnalisisCatalogosReadRepository:
             if not no_empleado or not tu_codigo:
                 continue
             salida[no_empleado] = tu_codigo
+        return salida
+
+    async def get_datos_generales_por_empleado(self) -> dict[int, date | None]:
+        """``{no_empleado: fecha_ingreso}`` de todo ``dbo.COLABORA``.
+
+        La clave es ``int`` porque la columna destino lo es. ``CB_FEC_ING`` es ``datetime``
+        en TRESS y se normaliza a ``date``; un valor ausente viaja como ``None``.
+        """
+        salida: dict[int, date | None] = {}
+        for fila in await self._filas(load_colabora_datos_generales_sql()):
+            crudo = fila.get("no_empleado")
+            if crudo is None:
+                continue
+            try:
+                no_empleado = int(crudo)
+            except (TypeError, ValueError):
+                continue
+            valor = fila.get("fecha_ingreso")
+            if isinstance(valor, datetime):
+                valor = valor.date()
+            salida[no_empleado] = valor if isinstance(valor, date) else None
         return salida
