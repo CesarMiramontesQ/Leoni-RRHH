@@ -159,6 +159,7 @@ async def obtener_descansos_bono(
 
 class DescansosEmpleadoService:
     def __init__(self, db: AsyncSession) -> None:
+        self.db = db
         self.empleado_repo = EmpleadoRepository(db)
 
     async def obtener_descansos(
@@ -173,7 +174,8 @@ class DescansosEmpleadoService:
         if empleado is None:
             raise NotFoundError(entidad="Empleado", id=empleado_id)
 
-        descansos = await obtener_descansos_tress(
+        descansos = await obtener_descansos_bono(
+            self.db,
             cb_codigo=empleado.no_empleado,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,

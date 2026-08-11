@@ -172,7 +172,7 @@ async def test_api_matrimonio_con_patron_rotativo_g11_julio(client: AsyncClient,
 
     with (
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=descansos,
         ),
@@ -225,7 +225,7 @@ async def test_api_rechaza_matrimonio_iniciando_en_par_rotativo(client: AsyncCli
 
     with (
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=_descansos_julio_g11(),
         ),
@@ -260,7 +260,7 @@ async def test_api_defuncion_salta_pares_rotativos(client: AsyncClient, db):
 
     with (
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=_descansos_julio_g11(),
         ),
@@ -290,28 +290,3 @@ async def test_api_defuncion_salta_pares_rotativos(client: AsyncClient, db):
         (date(2026, 7, 18), date(2026, 7, 18)),
         (date(2026, 7, 21), date(2026, 7, 22)),
     ]
-
-
-@pytest.mark.asyncio
-async def test_proyeccion_tress_real_empleado_4005_coincide_con_g11():
-    """Smoke contra DATOS_ANALISIS (backend image); se omite si no hay driver/ODBC."""
-    try:
-        from app.integrations.datos_analisis_db import DatosAnalisisReadClient
-        from app.services.descansos_empleado_service import obtener_descansos_tress
-    except Exception as exc:  # pragma: no cover
-        pytest.skip(f"Integración TRESS no disponible: {exc}")
-
-    try:
-        engine = DatosAnalisisReadClient.create_read_engine()
-    except Exception as exc:
-        pytest.skip(f"No se pudo crear engine DATOS_ANALISIS: {exc}")
-
-    if engine is None:
-        pytest.skip("DATOS_ANALISIS no configurado en este entorno")
-
-    reales = await obtener_descansos_tress(
-        cb_codigo=4005,
-        fecha_inicio=date(2026, 7, 1),
-        fecha_fin=date(2026, 7, 31),
-    )
-    assert reales == _descansos_julio_g11()

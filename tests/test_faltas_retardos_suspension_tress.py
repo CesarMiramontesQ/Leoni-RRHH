@@ -207,7 +207,7 @@ async def test_create_suspension_excluye_descanso_y_persiste_tramos(
 
     with (
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[date(2026, 7, 22)],
         ),

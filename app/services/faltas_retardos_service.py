@@ -34,7 +34,7 @@ from app.services.faltas_retardos.constants import (
 )
 from app.services.faltas_retardos.mapper import map_bono_row
 from app.services.faltas_retardos.mapper_cache import map_cache_row
-from app.services.descansos_empleado_service import obtener_descansos_tress
+from app.services.descansos_empleado_service import obtener_descansos_bono
 from app.services.tress_goce_service import (
     FALTA_RETARDO_TIPOS_GOCE_FJ,
     GOCE_PM_COMENTA,
@@ -506,7 +506,8 @@ class FaltasRetardosService:
         if data.tipo in FALTA_RETARDO_TIPOS_GOCE_FJ:
             horizonte = data.fecha_evento + timedelta(days=365)
             descansos = set(
-                await obtener_descansos_tress(
+                await obtener_descansos_bono(
+                    self.db,
                     cb_codigo=no_empleado,
                     fecha_inicio=data.fecha_evento,
                     fecha_fin=horizonte,
@@ -514,7 +515,7 @@ class FaltasRetardosService:
             )
             if data.fecha_evento in descansos:
                 raise DomainValidationError(
-                    "La fecha inicial no puede ser un descanso aplicado en TRESS."
+                    "La fecha inicial no puede ser un día de descanso."
                 )
             solo_lunes_viernes = data.tipo == "paternidad" or (
                 data.tipo == "defuncion" and administrativo
@@ -530,7 +531,8 @@ class FaltasRetardosService:
                     "No fue posible reunir los días otorgados dentro del rango consultable."
                 )
         else:
-            descansos = await obtener_descansos_tress(
+            descansos = await obtener_descansos_bono(
+                self.db,
                 cb_codigo=no_empleado,
                 fecha_inicio=data.fecha_evento,
                 fecha_fin=data.fecha_fin,
@@ -626,7 +628,8 @@ class FaltasRetardosService:
         if data.tipo == "suspension":
             if data.fecha_fin is None:
                 raise DomainValidationError("fecha_fin es obligatoria para suspensión")
-            descansos = await obtener_descansos_tress(
+            descansos = await obtener_descansos_bono(
+                self.db,
                 cb_codigo=int(empleado.no_empleado),
                 fecha_inicio=data.fecha_evento,
                 fecha_fin=data.fecha_fin,

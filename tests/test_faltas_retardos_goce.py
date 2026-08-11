@@ -175,7 +175,7 @@ async def test_create_matrimonio_rechaza_inicio_en_descanso(client: AsyncClient,
 
     with (
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[date(2026, 7, 20)],
         ),
@@ -210,7 +210,7 @@ async def test_create_matrimonio_extiende_y_separa_descansos(client: AsyncClient
 
     with (
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[date(2026, 7, 21), date(2026, 7, 22)],
         ),
@@ -261,7 +261,7 @@ async def test_create_incapacidad_rango_solo_descansos_rechaza(client: AsyncClie
     headers = await auth_headers(client, rh)
 
     with patch(
-        "app.services.faltas_retardos_service.obtener_descansos_tress",
+        "app.services.faltas_retardos_service.obtener_descansos_bono",
         new_callable=AsyncMock,
         return_value=[date(2026, 7, 20), date(2026, 7, 21)],
     ):
@@ -294,7 +294,7 @@ async def test_fallo_consulta_descansos_ocurre_antes_de_escrituras(
 
     with (
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             side_effect=ServiceUnavailableError("No se pudieron consultar los descansos."),
         ),

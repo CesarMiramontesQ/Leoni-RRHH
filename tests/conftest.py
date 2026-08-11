@@ -216,12 +216,12 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             return_value=None,
         ),
         patch(
-            "app.services.faltas_retardos_service.obtener_descansos_tress",
+            "app.services.faltas_retardos_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[],
         ),
         patch(
-            "app.services.solicitud_service.obtener_descansos_tress",
+            "app.services.solicitud_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[],
         ),

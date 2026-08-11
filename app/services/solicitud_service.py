@@ -46,7 +46,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.integrations.tress.queue import encolar_tress
-from app.services.descansos_empleado_service import obtener_descansos_tress
+from app.services.descansos_empleado_service import obtener_descansos_bono
 from app.services.tress_goce_service import (
     FALTA_RETARDO_TIPOS_GOCE_FJ,
     GOCE_PM_COMENTA,
@@ -441,7 +441,8 @@ class SolicitudService:
         if tipo in FALTA_RETARDO_TIPOS_GOCE_FJ:
             horizonte = fecha_inicio + timedelta(days=365)
             descansos = set(
-                await obtener_descansos_tress(
+                await obtener_descansos_bono(
+                    self.db,
                     cb_codigo=no_empleado,
                     fecha_inicio=fecha_inicio,
                     fecha_fin=horizonte,
@@ -449,7 +450,7 @@ class SolicitudService:
             )
             if fecha_inicio in descansos:
                 raise DomainValidationError(
-                    detail="La fecha inicial no puede ser un descanso aplicado en TRESS."
+                    detail="La fecha inicial no puede ser un día de descanso."
                 )
             fechas = avanzar_hasta_reunir_dias(
                 fecha_inicio,
@@ -468,7 +469,8 @@ class SolicitudService:
                     )
                 )
         else:
-            descansos = await obtener_descansos_tress(
+            descansos = await obtener_descansos_bono(
+                self.db,
                 cb_codigo=no_empleado,
                 fecha_inicio=fecha_inicio,
                 fecha_fin=fecha_fin,
@@ -624,7 +626,8 @@ class SolicitudService:
         empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
         if empleado is None:
             raise DomainValidationError(detail="Empleado no encontrado.")
-        descansos = await obtener_descansos_tress(
+        descansos = await obtener_descansos_bono(
+            self.db,
             cb_codigo=int(empleado.no_empleado),
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
@@ -632,7 +635,7 @@ class SolicitudService:
         descansos_set = set(descansos)
         if validar_inicio_no_descanso and fecha_inicio in descansos_set:
             raise DomainValidationError(
-                detail="La fecha inicial no puede ser un descanso aplicado en TRESS."
+                detail="La fecha inicial no puede ser un día de descanso."
             )
         efectivo = fechas_efectivas_en_rango(fecha_inicio, fecha_fin, descansos)
         if empleado_es_administrativo(empleado):

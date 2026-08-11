@@ -42,7 +42,7 @@ async def test_aprobar_solicitud_goce_reconsulta_y_escribe_solo_tramos_efectivos
 
     with (
         patch(
-            "app.services.solicitud_service.obtener_descansos_tress",
+            "app.services.solicitud_service.obtener_descansos_bono",
             new_callable=AsyncMock,
             return_value=[date(2026, 7, 21), date(2026, 7, 22)],
         ) as consultar,
@@ -90,7 +90,7 @@ async def test_revision_solicitud_goce_rechaza_inicio_en_descanso(
     headers = await auth_headers(client, empleado)
 
     with patch(
-        "app.services.solicitud_service.obtener_descansos_tress",
+        "app.services.solicitud_service.obtener_descansos_bono",
         new_callable=AsyncMock,
         return_value=[date(2026, 7, 20)],
     ):
@@ -113,7 +113,7 @@ async def test_crear_vacaciones_rechaza_inicio_en_descanso(client: AsyncClient, 
     headers = await auth_headers(client, emp)
 
     with patch(
-        "app.services.solicitud_service.obtener_descansos_tress",
+        "app.services.solicitud_service.obtener_descansos_bono",
         new_callable=AsyncMock,
         return_value=[date(2026, 7, 19), date(2026, 7, 20)],
     ):
@@ -147,7 +147,7 @@ async def test_crear_vacaciones_descuenta_solo_dias_efectivos(
 
     # Rango 18-21 jul: 19-20 descanso → 2 días efectivos = saldo exacto
     with patch(
-        "app.services.solicitud_service.obtener_descansos_tress",
+        "app.services.solicitud_service.obtener_descansos_bono",
         new_callable=AsyncMock,
         return_value=[date(2026, 7, 19), date(2026, 7, 20)],
     ):

@@ -227,3 +227,109 @@ async def test_tolera_el_sufijo_punto_cero_del_seed_viejo(db):
     )
 
     assert descansos == [date(2026, 7, 5)]
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_resuelve_no_empleado_y_ordena(client, db):
+    from tests.conftest import auth_headers
+
+    rh = await make_empleado(db, rol="rh", email="descansos-rh@test")
+    emp = await make_empleado(db, rol="empleado", email="descansos-emp@test")
+    await _sembrar_turno_fijo(db, emp.no_empleado, tu_codigo="F9")
+
+    res = await client.get(
+        f"/api/v1/empleados/{emp.id}/descansos",
+        params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-14"},
+        headers=await auth_headers(client, rh),
+    )
+
+    assert res.status_code == 200
+    assert res.json() == {
+        "empleado_id": emp.id,
+        "no_empleado": emp.no_empleado,
+        "fecha_inicio": "2026-07-01",
+        "fecha_fin": "2026-07-14",
+        "descansos": ["2026-07-05", "2026-07-12"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_sin_turno_en_cache_devuelve_503(client, db):
+    from tests.conftest import auth_headers
+
+    rh = await make_empleado(db, rol="rh", email="descansos-503-rh@test")
+    emp = await make_empleado(db, rol="empleado", email="descansos-503-emp@test")
+
+    res = await client.get(
+        f"/api/v1/empleados/{emp.id}/descansos",
+        params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31"},
+        headers=await auth_headers(client, rh),
+    )
+
+    assert res.status_code == 503
+    assert "no se ha sincronizado" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_requiere_rol_de_directorio(client, db):
+    from tests.conftest import auth_headers
+
+    solicitante = await make_empleado(db, rol="empleado", email="descansos-no-rh@test")
+    emp = await make_empleado(db, rol="empleado", email="descansos-objetivo@test")
+
+    res = await client.get(
+        f"/api/v1/empleados/{emp.id}/descansos",
+        params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31"},
+        headers=await auth_headers(client, solicitante),
+    )
+
+    assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_permite_supervisor(client, db):
+    from tests.conftest import auth_headers
+
+    supervisor = await make_empleado(db, rol="supervisor", email="descansos-sup@test")
+    emp = await make_empleado(db, rol="empleado", email="descansos-sup-obj@test")
+    await _sembrar_turno_fijo(db, emp.no_empleado, tu_codigo="F8")
+
+    res = await client.get(
+        f"/api/v1/empleados/{emp.id}/descansos",
+        params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-07"},
+        headers=await auth_headers(client, supervisor),
+    )
+
+    assert res.status_code == 200
+    assert res.json()["descansos"] == ["2026-07-05"]
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_rechaza_rango_mayor_a_366_dias(client, db):
+    from tests.conftest import auth_headers
+
+    rh = await make_empleado(db, rol="rh", email="descansos-rango-rh@test")
+    emp = await make_empleado(db, rol="empleado", email="descansos-rango-emp@test")
+
+    res = await client.get(
+        f"/api/v1/empleados/{emp.id}/descansos",
+        params={"fecha_inicio": "2025-01-01", "fecha_fin": "2026-01-02"},
+        headers=await auth_headers(client, rh),
+    )
+
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_empleado_inexistente_404(client, db):
+    from tests.conftest import auth_headers
+
+    rh = await make_empleado(db, rol="rh", email="descansos-404-rh@test")
+
+    res = await client.get(
+        "/api/v1/empleados/99999999/descansos",
+        params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-31"},
+        headers=await auth_headers(client, rh),
+    )
+
+    assert res.status_code == 404
