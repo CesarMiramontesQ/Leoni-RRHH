@@ -36,7 +36,7 @@ from app.core.exceptions import (
     UnauthorizedError,
 )
 from app.core.rh_module_registry import user_has_module
-from app.models.comedor import ComedorAccesoEstado, ComedorHorarioTurno, ComedorTipoComida
+from app.models.comedor import ComedorAccesoEstado, ComedorTipoComida
 from app.models.empleados import Empleado
 from app.models.roles import Rol
 from app.models.turnos import Turno
@@ -47,7 +47,6 @@ from app.repositories.comedor_repository import (
     ComedorAccesoRepository,
     ComedorCodigoExternoRepository,
     ComedorExternoCorrelativoRepository,
-    ComedorHorarioTurnoRepository,
     ComedorRegistroRepository,
     ComedorRepository,
     MenuSemanalRepository,
@@ -89,8 +88,6 @@ from app.schemas.comedor import (
     ComedorTerminalAccederResponse,
     ComedorTerminalConsumirRequest,
     ComedorTerminalConsumirResponse,
-    ComedorTurnoHorarioItem,
-    ComedorTurnoHorarioUpsert,
     HuellaValidarRequest,
     HuellaValidarResponse,
     MenuSemanalCreate,
@@ -126,7 +123,6 @@ class ComedorService:
         self.acceso_repo = ComedorAccesoRepository(db)
         self.codigo_externo_repo = ComedorCodigoExternoRepository(db)
         self.externo_corr_repo = ComedorExternoCorrelativoRepository(db)
-        self.horario_turno_repo = ComedorHorarioTurnoRepository(db)
         self.turnos_uso_repo = TurnosUsoRepository(db)
         self.empleado_repo = EmpleadoRepository(db)
 
@@ -1804,104 +1800,3 @@ class ComedorService:
             "promedio_semanal": round(promedio, 1),
             "empleados_sin_comedor_asignado": empleados_sin_comedor,
         }
-
-    # --- Ajustes Comedor: horario de comida por turno ---
-
-    @staticmethod
-    def _turno_horario_item(
-        turno: Turno,
-        horario: "ComedorHorarioTurno | None",
-        empleados_activos: int | None = None,
-    ) -> ComedorTurnoHorarioItem:
-        return ComedorTurnoHorarioItem(
-            tu_codigo=(turno.tu_codigo or "").strip(),
-            descripcion=(turno.tu_descrip or "").strip(),
-            activo=(turno.tu_activo or "").strip().upper() == "S",
-            jornada_horas=float(turno.tu_jornada) if turno.tu_jornada is not None else None,
-            dias_semana=turno.tu_dias,
-            empleados_activos=empleados_activos,
-            hora_inicio_comida=horario.hora_inicio_comida if horario else None,
-            hora_fin_comida=horario.hora_fin_comida if horario else None,
-            actualizado_en=horario.updated_at if horario else None,
-        )
-
-    async def list_turnos_horario(
-        self, *, incluir_inactivos: bool = False, solo_en_uso: bool = True
-    ) -> list[ComedorTurnoHorarioItem]:
-        """Turnos del catálogo con su horario y su personal activo.
-
-        `solo_en_uso` recorta el catálogo (76 turnos) a los que TRESS reporta con gente
-        —hoy 25— usando la caché `levelup_turnos_uso`. Dos salvaguardas:
-
-        - **Caché vacía ⇒ no se filtra.** Antes de la primera corrida del sync, filtrar
-          dejaría la pantalla sin un solo turno; es preferible mostrar el catálogo
-          completo a mostrar nada.
-        - **Un turno con horario ya configurado nunca se oculta**, aunque se quede sin
-          personal: esconder un dato que alguien capturó sería peor que una fila de más.
-        """
-        filas = await self.horario_turno_repo.list_turnos_con_horario(
-            incluir_inactivos=incluir_inactivos
-        )
-        conteos = await self.turnos_uso_repo.map_conteos()
-
-        items: list[ComedorTurnoHorarioItem] = []
-        for turno, horario in filas:
-            codigo = (turno.tu_codigo or "").strip()
-            empleados = conteos.get(codigo)
-            if (
-                solo_en_uso
-                and conteos
-                and horario is None
-                and not (empleados or 0) > 0
-            ):
-                continue
-            items.append(self._turno_horario_item(turno, horario, empleados))
-        return items
-
-    async def guardar_horario_turno(
-        self,
-        tu_codigo: str,
-        data: ComedorTurnoHorarioUpsert,
-        current_user: Empleado,
-        background_tasks: BackgroundTasks,
-    ) -> ComedorTurnoHorarioItem:
-        codigo = (tu_codigo or "").strip()
-        if not codigo:
-            raise DomainValidationError(detail="Falta el código de turno.")
-
-        turno = await self.horario_turno_repo.get_turno(codigo)
-        if turno is None:
-            raise NotFoundError("Turno", codigo)
-
-        anterior = await self.horario_turno_repo.get_horario(codigo)
-        datos_antes = (
-            {
-                "hora_inicio_comida": anterior.hora_inicio_comida.isoformat(),
-                "hora_fin_comida": anterior.hora_fin_comida.isoformat(),
-            }
-            if anterior
-            else None
-        )
-
-        horario = await self.horario_turno_repo.upsert_horario(
-            turno=turno,
-            hora_inicio=data.hora_inicio_comida,
-            hora_fin=data.hora_fin_comida,
-            empleado_id=current_user.empleado_id,
-        )
-
-        audit_background(
-            background_tasks,
-            self.db,
-            accion="COMEDOR_HORARIO_TURNO_GUARDADO",
-            modulo="comedor",
-            usuario_id=current_user.id,
-            entidad_id=horario.id,
-            datos_antes=datos_antes,
-            datos_despues={
-                "tu_codigo": codigo,
-                "hora_inicio_comida": data.hora_inicio_comida.isoformat(),
-                "hora_fin_comida": data.hora_fin_comida.isoformat(),
-            },
-        )
-        return self._turno_horario_item(turno, horario)

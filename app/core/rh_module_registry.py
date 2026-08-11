@@ -163,7 +163,14 @@ RH_MODULES: dict[str, RhModuleDef] = {
             "#/comedor/codigos-externos",
         ),
         api_prefixes=(
-            "/api/v1/comedor/turnos-horario",
+            # Los tres primeros son Ajustes Comedor: resumen de turnos con su ciclo,
+            # ventana de comida por jornada y la validación empleado+fecha. Van uno por
+            # uno y no como "/api/v1/comedor" a secas porque `resolve_module_from_api_path`
+            # gana por prefijo más largo: registrar la raíz le robaría las rutas a
+            # `comedor-registro` y `comedor-planear`.
+            "/api/v1/comedor/turnos-comida",
+            "/api/v1/comedor/jornadas-comida",
+            "/api/v1/comedor/ventana-comida",
             "/api/v1/comedor/comedores",
             "/api/v1/comedor/codigos-externos",
             "/api/v1/comedor/accesos/rh/codigos-externos",

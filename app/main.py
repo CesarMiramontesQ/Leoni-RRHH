@@ -177,6 +177,64 @@ async def _sync_turnos_uso_job():
         logger.error("Error en sync de turnos en uso job: %s", str(exc), exc_info=True)
 
 
+async def _sync_turnos_catalogo_job():
+    """Refresca los catálogos de turnos y jornadas desde DATOS_ANALISIS (diario, 03:40).
+
+    Va antes que los otros dos syncs de turnos porque ambos dependen de él: de estos
+    catálogos salen el patrón de rotación y las horas de cada jornada, que es con lo que
+    Ajustes Comedor calcula a qué hora come cada quien.
+    """
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.sync_turnos_catalogo_service import sincronizar_catalogos_tress
+
+        async with AsyncSessionLocal() as db:
+            resultado = await sincronizar_catalogos_tress(db, origen="scheduler")
+        for stats in resultado:
+            logger.info(
+                "Sync catálogos TRESS job | %s | origen=%d | insertados=%d | "
+                "actualizados=%d | omitidos=%d",
+                stats.tabla,
+                stats.filas_origen,
+                stats.insertados,
+                stats.actualizados,
+                stats.omitidos,
+            )
+    except Exception as exc:
+        logger.error("Error en sync de catálogos TRESS job: %s", str(exc), exc_info=True)
+
+
+async def _sync_turnos_empleados_job():
+    """Refresca el turno de cada colaborador desde DATOS_ANALISIS (diario, 04:20).
+
+    Después del catálogo, para que el turno que se guarda ya exista en la réplica. Es la
+    foto del turno vigente: quien cambia de rotación queda reflejado a la mañana
+    siguiente.
+    """
+    try:
+        from app.core.database import AsyncSessionLocal
+        from app.services.sync_turnos_empleados_service import (
+            sincronizar_turnos_empleados,
+        )
+
+        async with AsyncSessionLocal() as db:
+            stats = await sincronizar_turnos_empleados(db, origen="scheduler")
+        logger.info(
+            "Sync turno por empleado job | origen=%d | insertados=%d | actualizados=%d "
+            "| omitidos=%d | sin_empleado_en_bono=%d | bajas=%d",
+            stats.empleados_origen,
+            stats.insertados,
+            stats.actualizados,
+            stats.omitidos,
+            stats.sin_empleado_en_bono,
+            stats.bajas_marcadas,
+        )
+    except Exception as exc:
+        logger.error(
+            "Error en sync de turno por empleado job: %s", str(exc), exc_info=True
+        )
+
+
 async def _sync_incidencias_tress_job():
     """Refresca la caché de incidencias desde DATOS_ANALISIS (semanal, miércoles 10:00).
 
@@ -256,6 +314,17 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         minute=0,
         id="sync_homeoffice_tomados",
     )
+    # Los tres syncs de turnos van escalonados y como jobs independientes: si uno falla,
+    # los otros corren con datos ligeramente rancios en vez de caerse en cadena.
+    # Catálogos de turnos y jornadas: diario a las 03:40, antes que los dos que dependen
+    # de ellos.
+    sched.add_job(
+        _sync_turnos_catalogo_job,
+        "cron",
+        hour=3,
+        minute=40,
+        id="sync_turnos_catalogo",
+    )
     # Caché de personal activo por turno: diario a las 04:00, antes del primer turno, para
     # que un cambio de turno en nómina se refleje en Ajustes Comedor al día siguiente.
     sched.add_job(
@@ -264,6 +333,14 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         hour=4,
         minute=0,
         id="sync_turnos_uso",
+    )
+    # Turno vigente por colaborador: diario a las 04:20, también antes del primer turno.
+    sched.add_job(
+        _sync_turnos_empleados_job,
+        "cron",
+        hour=4,
+        minute=20,
+        id="sync_turnos_empleados",
     )
     # Caché de incidencias de TRESS: semanal, miércoles a las 10:00.
     sched.add_job(

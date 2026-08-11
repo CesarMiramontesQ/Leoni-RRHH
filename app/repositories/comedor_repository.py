@@ -17,12 +17,13 @@ from app.models.comedor import (
     ComedorCodigoExterno,
     ComedorCodigoExternoEstado,
     ComedorExternoCorrelativo,
-    ComedorHorarioTurno,
+    ComedorHorarioJornada,
     ComedorRegistro,
     ComedorTipoComida,
     MenuSemanal,
 )
 from app.models.empleados import Empleado
+from app.models.horarios import Horario
 from app.models.turnos import Turno
 from app.repositories.base import BaseRepository
 
@@ -902,60 +903,64 @@ class ComedorCodigoExternoRepository(BaseRepository[ComedorCodigoExterno]):
         return result
 
 
-class ComedorHorarioTurnoRepository(BaseRepository[ComedorHorarioTurno]):
-    """Franja de comida por turno, sobre el catálogo replicado `levelup_turnos`.
+class ComedorHorarioJornadaRepository(BaseRepository[ComedorHorarioJornada]):
+    """Ventana de comida por jornada, sobre el catálogo replicado `levelup_horarios`.
 
-    `tu_codigo` es `CHAR(6)` con relleno de espacios en el origen (`'01    '`), así que
-    todas las comparaciones por código normalizan con `RTRIM`, igual que el resto de la
-    integración con TRESS.
+    `ho_codigo` se guarda **ya normalizado** en las dos tablas, así que aquí no hace falta
+    el `RTRIM` que sí necesitan las consultas contra `levelup_turnos` (donde `tu_codigo`
+    conserva el relleno de `CHAR(6)`). Aun así se normaliza lo que llega del cliente: una
+    URL puede traer espacios.
     """
 
     def __init__(self, db: AsyncSession):
-        super().__init__(ComedorHorarioTurno, db)
+        super().__init__(ComedorHorarioJornada, db)
 
-    async def list_turnos_con_horario(
-        self, *, incluir_inactivos: bool = False
-    ) -> list[tuple[Turno, ComedorHorarioTurno | None]]:
-        stmt = (
-            select(Turno, ComedorHorarioTurno)
-            .outerjoin(
-                ComedorHorarioTurno,
-                func.rtrim(ComedorHorarioTurno.tu_codigo) == func.rtrim(Turno.tu_codigo),
-            )
-            .order_by(func.rtrim(Turno.tu_codigo))
-        )
+    async def list_turnos(self, *, incluir_inactivos: bool = False) -> list[Turno]:
+        stmt = select(Turno).order_by(func.rtrim(Turno.tu_codigo))
         if not incluir_inactivos:
             stmt = stmt.where(func.upper(func.rtrim(Turno.tu_activo)) == "S")
-        rows = (await self.db.execute(stmt)).all()
-        return [(row[0], row[1]) for row in rows]
+        return list((await self.db.execute(stmt)).scalars().all())
 
     async def get_turno(self, tu_codigo: str) -> Turno | None:
         stmt = select(Turno).where(func.rtrim(Turno.tu_codigo) == tu_codigo.strip())
         return (await self.db.execute(stmt)).scalars().first()
 
-    async def get_horario(self, tu_codigo: str) -> ComedorHorarioTurno | None:
-        stmt = select(ComedorHorarioTurno).where(
-            func.rtrim(ComedorHorarioTurno.tu_codigo) == tu_codigo.strip()
+    async def map_jornadas(self) -> dict[str, Horario]:
+        """`{ho_codigo: Horario}` del catálogo replicado."""
+        result = await self.db.execute(select(Horario))
+        return {(h.ho_codigo or "").strip(): h for h in result.scalars().all()}
+
+    async def map_ventanas(self) -> dict[str, ComedorHorarioJornada]:
+        """`{ho_codigo: ventana configurada}`."""
+        result = await self.db.execute(select(ComedorHorarioJornada))
+        return {(v.ho_codigo or "").strip(): v for v in result.scalars().all()}
+
+    async def get_jornada(self, ho_codigo: str) -> Horario | None:
+        stmt = select(Horario).where(Horario.ho_codigo == ho_codigo.strip())
+        return (await self.db.execute(stmt)).scalars().first()
+
+    async def get_ventana(self, ho_codigo: str) -> ComedorHorarioJornada | None:
+        stmt = select(ComedorHorarioJornada).where(
+            ComedorHorarioJornada.ho_codigo == ho_codigo.strip()
         )
         return (await self.db.execute(stmt)).scalars().first()
 
-    async def upsert_horario(
+    async def upsert_ventana(
         self,
         *,
-        turno: Turno,
+        ho_codigo: str,
         hora_inicio: time,
         hora_fin: time,
         empleado_id: int | None,
-    ) -> ComedorHorarioTurno:
-        horario = await self.get_horario(turno.tu_codigo)
-        if horario is None:
-            # Se guarda el `tu_codigo` tal cual está en el catálogo (con su relleno) para
-            # que la FK case sin depender del padding que haya mandado el cliente.
-            horario = ComedorHorarioTurno(tu_codigo=turno.tu_codigo)
-            self.db.add(horario)
-        horario.hora_inicio_comida = hora_inicio
-        horario.hora_fin_comida = hora_fin
-        horario.actualizado_por_empleado_id = empleado_id
+    ) -> ComedorHorarioJornada:
+        codigo = ho_codigo.strip()
+        ventana = await self.get_ventana(codigo)
+        if ventana is None:
+            ventana = ComedorHorarioJornada(ho_codigo=codigo)
+            self.db.add(ventana)
+        ventana.hora_inicio_comida = hora_inicio
+        ventana.hora_fin_comida = hora_fin
+        ventana.actualizado_por_empleado_id = empleado_id
         await self.db.commit()
-        await self.db.refresh(horario)
-        return horario
+        await self.db.refresh(ventana)
+        return ventana

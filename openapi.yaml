@@ -2895,41 +2895,53 @@ components:
           type: integer
 
     # ── Comedor ───────────────────────────────────────
-    ComedorTurnoHorarioItem:
+    ComedorJornadaComidaItem:
       type: object
-      required: [tu_codigo, descripcion, activo]
+      required: [ho_codigo, descripcion, activo, turnos, en_catalogo]
       properties:
-        tu_codigo:
+        ho_codigo:
           type: string
-          description: Codigo del turno sin relleno de espacios
+          description: Codigo de la jornada de TRESS, ya normalizado
         descripcion:
           type: string
-        activo:
-          type: boolean
-          description: tu_activo del catalogo normalizado a booleano
+        hora_entrada:
+          type: [string, "null"]
+          format: time
+          description: >-
+            Entrada de la jornada (HO_INTIME). Puede ser mayor que la salida.
+            hay jornadas que cruzan medianoche, como 18.00 a 06.00.
+        hora_salida:
+          type: [string, "null"]
+          format: time
         jornada_horas:
           type: [number, "null"]
-          description: Horas de jornada del turno en TRESS (tu_jornada), solo lectura
-        dias_semana:
-          type: [integer, "null"]
-          description: Dias por semana del turno en TRESS (tu_dias), solo lectura
-        empleados_activos:
-          type: [integer, "null"]
-          description: >-
-            Personal activo del turno segun la cache levelup_turnos_uso.
-            null = la cache nunca se ha sincronizado (distinto de 0 empleados).
+        activo:
+          type: boolean
         hora_inicio_comida:
           type: [string, "null"]
           format: time
-          description: HH:MM:SS; null cuando el turno aun no tiene horario
+          description: HH:MM:SS; null cuando la jornada aun no tiene ventana de comida
         hora_fin_comida:
           type: [string, "null"]
           format: time
         actualizado_en:
           type: [string, "null"]
           format: date-time
+        turnos:
+          type: array
+          items:
+            type: string
+          description: Turnos que recorren esta jornada. el alcance de editarla
+        empleados_activos:
+          type: [integer, "null"]
+          description: >-
+            Personal de esos turnos segun la cache levelup_turnos_uso.
+            null = la cache nunca se ha sincronizado (distinto de 0 empleados).
+        en_catalogo:
+          type: boolean
+          description: false = un turno la referencia pero no esta en la replica
 
-    ComedorTurnoHorarioUpsert:
+    ComedorJornadaComidaUpsert:
       type: object
       required: [hora_inicio_comida, hora_fin_comida]
       properties:
@@ -2940,7 +2952,151 @@ components:
         hora_fin_comida:
           type: string
           format: time
-          description: Debe ser mayor que hora_inicio_comida
+          description: >-
+            Solo se exige que sea distinta de hora_inicio_comida. Si es menor o igual,
+            la ventana se interpreta como que cruza a la medianoche, que es lo que
+            necesita la jornada de noche.
+
+    ComedorTurnoCicloBloque:
+      type: object
+      required: [dia_inicio, dia_fin, dias, etiqueta, estatus, configurada]
+      properties:
+        dia_inicio:
+          type: integer
+          description: Primer dia del tramo dentro del ciclo, base 1
+        dia_fin:
+          type: integer
+        dias:
+          type: integer
+        etiqueta:
+          type: string
+          description: Dias 1-2 en un rotativo, Lun-Vie en un fijo
+        estatus:
+          type: string
+          enum: [LABORABLE, DESCANSO]
+        ho_codigo:
+          type: [string, "null"]
+        ho_descripcion:
+          type: [string, "null"]
+        hora_entrada:
+          type: [string, "null"]
+          format: time
+        hora_salida:
+          type: [string, "null"]
+          format: time
+        hora_inicio_comida:
+          type: [string, "null"]
+          format: time
+          description: Siempre null en un tramo de descanso
+        hora_fin_comida:
+          type: [string, "null"]
+          format: time
+        configurada:
+          type: boolean
+
+    ComedorTurnoComidaItem:
+      type: object
+      required: [tu_codigo, descripcion, activo, tipo_turno]
+      properties:
+        tu_codigo:
+          type: string
+          description: Codigo del turno sin relleno de espacios
+        descripcion:
+          type: string
+        activo:
+          type: boolean
+          description: tu_activo del catalogo normalizado a booleano
+        tipo_turno:
+          type: string
+          enum: [FIJO, ROTATIVO]
+          description: >-
+            Se deriva del dato, no del nombre. rotativo = tu_rit_pat no vacio.
+        jornada_horas:
+          type: [number, "null"]
+        dias_semana:
+          type: [integer, "null"]
+        empleados_activos:
+          type: [integer, "null"]
+        longitud_ciclo:
+          type: [integer, "null"]
+          description: 7 en un fijo. 21, 28 o 56 en los rotativos reales de la planta
+        jornadas:
+          type: array
+          items:
+            type: string
+        jornadas_configuradas:
+          type: integer
+        bloques:
+          type: array
+          items:
+            $ref: "#/components/schemas/ComedorTurnoCicloBloque"
+        aviso:
+          type: [string, "null"]
+          description: Texto para degradar la fila cuando el ciclo no se puede calcular
+
+    ComedorVentanaComidaResponse:
+      type: object
+      required: [no_empleado, fecha]
+      properties:
+        no_empleado:
+          type: string
+        nombre:
+          type: [string, "null"]
+        fecha:
+          type: string
+          format: date
+        tu_codigo:
+          type: [string, "null"]
+        turno_descripcion:
+          type: [string, "null"]
+        tipo_turno:
+          type: [string, "null"]
+          enum: [FIJO, ROTATIVO, null]
+        estatus:
+          type: [string, "null"]
+          enum: [LABORABLE, DESCANSO, null]
+        posicion_ciclo:
+          type: [integer, "null"]
+          description: Posicion de la fecha dentro del ciclo, base 1
+        longitud_ciclo:
+          type: [integer, "null"]
+        ho_codigo:
+          type: [string, "null"]
+        ho_descripcion:
+          type: [string, "null"]
+        hora_entrada:
+          type: [string, "null"]
+          format: time
+        hora_salida:
+          type: [string, "null"]
+          format: time
+        hora_inicio_comida:
+          type: [string, "null"]
+          format: time
+        hora_fin_comida:
+          type: [string, "null"]
+          format: time
+        motivo_sin_ventana:
+          type: [string, "null"]
+          enum:
+            - DESCANSO
+            - JORNADA_SIN_CONFIGURAR
+            - JORNADA_FUERA_DE_CATALOGO
+            - SIN_TURNO
+            - TURNO_FUERA_DE_CATALOGO
+            - PATRON_INVALIDO
+            - ANCLA_INVALIDA
+            - null
+          description: Por que no hay ventana de comida, en vez de devolver horas vacias
+        aviso:
+          type: [string, "null"]
+        turno_sincronizado_en:
+          type: [string, "null"]
+          format: date-time
+          description: >-
+            Fecha del ultimo sync empleado-turno. El turno es una foto de hoy, no un
+            historico. consultar una fecha pasada de alguien que cambio de rotacion
+            devuelve su turno actual.
 
     ComedorResponse:
       type: object
@@ -11361,11 +11517,14 @@ paths:
                     type: integer
                     description: Empleados activos sin comedor en turnos_empleados (alertas operativas)
 
-  /api/v1/comedor/turnos-horario:
+  /api/v1/comedor/turnos-comida:
     get:
       tags: [Comedor]
-      summary: Turnos del catalogo con su horario de comida (Ajustes Comedor)
-      operationId: comedor_turnos_horario_list
+      summary: Turnos del catalogo con su ciclo desglosado (Ajustes Comedor)
+      description: >-
+        Un turno fijo trae su semana. uno rotativo, su ciclo completo agrupado en tramos
+        con la misma jornada, de modo que 56 dias se leen como 28 bloques.
+      operationId: comedor_turnos_comida_list
       security:
         - BearerAuth: []
       parameters:
@@ -11384,7 +11543,8 @@ paths:
             default: true
           description: >-
             Solo turnos con personal activo segun levelup_turnos_uso. Si la cache esta
-            vacia no se filtra, y un turno con horario ya configurado nunca se oculta.
+            vacia no se filtra, y un turno con alguna jornada ya configurada nunca se
+            oculta.
       responses:
         "200":
           description: Turnos ordenados por codigo
@@ -11393,43 +11553,113 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ComedorTurnoHorarioItem"
+                  $ref: "#/components/schemas/ComedorTurnoComidaItem"
         "403":
           description: Sin permiso para el modulo comedor-ajustes
 
-  /api/v1/comedor/turnos-horario/{tu_codigo}:
-    put:
+  /api/v1/comedor/jornadas-comida:
+    get:
       tags: [Comedor]
-      summary: Asignar o actualizar el horario de comida de un turno
-      operationId: comedor_turnos_horario_upsert
+      summary: Jornadas configurables con su ventana de comida (Ajustes Comedor)
+      description: >-
+        Es la unica superficie editable. La hora de comer depende de la jornada que toca
+        ese dia, no del turno, porque un turno rotativo recorre varias.
+      operationId: comedor_jornadas_comida_list
       security:
         - BearerAuth: []
       parameters:
-        - name: tu_codigo
+        - name: solo_en_uso
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: >-
+            Solo jornadas de turnos con personal activo. Mismas salvaguardas. cache vacia
+            no filtra y una jornada ya configurada nunca se oculta.
+      responses:
+        "200":
+          description: Jornadas ordenadas por codigo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ComedorJornadaComidaItem"
+        "403":
+          description: Sin permiso para el modulo comedor-ajustes
+
+  /api/v1/comedor/jornadas-comida/{ho_codigo}:
+    put:
+      tags: [Comedor]
+      summary: Asignar o actualizar la ventana de comida de una jornada
+      description: >-
+        Afecta a todos los turnos que recorren esa jornada. la respuesta y la auditoria
+        dejan constancia de cuales son.
+      operationId: comedor_jornadas_comida_upsert
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: ho_codigo
           in: path
           required: true
           schema:
             type: string
-          description: Codigo del turno en levelup_turnos, sin relleno de espacios
+          description: Codigo de la jornada en levelup_horarios, sin relleno de espacios
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ComedorTurnoHorarioUpsert"
+              $ref: "#/components/schemas/ComedorJornadaComidaUpsert"
       responses:
         "200":
-          description: Turno con su horario actualizado
+          description: Jornada con su ventana actualizada
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ComedorTurnoHorarioItem"
+                $ref: "#/components/schemas/ComedorJornadaComidaItem"
         "403":
           description: Sin permiso para el modulo comedor-ajustes
         "404":
-          description: El turno no existe en el catalogo
+          description: La jornada no existe ni la referencia ningun turno del catalogo
         "422":
-          description: Hora de inicio ausente, hora de fin ausente o inicio >= fin
+          description: Falta alguna hora, o la de inicio es igual a la de fin
+
+  /api/v1/comedor/ventana-comida:
+    get:
+      tags: [Comedor]
+      summary: Que comida le toca a una persona en una fecha
+      description: >-
+        Resuelve turno efectivo, posicion del ciclo, jornada y ventana. Cuando no hay
+        ventana devuelve el motivo (descanso, jornada sin configurar, turno sin asignar)
+        en vez de horas vacias.
+      operationId: comedor_ventana_comida_get
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: no_empleado
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: fecha
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Cualquier fecha, pasada o futura. no se asume la de hoy
+      responses:
+        "200":
+          description: Resolucion de la ventana de comida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComedorVentanaComidaResponse"
+        "403":
+          description: Sin permiso para el modulo comedor-ajustes
 
   # ── Reportes ────────────────────────────────────────
   /api/v1/reportes/dashboard/kpis:

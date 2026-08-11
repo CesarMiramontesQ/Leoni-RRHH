@@ -39,6 +39,19 @@
 --   PARTE 3  -> una mitad en cada motor; se comparan los resultados a mano.
 --   Las tres partes de Bono van dentro de una sola transacción (BEGIN/COMMIT).
 --
+-- ESTE SCRIPT YA NO ES EL MANTENIMIENTO VIVO DE LA RÉPLICA
+-- --------------------------------------------------------------------------------
+--   Desde que Ajustes Comedor calcula la rotación a partir de TU_RIT_PAT/TU_RIT_INI,
+--   la réplica dejó de ser un catálogo de nombres y pasó a ser la fuente de a qué hora
+--   come la gente. Un turno nuevo o un ritmo editado en TRESS desfasaría las
+--   proyecciones sin producir ningún error, así que el refresco lo hace ahora un job:
+--
+--     docker-compose exec backend python -m app.scripts.sync_turnos_catalogo --execute
+--
+--   (job diario de las 03:40; también sincroniza dbo.HORARIO → levelup_horarios).
+--   Este script se conserva como documentación del DDL, para bootstrap de un entorno
+--   nuevo y como referencia forense de los datos que había al crearlo.
+--
 -- CÓMO SE RELACIONA CON ALEMBIC
 -- --------------------------------------------------------------------------------
 --   La tabla ya existe como migración del proyecto:

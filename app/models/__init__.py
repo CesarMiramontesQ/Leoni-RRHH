@@ -15,6 +15,7 @@ from app.models.empleados_rh import (
     EmpleadoRhHorasExtra,
     EmpleadoRhPermisos,
 )
+from app.models.horarios import Horario
 from app.models.turnos import Turno
 from app.models.turnos_empleados import TurnoEmpleado
 from app.models.turnos_uso import TurnoUso
@@ -31,7 +32,7 @@ from app.models.comedor import (
     ComedorAcceso,
     ComedorCodigoExterno,
     ComedorExternoCorrelativo,
-    ComedorHorarioTurno,
+    ComedorHorarioJornada,
     ComedorRegistro,
     MenuSemanal,
 )
@@ -158,6 +159,7 @@ __all__ = [
     "EmpleadoRhConfig",
     "EmpleadoRhPermisos",
     "EmpleadoRhHorasExtra",
+    "Horario",
     "Turno",
     "TurnoEmpleado",
     "TurnoUso",
@@ -174,7 +176,7 @@ __all__ = [
     "ComedorAcceso",
     "ComedorCodigoExterno",
     "ComedorExternoCorrelativo",
-    "ComedorHorarioTurno",
+    "ComedorHorarioJornada",
     "MenuSemanal",
     "ComedorRegistro",
     "Notificacion",

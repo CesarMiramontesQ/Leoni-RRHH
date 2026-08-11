@@ -46,8 +46,10 @@ from app.schemas.comedor import (
     ComedorTerminalAccederResponse,
     ComedorTerminalConsumirRequest,
     ComedorTerminalConsumirResponse,
-    ComedorTurnoHorarioItem,
-    ComedorTurnoHorarioUpsert,
+    ComedorJornadaComidaItem,
+    ComedorJornadaComidaUpsert,
+    ComedorTurnoComidaItem,
+    ComedorVentanaComidaResponse,
     HuellaValidarRequest,
     HuellaValidarResponse,
     MenuSemanalCreate,
@@ -56,6 +58,7 @@ from app.schemas.comedor import (
     MenuSemanalResponse,
 )
 from app.services.comedor_service import ComedorService
+from app.services.comedor_ventana_comida_service import ComedorVentanaComidaService
 
 router = APIRouter(prefix="/api/v1/comedor", tags=["Comedor"])
 
@@ -615,36 +618,70 @@ async def get_proyecciones(
     return await service.get_proyecciones(current_user=current_user, rh_ui_mode=rh_ui_mode)
 
 
-@router.get("/turnos-horario", response_model=list[ComedorTurnoHorarioItem])
-async def list_turnos_horario(
+@router.get("/turnos-comida", response_model=list[ComedorTurnoComidaItem])
+async def list_turnos_comida(
     incluir_inactivos: bool = Query(False),
     solo_en_uso: bool = Query(True),
     current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Turnos del catálogo con su horario de comida (Ajustes Comedor).
+    """Turnos del catálogo con su ciclo desglosado en bloques (Ajustes Comedor).
 
-    Por defecto solo los que tienen personal activo según `levelup_turnos_uso`.
+    Un turno fijo trae su semana; uno rotativo, su ciclo completo agrupado por tramos con
+    la misma jornada. Por defecto solo los que tienen personal activo según
+    `levelup_turnos_uso`.
     """
-    service = ComedorService(db)
-    return await service.list_turnos_horario(
+    service = ComedorVentanaComidaService(db)
+    return await service.resumen_turnos(
         incluir_inactivos=incluir_inactivos, solo_en_uso=solo_en_uso
     )
 
 
-@router.put("/turnos-horario/{tu_codigo}", response_model=ComedorTurnoHorarioItem)
-async def guardar_turno_horario(
-    tu_codigo: str,
-    body: ComedorTurnoHorarioUpsert,
+@router.get("/jornadas-comida", response_model=list[ComedorJornadaComidaItem])
+async def list_jornadas_comida(
+    solo_en_uso: bool = Query(True),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Jornadas configurables con su ventana de comida y el alcance de cada una."""
+    service = ComedorVentanaComidaService(db)
+    return await service.listar_jornadas(solo_en_uso=solo_en_uso)
+
+
+@router.put("/jornadas-comida/{ho_codigo}", response_model=ComedorJornadaComidaItem)
+async def guardar_jornada_comida(
+    ho_codigo: str,
+    body: ComedorJornadaComidaUpsert,
     background_tasks: BackgroundTasks,
     current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Asigna o actualiza el horario de comida de un turno."""
-    service = ComedorService(db)
-    return await service.guardar_horario_turno(
-        tu_codigo=tu_codigo,
-        data=body,
+    """Asigna o actualiza la ventana de comida de una jornada.
+
+    Afecta a todos los turnos que recorren esa jornada; la respuesta y la auditoría
+    dejan constancia de cuáles son.
+    """
+    service = ComedorVentanaComidaService(db)
+    return await service.guardar_ventana(
+        ho_codigo,
+        body,
         current_user=current_user,
         background_tasks=background_tasks,
     )
+
+
+@router.get("/ventana-comida", response_model=ComedorVentanaComidaResponse)
+async def get_ventana_comida(
+    no_empleado: int = Query(..., ge=1),
+    fecha: date = Query(...),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    db: AsyncSession = Depends(get_db),
+):
+    """Qué comida le toca a una persona en una fecha concreta.
+
+    Resuelve turno efectivo → posición del ciclo → jornada → ventana. Cuando no hay
+    ventana devuelve el motivo (descanso, jornada sin configurar, turno sin asignar…) en
+    vez de horas vacías.
+    """
+    service = ComedorVentanaComidaService(db)
+    return await service.ventana_por_empleado(no_empleado=no_empleado, fecha=fecha)

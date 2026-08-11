@@ -85,6 +85,19 @@ docker-compose exec backend python -m app.scripts.sync_homeoffice_tomados --no-e
 docker-compose exec backend python -m app.scripts.sync_turnos_uso            # dry-run
 docker-compose exec backend python -m app.scripts.sync_turnos_uso --execute
 
+# Catálogos de turnos y jornadas: DATOS_ANALISIS → levelup_turnos + levelup_horarios.
+# Mismo servicio que el job de las 03:40. Es de donde sale el patrón de rotación
+# (tu_rit_pat) y la hora de entrada/salida de cada jornada, así que sin él Ajustes
+# Comedor no puede calcular a qué hora come nadie. Corre ANTES que los otros dos.
+docker-compose exec backend python -m app.scripts.sync_turnos_catalogo            # dry-run
+docker-compose exec backend python -m app.scripts.sync_turnos_catalogo --execute
+
+# Turno por empleado: dbo.COLABORA → levelup_turnos_empleados (Bono).
+# Mismo servicio que el job de las 04:20; necesario para la carga inicial.
+docker-compose exec backend python -m app.scripts.sync_turnos_empleados            # dry-run
+docker-compose exec backend python -m app.scripts.sync_turnos_empleados --execute
+docker-compose exec backend python -m app.scripts.sync_turnos_empleados --no-empleado 406
+
 # Incidencias de TRESS: DATOS_ANALISIS → levelup_incidencias_tress (Bono).
 # Mismo servicio que el job semanal de los miércoles 10:00; necesario para la carga inicial.
 # Sin --desde/--hasta va en dos pasadas: el histórico (excluye la semana en curso) y
@@ -138,6 +151,31 @@ Layered architecture: **router → service → repository → models/schemas**
   `python -m app.scripts.sync_homeoffice_tomados`). La consulta a `dbo.PERMISO`
   (`PM_TIPO = 'HO'`) es una sola, agregada por `CB_CODIGO`, y solo la hace ese sync.
   Empleado sin fila ⇒ el dashboard muestra 0.
+- **Horario de comida = por jornada, no por turno.** Un turno rotativo no tiene una sola
+  jornada: G9 recorre un ciclo de 56 días que pasa por 7. La ventana de comida se captura
+  en `levelup_comedor_horarios_jornada`, con una fila por código de `dbo.HORARIO`; 24
+  filas cubren los 24 turnos con personal. La cadena
+  `empleado + fecha → turno → posición del ciclo → jornada → ventana` la resuelve
+  `comedor_ventana_comida_service`, **leyendo solo de Bono**.
+  - **La rotación no se reimplementa.** `app/utils/turno_calendario.py` ya replica
+    `dbo.FN_GeneraRitmo` (validado día a día contra `dbo.AUSENCIA.HO_CODIGO`) y
+    `app/utils/turno_ciclo.py` lo envuelve para agrupar el ciclo en bloques. En el patrón,
+    un token `N:HORARIO` son N días y el token `0` aporta **cero días**: solo avanza la
+    fase hábil→descanso. **No ampliar** el regex de tokens: descansos y goce dependen de
+    esa misma expansión.
+  - Fijo vs. rotativo se decide por dato, no por nombre: `tu_rit_pat` no vacío ⇒ rotativo.
+  - `tu_rit_ini = 1899-12-30` es el «vacío» de TRESS. Un rotativo anclado ahí devolvería
+    una posición de ciclo creíble y equivocada, así que se detecta y se degrada.
+  - Un día de descanso **nunca** recibe ventana de comida.
+  - La ventana **puede cruzar medianoche** (la jornada 011 es 18:00-06:00): `fin <= inicio`
+    significa que termina al día siguiente. No exigir `inicio < fin`.
+  - **Turno por empleado = caché en Bono.** `levelup_turnos_empleados.tu_codigo` lo escribe
+    `sync_turnos_empleados_service` (job 04:20) desde `dbo.COLABORA`. Es una foto del turno
+    **vigente**, no un histórico: la respuesta expone `sincronizado_en`. El sync **nunca**
+    escribe la columna `comedor`, que es dato propio de la app.
+  - Endpoints nuevos bajo `/api/v1/comedor/…` deben registrarse en `api_prefixes` del
+    módulo `comedor-ajustes`: `role_checker` resuelve el módulo por prefijo más largo y sin
+    eso da 403 a quien sí tiene el permiso.
 - **Turnos en uso = caché en Bono.** La pestaña «Horarios de comida» de Ajustes Comedor no
   cuenta personal en DATOS_ANALISIS: la fuente única de lectura es `levelup_turnos_uso`
   (una fila por turno con su personal activo), que escribe `sync_turnos_uso_service`
@@ -174,7 +212,9 @@ Layered architecture: **router → service → repository → models/schemas**
 ### Key Patterns
 - Async everywhere: asyncpg driver, async sessions, async test fixtures
 - Tests use SQLite in-memory with JSONB→JSON patch (see `tests/conftest.py`); no Docker required
-- APScheduler runs periodic jobs (recordatorios Eval360/Encuestas/Metas a las 08:00,
+- APScheduler runs periodic jobs (**sync de catálogos de turnos y jornadas a las 03:40**
+  (`sync_turnos_catalogo`) y **de turno por empleado a las 04:20** (`sync_turnos_empleados`),
+  ambos alrededor del de turnos en uso de las 04:00; recordatorios Eval360/Encuestas/Metas a las 08:00,
   **sync de saldos de vacaciones y de home office tomado a las 06:00** en dos jobs
   independientes (`sync_vacaciones_disponibles` y `sync_homeoffice_tomados`), y **sync de
   incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`), y **sync de
