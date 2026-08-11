@@ -1,14 +1,9 @@
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import ForbiddenError, NotFoundError, ServiceUnavailableError
 from app.core.rh_module_registry import user_has_module
-from app.integrations.datos_analisis_db import DatosAnalisisReadClient
 from app.models.empleados import Empleado
-from app.repositories.datos_analisis_vacaciones_repository import (
-    DatosAnalisisVacacionesRepository,
-)
 from app.repositories.empleado_repository import EmpleadoRepository
 from app.repositories.vacaciones_disponibles_repository import (
     VacacionesDisponiblesRepository,
@@ -31,34 +26,6 @@ async def obtener_saldo_gozo_cache(db: AsyncSession, no_empleado: int) -> float:
             "Se actualiza automáticamente cada día; si persiste, contacta a RH."
         )
     return float(fila.dias_disponibles)
-
-
-async def obtener_saldo_gozo_tress(no_empleado: int) -> float:
-    """Saldo real de días de gozo desde datos-analisis (función GET_SALDOS_VACACION).
-
-    Crea un motor efímero de solo lectura y lo desecha. **Bloquea** (levanta
-    ``ServiceUnavailableError``) si la BD externa no está configurada o falla, para que el
-    llamador no continúe sin un saldo confiable. Devuelve 0.0 si el empleado no tiene periodos.
-
-    Solo lo usa el servicio de sincronización; la aplicación lee de
-    ``obtener_saldo_gozo_cache``.
-    """
-    engine = DatosAnalisisReadClient.create_read_engine()
-    if engine is None:
-        raise ServiceUnavailableError(
-            "No se pudo verificar el saldo de vacaciones (datos-analisis no configurada)."
-        )
-    try:
-        total = await DatosAnalisisVacacionesRepository(engine).get_saldo_gozo_total(
-            cb_codigo=no_empleado
-        )
-    except SQLAlchemyError as exc:
-        raise ServiceUnavailableError(
-            f"No se pudo verificar el saldo de vacaciones: {type(exc).__name__}"
-        ) from exc
-    finally:
-        await engine.dispose()
-    return float(total) if total is not None else 0.0
 
 
 class VacacionesService:
