@@ -22,6 +22,15 @@
 export type PaginaRegistros<T> = {
   items: readonly T[];
   total: number;
+  /**
+   * Tamaño de lote que el servidor **aplicó de verdad**, que no siempre es el pedido.
+   *
+   * Se usa en vez del solicitado porque asumir que la petición se respetó ya costó un
+   * fallo silencioso: el cliente de API recortaba el tamaño a 50, la guarda de «vino
+   * menos de lo que pedí» lo leía como fin del rango y el tablero se quedaba con 50 de
+   * 12 855 filas sin un solo error a la vista.
+   */
+  page_size?: number;
 };
 
 export type FetchPagina<T> = (page: number, pageSize: number) => Promise<PaginaRegistros<T>>;
@@ -54,14 +63,17 @@ export async function fetchTodosLosRegistrosReporte<T>(
 
   const primera = await fetchPagina(1, pageSize);
   const total = primera.total;
-  // Un servidor que devuelve menos filas de las pedidas ya agotó el rango, aunque su
-  // `total` diga otra cosa: sin esta salida un `total` inconsistente pediría páginas
-  // vacías hasta el tope.
-  if (primera.items.length < pageSize || primera.items.length >= total) {
+  // El tamaño con el que se calcula todo lo demás es el que el servidor dice haber
+  // aplicado, no el que se pidió.
+  const efectivo = primera.page_size ?? pageSize;
+  // Un servidor que devuelve menos filas de las que caben en su propio lote ya agotó el
+  // rango, aunque su `total` diga otra cosa: sin esta salida un `total` inconsistente
+  // pediría páginas vacías hasta el tope.
+  if (primera.items.length < efectivo || primera.items.length >= total) {
     return [...primera.items];
   }
 
-  const paginasTotales = Math.min(Math.ceil(total / pageSize), maxPaginas);
+  const paginasTotales = Math.min(Math.ceil(total / efectivo), maxPaginas);
   const restantes: number[] = [];
   for (let p = 2; p <= paginasTotales; p += 1) restantes.push(p);
 
@@ -73,7 +85,7 @@ export async function fetchTodosLosRegistrosReporte<T>(
     while (siguiente < restantes.length) {
       const page = restantes[siguiente];
       siguiente += 1;
-      const resp = await fetchPagina(page, pageSize);
+      const resp = await fetchPagina(page, efectivo);
       porPagina.set(page, resp.items);
     }
   }

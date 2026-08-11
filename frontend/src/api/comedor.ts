@@ -525,6 +525,21 @@ export async function getComedorRhProximosRegistros(
 }
 
 /** Registros operativos en un rango de fechas (inclusive); usado por Reporte comedor (RH). */
+/**
+ * Tamaños de lote que acepta `/accesos/rh/registros-reporte`.
+ *
+ * El backend los valida como lista cerrada (`PAGE_SIZES_REPORTE`) y responde 409 ante
+ * cualquier otro valor, así que aquí se ajusta al permitido más grande que no pase del
+ * pedido: mandar un número arbitrario convertiría un descuido en un error de red.
+ */
+const PAGE_SIZES_REPORTE = [5, 10, 50, 500, 1000] as const;
+
+export function normalizarPageSizeReporte(pageSize: number): number {
+  const permitidos = [...PAGE_SIZES_REPORTE];
+  const candidatos = permitidos.filter((n) => n <= pageSize);
+  return candidatos.length > 0 ? Math.max(...candidatos) : Math.min(...permitidos);
+}
+
 export async function getComedorRhRegistrosReporte(
   desdeIso: string,
   hastaIso: string,
@@ -536,7 +551,11 @@ export async function getComedorRhRegistrosReporte(
   params.set("desde", desdeIso.slice(0, 10));
   params.set("hasta", hastaIso.slice(0, 10));
   params.set("page", String(page));
-  params.set("page_size", String(Math.min(50, Math.max(1, pageSize))));
+  // El tope era 50 porque el endpoint no aceptaba más. Ahora admite hasta 1000 para la
+  // descarga del tablero, y dejarlo aquí en 50 recortaba en silencio lo que se pedía:
+  // el tablero creía haber bajado el rango completo y se quedaba con 50 de 12 855 filas,
+  // sin ningún error a la vista.
+  params.set("page_size", String(normalizarPageSizeReporte(pageSize)));
   params.set("filtro_estado", opts?.filtroEstado ?? "todos");
   if (opts?.buscar?.trim()) params.set("buscar", opts.buscar.trim());
   const res = await fetchWithAuth(`/api/v1/comedor/accesos/rh/registros-reporte?${params.toString()}`);
