@@ -98,6 +98,13 @@ docker-compose exec backend python -m app.scripts.sync_turnos_empleados         
 docker-compose exec backend python -m app.scripts.sync_turnos_empleados --execute
 docker-compose exec backend python -m app.scripts.sync_turnos_empleados --no-empleado 406
 
+# Datos generales del colaborador: dbo.COLABORA → levelup_empleados_tress (Bono).
+# Mismo servicio que el job de las 04:10; necesario para la carga inicial (sin él, la
+# Vista 360 muestra la fecha de ingreso vacía).
+docker-compose exec backend python -m app.scripts.sync_empleados_tress            # dry-run
+docker-compose exec backend python -m app.scripts.sync_empleados_tress --execute
+docker-compose exec backend python -m app.scripts.sync_empleados_tress --no-empleado 553 --execute
+
 # Incidencias de TRESS: DATOS_ANALISIS → levelup_incidencias_tress (Bono).
 # Mismo servicio que el job semanal de los miércoles 10:00; necesario para la carga inicial.
 # Sin --desde/--hasta va en dos pasadas: el histórico (excluye la semana en curso) y
@@ -226,8 +233,9 @@ Layered architecture: **router → service → repository → models/schemas**
   ambos alrededor del de turnos en uso de las 04:00; recordatorios Eval360/Encuestas/Metas a las 08:00,
   **sync de saldos de vacaciones y de home office tomado a las 06:00** en dos jobs
   independientes (`sync_vacaciones_disponibles` y `sync_homeoffice_tomados`), y **sync de
-  incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`), y **sync de
-  turnos en uso a las 04:00** (`sync_turnos_uso`)); se
+  incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`), **sync de
+  turnos en uso a las 04:00** (`sync_turnos_uso`), y **sync de datos generales del
+  colaborador a las 04:10** (`sync_empleados_tress`)); se
   registran en `registrar_jobs_programados` (`app/main.py`). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).

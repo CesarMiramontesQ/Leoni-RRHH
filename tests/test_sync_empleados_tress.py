@@ -104,3 +104,122 @@ async def test_parsing_logica_get_datos_generales_por_empleado():
     }
 
     assert result == expected
+
+
+@pytest.fixture
+def fake_datos_generales(monkeypatch):
+    """Sustituye la lectura a DATOS_ANALISIS por un dict, sin tocar SQL Server."""
+
+    def _apply(por_empleado):
+        class _FakeEngine:
+            async def dispose(self):
+                return None
+
+        class _FakeRepo:
+            def __init__(self, engine):
+                self._engine = engine
+
+            async def get_datos_generales_por_empleado(self):
+                return dict(por_empleado)
+
+        monkeypatch.setattr(
+            "app.services.sync_empleados_tress_service.DatosAnalisisReadClient.create_read_engine",
+            lambda: _FakeEngine(),
+        )
+        monkeypatch.setattr(
+            "app.services.sync_empleados_tress_service.DatosAnalisisCatalogosReadRepository",
+            _FakeRepo,
+        )
+
+    return _apply
+
+
+@pytest.mark.asyncio
+async def test_sync_inserta_y_actualiza_sin_borrar(db, fake_datos_generales):
+    from app.repositories.empleados_tress_repository import EmpleadosTressRepository
+    from app.services.sync_empleados_tress_service import sincronizar_empleados_tress
+    from tests.conftest import make_empleado
+
+    nuevo = await make_empleado(db, email="et-nuevo@test")
+    existente = await make_empleado(db, email="et-existente@test")
+    await make_empleado_tress(db, no_empleado=existente.no_empleado, fecha_ingreso=date(2010, 1, 1))
+    # Fila cacheada de alguien que ya no viene de TRESS: NO se borra.
+    await make_empleado_tress(db, no_empleado=777001, fecha_ingreso=date(2005, 5, 5))
+    await db.commit()
+
+    fake_datos_generales(
+        {
+            nuevo.no_empleado: date(2019, 3, 15),
+            existente.no_empleado: date(2011, 2, 2),
+        }
+    )
+
+    stats = await sincronizar_empleados_tress(db, origen="test", execute=True)
+
+    repo = EmpleadosTressRepository(db)
+    assert stats.insertados == 1
+    assert stats.actualizados == 1
+    assert await repo.get_fecha_ingreso(nuevo.no_empleado) == date(2019, 3, 15)
+    assert await repo.get_fecha_ingreso(existente.no_empleado) == date(2011, 2, 2)
+    # El que dejó de venir de TRESS conserva su fila y su fecha.
+    assert await repo.get_fecha_ingreso(777001) == date(2005, 5, 5)
+
+
+@pytest.mark.asyncio
+async def test_sync_omite_numeros_que_bono_no_conoce(db, fake_datos_generales):
+    from app.repositories.empleados_tress_repository import EmpleadosTressRepository
+    from app.services.sync_empleados_tress_service import sincronizar_empleados_tress
+
+    fake_datos_generales({888001: date(2020, 1, 1)})
+
+    stats = await sincronizar_empleados_tress(db, origen="test", execute=True)
+
+    assert stats.sin_empleado_en_bono == 1
+    assert stats.insertados == 0
+    assert await EmpleadosTressRepository(db).get_fecha_ingreso(888001) is None
+
+
+@pytest.mark.asyncio
+async def test_sync_aborta_si_tress_devuelve_cero_filas(db, fake_datos_generales):
+    """Cero colaboradores es consulta rota, no planta vacía: no se escribe nada."""
+    from app.services.sync_empleados_tress_service import sincronizar_empleados_tress
+
+    fake_datos_generales({})
+
+    with pytest.raises(ValueError, match="0 colaboradores"):
+        await sincronizar_empleados_tress(db, origen="test", execute=True)
+
+
+@pytest.mark.asyncio
+async def test_sync_dry_run_no_persiste(db, fake_datos_generales):
+    from app.repositories.empleados_tress_repository import EmpleadosTressRepository
+    from app.services.sync_empleados_tress_service import sincronizar_empleados_tress
+    from tests.conftest import make_empleado
+
+    emp = await make_empleado(db, email="et-dry@test")
+    await db.commit()
+    # Capturado antes del rollback: `db.rollback()` expira todos los objetos de la
+    # sesión (a diferencia de `commit()` con `expire_on_commit=False`), y releer
+    # `emp.no_empleado` después dispararía una carga perezosa fuera de contexto async
+    # (`MissingGreenlet`). El mismo patrón se evita en el sync hermano de turnos usando
+    # un literal en vez del atributo del ORM tras la corrida.
+    no_empleado = emp.no_empleado
+    fake_datos_generales({no_empleado: date(2018, 6, 1)})
+
+    stats = await sincronizar_empleados_tress(db, origen="test", execute=False)
+
+    assert stats.insertados == 1
+    assert await EmpleadosTressRepository(db).get_fecha_ingreso(no_empleado) is None
+
+
+@pytest.mark.asyncio
+async def test_sync_sin_datos_analisis_configurada_levanta_connection_error(db, monkeypatch):
+    from app.services.sync_empleados_tress_service import sincronizar_empleados_tress
+
+    monkeypatch.setattr(
+        "app.services.sync_empleados_tress_service.DatosAnalisisReadClient.create_read_engine",
+        lambda: None,
+    )
+
+    with pytest.raises(ConnectionError):
+        await sincronizar_empleados_tress(db, origen="test", execute=True)
