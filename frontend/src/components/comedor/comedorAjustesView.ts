@@ -1,9 +1,10 @@
 /**
  * Render de «Ajustes Comedor»: comedores, ventana de comida por jornada y validación.
  *
- * Layout B (Admin List) de `design.md`: encabezado, tabs, stat-filter cards (variante C
- * de §8.6: la métrica *es* el filtro), barra de filtros y data grid. Componente puro —
- * no monta listeners ni llama al API; eso vive en `pages/comedorAjustes.ts`.
+ * Layout B (Admin List) + section cards de Ajustes (Puestos/Nóminas): encabezado,
+ * tabs, stat-filter cards (variante C de §8.6), filter bar y data grids dentro de
+ * `ajustesSectionCard`. Componente puro — no monta listeners ni llama al API; eso
+ * vive en `pages/comedorAjustes.ts`.
  *
  * La pestaña de horarios tiene **una sola superficie editable**: la tabla de jornadas.
  * Los turnos se muestran en modo lectura con su ciclo desplegable. El motivo es que una
@@ -21,10 +22,19 @@ import type {
   ComedorVentanaComidaApi,
 } from "../../api/comedor.ts";
 import {
+  AJUSTES_TABLE_TD,
+  AJUSTES_TABLE_TH,
+  ajustesCountBadge,
+  ajustesEmptyState,
+  ajustesSectionCard,
+} from "../puestos/ajustes/ajustesSectionUi.ts";
+import {
   BTN_PRIMARY,
   BTN_SECONDARY,
   FIELD_FOCUS,
+  FIELD_INPUT,
   FILTER_FIELD_WRAP,
+  FORM_LABEL,
   RH_LISTADO_SURFACE,
   RH_TABLE_HEAD,
   alertInfo,
@@ -34,10 +44,16 @@ import {
   badgeInProgress,
   badgePending,
   errorState,
+  pageHeading,
   renderTabNav,
   skeletonBlock,
 } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+
+const ICON_COMEDORES = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M4.25 2A2.25 2.25 0 0 0 2 4.25v11.5A2.25 2.25 0 0 0 4.25 18h11.5A2.25 2.25 0 0 0 18 15.75V4.25A2.25 2.25 0 0 0 15.75 2H4.25ZM6 6.75A.75.75 0 0 1 6.75 6h6.5a.75.75 0 0 1 0 1.5h-6.5A.75.75 0 0 1 6 6.75ZM6.75 9a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5ZM6 12.75a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd"/></svg>`;
+const ICON_JORNADAS = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clip-rule="evenodd"/></svg>`;
+const ICON_TURNOS = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M2.75 3A.75.75 0 0 0 2 3.75v12.5c0 .414.336.75.75.75h14.5a.75.75 0 0 0 0-1.5H3.5V4.5h4.75a.75.75 0 0 0 0-1.5H2.75Zm8.47 2.22a.75.75 0 0 1 1.06 0l2.25 2.25a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-2.25-2.25a.75.75 0 1 1 1.06-1.06l1.72 1.72 3.97-3.97a.75.75 0 0 1 0-1.06Z"/></svg>`;
+const ICON_VALIDACION = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd"/></svg>`;
 
 export type AjustesTabId = "comedores" | "horarios" | "validacion";
 export type PanelState = "loading" | "ready" | "empty" | "error";
@@ -83,9 +99,11 @@ export type ComedorAjustesViewState = {
 };
 
 const TIME_INPUT_CLS = `w-[7.5rem] rounded-md border border-slate-200 px-2.5 py-1.5 text-sm tabular-nums text-text-primary ${FIELD_FOCUS}`;
-const SEARCH_INPUT_CLS = `block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ${FIELD_FOCUS}`;
-const TH = "sticky top-0 z-20 bg-[#f8fafc] px-3 py-2 text-left";
-const TD = "px-3 py-2.5 align-middle";
+const SEARCH_INPUT_CLS = FIELD_INPUT;
+const TH = `sticky top-0 z-20 text-left ${AJUSTES_TABLE_TH}`;
+const TD = `${AJUSTES_TABLE_TD} align-middle`;
+const CHECKBOX_CLS =
+  "size-4 rounded border-slate-300 text-accent focus:ring-2 focus:ring-accent/40";
 
 // ── Helpers de formato ───────────────────────────────────────────────────────
 
@@ -221,11 +239,11 @@ function statFilterCards(
     .map((seg) => {
       const isActive = seg.value === activo;
       const stateCls = isActive
-        ? "border-leoni-blue bg-[rgba(219,234,254,0.45)] shadow-[0_6px_18px_rgba(30,64,175,0.12)]"
-        : "border-[rgba(148,163,184,0.24)] bg-white shadow-[0_6px_18px_rgba(15,23,42,0.05)] hover:border-leoni-blue/40 hover:bg-slate-50/70";
+        ? "border-accent bg-accent-light shadow-[0_6px_18px_rgba(37,99,235,0.12)]"
+        : "border-border bg-white shadow-[0_6px_18px_rgba(15,23,42,0.05)] hover:border-accent/40 hover:bg-surface-container-low";
       return `
         <button type="button" ${dataAttr}="${escapeHtml(seg.value)}" aria-pressed="${isActive}"
-          class="group flex flex-col gap-2 rounded-[14px] border p-4 text-left transition ${stateCls} focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40 focus-visible:ring-offset-2">
+          class="group flex flex-col gap-2 rounded-[14px] border p-4 text-left transition ${stateCls} focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2">
           <span class="flex items-center gap-2">
             <span class="size-2 shrink-0 rounded-full ${seg.dotClass}" aria-hidden="true"></span>
             <span class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(seg.label)}</span>
@@ -238,7 +256,7 @@ function statFilterCards(
 }
 
 function filterBar(inner: string): string {
-  return `<section class="rounded-xl border border-border bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4">
+  return `<section class="rounded-xl border border-border bg-white p-3 sm:p-4">
     <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap">${inner}</div>
   </section>`;
 }
@@ -249,14 +267,12 @@ function filterBar(inner: string): string {
  * de estirar la página y dejar las columnas fuera de vista.
  */
 function tableShell(minWidth: string, head: string, body: string): string {
-  return `<section class="${RH_LISTADO_SURFACE} overflow-hidden">
-    <div class="max-h-[62vh] overflow-auto">
+  return `<div class="max-h-[62vh] overflow-auto">
       <table class="${minWidth} w-full text-left">
         <thead class="${RH_TABLE_HEAD}"><tr>${head}</tr></thead>
         <tbody class="divide-y divide-slate-100/90">${body}</tbody>
       </table>
-    </div>
-  </section>`;
+    </div>`;
 }
 
 function emptyRow(colspan: number, mensaje: string): string {
@@ -282,7 +298,7 @@ function renderComedoresPanel(state: ComedorAjustesViewState): string {
   const activos = items.filter((i) => i.activo).length;
   const stats = statFilterCards(
     [
-      { value: "todos", label: "Total", count: items.length, dotClass: "bg-leoni-blue" },
+      { value: "todos", label: "Total", count: items.length, dotClass: "bg-accent" },
       { value: "activos", label: "Activos", count: activos, dotClass: "bg-emerald-500" },
       { value: "inactivos", label: "Inactivos", count: items.length - activos, dotClass: "bg-slate-400" },
     ],
@@ -291,52 +307,64 @@ function renderComedoresPanel(state: ComedorAjustesViewState): string {
     "Filtrar comedores por estado",
   );
 
-  const filtros = filterBar(`
-    <div class="${FILTER_FIELD_WRAP}">
-      <label for="comedor-busqueda" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Buscar</label>
-      <input id="comedor-busqueda" type="search" data-comedor-busqueda value="${escapeHtml(busqueda)}"
-        placeholder="Nombre o ubicación" class="${SEARCH_INPUT_CLS}" />
-    </div>
-    <button type="button" data-comedor-agregar class="${BTN_PRIMARY} shrink-0">Agregar comedor</button>
-  `);
-
   const visibles = filtrarComedores(items, filtroEstado, busqueda);
-  const filas =
-    visibles.length === 0
-      ? emptyRow(
-          5,
-          items.length === 0
-            ? "No hay comedores registrados."
-            : "Ningún comedor coincide con el filtro.",
-        )
-      : visibles
-          .map((item) => {
-            const ubicacion = item.ubicacion?.trim() ? escapeHtml(item.ubicacion) : "<span class='text-text-muted'>Sin ubicación</span>";
-            const capacidad = item.capacidad != null ? `${item.capacidad}` : "—";
-            return `
-              <tr class="hover:bg-active-tint">
-                <td class="${TD} text-sm font-medium text-text-primary">${escapeHtml(item.nombre)}</td>
-                <td class="${TD} text-sm text-text-secondary">${ubicacion}</td>
-                <td class="${TD} text-sm tabular-nums text-text-secondary">${capacidad}</td>
-                <td class="${TD} text-sm">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</td>
-                <td class="${TD} text-right text-sm">
-                  <button type="button" data-comedor-editar="${item.id}" class="${BTN_SECONDARY} !px-3 !py-1.5">Editar</button>
-                </td>
-              </tr>`;
-          })
-          .join("");
+  const filtros = `
+    <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
+      ${filterBar(`
+        <div class="${FILTER_FIELD_WRAP}">
+          <label for="comedor-busqueda" class="${FORM_LABEL}">Buscar</label>
+          <input id="comedor-busqueda" type="search" data-comedor-busqueda value="${escapeHtml(busqueda)}"
+            placeholder="Nombre o ubicación" class="${SEARCH_INPUT_CLS}" />
+        </div>
+      `)}
+    </div>`;
 
-  const tabla = tableShell(
-    "min-w-[720px]",
-    `<th class="${TH} text-xs font-semibold uppercase">Nombre</th>
-     <th class="${TH} text-xs font-semibold uppercase">Ubicación</th>
-     <th class="${TH} text-xs font-semibold uppercase">Capacidad</th>
-     <th class="${TH} text-xs font-semibold uppercase">Estado</th>
-     <th class="${TH} text-right text-xs font-semibold uppercase">Acciones</th>`,
-    filas,
-  );
+  let bodyHtml: string;
+  if (items.length === 0) {
+    bodyHtml = ajustesEmptyState("No hay comedores registrados.");
+  } else if (visibles.length === 0) {
+    bodyHtml = `${filtros}${ajustesEmptyState("Ningún comedor coincide con el filtro.")}`;
+  } else {
+    const filas = visibles
+      .map((item) => {
+        const ubicacion = item.ubicacion?.trim()
+          ? escapeHtml(item.ubicacion)
+          : "<span class='text-text-muted'>Sin ubicación</span>";
+        const capacidad = item.capacidad != null ? `${item.capacidad}` : "—";
+        return `
+          <tr class="hover:bg-active-tint">
+            <td class="${TD} font-medium">${escapeHtml(item.nombre)}</td>
+            <td class="${TD} text-text-secondary">${ubicacion}</td>
+            <td class="${TD} tabular-nums text-text-secondary">${capacidad}</td>
+            <td class="${TD}">${item.activo ? badgeApproved("Activo") : badgeCancelled("Inactivo")}</td>
+            <td class="${TD} text-right">
+              <button type="button" data-comedor-editar="${item.id}" class="${BTN_SECONDARY} !px-3 !py-1.5">Editar</button>
+            </td>
+          </tr>`;
+      })
+      .join("");
+    bodyHtml = `${filtros}${tableShell(
+      "min-w-[720px]",
+      `<th class="${TH}">Nombre</th>
+       <th class="${TH}">Ubicación</th>
+       <th class="${TH}">Capacidad</th>
+       <th class="${TH}">Estado</th>
+       <th class="${TH} text-right">Acciones</th>`,
+      filas,
+    )}`;
+  }
 
-  return `<div class="flex flex-col gap-4 sm:gap-5">${stats}${filtros}${tabla}</div>`;
+  const card = ajustesSectionCard({
+    titleId: "comedor-ajustes-comedores-titulo",
+    title: "Comedores",
+    description: "Catálogo de comedores disponibles para reservas y planificación.",
+    iconHtml: ICON_COMEDORES,
+    badgeHtml: ajustesCountBadge(items.length),
+    actionButtonHtml: `<button type="button" data-comedor-agregar class="${BTN_PRIMARY}">Agregar comedor</button>`,
+    bodyHtml,
+  });
+
+  return `<div class="flex flex-col gap-4 sm:gap-5">${stats}${card}</div>`;
 }
 
 // ── Pestaña: Horarios de comida ──────────────────────────────────────────────
@@ -441,7 +469,7 @@ function renderBloque(bloque: ComedorTurnoCicloBloqueApi): string {
     ? `<span class="text-xs font-semibold tabular-nums text-text-primary">Comida ${toInputTime(bloque.hora_inicio_comida)} – ${toInputTime(bloque.hora_fin_comida)}</span>`
     : `<span class="text-xs text-amber-600">Sin configurar</span>
        <button type="button" data-jornada-ir="${escapeHtml(bloque.ho_codigo ?? "")}"
-         class="text-xs font-semibold text-leoni-blue underline underline-offset-2">Configurar</button>`;
+         class="text-xs font-semibold text-accent underline underline-offset-2">Configurar</button>`;
 
   return `
     <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
@@ -524,11 +552,12 @@ function renderTurnosPanel(state: ComedorAjustesViewState): string {
   const configuradas = jornadas.filter(
     (j) => j.hora_inicio_comida != null && j.hora_fin_comida != null,
   ).length;
+  const sinConfigurar = jornadas.length - configuradas;
   const stats = statFilterCards(
     [
-      { value: "todos", label: "Jornadas", count: jornadas.length, dotClass: "bg-leoni-blue" },
+      { value: "todos", label: "Jornadas", count: jornadas.length, dotClass: "bg-accent" },
       { value: "configurados", label: "Con horario", count: configuradas, dotClass: "bg-emerald-500" },
-      { value: "sin-configurar", label: "Sin horario", count: jornadas.length - configuradas, dotClass: "bg-amber-400" },
+      { value: "sin-configurar", label: "Sin horario", count: sinConfigurar, dotClass: "bg-amber-400" },
     ],
     filtroHorario,
     "data-turno-filtro-horario",
@@ -537,18 +566,18 @@ function renderTurnosPanel(state: ComedorAjustesViewState): string {
 
   const filtros = filterBar(`
     <div class="${FILTER_FIELD_WRAP}">
-      <label for="turno-busqueda" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Buscar</label>
+      <label for="turno-busqueda" class="${FORM_LABEL}">Buscar</label>
       <input id="turno-busqueda" type="search" data-turno-busqueda value="${escapeHtml(busqueda)}"
         placeholder="Jornada, turno o descripción" class="${SEARCH_INPUT_CLS}" />
     </div>
     <label class="inline-flex shrink-0 items-center gap-2 py-2 text-sm text-text-secondary">
       <input type="checkbox" data-turno-catalogo-completo ${!soloEnUso ? "checked" : ""}
-        class="h-4 w-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
+        class="${CHECKBOX_CLS}" />
       Ver catálogo completo
     </label>
     <label class="inline-flex shrink-0 items-center gap-2 py-2 text-sm text-text-secondary">
       <input type="checkbox" data-turno-incluir-inactivos ${incluirInactivos ? "checked" : ""}
-        class="h-4 w-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue" />
+        class="${CHECKBOX_CLS}" />
       Mostrar turnos inactivos
     </label>
   `);
@@ -574,13 +603,13 @@ function renderTurnosPanel(state: ComedorAjustesViewState): string {
 
   const tablaJornadas = tableShell(
     "min-w-[1040px]",
-    `<th class="${TH} text-xs font-semibold uppercase">Jornada</th>
-     <th class="${TH} text-xs font-semibold uppercase">Turnos que la usan</th>
-     <th class="${TH} text-xs font-semibold uppercase">Empleados</th>
-     <th class="${TH} text-xs font-semibold uppercase">Hora inicio comida</th>
-     <th class="${TH} text-xs font-semibold uppercase">Hora fin comida</th>
-     <th class="${TH} text-xs font-semibold uppercase">Duración</th>
-     <th class="${TH} text-right text-xs font-semibold uppercase">Acciones</th>`,
+    `<th class="${TH}">Jornada</th>
+     <th class="${TH}">Turnos que la usan</th>
+     <th class="${TH}">Empleados</th>
+     <th class="${TH}">Hora inicio comida</th>
+     <th class="${TH}">Hora fin comida</th>
+     <th class="${TH}">Duración</th>
+     <th class="${TH} text-right">Acciones</th>`,
     filasJornadas,
   );
 
@@ -599,33 +628,45 @@ function renderTurnosPanel(state: ComedorAjustesViewState): string {
 
   const tablaTurnos = tableShell(
     "min-w-[880px]",
-    `<th class="${TH} text-xs font-semibold uppercase">Turno</th>
-     <th class="${TH} text-xs font-semibold uppercase">Tipo</th>
-     <th class="${TH} text-xs font-semibold uppercase">Ciclo</th>
-     <th class="${TH} text-xs font-semibold uppercase">Empleados</th>
-     <th class="${TH} text-xs font-semibold uppercase">Cobertura</th>
-     <th class="${TH} text-right text-xs font-semibold uppercase">Configuración</th>`,
+    `<th class="${TH}">Turno</th>
+     <th class="${TH}">Tipo</th>
+     <th class="${TH}">Ciclo</th>
+     <th class="${TH}">Empleados</th>
+     <th class="${TH}">Cobertura</th>
+     <th class="${TH} text-right">Configuración</th>`,
     filasTurnos,
   );
+
+  const cardJornadas = ajustesSectionCard({
+    titleId: "comedor-ajustes-jornadas-titulo",
+    title: "Horario de comida por jornada",
+    description:
+      "La hora de comer depende de la jornada que toca ese día. Se configura una vez y aplica a todos los turnos que pasan por ella.",
+    iconHtml: ICON_JORNADAS,
+    badgeHtml:
+      sinConfigurar > 0
+        ? `<span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-amber-900">${sinConfigurar} sin configurar</span>`
+        : ajustesCountBadge(jornadas.length),
+    actionButtonHtml: "",
+    bodyHtml: tablaJornadas,
+  });
+
+  const cardTurnos = ajustesSectionCard({
+    titleId: "comedor-ajustes-turnos-titulo",
+    title: "Turnos y su ciclo",
+    description:
+      "Vista de solo lectura: despliega un turno para ver qué jornada le toca cada día del ciclo.",
+    iconHtml: ICON_TURNOS,
+    badgeHtml: ajustesCountBadge(items.length),
+    actionButtonHtml: "",
+    bodyHtml: tablaTurnos,
+  });
 
   return `<div class="flex flex-col gap-4 sm:gap-5">
     ${stats}
     ${filtros}
-    <section class="flex flex-col gap-2">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Horario de comida por jornada</h2>
-      <p class="text-xs text-text-secondary">
-        La hora de comer depende de la jornada que toca ese día. Un turno rotativo recorre
-        varias, así que se configura aquí una vez y aplica a todos los turnos que pasan por ella.
-      </p>
-      ${tablaJornadas}
-    </section>
-    <section class="flex flex-col gap-2">
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">Turnos y su ciclo</h2>
-      <p class="text-xs text-text-secondary">
-        Vista de solo lectura: despliega un turno para ver qué jornada le toca cada día del ciclo.
-      </p>
-      ${tablaTurnos}
-    </section>
+    ${cardJornadas}
+    ${cardTurnos}
   </div>`;
 }
 
@@ -707,15 +748,15 @@ function renderResultadoValidacion(r: ComedorVentanaComidaApi): string {
 function renderValidacionPanel(state: ComedorAjustesViewState): string {
   const { noEmpleado, fecha, estado, resultado, errorMessage } = state.validacion;
 
-  const form = `<section class="rounded-xl border border-border bg-white p-3 shadow-sm ring-1 ring-slate-900/5 sm:p-4">
+  const formBody = `<div class="px-4 py-4 sm:px-5">
     <div class="flex min-w-0 flex-wrap items-end gap-x-3 gap-y-2">
       <div class="${FILTER_FIELD_WRAP}">
-        <label for="validacion-empleado" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Número de empleado</label>
+        <label for="validacion-empleado" class="${FORM_LABEL}">Número de empleado</label>
         <input id="validacion-empleado" type="number" min="1" data-validacion-empleado value="${escapeHtml(noEmpleado)}"
           placeholder="Ej. 406" class="${SEARCH_INPUT_CLS}" />
       </div>
       <div class="${FILTER_FIELD_WRAP}">
-        <label for="validacion-fecha" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-text-muted">Fecha</label>
+        <label for="validacion-fecha" class="${FORM_LABEL}">Fecha</label>
         <input id="validacion-fecha" type="date" data-validacion-fecha value="${escapeHtml(fecha)}"
           class="${SEARCH_INPUT_CLS}" />
       </div>
@@ -724,7 +765,16 @@ function renderValidacionPanel(state: ComedorAjustesViewState): string {
         ${estado === "loading" ? "Consultando…" : "Consultar"}
       </button>
     </div>
-  </section>`;
+  </div>`;
+
+  const formCard = ajustesSectionCard({
+    titleId: "comedor-ajustes-validacion-titulo",
+    title: "Consultar ventana",
+    description: "Indica empleado y fecha para ver el turno, la jornada y el horario de comida que aplica.",
+    iconHtml: ICON_VALIDACION,
+    actionButtonHtml: "",
+    bodyHtml: formBody,
+  });
 
   let resultadoHtml = "";
   if (estado === "loading") {
@@ -738,13 +788,12 @@ function renderValidacionPanel(state: ComedorAjustesViewState): string {
   } else if (estado === "ready" && resultado) {
     resultadoHtml = renderResultadoValidacion(resultado);
   } else {
-    resultadoHtml = `<p class="text-sm text-text-secondary">
-      Indica un número de empleado y una fecha para ver qué turno le toca ese día, en qué
-      posición del ciclo cae y qué horario de comida le aplica.
-    </p>`;
+    resultadoHtml = ajustesEmptyState(
+      "Indica un número de empleado y una fecha para ver qué turno le toca ese día, en qué posición del ciclo cae y qué horario de comida le aplica.",
+    );
   }
 
-  return `<div class="flex flex-col gap-4 sm:gap-5">${form}${resultadoHtml}</div>`;
+  return `<div class="flex flex-col gap-4 sm:gap-5">${formCard}${resultadoHtml}</div>`;
 }
 
 // ── Página ───────────────────────────────────────────────────────────────────
@@ -780,13 +829,10 @@ export function renderComedorAjustes(state: ComedorAjustesViewState): string {
 
   return `
     <div class="flex flex-col gap-5 sm:gap-6">
-      <header class="flex min-w-0 flex-col gap-2">
-        <h1 class="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl">Ajustes Comedor</h1>
-        <p class="max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Administra los comedores de la planta y la ventana de comida de cada jornada, tanto
-          para los turnos fijos como para los rotativos.
-        </p>
-      </header>
+      ${pageHeading(
+        "Ajustes Comedor",
+        "Administra los comedores de la planta y la ventana de comida de cada jornada, tanto para los turnos fijos como para los rotativos.",
+      )}
       ${tabs}
       <div role="tabpanel">${panel}</div>
     </div>
