@@ -148,9 +148,10 @@ Layered architecture: **router → service → repository → models/schemas**
 - **Saldo de vacaciones = caché en Bono.** Ninguna carga de página consulta el saldo en
   DATOS_ANALISIS: la fuente única de lectura es `levelup_vacaciones_disponibles`, que
   escribe `sync_vacaciones_disponibles_service` (job 06:00, aprobación de vacaciones y
-  `python -m app.scripts.sync_vacaciones_disponibles`). `obtener_saldo_gozo_tress` /
-  `GET_SALDOS_VACACION` solo los usa ese sync. Empleado sin fila ⇒ dashboards degradan
-  a «—» y crear vacaciones se bloquea con 503.
+  `python -m app.scripts.sync_vacaciones_disponibles`). La única lectura a
+  `dbo.GET_SALDOS_VACACION` es `DatosAnalisisVacacionesRepository.get_kpis_ciclo`, y solo
+  la hace ese sync. Empleado sin fila ⇒ dashboards degradan a «—» y crear vacaciones se
+  bloquea con 503.
 - **Home office tomado = caché en Bono.** Ninguna carga de página cuenta días de home
   office en DATOS_ANALISIS: la fuente única de lectura es `levelup_homeoffice_tomados`
   (una fila por empleado y año calendario), que escribe

@@ -9,15 +9,18 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 
-from app.repositories.datos_analisis_vacaciones_repository import load_saldo_vacaciones_sql
+from app.repositories.datos_analisis_vacaciones_repository import load_kpis_ciclo_sql
 from tests.conftest import auth_headers, make_empleado, make_vacaciones_disponibles
 
 
-def test_sql_saldo_tiene_un_solo_bind_cb_codigo():
+def test_sql_kpis_ciclo_tiene_un_solo_bind_cb_codigo():
     """Regresión: un token ``:x`` dentro de un comentario del .sql también lo toma
     SQLAlchemy como bind param, provocando 'contains 1 parameter markers, but 2 supplied'.
-    El SQL debe exponer exactamente el bind ``cb_codigo``."""
-    parsed = text(load_saldo_vacaciones_sql())
+    El SQL debe exponer exactamente el bind ``cb_codigo``.
+
+    Guarda el único SQL de vacaciones que queda: el de KPIs del ciclo, que alimenta al
+    sync. El de saldo suelto se retiró por ser un subconjunto estricto de éste."""
+    parsed = text(load_kpis_ciclo_sql())
     assert set(parsed._bindparams.keys()) == {"cb_codigo"}
 
 

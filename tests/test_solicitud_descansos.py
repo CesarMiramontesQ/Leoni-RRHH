@@ -137,15 +137,19 @@ async def test_crear_vacaciones_rechaza_inicio_en_descanso(client: AsyncClient, 
 
 @pytest.mark.asyncio
 async def test_crear_vacaciones_descuenta_solo_dias_efectivos(
-    client: AsyncClient, db, monkeypatch
+    client: AsyncClient, db
 ):
-    async def _saldo(_no_empleado):  # noqa: ANN001
-        return 2.0
-
-    monkeypatch.setattr(
-        "app.services.vacaciones_service.obtener_saldo_gozo_tress", _saldo
+    # El saldo se siembra en la caché de Bono, que es de donde lo lee el servicio. Con
+    # exactamente 2.0 el test cubre el borde que le da nombre: los días efectivos igualan
+    # el saldo, así que la solicitud pasa por poco. Con el 999 por defecto de la factory
+    # pasaría igual sin probar nada.
+    emp = await make_empleado(
+        db,
+        rol="empleado",
+        email="vac_desc_cnt@test",
+        no_empleado=94002,
+        saldo_vacaciones=2.0,
     )
-    emp = await make_empleado(db, rol="empleado", email="vac_desc_cnt@test", no_empleado=94002)
     headers = await auth_headers(client, emp)
 
     # Rango 18-21 jul: 19-20 descanso → 2 días efectivos = saldo exacto
