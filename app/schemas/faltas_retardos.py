@@ -141,19 +141,3 @@ class FaltasRetardosEstadisticasResponse(BaseModel):
     tendencia_agrupacion: str | None = None
     eventos_por_tipo: list[FaltaRetardoTipoTotalItem]
     empleados_con_mas_eventos: list[FaltaRetardoEmpleadoTotalItem]
-
-
-class FaltasRetardosSyncAusenciasResponse(BaseModel):
-    """Resultado del mirror sync FI/RE (semana anterior) hacia importadas_historico."""
-
-    fecha_inicio: date
-    fecha_fin: date
-    id_semana: int | None = None
-    leidos: int
-    insertados: int
-    actualizados: int
-    eliminados: int
-    omitidos_sin_empleado: int
-    omitidos_sin_semana: int
-    omitidos_incompletos: int
-    omitidos_sin_cambio: int

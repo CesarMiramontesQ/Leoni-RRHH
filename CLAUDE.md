@@ -265,7 +265,11 @@ Layered architecture: **router → service → repository → models/schemas**
   incidencias de TRESS los miércoles a las 10:00** (`sync_incidencias_tress`), **sync de
   turnos en uso a las 04:00** (`sync_turnos_uso`), y **sync de datos generales del
   colaborador a las 04:10** (`sync_empleados_tress`)); se
-  registran en `registrar_jobs_programados` (`app/main.py`). FI/RE sync from DATOS_ANALISIS → `importadas_historico` is **manual** (button on Faltas y retardos / CLI). IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
+  registran en `registrar_jobs_programados` (`app/main.py`). El **mirror FI/RE de
+  DATOS_ANALISIS → `importadas_historico` es automático**: job `sync_ausencias_fi_re`, los
+  miércoles a las 08:30 (antes que `sync_incidencias_tress`, que lee esa tabla ya al día).
+  Ya **no** hay botón «Sincronizar» ni endpoint: para soporte queda la CLI
+  `python -m app.scripts.sync_ausencias --execute`. IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper

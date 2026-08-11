@@ -179,26 +179,5 @@ export async function getFaltasRetardosTipos(): Promise<FaltaRetardoTipo[]> {
   return data.items;
 }
 
-export type FaltasRetardosSyncAusenciasResponse = {
-  fecha_inicio: string;
-  fecha_fin: string;
-  id_semana: number | null;
-  leidos: number;
-  insertados: number;
-  actualizados: number;
-  eliminados: number;
-  omitidos_sin_empleado: number;
-  omitidos_sin_semana: number;
-  omitidos_incompletos: number;
-  omitidos_sin_cambio: number;
-};
-
-export async function syncAusenciasFaltasRetardos(): Promise<FaltasRetardosSyncAusenciasResponse> {
-  const res = await fetchWithAuth("/api/v1/faltas-retardos/sincronizar-ausencias", {
-    method: "POST",
-  });
-  if (!res.ok) {
-    throw { status: res.status, detail: await readErrorDetail(res) };
-  }
-  return (await res.json()) as FaltasRetardosSyncAusenciasResponse;
-}
+// El mirror FI/RE hacia importadas_historico ya no tiene endpoint: corre en el job
+// semanal del backend (miércoles 08:30, America/Mexico_City).

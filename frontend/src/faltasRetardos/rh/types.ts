@@ -52,7 +52,6 @@ export type FaltasRetardosAdminViewModel = {
   tableStatus: "loading" | "ready" | "empty" | "error";
   table: FaltasRetardosTableData | null;
   tableErrorMessage?: string;
-  sincronizando?: boolean;
 };
 
 export function emptyFaltasRetardosListFilters(): FaltasRetardosListFilters {

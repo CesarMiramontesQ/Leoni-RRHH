@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import date, datetime, timezone
@@ -17,6 +18,13 @@ from app.integrations.bono_historico_import_log import (
 from app.services.sync_ausencias_fi_service import SyncAusenciasService, SyncAusenciasStats
 
 logger = logging.getLogger(__name__)
+
+# Candado de concurrencia del mirror FI/RE. Vivía en el router de faltas-retardos, que
+# era su único consumidor; al automatizarse el sync se movió aquí para que el job del
+# scheduler siga usando el mismo mecanismo. Es por proceso: dos corridas dentro del
+# backend no se enciman. La CLI corre en otro proceso y no lo comparte, pero el sync es
+# un mirror en una sola transacción de Bono, así que reejecutarlo no duplica filas.
+sync_ausencias_lock = asyncio.Lock()
 
 _FUENTE_POR_TIPO: dict[str, FuenteBonoHistorico] = {
     "FI": "ausencias_fi",
