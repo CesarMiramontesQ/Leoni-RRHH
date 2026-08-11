@@ -233,8 +233,11 @@ Layered architecture: **router → service → repository → models/schemas**
     contra `AUSENCIA.HO_CODIGO`, así que la proyección coincide con lo que TRESS computó.
   - **Falla cerrado con 503**, nunca con lista vacía: de esa lista sale el conteo de días
     de una solicitud de vacaciones y un falso «no descansa» contaría días de más. Los cinco
-    casos son sin fila en la caché de turnos, `tu_codigo` vacío, turno ausente del catálogo,
-    rotativo sin ancla válida y patrón no interpretable.
+    casos son sin fila en la caché de turnos o `tu_codigo` vacío (una sola ruta: el
+    repositorio devuelve `None` en ambos), turno ausente del catálogo, rotativo sin ancla
+    válida, patrón no interpretable, y **fecha anterior al inicio de ciclo del turno
+    rotativo**: el ancla puede ser válida y aun así la fecha consultada caer antes de que
+    el ciclo empiece, y ahí el motor no puede ubicar la posición.
   - **Los siete consumidores usan la misma función.** El endpoint y las seis validaciones de
     `solicitud_service` / `faltas_retardos_service` comparten fuente: si el modal contara
     con una y el servidor validara con otra, el usuario vería rechazada una solicitud por un
