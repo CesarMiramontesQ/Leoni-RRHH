@@ -175,7 +175,9 @@ export function aggregateByEmpleado(rows: readonly ComedorRhProximoRegistroRow[]
     if (!g) {
       g = {
         nombre: r.empleado_nombre,
-        noEmpleado: r.no_empleado,
+        // Llega como número: el backend declara `no_empleado: int`. Se normaliza aquí,
+        // en el borde, para que nadie más abajo lo trate como texto y falle.
+        noEmpleado: String(r.no_empleado ?? ""),
         area: r.area,
         registros: 0,
         confirmados: 0,

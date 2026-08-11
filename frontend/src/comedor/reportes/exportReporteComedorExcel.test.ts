@@ -103,3 +103,48 @@ describe("buildPlaneacionPlatillosExcelRows", () => {
     expect(fila["Horario de comida"]).toBe("Sin horario");
   });
 });
+
+describe("cuando el backend manda tipos que no son texto", () => {
+  it("no revienta con no_empleado numerico", () => {
+    // El backend declara `no_empleado: int`, asi que el JSON trae un numero. El
+    // exportador hacia `row.no_empleado.trim()` y lanzaba TypeError: el boton de
+    // exportar no descargaba nada y no decia por que.
+    const fila = {
+      id: 1,
+      empleado_id: 1,
+      empleado_nombre: "ARBALLO ORDOÑEZ, KARLA VANESSA",
+      no_empleado: 4972 as unknown as string,
+      area: "",
+      comedor_nombre: "Central",
+      fecha_servicio: "2026-08-12",
+      tipo_comida: "casera",
+      estado_acceso: "PENDIENTE",
+      hora_inicio_comida: "10:00:00",
+      hora_fin_comida: "10:30:00",
+    } as ComedorRhProximoRegistroRow;
+
+    const [salida] = buildReporteComedorExcelRows([fila]);
+
+    expect(salida["No. empleado"]).toBe("4972");
+    expect(salida["Área"]).toBe("—");
+  });
+
+  it("tolera nulos en los textos del empleado", () => {
+    const fila = {
+      id: 2,
+      empleado_id: 2,
+      empleado_nombre: null,
+      no_empleado: null,
+      area: null,
+      comedor_nombre: null,
+      fecha_servicio: "2026-08-12",
+      tipo_comida: "casera",
+      estado_acceso: "PENDIENTE",
+    } as unknown as ComedorRhProximoRegistroRow;
+
+    const [salida] = buildReporteComedorExcelRows([fila]);
+
+    expect(salida.Empleado).toBe("—");
+    expect(salida.Comedor).toBe("—");
+  });
+});
