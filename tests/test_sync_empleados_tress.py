@@ -213,6 +213,39 @@ async def test_sync_dry_run_no_persiste(db, fake_datos_generales):
 
 
 @pytest.mark.asyncio
+async def test_sync_solo_no_empleado_filtra_al_resto_de_la_fuente(db, fake_datos_generales):
+    """`--no-empleado` sincroniza solo esa persona; el resto de la fuente no entra.
+
+    No basta comprobar que el objetivo se sincronizó: si el filtro nunca filtrara, ese
+    caso también pasaría. La prueba real es la AUSENCIA del otro empleado.
+    """
+    from app.repositories.empleados_tress_repository import EmpleadosTressRepository
+    from app.services.sync_empleados_tress_service import sincronizar_empleados_tress
+    from tests.conftest import make_empleado
+
+    objetivo = await make_empleado(db, email="et-filtro-obj@test")
+    otro = await make_empleado(db, email="et-filtro-otro@test")
+    await db.commit()
+
+    fake_datos_generales(
+        {
+            objetivo.no_empleado: date(2019, 3, 15),
+            otro.no_empleado: date(2020, 6, 20),
+        }
+    )
+
+    stats = await sincronizar_empleados_tress(
+        db, origen="test", execute=True, solo_no_empleado=objetivo.no_empleado
+    )
+
+    repo = EmpleadosTressRepository(db)
+    assert stats.insertados == 1
+    assert await repo.get_fecha_ingreso(objetivo.no_empleado) == date(2019, 3, 15)
+    # El otro empleado venía en la fuente pero el filtro lo descartó: sin fila.
+    assert await repo.get_fecha_ingreso(otro.no_empleado) is None
+
+
+@pytest.mark.asyncio
 async def test_sync_sin_datos_analisis_configurada_levanta_connection_error(db, monkeypatch):
     from app.services.sync_empleados_tress_service import sincronizar_empleados_tress
 

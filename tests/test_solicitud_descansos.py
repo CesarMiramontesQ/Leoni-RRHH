@@ -60,6 +60,9 @@ async def test_aprobar_solicitud_goce_reconsulta_y_escribe_solo_tramos_efectivos
 
     assert response.status_code == 200, response.text
     consultar.assert_awaited_once()
+    # El AsyncMock no se queja si `self.db` se cae de la llamada: comprobar que la
+    # sesión sí viaja como primer posicional, no solo que cb_codigo llegó por kwarg.
+    assert consultar.await_args.args and consultar.await_args.args[0] is db
     assert consultar.await_args.kwargs["cb_codigo"] == 93002
     registrar.assert_awaited_once_with(
         no_empleado=93002,

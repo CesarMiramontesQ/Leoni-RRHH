@@ -248,10 +248,6 @@ def proyectar_dia(
     )
 
 
-def fechas_descanso(dias: list[DiaCalendario]) -> list[date]:
-    return [d.fecha for d in dias if d.estatus == "DESCANSO"]
-
-
 def coerce_date(value: date | datetime | None) -> date | None:
     if value is None:
         return None

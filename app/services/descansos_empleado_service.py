@@ -36,7 +36,8 @@ def validar_rango_descansos(*, fecha_inicio: date, fecha_fin: date) -> None:
 
 _MSG_SIN_TURNO = (
     "El turno de este empleado aún no se ha sincronizado, así que no se pueden calcular "
-    "sus descansos. Se actualiza automáticamente cada día; si persiste, contacta a RH."
+    "sus descansos. Se actualiza automáticamente cada día; si persiste, revisa el turno "
+    "de esta persona en nómina."
 )
 _MSG_TURNO_SIN_CATALOGO = (
     "El turno {codigo} de este empleado no está en el catálogo sincronizado de nómina, "
@@ -104,12 +105,11 @@ async def obtener_descansos_bono(
         except ValueError as exc:
             raise ServiceUnavailableError(_MSG_PATRON_INVALIDO) from exc
 
-    horarios = await repo.map_jornadas()
     descansos: list[date] = []
     cursor = fecha_inicio
     while cursor <= fecha_fin:
         try:
-            dia = proyectar_dia(turno, cursor, horarios=horarios)
+            dia = proyectar_dia(turno, cursor)
         except ValueError as exc:
             # Fecha anterior a TU_RIT_INI, o rotativo sin ancla que `ancla_valida` no
             # atrapó. No se proyecta a medias: el rango completo se declara no calculable.
@@ -132,6 +132,9 @@ class DescansosEmpleadoService:
         fecha_inicio: date,
         fecha_fin: date,
     ) -> DescansosEmpleadoResponse:
+        # Se valida aquí también (obtener_descansos_bono la repite): es lo que hace que un
+        # rango demasiado largo sobre un empleado inexistente responda 422 antes que 404.
+        # No quitar por parecer redundante — invertiría ese orden.
         validar_rango_descansos(fecha_inicio=fecha_inicio, fecha_fin=fecha_fin)
         empleado = await self.empleado_repo.get_by_empleado_id(empleado_id)
         if empleado is None:

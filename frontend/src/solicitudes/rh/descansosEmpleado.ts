@@ -8,7 +8,12 @@ export type DescansosMonthFetcher = (
   fechaFin: string,
 ) => Promise<readonly string[]>;
 
-/** Tipos cuyo calendario/envío depende de descansos TRESS (fail-closed). */
+/**
+ * Tipos cuyo calendario/envío depende de los descansos proyectados desde las cachés de
+ * turno en Bono (`levelup_turnos_empleados` / `levelup_turnos` / `levelup_horarios`).
+ * Fail-closed: si el backend no puede proyectar, responde 503 en vez de "sin descansos",
+ * por eso es seguro contar días a partir de esta lista.
+ */
 const TIPOS_CALENDARIO_DESCANSOS = new Set<string>([
   "matrimonio",
   "defuncion",
@@ -18,7 +23,7 @@ const TIPOS_CALENDARIO_DESCANSOS = new Set<string>([
   "vacaciones",
 ]);
 
-/** Home office y permiso sin goce no dependen del calendario TRESS. */
+/** Home office y permiso sin goce no dependen del calendario de descansos. */
 export function tipoRequiereCalendarioDescansos(
   tipo: string | null | undefined,
 ): boolean {
