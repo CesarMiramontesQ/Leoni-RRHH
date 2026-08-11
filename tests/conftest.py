@@ -434,6 +434,21 @@ async def make_homeoffice_tomados(
     return fila
 
 
+async def make_empleado_tress(
+    db: AsyncSession,
+    no_empleado: int,
+    fecha_ingreso: date | None = None,
+):
+    """Fila de `levelup_empleados_tress` (caché de datos generales de dbo.COLABORA)."""
+    from app.models.empleados_tress import EmpleadoTress
+
+    fila = EmpleadoTress(no_empleado=int(no_empleado), fecha_ingreso=fecha_ingreso)
+    db.add(fila)
+    await db.flush()
+    await db.refresh(fila)
+    return fila
+
+
 async def make_incidencia_tress(
     db: AsyncSession,
     *,

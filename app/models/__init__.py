@@ -21,6 +21,7 @@ from app.models.turnos_empleados import TurnoEmpleado
 from app.models.turnos_uso import TurnoUso
 from app.models.vacaciones_disponibles import VacacionesDisponibles
 from app.models.homeoffice_tomados import HomeOfficeTomados
+from app.models.empleados_tress import EmpleadoTress
 from app.models.incidencias_tress import IncidenciaTress
 from app.models.solicitudes import Solicitud, SolicitudAprobacion
 from app.models.incidencias import Incidencia, Evidencia
@@ -280,5 +281,6 @@ __all__ = [
     "VistaRol",
     "VacacionesDisponibles",
     "HomeOfficeTomados",
+    "EmpleadoTress",
     "IncidenciaTress",
 ]
