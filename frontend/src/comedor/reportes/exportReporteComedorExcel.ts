@@ -12,6 +12,19 @@ export type ReporteComedorExcelExportOptions = {
   filename?: string;
 };
 
+/**
+ * Convierte a texto lo que venga, sin asumir que ya es una cadena.
+ *
+ * `no_empleado` viaja como **número** (el backend lo declara `int`), así que llamarle
+ * `.trim()` lanzaba `TypeError` y tumbaba la exportación entera: el botón no descargaba
+ * nada y no había forma de saber por qué. Los demás campos se pasan por aquí por el mismo
+ * motivo: un `null` del backend rompía igual.
+ */
+function texto(valor: unknown): string {
+  if (valor === null || valor === undefined) return "";
+  return String(valor).trim();
+}
+
 function tipoComidaLabel(raw: string): string {
   const k = raw.trim().toLowerCase();
   if (k === "casera") return "Opción A";
@@ -34,11 +47,11 @@ export function buildReporteComedorExcelRows(
 ): Record<string, string>[] {
   return rows.map((row) => ({
     "Fecha servicio": formatFechaServicioRhRegistro(row.fecha_servicio),
-    Empleado: row.empleado_nombre.trim() || "—",
-    "No. empleado": row.no_empleado.trim() || "—",
-    Área: row.area.trim() || "—",
-    Comedor: row.comedor_nombre.trim() || "—",
-    Turno: (row.tu_codigo ?? "").trim() || "—",
+    Empleado: texto(row.empleado_nombre) || "—",
+    "No. empleado": texto(row.no_empleado) || "—",
+    Área: texto(row.area) || "—",
+    Comedor: texto(row.comedor_nombre) || "—",
+    Turno: texto(row.tu_codigo) || "—",
     "Horario de comida": horarioLabelDeFila(row),
     Tipo: tipoComidaLabel(row.tipo_comida),
     Estado: estadoAccesoLabel(row.estado_acceso),

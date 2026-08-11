@@ -116,7 +116,14 @@ export type ComedorRhProximoRegistroRow = {
   id: number;
   empleado_id: number;
   empleado_nombre: string;
-  no_empleado: string;
+  /**
+   * Llega como **número**: el backend lo declara `int` (`ComedorRhProximoRegistroItem`).
+   *
+   * El tipo decía `string` y por eso nadie vio venir el `row.no_empleado.trim is not a
+   * function` que tumbaba la exportación a Excel. Declararlo como viene obliga a
+   * convertirlo antes de tratarlo como texto.
+   */
+  no_empleado: string | number;
   area: string;
   comedor_nombre: string;
   fecha_servicio: string;
