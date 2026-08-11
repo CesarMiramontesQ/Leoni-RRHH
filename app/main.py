@@ -309,8 +309,9 @@ async def _sync_ausencias_fi_re_job():
     Faltas y retardos —misma función `sync_semana_anterior_con_historial`, mismo mirror
     insert/update/delete en una sola transacción de Bono—, solo que sin depender de que
     alguien abra la página. Miércoles porque para entonces nómina ya cerró y corrigió la
-    semana previa; el mismo día que el sync de la caché de incidencias, pero antes, para
-    que ese vea `importadas_historico` ya al día.
+    semana previa. Comparte día con `sync_incidencias_tress` (10:00) pero no hay
+    dependencia entre ellos —ese lee las mismas tablas de TRESS y escribe otra caché—:
+    van escalonados solo para no leer DATOS_ANALISIS al mismo tiempo.
 
     Reejecutar no duplica: el mirror compara contra lo ya importado y solo escribe la
     diferencia. El candado `sync_ausencias_lock` (el que usaba el endpoint) evita que dos
@@ -456,9 +457,10 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         id="sync_turnos_empleados",
     )
     # Mirror FI/RE de la semana anterior hacia importadas_historico: semanal, miércoles
-    # 08:30. Antes del sync de la caché de incidencias (10:00) para que ese lea
-    # importadas_historico ya al día. La hora es de America/Mexico_City: el scheduler se
-    # construye con ZoneInfo(APP_TIMEZONE), no con la hora del servidor.
+    # 08:30. Escalonado frente al sync de la caché de incidencias (10:00): leen las mismas
+    # tablas de TRESS, aunque escriben destinos distintos y ninguno depende del otro. La
+    # hora es de America/Mexico_City porque el scheduler se construye con
+    # ZoneInfo(APP_TIMEZONE), no con la hora del servidor.
     sched.add_job(
         _sync_ausencias_fi_re_job,
         "cron",
