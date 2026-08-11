@@ -96,6 +96,7 @@ from app.schemas.comedor import (
     MenuSemanalResponse,
 )
 from app.services.auth_service import authenticate_user
+from app.services.comedor_ventana_comida_service import ComedorVentanaComidaService
 from app.utils.audit_logger import audit_background
 from app.utils.business_time import (
     business_now,
@@ -1037,6 +1038,14 @@ class ComedorService:
             estados=estados,
             buscar=buscar_norm,
         )
+        # La ventana de comida se resuelve para toda la pagina de una vez: fila por fila
+        # costaria tres consultas cada una, y el tablero pide lotes de mil.
+        ventanas = await ComedorVentanaComidaService(self.db).resolver_ventanas(
+            (int(r.empleado.no_empleado), r.fecha_servicio)
+            for r in rows
+            if r.empleado is not None and r.empleado.no_empleado is not None
+        )
+
         items: list[ComedorRhProximoRegistroItem] = []
         for row in rows:
             emp = row.empleado
@@ -1050,6 +1059,11 @@ class ComedorService:
             estado = (
                 row.estado_acceso.value if hasattr(row.estado_acceso, "value") else str(row.estado_acceso)
             )
+            ventana = (
+                ventanas.get((int(emp.no_empleado), row.fecha_servicio))
+                if emp is not None and emp.no_empleado is not None
+                else None
+            )
             items.append(
                 ComedorRhProximoRegistroItem(
                     id=row.id,
@@ -1061,6 +1075,10 @@ class ComedorService:
                     fecha_servicio=row.fecha_servicio,
                     tipo_comida=tipo,
                     estado_acceso=estado,
+                    tu_codigo=ventana.tu_codigo if ventana else None,
+                    ho_codigo=ventana.ho_codigo if ventana else None,
+                    hora_inicio_comida=ventana.hora_inicio_comida if ventana else None,
+                    hora_fin_comida=ventana.hora_fin_comida if ventana else None,
                 )
             )
         return ComedorRhProximosRegistrosPage(

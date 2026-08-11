@@ -122,6 +122,15 @@ export type ComedorRhProximoRegistroRow = {
   fecha_servicio: string;
   tipo_comida: string;
   estado_acceso: string;
+  /**
+   * Horario de comida que le toca a esa persona ese día, resuelto por el servidor a
+   * partir del ciclo de su turno. `null` cuando ese día no corresponde comida (descanso)
+   * o cuando la jornada todavía no tiene ventana configurada.
+   */
+  tu_codigo?: string | null;
+  ho_codigo?: string | null;
+  hora_inicio_comida?: string | null;
+  hora_fin_comida?: string | null;
 };
 
 export type ComedorRhProximosRegistrosPage = {

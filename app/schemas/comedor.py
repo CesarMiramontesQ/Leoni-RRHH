@@ -253,7 +253,14 @@ class ComedorRhSemanaRegistrosFuturosItem(BaseModel):
 
 
 class ComedorRhProximoRegistroItem(BaseModel):
-    """Fila de acceso futuro (desde hoy) para supervisión RH."""
+    """Fila de acceso futuro (desde hoy) para supervisión RH.
+
+    Los tres campos de horario los resuelve el servidor a partir del turno de la persona
+    y la fecha: planeación de comedor necesita saber **a qué hora** se sirve cada platillo
+    para cuadrar la producción, y esa ventana no está en la fila de acceso, se calcula
+    recorriendo el ciclo del turno. Vienen en `None` cuando ese día no corresponde comida
+    (descanso) o cuando la jornada todavía no tiene horario configurado.
+    """
 
     id: int
     empleado_id: int
@@ -264,6 +271,10 @@ class ComedorRhProximoRegistroItem(BaseModel):
     fecha_servicio: date
     tipo_comida: str
     estado_acceso: str
+    tu_codigo: Optional[str] = None
+    ho_codigo: Optional[str] = None
+    hora_inicio_comida: Optional[time] = None
+    hora_fin_comida: Optional[time] = None
 
 
 class ComedorRhProximosRegistrosPage(BaseModel):

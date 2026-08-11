@@ -9,6 +9,7 @@ import { hasRhOperativeViewerContext } from "../../auth/jwt.ts";
 import { escapeComedorHtml } from "./comedorUiUtils.ts";
 import {
   renderReporteFilterToolbarGlobal,
+  renderReportePlaneacionPlatillos,
   renderReporteMainHeaderCard,
   renderReporteRhRestrictedNotice,
   renderReporteTabDetalle,
@@ -529,6 +530,7 @@ export function renderComedorReporteDashboard(state: ReporteComedorViewState): s
       ${renderReporteMainHeaderCard(state)}
       ${renderReporteFilterToolbarGlobal(state)}
       ${renderKpis(state)}
+      ${esRh ? renderReportePlaneacionPlatillos(state) : ""}
       <section class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.07)] ring-1 ring-slate-900/5 sm:p-6 lg:p-7">
         <div class="space-y-6">
           ${renderReporteWorkspaceIntro()}

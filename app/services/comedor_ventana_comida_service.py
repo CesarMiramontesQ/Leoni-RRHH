@@ -21,6 +21,7 @@ interpretar son tres situaciones distintas y se atienden distinto.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, time
 from decimal import Decimal
@@ -68,6 +69,23 @@ _AVISO_ANCLA_INVALIDA = (
     "Este turno es rotativo pero no tiene fecha de inicio de ciclo en nómina, así que no "
     "se puede saber qué día del ciclo le toca."
 )
+
+
+@dataclass(frozen=True, slots=True)
+class VentanaResuelta:
+    """Ventana de comida de un (empleado, fecha), en la forma mínima que usa el tablero.
+
+    Es deliberadamente más pobre que `ComedorVentanaComidaResponse`: la resolución masiva
+    corre sobre decenas de miles de filas y no necesita descripciones ni avisos, solo el
+    horario al que hay que servir. `ho_codigo` en `None` significa que ese acceso no tiene
+    comida asignada, y `motivo` dice por qué.
+    """
+
+    tu_codigo: str | None = None
+    ho_codigo: str | None = None
+    hora_inicio_comida: time | None = None
+    hora_fin_comida: time | None = None
+    motivo: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,6 +347,102 @@ class ComedorVentanaComidaService:
 
         ctx_actualizado = await self._contexto()
         return self._jornada_item(codigo, ctx_actualizado, uso)
+
+    # --- Resolución masiva, para el tablero de reporte ---
+
+    async def resolver_ventanas(
+        self, pares: Iterable[tuple[int, date]]
+    ) -> dict[tuple[int, date], VentanaResuelta]:
+        """`{(no_empleado, fecha): ventana}` para muchos pares de una sola vez.
+
+        El tablero de planeación necesita la ventana de cada uno de los ~13 000 accesos
+        del rango. Resolverlos con `ventana_por_empleado` costaría tres consultas por
+        fila; aquí el contexto se carga **una vez** y el resto se resuelve en memoria,
+        memorizando la expansión del ciclo por turno (24 turnos, no 13 000).
+
+        Un par sin ventana aparece igual en el resultado, con `ho_codigo = None`: la
+        planeación necesita saber cuántas comidas quedan fuera de horario, no perderlas.
+        """
+        ctx = await self._contexto(incluir_inactivos=True)
+        turnos_por_codigo = {
+            (t.tu_codigo or "").strip(): t for t in ctx.turnos
+        }
+        asignacion = {
+            self._clave_no_empleado(f.no_empleado): (f.tu_codigo or "").strip()
+            for f in (await self.db.execute(select(TurnoEmpleado))).scalars().all()
+        }
+
+        # `codigo_turno -> (bloques, longitud)` o None si su ciclo no se puede calcular.
+        ciclos: dict[str, tuple[list[BloqueCiclo], int] | None] = {}
+
+        def ciclo_de(codigo: str):
+            if codigo not in ciclos:
+                turno = turnos_por_codigo.get(codigo)
+                if turno is None:
+                    ciclos[codigo] = None
+                else:
+                    tt = turno_tress_desde_modelo(turno)
+                    try:
+                        ciclos[codigo] = (bloques_del_ciclo(tt), longitud_ciclo(tt))
+                    except TurnoCicloError:
+                        ciclos[codigo] = None
+            return ciclos[codigo]
+
+        salida: dict[tuple[int, date], VentanaResuelta] = {}
+        for no_empleado, fecha in pares:
+            clave = (no_empleado, fecha)
+            if clave in salida:
+                continue
+            codigo = asignacion.get(str(int(no_empleado)), "")
+            turno = turnos_por_codigo.get(codigo) if codigo else None
+            if turno is None:
+                salida[clave] = VentanaResuelta(motivo="SIN_TURNO" if not codigo else "TURNO_FUERA_DE_CATALOGO")
+                continue
+
+            tt = turno_tress_desde_modelo(turno)
+            armado = ciclo_de(codigo)
+            if armado is None:
+                salida[clave] = VentanaResuelta(tu_codigo=codigo, motivo="PATRON_INVALIDO")
+                continue
+            try:
+                indice = posicion_en_ciclo(tt, fecha)
+            except TurnoCicloError as exc:
+                salida[clave] = VentanaResuelta(tu_codigo=codigo, motivo=exc.motivo)
+                continue
+
+            bloques, _ = armado
+            bloque = next(b for b in bloques if b.dia_inicio <= indice + 1 <= b.dia_fin)
+            if bloque.estatus == "DESCANSO":
+                salida[clave] = VentanaResuelta(tu_codigo=codigo, motivo="DESCANSO")
+                continue
+
+            ho_codigo = bloque.ho_codigo or ""
+            ventana = ctx.ventanas.get(ho_codigo)
+            if not ho_codigo or ventana is None:
+                salida[clave] = VentanaResuelta(
+                    tu_codigo=codigo,
+                    ho_codigo=ho_codigo or None,
+                    motivo="JORNADA_SIN_CONFIGURAR",
+                )
+                continue
+            salida[clave] = VentanaResuelta(
+                tu_codigo=codigo,
+                ho_codigo=ho_codigo,
+                hora_inicio_comida=ventana.hora_inicio_comida,  # type: ignore[union-attr]
+                hora_fin_comida=ventana.hora_fin_comida,  # type: ignore[union-attr]
+            )
+        return salida
+
+    @staticmethod
+    def _clave_no_empleado(valor: str | None) -> str:
+        """Normaliza el número: el seed viejo de Excel dejó filas como `"553.0"`."""
+        crudo = (valor or "").strip()
+        if not crudo:
+            return ""
+        try:
+            return str(int(float(crudo)))
+        except ValueError:
+            return crudo
 
     # --- Empleado + fecha → ventana ---
 
