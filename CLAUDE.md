@@ -267,7 +267,8 @@ Layered architecture: **router → service → repository → models/schemas**
   colaborador a las 04:10** (`sync_empleados_tress`)); se
   registran en `registrar_jobs_programados` (`app/main.py`). El **mirror FI/RE de
   DATOS_ANALISIS → `importadas_historico` es automático**: job `sync_ausencias_fi_re`, los
-  miércoles a las 08:30 (antes que `sync_incidencias_tress`, que lee esa tabla ya al día).
+  miércoles a las 08:30, escalonado frente al de incidencias de las 10:00 (leen las mismas
+  tablas de TRESS y escriben destinos distintos; ninguno depende del otro).
   Ya **no** hay botón «Sincronizar» ni endpoint: para soporte queda la CLI
   `python -m app.scripts.sync_ausencias --execute`. IT Mirror and nightly bono imports (`calidad_historico`, `seguridad_historico`, `importadas_historico`, `evaluacion_historica_gral`) are CLI/manual, not cron. **No** hay job de cola TRESS/RPA.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies

@@ -233,6 +233,96 @@ el mensaje dice *"no se pudo ejecutar 'alembic history'"*, la imagen puede estar
 mira la salida que imprime debajo y revisa contenedores huérfanos (`docker ps -a | grep
 backend`, luego `docker container prune`), porque estos helpers corren sin `--rm`.
 
+### Sync automático de faltas y retardos (FI/RE → `importadas_historico`)
+
+El mirror `dbo.AUSENCIA` + `dbo.PERMISO` (goce) → `importadas_historico` **ya no se dispara
+desde la UI**. Hasta el release que introduce el job `sync_ausencias_fi_re` dependía del
+botón «Sincronizar» de la página Incidencias; ese botón y su endpoint se retiraron. Ahora
+corre en el scheduler del backend:
+
+```
+sync_ausencias_fi_re — miércoles 08:30, America/Mexico_City
+```
+
+No hay migración ni tabla nueva: **basta con reconstruir y reiniciar el backend** para que
+quede registrado. Como el cambio también toca el frontend (el botón desaparece), el release
+necesita los dos builds:
+
+```bash
+./scripts/prod-migrate.sh          # reconstruye el backend
+./scripts/prod-build-frontend.sh   # si lo omites, el botón sigue apareciendo en el navegador
+docker compose -f docker-compose.prod.yml --env-file .env up -d
+```
+
+**Verificar que quedó registrado** — el conteo de jobs sube en uno (10 → 11):
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env logs backend --tail=50 \
+  | grep "APScheduler iniciado"
+```
+
+**Verificar que la hora es de CDMX y no la del servidor.** El scheduler se construye con
+`ZoneInfo(APP_TIMEZONE)`, así que el cron es en hora de Ciudad de México y los cambios de
+regla los resuelve tzdata; no hay offset hardcodeado. Para comprobarlo sobre el contenedor
+real:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec backend python -c "
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from app.core.config import settings
+from app.main import registrar_jobs_programados
+tz = ZoneInfo(settings.APP_TIMEZONE)
+s = AsyncIOScheduler(timezone=tz); registrar_jobs_programados(s)
+j = next(x for x in s.get_jobs() if x.id == 'sync_ausencias_fi_re')
+print(settings.APP_TIMEZONE, j.trigger)
+print('próxima:', j.trigger.get_next_fire_time(None, datetime.now(tz)))
+"
+```
+
+Esperado: `America/Mexico_City cron[day_of_week='wed', hour='8', minute='30']` y una fecha
+en miércoles con offset `-06:00`. Los `Adding job tentatively` que imprime son del scheduler
+en memoria que crea el propio comando, no del que está corriendo.
+
+**Tras la primera corrida**, cada ejecución deja una línea con inicio, fin, rango, semana,
+`resultado=ok|error` y los conteos de leídos/insertados/actualizados/eliminados:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env logs backend \
+  | grep "Sync ausencias FI/RE job"
+```
+
+El historial persistente sigue yendo a `levelup_bono_historico_import_log`, ahora con
+`origen_ejecucion='scheduler'` (antes `manual`).
+
+**Cerrar el hueco del release.** El job hace mirror **solo de la semana anterior**. Si la
+última vez que alguien presionó el botón fue hace más de una semana, esas semanas no las
+recupera solo: hay que lanzarlas una vez con el backfill, que es idempotente.
+
+```bash
+FECHA_INICIO=<lunes de la primera semana pendiente> ./scripts/prod-sync-ausencias-backfill.sh            # dry-run
+FECHA_INICIO=<lunes de la primera semana pendiente> ./scripts/prod-sync-ausencias-backfill.sh --execute
+```
+
+O la corrida equivalente al job, sin rango:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env exec backend \
+  python -m app.scripts.sync_ausencias --execute
+```
+
+**No lanzar el backfill un miércoles entre las 08:30 y las 10:00.** Vale el mismo
+razonamiento que para el backfill de incidencias: el `asyncio.Lock` es intra-proceso y el
+CLI corre en un proceso aparte (`exec`), así que no comparte candado con el backend que
+dispara los jobs. En esa franja corren `sync_ausencias_fi_re` (08:30) y
+`sync_incidencias_tress` (10:00). El choque no corrompe nada —el mirror va en una sola
+transacción y la corrida perdedora hace rollback—, pero es ruido evitable.
+
+Los dos jobs comparten día y leen las mismas tablas de TRESS, pero **no dependen uno del
+otro**: escriben destinos distintos (`importadas_historico` y `levelup_incidencias_tress`).
+Van escalonados solo para no golpear DATOS_ANALISIS a la vez.
+
 ### Carga inicial de turnos, turno por empleado y fecha de ingreso (una sola vez)
 
 El release que mueve los descansos y la fecha de ingreso de la Vista 360 a caché en Bono
