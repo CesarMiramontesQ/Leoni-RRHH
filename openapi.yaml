@@ -10975,11 +10975,16 @@ paths:
             minimum: 1
         - name: page_size
           in: query
+          description: >-
+            Debe ser 5, 10, 50, 500 o 1000; cualquier otro valor devuelve 409. Los lotes
+            grandes existen para la descarga del tablero, que necesita el rango completo
+            en el cliente. La tabla paginada de RH conserva su tope de 50.
           schema:
             type: integer
             default: 10
+            enum: [5, 10, 50, 500, 1000]
             minimum: 1
-            maximum: 50
+            maximum: 1000
         - name: buscar
           in: query
           schema:

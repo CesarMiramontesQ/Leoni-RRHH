@@ -187,3 +187,53 @@ async def test_empleado_no_puede_registros_reporte(client: AsyncClient, db):
         headers=hdrs,
     )
     assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_rh_registros_reporte_acepta_lotes_grandes(client: AsyncClient, db):
+    """El tablero se descarga el rango completo; con el tope de 50 eran 258 peticiones.
+
+    Un mes de operación con 812 empleados ronda las 13 000 filas. Permitir lotes de 1000
+    lo deja en ~13 peticiones, que el cliente además lanza en paralelo.
+    """
+    rh = await make_empleado(db, rol="rh", email="rep_big@test.leoni", password="RhBig!!")
+    hdrs = await auth_headers(client, rh, password="RhBig!!")
+
+    for size in (500, 1000):
+        r = await client.get(
+            URL,
+            params={
+                "desde": "2030-01-01",
+                "hasta": "2030-01-31",
+                "page": 1,
+                "page_size": size,
+            },
+            headers=hdrs,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["page_size"] == size
+
+
+@pytest.mark.asyncio
+async def test_rh_registros_reporte_rechaza_un_lote_arbitrario(client: AsyncClient, db):
+    """Los tamaños siguen siendo una lista cerrada: nada de paginar de 7 en 7."""
+    rh = await make_empleado(db, rol="rh", email="rep_raro@test.leoni", password="RhRaro!")
+    hdrs = await auth_headers(client, rh, password="RhRaro!")
+    r = await client.get(
+        URL,
+        params={"desde": "2030-01-01", "hasta": "2030-01-31", "page": 1, "page_size": 7},
+        headers=hdrs,
+    )
+    assert r.status_code == 409, r.text
+
+
+@pytest.mark.asyncio
+async def test_rh_registros_reporte_no_permite_pasar_del_tope(client: AsyncClient, db):
+    rh = await make_empleado(db, rol="rh", email="rep_tope@test.leoni", password="RhTope!")
+    hdrs = await auth_headers(client, rh, password="RhTope!")
+    r = await client.get(
+        URL,
+        params={"desde": "2030-01-01", "hasta": "2030-01-31", "page": 1, "page_size": 5000},
+        headers=hdrs,
+    )
+    assert r.status_code == 422, r.text

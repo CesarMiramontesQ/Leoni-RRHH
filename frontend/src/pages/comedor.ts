@@ -152,6 +152,7 @@ import {
   reporteAreaFilterOptions,
   sumResumenDiario,
 } from "../comedor/reportes/reporteAggregations.ts";
+import { fetchTodosLosRegistrosReporte } from "../comedor/reportes/fetchRegistrosReporte.ts";
 
 function esViewerRhComedor(
   grantKey: "comedor-registro" | "comedor-ajustes" | "comedor-planear" | "reportes",
@@ -816,19 +817,9 @@ async function fetchAllRhRegistrosReportePages(
   hastaIso: string,
   filtroEstado: "todos" | "confirmado" | "cancelado",
 ): Promise<readonly ComedorRhProximoRegistroRow[]> {
-  const pageSize = 50 as const;
-  let page = 1;
-  const all: ComedorRhProximoRegistroRow[] = [];
-  let total = Infinity;
-  while (all.length < total) {
-    const raw = await getComedorRhRegistrosReporte(desdeIso, hastaIso, page, pageSize, { filtroEstado });
-    all.push(...raw.items);
-    total = raw.total;
-    if (raw.items.length === 0) break;
-    page += 1;
-    if (page > 400) break;
-  }
-  return all;
+  return fetchTodosLosRegistrosReporte<ComedorRhProximoRegistroRow>((page, pageSize) =>
+    getComedorRhRegistrosReporte(desdeIso, hastaIso, page, pageSize, { filtroEstado }),
+  );
 }
 
 function toIsoDate(value: Date): string {
