@@ -230,7 +230,8 @@ Layered architecture: **router → service → repository → models/schemas**
     proyección puede diferir de lo que nómina aplicó. Es una decisión, no un bug: el uso
     real es hacia el futuro (pedir vacaciones, otorgar goce).
   - **El override de `dbo.AUSENCIA` se descartó.** El motor ya fue validado día a día
-    contra `AUSENCIA.HO_CODIGO`, así que la proyección coincide con lo que TRESS computó.
+    contra `AUSENCIA.HO_CODIGO`, así que la proyección coincide con lo que TRESS computó
+    **para el turno vigente** — no para fechas de un turno anterior, ver el punto de arriba.
   - **Falla cerrado con 503**, nunca con lista vacía: de esa lista sale el conteo de días
     de una solicitud de vacaciones y un falso «no descansa» contaría días de más. Los cinco
     casos son sin fila en la caché de turnos o `tu_codigo` vacío (una sola ruta: el

@@ -1,8 +1,13 @@
 """
-Lectura de los catálogos de turnos y jornadas desde SQL Server datos-analisis.
+Lectura directa a SQL Server datos-analisis para los syncs que alimentan caché en Bono.
 
-Solo lo usan los syncs que llenan ``levelup_turnos`` y ``levelup_horarios`` — ninguna
-carga de página pasa por aquí. Las consultas viven en ``sql/datos_analisis_*_catalogo.sql``.
+Reúne los cuatro SELECT de solo lectura (uno por archivo en ``sql/``, no todos con sufijo
+``_catalogo``): catálogo de turnos (``levelup_turnos``), catálogo de jornadas
+(``levelup_horarios``), turno vigente por empleado (``levelup_turnos_empleados``, vía
+``dbo.COLABORA``) y datos generales del colaborador —hoy solo fecha de ingreso—
+(``levelup_empleados_tress``, también desde ``dbo.COLABORA``). Solo lo usan esos syncs
+(``sync_turnos_catalogo``, ``sync_turnos_empleados``, ``sync_empleados_tress``); ninguna
+carga de página pasa por aquí.
 """
 
 from __future__ import annotations
