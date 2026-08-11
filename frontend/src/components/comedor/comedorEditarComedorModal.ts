@@ -3,6 +3,14 @@ import {
   editarComedor,
   type ComedorApiItem,
 } from "../../api/comedor.ts";
+import {
+  BTN_GHOST,
+  BTN_PRIMARY,
+  FIELD_INPUT,
+  FORM_LABEL,
+  MODAL_OVERLAY,
+  MODAL_PANEL,
+} from "../../ui/uiTokens.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
 
 export type ComedorEditarComedorModalOptions = {
@@ -20,24 +28,24 @@ function shellHtml(): string {
   return `
     <div
       id="comedor-editar-comedor-overlay"
-      class="fixed inset-0 z-90 hidden items-center justify-center bg-slate-900/45 p-4 sm:p-6 backdrop-blur-[2px]"
+      class="${MODAL_OVERLAY} z-[90] hidden"
       role="presentation"
     >
       <div
-        class="scheme-light flex max-h-[min(90vh,640px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_26px_70px_-22px_rgba(15,23,42,0.35)]"
+        class="${MODAL_PANEL} scheme-light flex max-h-[min(90vh,640px)] max-w-md flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="comedor-editar-comedor-titulo"
       >
         <header class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
           <div>
-            <h2 id="comedor-editar-comedor-titulo" class="text-lg font-bold text-slate-900">Editar comedor</h2>
-            <p class="mt-1 text-xs text-slate-500">Actualiza los datos operativos del comedor.</p>
+            <h2 id="comedor-editar-comedor-titulo" class="text-lg font-bold text-text-primary">Editar comedor</h2>
+            <p class="mt-1 text-xs text-text-muted">Actualiza los datos operativos del comedor.</p>
           </div>
           <button
             type="button"
             data-comedor-editar-comedor-cerrar
-            class="-m-1 flex size-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            class="-m-1 flex size-9 shrink-0 items-center justify-center rounded-lg text-text-muted hover:bg-active-tint hover:text-text-primary"
             aria-label="Cerrar"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5"><path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" /></svg>
@@ -45,7 +53,7 @@ function shellHtml(): string {
         </header>
         <form id="comedor-editar-comedor-form" class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 sm:px-6">
           <div>
-            <label for="comedor-editar-nombre" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre</label>
+            <label for="comedor-editar-nombre" class="${FORM_LABEL}">Nombre</label>
             <input
               id="comedor-editar-nombre"
               name="nombre"
@@ -53,22 +61,22 @@ function shellHtml(): string {
               required
               maxlength="150"
               autocomplete="off"
-              class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
+              class="${FIELD_INPUT}"
             />
           </div>
           <div>
-            <label for="comedor-editar-ubicacion" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Ubicación (opcional)</label>
+            <label for="comedor-editar-ubicacion" class="${FORM_LABEL}">Ubicación (opcional)</label>
             <input
               id="comedor-editar-ubicacion"
               name="ubicacion"
               type="text"
               maxlength="255"
               autocomplete="off"
-              class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
+              class="${FIELD_INPUT}"
             />
           </div>
           <div>
-            <label for="comedor-editar-capacidad" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Capacidad diaria (opcional)</label>
+            <label for="comedor-editar-capacidad" class="${FORM_LABEL}">Capacidad diaria (opcional)</label>
             <input
               id="comedor-editar-capacidad"
               name="capacidad"
@@ -76,16 +84,16 @@ function shellHtml(): string {
               min="0"
               step="1"
               inputmode="numeric"
-              class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/20"
+              class="${FIELD_INPUT}"
             />
           </div>
-          <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-            <input id="comedor-editar-activo" name="activo" type="checkbox" class="size-4 rounded border-slate-300 text-leoni-blue focus:ring-leoni-blue/30" />
+          <label class="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+            <input id="comedor-editar-activo" name="activo" type="checkbox" class="size-4 rounded border-slate-300 text-accent focus:ring-2 focus:ring-accent/40" />
             <span>Comedor activo</span>
           </label>
           <footer class="mt-auto flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
-            <button type="button" data-comedor-editar-comedor-cancelar class="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
-            <button type="submit" id="comedor-editar-comedor-submit" class="min-h-11 rounded-xl bg-leoni-blue px-5 text-sm font-semibold text-white shadow-md hover:bg-leoni-blue-light disabled:cursor-not-allowed disabled:opacity-70">Guardar cambios</button>
+            <button type="button" data-comedor-editar-comedor-cancelar class="${BTN_GHOST}">Cancelar</button>
+            <button type="submit" id="comedor-editar-comedor-submit" class="${BTN_PRIMARY} disabled:cursor-not-allowed disabled:opacity-70">Guardar cambios</button>
           </footer>
         </form>
       </div>

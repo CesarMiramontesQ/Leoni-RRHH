@@ -35,6 +35,10 @@ import { mountComedorEditarComedorModal } from "../components/comedor/comedorEdi
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderComedorBackBar } from "../navigation/comedorBackLink.ts";
+import {
+  RH_DASHBOARD_PAGE_SHELL,
+  RH_LISTADO_PAGE_OUTER_GRADIENT,
+} from "../ui/uiTokens.ts";
 
 const ROOT_ID = "comedor-ajustes-root";
 
@@ -320,8 +324,15 @@ export function mountComedorAjustes(container: HTMLElement, signal: AbortSignal)
   mountAppShell(container, {
     pageTitle: "Ajustes Comedor",
     activeNav: "comedor-ajustes",
-    mainClass: "py-5 sm:py-6",
-    mainHtml: `${renderComedorBackBar()}<div id="${ROOT_ID}">${renderComedorAjustes(state)}</div><div id="comedor-ajustes-crear-host"></div><div id="comedor-ajustes-editar-host"></div>`,
+    mainClass: "py-0",
+    mainHtml: `<div class="${RH_DASHBOARD_PAGE_SHELL}">
+      <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
+        ${renderComedorBackBar()}
+        <div id="${ROOT_ID}">${renderComedorAjustes(state)}</div>
+      </div>
+      <div id="comedor-ajustes-crear-host"></div>
+      <div id="comedor-ajustes-editar-host"></div>
+    </div>`,
   });
 
   const root = container.querySelector<HTMLElement>(`#${ROOT_ID}`);
@@ -428,8 +439,8 @@ export function mountComedorAjustes(container: HTMLElement, signal: AbortSignal)
         if (!fila) return;
         fila.scrollIntoView({ behavior: "smooth", block: "center" });
         fila.querySelector<HTMLInputElement>("[data-jornada-hora-inicio]")?.focus();
-        fila.classList.add("ring-2", "ring-leoni-blue/60");
-        window.setTimeout(() => fila.classList.remove("ring-2", "ring-leoni-blue/60"), 2000);
+        fila.classList.add("ring-2", "ring-accent/60");
+        window.setTimeout(() => fila.classList.remove("ring-2", "ring-accent/60"), 2000);
         return;
       }
 

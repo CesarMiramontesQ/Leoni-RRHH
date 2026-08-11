@@ -228,6 +228,8 @@ describe("renderComedorAjustes", () => {
     const html = renderComedorAjustes(estado());
 
     expect(html).toContain("Horario de comida por jornada");
+    expect(html).toContain('id="comedor-ajustes-jornadas-titulo"');
+    expect(html).toContain('id="comedor-ajustes-turnos-titulo"');
     expect(html).toContain('data-jornada-hora-inicio');
     expect(html).toContain('data-jornada-guardar="001"');
     // El ciclo se muestra agrupado, con su etiqueta de tramo.
@@ -259,5 +261,12 @@ describe("renderComedorAjustes", () => {
     expect(html).toContain("data-validacion-empleado");
     expect(html).toContain("data-validacion-fecha");
     expect(html).toContain("data-validacion-consultar");
+    expect(html).toContain('id="comedor-ajustes-validacion-titulo"');
+  });
+
+  it("la pestaña de comedores usa section card con CTA", () => {
+    const html = renderComedorAjustes(estado({ tab: "comedores" }));
+    expect(html).toContain('id="comedor-ajustes-comedores-titulo"');
+    expect(html).toContain("data-comedor-agregar");
   });
 });
