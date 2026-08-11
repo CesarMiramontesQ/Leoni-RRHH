@@ -113,6 +113,16 @@ _MENSAJE_FECHA_LIMITE_COMEDOR = (
 )
 _MENSAJE_FECHA_PASADA_RH = "No se pueden registrar comidas para días pasados."
 
+# Tamaños de página de la tabla paginada de RH: los que ofrece el selector de la UI.
+PAGE_SIZES_TABLA = (5, 10, 50)
+
+# Tamaños del endpoint de reporte, que es una **descarga completa del rango**: el tablero
+# necesita todas las filas en el cliente para agregar por área, filtrar y exportar a Excel.
+# Con el tope de 50 heredado de la tabla, un mes de operación —unas 13 000 filas con 812
+# empleados— se bajaba en 258 peticiones secuenciales. Se permiten lotes grandes para que
+# sean ~13 peticiones, que el cliente además lanza en paralelo.
+PAGE_SIZES_REPORTE = (5, 10, 50, 500, 1000)
+
 
 class ComedorService:
     def __init__(self, db: AsyncSession):
@@ -937,8 +947,10 @@ class ComedorService:
     ) -> ComedorRhProximosRegistrosPage:
         if not user_has_module(current_user, "comedor-registro"):
             raise ForbiddenError(detail="Solo RH puede consultar próximos registros de comedor")
-        if page_size not in (5, 10, 50):
-            raise ConflictError(detail="page_size debe ser 5, 10 o 50")
+        if page_size not in PAGE_SIZES_TABLA:
+            raise ConflictError(
+                f"page_size debe ser {', '.join(str(n) for n in PAGE_SIZES_TABLA)}"
+            )
         desde = business_today()
         offset = (page - 1) * page_size
         estados = self._estados_proximos_rh_filtro(filtro_estado)
@@ -1002,8 +1014,10 @@ class ComedorService:
             raise ForbiddenError(detail="Solo RH puede consultar registros de reporte de comedor")
         if hasta < desde:
             raise ConflictError(detail="El rango de fechas es inválido")
-        if page_size not in (5, 10, 50):
-            raise ConflictError(detail="page_size debe ser 5, 10 o 50")
+        if page_size not in PAGE_SIZES_REPORTE:
+            raise ConflictError(
+                f"page_size debe ser {', '.join(str(n) for n in PAGE_SIZES_REPORTE)}"
+            )
         offset = (page - 1) * page_size
         estados = self._estados_registros_reporte_rh_filtro(filtro_estado)
         buscar_norm = buscar.strip() if buscar else None

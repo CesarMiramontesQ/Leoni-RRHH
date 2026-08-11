@@ -396,13 +396,22 @@ async def rh_registros_reporte_comedor(
     desde: date = Query(..., description="Inicio del rango (inclusive)"),
     hasta: date = Query(..., description="Fin del rango (inclusive)"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=50),
+    page_size: int = Query(
+        10,
+        ge=1,
+        le=1000,
+        description="5, 10, 50, 500 o 1000. Los lotes grandes son para la descarga del tablero.",
+    ),
     buscar: str | None = Query(None, max_length=200),
     filtro_estado: Literal["todos", "confirmado", "cancelado"] = Query("todos"),
     current_user: Empleado = Depends(role_checker(["operativo"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Registros operativos en un rango de fechas (inclusive), para tableros analíticos RH."""
+    """Registros operativos en un rango de fechas (inclusive), para tableros analíticos RH.
+
+    El tablero se descarga el rango completo, así que admite lotes de hasta 1000 filas;
+    la tabla paginada de RH (`/accesos/rh/proximos-registros`) mantiene su tope de 50.
+    """
     service = ComedorService(db)
     return await service.list_registros_reporte_rh_paginated(
         current_user=current_user,
