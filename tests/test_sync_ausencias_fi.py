@@ -541,11 +541,47 @@ async def test_sync_rollback_si_falla_insert(db):
 
 
 @pytest.mark.asyncio
-async def test_api_sincronizar_ausencias_ok(client, db):
+async def test_api_sincronizar_ausencias_endpoint_retirado(client, db):
+    """El endpoint manual ya no existe: la UI no puede disparar el mirror."""
     from tests.conftest import auth_headers
 
     rh = await make_empleado(db, rol="rh", nombre="RH Sync", no_empleado=5001)
     headers = await auth_headers(client, rh)
+
+    res = await client.post(
+        "/api/v1/faltas-retardos/sincronizar-ausencias",
+        headers=headers,
+    )
+
+    assert res.status_code in (404, 405)
+
+
+def test_scheduler_registra_sync_ausencias_fi_re_miercoles_0830():
+    """Miércoles 08:30 en America/Mexico_City, no en la hora del servidor."""
+    from zoneinfo import ZoneInfo
+
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+    from app.core.config import settings
+    from app.main import registrar_jobs_programados
+
+    sched = AsyncIOScheduler(timezone=ZoneInfo(settings.APP_TIMEZONE))
+    registrar_jobs_programados(sched)
+
+    job = next(j for j in sched.get_jobs() if j.id == "sync_ausencias_fi_re")
+    campos = {f.name: str(f) for f in job.trigger.fields}
+    assert campos["day_of_week"] == "wed"
+    assert campos["hour"] == "8"
+    assert campos["minute"] == "30"
+    # La zona la fija el scheduler; el job la hereda. Sin esto, 08:30 sería del server.
+    assert str(job.trigger.timezone) == "America/Mexico_City"
+    assert settings.APP_TIMEZONE == "America/Mexico_City"
+
+
+@pytest.mark.asyncio
+async def test_job_sync_ausencias_reusa_el_mirror_de_semana_anterior():
+    """El job no reimplementa nada: llama la misma función que llamaba el botón."""
+    from app.main import _sync_ausencias_fi_re_job
 
     stats = MagicMock(
         fecha_inicio=date(2026, 5, 11),
@@ -559,92 +595,52 @@ async def test_api_sincronizar_ausencias_ok(client, db):
         omitidos_sin_semana=0,
         omitidos_incompletos=0,
         omitidos_sin_cambio=0,
+        errores=0,
+        mensajes_error=[],
     )
 
     with patch(
-        "app.api.v1.faltas_retardos.router.SyncAusenciasService"
-    ) as svc_cls:
-        svc_cls.return_value.sincronizar_semana_anterior = AsyncMock(return_value=stats)
-        res = await client.post(
-            "/api/v1/faltas-retardos/sincronizar-ausencias",
-            headers=headers,
-        )
+        "app.integrations.sync_ausencias_fi_job.sync_semana_anterior_con_historial",
+        new=AsyncMock(return_value=stats),
+    ) as fn:
+        await _sync_ausencias_fi_re_job()
 
-    assert res.status_code == 200
-    body = res.json()
-    assert body["insertados"] == 1
-    assert body["actualizados"] == 1
-    assert body["eliminados"] == 1
-    assert body["id_semana"] == 20
+    fn.assert_awaited_once_with(execute=True, origen_ejecucion="scheduler")
 
 
 @pytest.mark.asyncio
-async def test_api_sincronizar_ausencias_concurrente_409(client, db):
-    import asyncio
-
-    import app.api.v1.faltas_retardos.router as fr_router
-    from tests.conftest import auth_headers
-
-    rh = await make_empleado(db, rol="rh", nombre="RH Sync2", no_empleado=5002)
-    headers = await auth_headers(client, rh)
-
-    started = asyncio.Event()
-    release = asyncio.Event()
-
-    async def slow_sync(*, execute=True, hoy=None):
-        started.set()
-        await release.wait()
-        return MagicMock(
-            fecha_inicio=date(2026, 5, 11),
-            fecha_fin=date(2026, 5, 17),
-            id_semana=20,
-            leidos=0,
-            insertados=0,
-            actualizados=0,
-            eliminados=0,
-            omitidos_sin_empleado=0,
-            omitidos_sin_semana=0,
-            omitidos_incompletos=0,
-            omitidos_sin_cambio=0,
-        )
+async def test_job_sync_ausencias_omite_si_hay_corrida_en_curso():
+    """Dos corridas encimadas no se ejecutan en paralelo: la segunda se salta."""
+    from app.integrations.sync_ausencias_fi_job import sync_ausencias_lock
+    from app.main import _sync_ausencias_fi_re_job
 
     with patch(
-        "app.api.v1.faltas_retardos.router.SyncAusenciasService"
-    ) as svc_cls:
-        svc_cls.return_value.sincronizar_semana_anterior = AsyncMock(
-            side_effect=slow_sync
-        )
-        # Ensure lock is free before test
-        if fr_router._sync_ausencias_lock.locked():
-            fr_router._sync_ausencias_lock.release()
+        "app.integrations.sync_ausencias_fi_job.sync_semana_anterior_con_historial",
+        new=AsyncMock(),
+    ) as fn:
+        async with sync_ausencias_lock:
+            await _sync_ausencias_fi_re_job()
 
-        task1 = asyncio.create_task(
-            client.post(
-                "/api/v1/faltas-retardos/sincronizar-ausencias",
-                headers=headers,
-            )
-        )
-        await started.wait()
-        res2 = await client.post(
-            "/api/v1/faltas-retardos/sincronizar-ausencias",
-            headers=headers,
-        )
-        release.set()
-        res1 = await task1
-
-    assert res1.status_code == 200
-    assert res2.status_code == 409
+    fn.assert_not_awaited()
+    assert not sync_ausencias_lock.locked()
 
 
-def test_scheduler_ya_no_registra_sync_ausencias_fi():
-    import inspect
+@pytest.mark.asyncio
+async def test_job_sync_ausencias_registra_error_sin_tumbar_el_scheduler(caplog):
+    """Un fallo de TRESS/Bono queda en el log y no propaga la excepción."""
+    from app.integrations.sync_ausencias_fi_job import sync_ausencias_lock
+    from app.main import _sync_ausencias_fi_re_job
 
-    import app.main as main_mod
+    with patch(
+        "app.integrations.sync_ausencias_fi_job.sync_semana_anterior_con_historial",
+        new=AsyncMock(side_effect=RuntimeError("TRESS caído")),
+    ):
+        with caplog.at_level("ERROR"):
+            await _sync_ausencias_fi_re_job()
 
-    src = inspect.getsource(main_mod.lifespan)
-    assert "sync_ausencias_fi" not in src
-    assert "_sync_ausencias_fi_job" not in src
-    assert not hasattr(main_mod, "_sync_ausencias_fi_job")
+    assert "TRESS caído" in caplog.text
+    # El candado se libera aunque truene: la corrida siguiente no queda bloqueada.
+    assert not sync_ausencias_lock.locked()
 
 
 def test_load_ausencias_sql_contiene_binds():

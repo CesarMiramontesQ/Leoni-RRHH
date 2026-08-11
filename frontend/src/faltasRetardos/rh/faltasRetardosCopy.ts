@@ -9,11 +9,6 @@ export const FR_COPY = {
     total === 1 ? "1 evento encontrado" : `${total} eventos encontrados`,
   listadoDetalleToggle: "Mostrar u ocultar listado completo",
   nuevo: "Nuevo registro",
-  sincronizar: "Sincronizar faltas y retardos",
-  sincronizando: "Sincronizando…",
-  sincronizarExito: (insertados: number, actualizados: number, eliminados: number) =>
-    `Sincronización completada: ${insertados} insertados, ${actualizados} actualizados, ${eliminados} eliminados.`,
-  sincronizarError: "No se pudo sincronizar faltas y retardos.",
 
   filtroBusqueda: "Buscar empleado",
   placeholderBusqueda: "Nombre o número de empleado…",

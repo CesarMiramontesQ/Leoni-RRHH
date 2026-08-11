@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -301,6 +302,80 @@ async def _sync_incidencias_tress_job():
         )
 
 
+async def _sync_ausencias_fi_re_job():
+    """Mirror FI/RE (dbo.AUSENCIA → importadas_historico) de la semana anterior.
+
+    Semanal, miércoles 08:30. Es exactamente lo que hacía el botón «Sincronizar» de
+    Faltas y retardos —misma función `sync_semana_anterior_con_historial`, mismo mirror
+    insert/update/delete en una sola transacción de Bono—, solo que sin depender de que
+    alguien abra la página. Miércoles porque para entonces nómina ya cerró y corrigió la
+    semana previa; el mismo día que el sync de la caché de incidencias, pero antes, para
+    que ese vea `importadas_historico` ya al día.
+
+    Reejecutar no duplica: el mirror compara contra lo ya importado y solo escribe la
+    diferencia. El candado `sync_ausencias_lock` (el que usaba el endpoint) evita que dos
+    corridas se encimen dentro del proceso; APScheduler además no lanza una segunda
+    instancia del mismo job. Nunca propaga la excepción: un fallo de TRESS o de Bono no
+    debe tumbar el scheduler, y queda registrado aquí y en
+    `levelup_bono_historico_import_log`.
+    """
+    from app.integrations.sync_ausencias_fi_job import (
+        sync_ausencias_lock,
+        sync_semana_anterior_con_historial,
+    )
+
+    tz = ZoneInfo(settings.APP_TIMEZONE)
+    inicio = datetime.now(tz)
+
+    if sync_ausencias_lock.locked():
+        logger.warning(
+            "Sync ausencias FI/RE job omitido (inicio=%s): ya hay una sincronización "
+            "en curso",
+            inicio.isoformat(),
+        )
+        return
+
+    try:
+        async with sync_ausencias_lock:
+            stats = await sync_semana_anterior_con_historial(
+                execute=True,
+                origen_ejecucion="scheduler",
+            )
+        fin = datetime.now(tz)
+        logger.info(
+            "Sync ausencias FI/RE job | inicio=%s | fin=%s | rango=%s..%s | semana=%s | "
+            "resultado=%s | leidos=%d | insertados=%d | actualizados=%d | eliminados=%d "
+            "| sin_cambio=%d | sin_empleado=%d | sin_semana=%d | incompletos=%d | "
+            "errores=%d",
+            inicio.isoformat(),
+            fin.isoformat(),
+            stats.fecha_inicio,
+            stats.fecha_fin,
+            stats.id_semana,
+            "error" if stats.errores else "ok",
+            stats.leidos,
+            stats.insertados,
+            stats.actualizados,
+            stats.eliminados,
+            stats.omitidos_sin_cambio,
+            stats.omitidos_sin_empleado,
+            stats.omitidos_sin_semana,
+            stats.omitidos_incompletos,
+            stats.errores,
+        )
+        for msg in stats.mensajes_error:
+            logger.error("Sync ausencias FI/RE job | error: %s", msg)
+    except Exception as e:  # noqa: BLE001 — el scheduler no debe caerse por esto
+        logger.error(
+            "Error en job de sync de ausencias FI/RE (inicio=%s, fin=%s): %s: %s",
+            inicio.isoformat(),
+            datetime.now(tz).isoformat(),
+            type(e).__name__,
+            str(e),
+            exc_info=True,
+        )
+
+
 def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
     """Registra los jobs periódicos. La zona horaria la fija el scheduler (APP_TIMEZONE)."""
     # Recordatorios Evaluación 360: una vez al día (08:00).
@@ -379,6 +454,19 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         hour=4,
         minute=20,
         id="sync_turnos_empleados",
+    )
+    # Mirror FI/RE de la semana anterior hacia importadas_historico: semanal, miércoles
+    # 08:30. Antes del sync de la caché de incidencias (10:00) para que ese lea
+    # importadas_historico ya al día. La hora es de America/Mexico_City: el scheduler se
+    # construye con ZoneInfo(APP_TIMEZONE), no con la hora del servidor.
+    sched.add_job(
+        _sync_ausencias_fi_re_job,
+        "cron",
+        day_of_week="wed",
+        hour=8,
+        minute=30,
+        id="sync_ausencias_fi_re",
+        max_instances=1,
     )
     # Caché de incidencias de TRESS: semanal, miércoles a las 10:00.
     sched.add_job(
