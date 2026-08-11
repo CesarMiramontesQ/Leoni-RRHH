@@ -119,3 +119,32 @@ describe("fetchTodosLosRegistrosReporte", () => {
     expect(s.llamadas).toHaveLength(5);
   });
 });
+
+describe("cuando el servidor no honra el tamaño de lote pedido", () => {
+  it("no corta la descarga: usa el page_size que reporta el servidor", async () => {
+    // Regresión real: el cliente de API recortaba el page_size a 50 aunque aquí se
+    // pidieran 1000. La guarda de «vino menos de lo que pedí» lo tomaba como fin del
+    // rango y el tablero se quedaba con 50 de 12 855 filas, sin ningún error visible.
+    const total = 12855;
+    const TOPE_REAL = 50;
+    const llamadas: number[] = [];
+    const fetchPagina: FetchPagina<{ id: number }> = async (page, pageSize) => {
+      llamadas.push(page);
+      const usado = Math.min(pageSize, TOPE_REAL);
+      const offset = (page - 1) * usado;
+      return {
+        items: Array.from({ length: Math.max(0, Math.min(usado, total - offset)) }, (_, i) => ({
+          id: offset + i + 1,
+        })),
+        total,
+        // El servidor declara el tamaño que realmente aplicó.
+        page_size: usado,
+      };
+    };
+
+    const filas = await fetchTodosLosRegistrosReporte(fetchPagina, { pageSize: 1000 });
+
+    expect(filas).toHaveLength(total);
+    expect(llamadas.length).toBe(Math.ceil(total / TOPE_REAL));
+  });
+});

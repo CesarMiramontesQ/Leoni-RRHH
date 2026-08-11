@@ -2970,9 +2970,30 @@ function mountComedorReporte(container: HTMLElement, signal: AbortSignal): void 
   }
 
   function exportarReporteComedor(): void {
-    if (state.rhAnalyticsState !== "ready") return;
+    // Antes se salía en silencio: quien pulsaba el botón no obtenía ni archivo ni
+    // explicación, y era imposible distinguir «todavía cargando» de «está roto».
+    if (state.rhAnalyticsState === "loading") {
+      showEmpleadosToast(container, "El reporte todavía se está cargando.", "error");
+      return;
+    }
+    if (state.rhAnalyticsState !== "ready") {
+      showEmpleadosToast(
+        container,
+        state.rhAnalyticsError ?? "No se pudo cargar el reporte; vuelve a intentarlo.",
+        "error",
+      );
+      return;
+    }
     const rows = reporteDetalleRowsSorted(toReporteViewState(state));
-    downloadReporteComedorExcel({ rows });
+    if (rows.length === 0) {
+      showEmpleadosToast(container, "No hay registros que exportar con los filtros actuales.", "error");
+      return;
+    }
+    try {
+      downloadReporteComedorExcel({ rows });
+    } catch {
+      showEmpleadosToast(container, "No se pudo generar el archivo de Excel.", "error");
+    }
   }
 
   function aplicarRangoFechasReporte(): boolean {
