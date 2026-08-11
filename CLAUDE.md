@@ -215,6 +215,30 @@ Layered architecture: **router → service → repository → models/schemas**
   caché antes de su fecha de inicio. La reconciliación de bajas **no borra** si TRESS
   devolvió 0 filas o si desaparecería más de la mitad del rango: cuenta el hecho como
   error y lo registra con `borrado omitido`.
+- **Fecha de ingreso = caché en Bono.** La Vista 360 no consulta `dbo.COLABORA`: la fuente
+  única de lectura es `levelup_empleados_tress`, que escribe `sync_empleados_tress_service`
+  (job 04:10 y `python -m app.scripts.sync_empleados_tress`). El sync lee **toda**
+  `dbo.COLABORA`, sin filtrar `CB_ACTIVO` —la Vista 360 se abre también sobre bajas— y
+  **nunca borra**. Empleado sin fila ⇒ el campo viaja como `null`, igual que degradaba
+  antes ante un fallo de la BD externa.
+- **Descansos = proyección desde Bono, no lectura de TRESS.** Ninguna ruta que dispare un
+  usuario consulta el kardex (`SP_KARDEX_CB_TURNO`) ni `dbo.AUSENCIA`.
+  `obtener_descansos_bono` resuelve `empleado → turno vigente (levelup_turnos_empleados) →
+  catálogo (levelup_turnos) → jornadas (levelup_horarios) → proyección` con el motor de
+  `app/utils/turno_calendario.py`. Consecuencias que conviene no revertir:
+  - **Se proyecta con el turno vigente.** Para fechas anteriores a un cambio de turno la
+    proyección puede diferir de lo que nómina aplicó. Es una decisión, no un bug: el uso
+    real es hacia el futuro (pedir vacaciones, otorgar goce).
+  - **El override de `dbo.AUSENCIA` se descartó.** El motor ya fue validado día a día
+    contra `AUSENCIA.HO_CODIGO`, así que la proyección coincide con lo que TRESS computó.
+  - **Falla cerrado con 503**, nunca con lista vacía: de esa lista sale el conteo de días
+    de una solicitud de vacaciones y un falso «no descansa» contaría días de más. Los cinco
+    casos son sin fila en la caché de turnos, `tu_codigo` vacío, turno ausente del catálogo,
+    rotativo sin ancla válida y patrón no interpretable.
+  - **Los siete consumidores usan la misma función.** El endpoint y las seis validaciones de
+    `solicitud_service` / `faltas_retardos_service` comparten fuente: si el modal contara
+    con una y el servidor validara con otra, el usuario vería rechazada una solicitud por un
+    cálculo que la UI nunca le mostró.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 
 ### Frontend (frontend/src/)
