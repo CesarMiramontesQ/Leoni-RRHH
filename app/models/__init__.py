@@ -41,6 +41,7 @@ from app.models.notificaciones import Notificacion
 from app.models.emails import Email
 from app.models.auditoria import AuditLog, ItSyncLog, TokenBlacklist
 from app.models.bono_historico_import_log import BonoHistoricoImportLog
+from app.models.scheduler_job_log import SchedulerJobLog
 from app.models.tress import TressRobotQueue
 from app.models.clasificacion_puesto import (
     CareerPath,
@@ -186,6 +187,7 @@ __all__ = [
     "ItSyncLog",
     "TokenBlacklist",
     "BonoHistoricoImportLog",
+    "SchedulerJobLog",
     "TressRobotQueue",
     "AccionRecomendada",
     "CareerPath",
