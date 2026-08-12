@@ -1,4 +1,5 @@
 import { escapeHtml } from "../vista360/html.ts";
+import { paginationRange } from "../../ui/uiUtils.ts";
 import {
   addCalendarMonths,
   addCalendarWeeks,
@@ -233,7 +234,72 @@ function iconLiderVerDetalle(): string {
 /** Botón compacto de fila: token RH_LISTADO_BTN_SECONDARY + tamaño tabla densa. */
 const LIDER_ROW_BTN_VER_DETALLE = `${RH_LISTADO_BTN_SECONDARY} inline-flex items-center gap-1.5 text-xs px-3 py-1.5`;
 
-function renderApprovalRequestsCard(requests: LiderApprovalRequestRow[]): string {
+/** Filas por página en «Solicitudes de aprobación»: un equipo grande genera decenas de pendientes. */
+const APPROVALS_PAGE_SIZE = 10;
+/** Contenedor que se repinta al cambiar de página (el resto de la tarjeta no se toca). */
+const APPROVALS_SLOT_ID = "lider-approvals-replaceable";
+
+/**
+ * Pie de paginación de la tabla de aprobaciones (design.md §8.11).
+ *
+ * Sin selector de tamaño de página: la tarjeta del dashboard es un vistazo rápido, y quien
+ * necesite recorrer todo tiene el enlace «Ver todas» al listado completo.
+ */
+function renderApprovalsPagination(total: number, page: number): string {
+  const totalPages = Math.max(1, Math.ceil(total / APPROVALS_PAGE_SIZE));
+  if (totalPages <= 1) return "";
+  const from = (page - 1) * APPROVALS_PAGE_SIZE + 1;
+  const to = Math.min(page * APPROVALS_PAGE_SIZE, total);
+  const navBtn =
+    "inline-flex min-h-8 min-w-8 items-center justify-center rounded-[10px] border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#1e40af] disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af] focus-visible:ring-offset-2";
+  const pageButtons = paginationRange(totalPages, page)
+    .map((x) => {
+      if (x === "ellipsis") {
+        return `<span class="flex min-h-8 items-center px-1.5 text-xs text-slate-500 sm:text-sm">…</span>`;
+      }
+      const cls =
+        x === page
+          ? "min-h-8 min-w-8 rounded-lg bg-[#1e40af] px-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#1d4ed8] sm:px-2.5 sm:text-sm"
+          : "min-h-8 min-w-8 rounded-lg px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40 focus-visible:ring-offset-2 sm:px-2.5 sm:text-sm";
+      return `<button type="button" data-lider-approval-page="${x}" ${x === page ? 'aria-current="page"' : ""} class="${cls}">${x}</button>`;
+    })
+    .join("");
+  return `
+      <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-xs font-medium text-slate-600 sm:text-sm">
+          Mostrando <span class="tabular-nums text-slate-900">${from}</span>–<span class="tabular-nums text-slate-900">${to}</span> de <span class="tabular-nums text-slate-900">${total}</span> solicitudes
+        </p>
+        <nav class="flex flex-wrap items-center justify-center gap-0.5 sm:justify-end" aria-label="Paginación de solicitudes de aprobación">
+          <button type="button" data-lider-approval-page="${page - 1}" ${page <= 1 ? "disabled" : ""} class="${navBtn}">
+            <span class="sr-only">Anterior</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 0 1-.02 1.06L8.832 10l3.938 3.71a.75.75 0 1 1-1.04 1.08l-4.5-4.25a.75.75 0 0 1 0-1.08l4.5-4.25a.75.75 0 0 1 1.06.02Z" clip-rule="evenodd" /></svg>
+          </button>
+          ${pageButtons}
+          <button type="button" data-lider-approval-page="${page + 1}" ${page >= totalPages ? "disabled" : ""} class="${navBtn}">
+            <span class="sr-only">Siguiente</span>
+            <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clip-rule="evenodd" /></svg>
+          </button>
+        </nav>
+      </div>`;
+}
+
+/** Página válida aunque el arreglo se encoja (aprobar una solicitud puede vaciar la última). */
+function clampApprovalsPage(total: number, page: number): number {
+  const totalPages = Math.max(1, Math.ceil(total / APPROVALS_PAGE_SIZE));
+  return Math.min(Math.max(1, page), totalPages);
+}
+
+/** Contenido del slot: tabla de la página pedida + su pie de paginación. */
+function renderApprovalRequestsSlot(requests: LiderApprovalRequestRow[], page: number): string {
+  const safePage = clampApprovalsPage(requests.length, page);
+  const visibles = requests.slice(
+    (safePage - 1) * APPROVALS_PAGE_SIZE,
+    safePage * APPROVALS_PAGE_SIZE,
+  );
+  return `${renderApprovalRequestsTable(visibles)}${renderApprovalsPagination(requests.length, safePage)}`;
+}
+
+function renderApprovalRequestsTable(requests: LiderApprovalRequestRow[]): string {
   const empty =
     requests.length === 0 ?
       `<div class="rounded-xl border border-dashed border-slate-200/90 bg-gradient-to-br from-slate-50/80 to-white px-4 py-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
@@ -298,6 +364,13 @@ function renderApprovalRequestsCard(requests: LiderApprovalRequestRow[]): string
         </table>
       </div>`;
 
+  return empty;
+}
+
+export function renderApprovalRequestsCard(
+  requests: LiderApprovalRequestRow[],
+  page = 1,
+): string {
   return `
     <section class="${RH_LISTADO_SURFACE} mt-8 p-5 sm:p-6" aria-label="Solicitudes de aprobación">
       <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
@@ -307,10 +380,39 @@ function renderApprovalRequestsCard(requests: LiderApprovalRequestRow[]): string
         </div>
         <a href="${SOLICITUDES_HASH_LIDER_EQUIPO_PENDING}" class="mt-2 shrink-0 text-sm font-semibold text-leoni-blue transition hover:text-leoni-blue-light sm:mt-0">Ver todas</a>
       </div>
-      <div class="mt-5">
-        ${empty}
+      <div class="mt-5" id="${APPROVALS_SLOT_ID}">
+        ${renderApprovalRequestsSlot(requests, page)}
       </div>
     </section>`;
+}
+
+/**
+ * Cambia de página repintando solo el slot de la tabla.
+ *
+ * El listener va en el slot, no en la raíz del dashboard: un refresco completo
+ * (`root.innerHTML = …` tras aprobar en el modal) destruye ese nodo y con él el listener,
+ * así que volver a llamar a esta función no acumula manejadores duplicados. El botón «Ver
+ * detalles» sigue funcionando porque su click está delegado en la raíz, que no se toca.
+ */
+export function bindLiderApprovalsPagination(
+  root: HTMLElement,
+  requests: LiderApprovalRequestRow[],
+): void {
+  const slot = root.querySelector<HTMLElement>(`#${APPROVALS_SLOT_ID}`);
+  if (!slot) return;
+  let page = 1;
+  slot.addEventListener("click", (event) => {
+    const btn = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>(
+      "[data-lider-approval-page]",
+    );
+    if (!btn || btn.disabled) return;
+    const target = Number(btn.getAttribute("data-lider-approval-page"));
+    if (!Number.isFinite(target)) return;
+    const next = clampApprovalsPage(requests.length, target);
+    if (next === page) return;
+    page = next;
+    slot.innerHTML = renderApprovalRequestsSlot(requests, page);
+  });
 }
 
 function esSolicitudPersonal(line: TeamCalendarLine, currentUserId: string | null): boolean {
