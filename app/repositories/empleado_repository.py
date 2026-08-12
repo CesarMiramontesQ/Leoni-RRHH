@@ -1,3 +1,4 @@
+import logging
 from typing import Sequence
 
 from sqlalchemy import String, cast, func, or_, select
@@ -10,6 +11,24 @@ from app.models.empleados import Empleado
 from app.models.turnos_empleados import TurnoEmpleado
 from app.repositories.base import BaseRepository
 from app.utils.turno_empleado_match import no_empleado_as_turno_str, turno_empleado_join_on, turno_no_empleado_matches
+
+logger = logging.getLogger(__name__)
+
+
+def _avisar_ciclo(lider_empleado_id: int, repetidos: set[int]) -> None:
+    """Deja rastro del dato corrupto que obligó a cortar el recorrido.
+
+    El sistema ya no se cuelga, pero un `lider_id` en círculo sigue siendo un error de
+    la jerarquía que solo RH puede corregir en Bono, y sin este aviso no se notaría.
+    """
+    if not repetidos:
+        return
+    logger.warning(
+        "Jerarquía cíclica al recorrer el subárbol de %s: %s ya se había expandido "
+        "(revisar lider_id en `empleados`)",
+        lider_empleado_id,
+        sorted(repetidos),
+    )
 
 
 class EmpleadoRepository(BaseRepository[Empleado]):
@@ -250,8 +269,10 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         if not estados_activos:
             return set()
         collected: set[int] = set()
+        expandidos: set[int] = set()
         frontier: set[int] = {lider_empleado_id}
         while frontier:
+            expandidos |= frontier
             result = await self.db.execute(
                 select(Empleado.id, Empleado.empleado_id).where(
                     Empleado.lider_id.in_(frontier),
@@ -262,9 +283,18 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             if not rows:
                 break
             next_frontier: set[int] = set()
+            repetidos: set[int] = set()
             for local_id, emp_id in rows:
                 collected.add(local_id)
-                next_frontier.add(int(emp_id))
+                # Sin esto, una jerarquía cíclica (A → B → C → A, o alguien puesto
+                # como líder de sí mismo) devuelve la frontera a nodos ya expandidos
+                # y el bucle consulta la BD para siempre. `lider_id` es dato de Bono:
+                # el ciclo se corta aquí, no se puede confiar en que no exista.
+                if int(emp_id) in expandidos:
+                    repetidos.add(int(emp_id))
+                else:
+                    next_frontier.add(int(emp_id))
+            _avisar_ciclo(lider_empleado_id, repetidos)
             frontier = next_frontier
         return collected
 
@@ -278,8 +308,10 @@ class EmpleadoRepository(BaseRepository[Empleado]):
     async def get_ids_subarbol_sin_filtro_estado(self, lider_empleado_id: int) -> set[int]:
         """Subárbol bajo ``lider_empleado_id`` (cualquier estado); retorna IDs locales."""
         collected: set[int] = set()
+        expandidos: set[int] = set()
         frontier: set[int] = {lider_empleado_id}
         while frontier:
+            expandidos |= frontier
             result = await self.db.execute(
                 select(Empleado.id, Empleado.empleado_id).where(
                     Empleado.lider_id.in_(frontier)
@@ -289,9 +321,16 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             if not rows:
                 break
             next_frontier: set[int] = set()
+            repetidos: set[int] = set()
             for local_id, emp_id in rows:
                 collected.add(local_id)
-                next_frontier.add(int(emp_id))
+                # Mismo corte de ciclos que en `get_ids_subarbol`: sin filtro de estado
+                # el recorrido alcanza aún más nodos, así que la guarda importa más.
+                if int(emp_id) in expandidos:
+                    repetidos.add(int(emp_id))
+                else:
+                    next_frontier.add(int(emp_id))
+            _avisar_ciclo(lider_empleado_id, repetidos)
             frontier = next_frontier
         return collected
 
