@@ -377,108 +377,58 @@ async def _sync_ausencias_fi_re_job():
         )
 
 
+def _add_job_registrado(sched: AsyncIOScheduler, fn, job_id: str, **cron) -> None:
+    """Registra un job envuelto para que su corrida quede en la BD.
+
+    El envoltorio vive en `app.integrations.scheduler_job_log`; el import es local para
+    no arrastrar modelos ni sesión al importar `app.main`.
+    """
+    from app.integrations.scheduler_job_log import con_registro
+
+    sched.add_job(con_registro(fn, job_id), "cron", id=job_id, **cron)
+
+
 def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
     """Registra los jobs periódicos. La zona horaria la fija el scheduler (APP_TIMEZONE)."""
     # Recordatorios Evaluación 360: una vez al día (08:00).
-    sched.add_job(
-        _eval360_recordatorios_job,
-        "cron",
-        hour=8,
-        minute=0,
-        id="eval360_recordatorios",
-    )
+    _add_job_registrado(sched, _eval360_recordatorios_job, "eval360_recordatorios", hour=8, minute=0)
     # Recordatorios + cierre automático Encuestas RH: una vez al día (08:00).
-    sched.add_job(
-        _encuestas_rh_recordatorios_job,
-        "cron",
-        hour=8,
-        minute=0,
-        id="encuestas_rh_recordatorios",
-    )
+    _add_job_registrado(sched, _encuestas_rh_recordatorios_job, "encuestas_rh_recordatorios", hour=8, minute=0)
     # Recordatorios de Metas (OKR): una vez al día (08:00).
-    sched.add_job(
-        _metas_recordatorios_job,
-        "cron",
-        hour=8,
-        minute=0,
-        id="metas_recordatorios",
-    )
+    _add_job_registrado(sched, _metas_recordatorios_job, "metas_recordatorios", hour=8, minute=0)
     # Caché de saldos de vacaciones: una vez al día (06:00), antes de la jornada.
-    sched.add_job(
-        _sync_vacaciones_disponibles_job,
-        "cron",
-        hour=6,
-        minute=0,
-        id="sync_vacaciones_disponibles",
-    )
+    _add_job_registrado(sched, _sync_vacaciones_disponibles_job, "sync_vacaciones_disponibles", hour=6, minute=0)
     # Caché de home office tomado: una vez al día (06:00), antes de la jornada.
-    sched.add_job(
-        _sync_homeoffice_tomados_job,
-        "cron",
-        hour=6,
-        minute=0,
-        id="sync_homeoffice_tomados",
-    )
+    _add_job_registrado(sched, _sync_homeoffice_tomados_job, "sync_homeoffice_tomados", hour=6, minute=0)
     # Los tres syncs de turnos van escalonados y como jobs independientes: si uno falla,
     # los otros corren con datos ligeramente rancios en vez de caerse en cadena.
     # Catálogos de turnos y jornadas: diario a las 03:40, antes que los dos que dependen
     # de ellos.
-    sched.add_job(
-        _sync_turnos_catalogo_job,
-        "cron",
-        hour=3,
-        minute=40,
-        id="sync_turnos_catalogo",
-    )
+    _add_job_registrado(sched, _sync_turnos_catalogo_job, "sync_turnos_catalogo", hour=3, minute=40)
     # Caché de personal activo por turno: diario a las 04:00, antes del primer turno, para
     # que un cambio de turno en nómina se refleje en Ajustes Comedor al día siguiente.
-    sched.add_job(
-        _sync_turnos_uso_job,
-        "cron",
-        hour=4,
-        minute=0,
-        id="sync_turnos_uso",
-    )
+    _add_job_registrado(sched, _sync_turnos_uso_job, "sync_turnos_uso", hour=4, minute=0)
     # Datos generales del colaborador: diario a las 04:10, en la misma ventana que los
     # syncs de turnos. Es la fuente de la fecha de ingreso de la Vista 360.
-    sched.add_job(
-        _sync_empleados_tress_job,
-        "cron",
-        hour=4,
-        minute=10,
-        id="sync_empleados_tress",
-    )
+    _add_job_registrado(sched, _sync_empleados_tress_job, "sync_empleados_tress", hour=4, minute=10)
     # Turno vigente por colaborador: diario a las 04:20, también antes del primer turno.
-    sched.add_job(
-        _sync_turnos_empleados_job,
-        "cron",
-        hour=4,
-        minute=20,
-        id="sync_turnos_empleados",
-    )
+    _add_job_registrado(sched, _sync_turnos_empleados_job, "sync_turnos_empleados", hour=4, minute=20)
     # Mirror FI/RE de la semana anterior hacia importadas_historico: semanal, miércoles
     # 08:30. Escalonado frente al sync de la caché de incidencias (10:00): leen las mismas
     # tablas de TRESS, aunque escriben destinos distintos y ninguno depende del otro. La
     # hora es de America/Mexico_City porque el scheduler se construye con
     # ZoneInfo(APP_TIMEZONE), no con la hora del servidor.
-    sched.add_job(
+    _add_job_registrado(
+        sched,
         _sync_ausencias_fi_re_job,
-        "cron",
+        "sync_ausencias_fi_re",
         day_of_week="wed",
         hour=8,
         minute=30,
-        id="sync_ausencias_fi_re",
         max_instances=1,
     )
     # Caché de incidencias de TRESS: semanal, miércoles a las 10:00.
-    sched.add_job(
-        _sync_incidencias_tress_job,
-        "cron",
-        day_of_week="wed",
-        hour=10,
-        minute=0,
-        id="sync_incidencias_tress",
-    )
+    _add_job_registrado(sched, _sync_incidencias_tress_job, "sync_incidencias_tress", day_of_week="wed", hour=10, minute=0)
 
 
 @asynccontextmanager
@@ -502,6 +452,9 @@ async def lifespan(app: FastAPI):
         )
 
     # 2. APScheduler — jobs periódicos (sin cola TRESS/RPA; nómina = DATOS_ANALISIS directo)
+    from app.integrations.scheduler_job_log import instalar_captura_logs
+
+    instalar_captura_logs()
     registrar_jobs_programados(scheduler)
     scheduler.start()
     logger.info("APScheduler iniciado con %d jobs", len(scheduler.get_jobs()))
@@ -682,6 +635,7 @@ from app.api.v1.evidencias import router as evidencias_router
 from app.api.v1.opls import router as opls_router
 from app.api.v1.operaciones.router import router as operaciones_router
 from app.api.v1.talento.router import router as talento_router
+from app.api.v1.scheduler_logs.router import router as scheduler_logs_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -735,6 +689,7 @@ app.include_router(evidencias_router)
 app.include_router(opls_router)
 app.include_router(operaciones_router)
 app.include_router(talento_router)
+app.include_router(scheduler_logs_router)
 
 
 # ── Root ──────────────────────────────────────────────────────
