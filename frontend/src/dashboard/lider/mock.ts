@@ -127,7 +127,6 @@ function buildTeamCalendarDemo(year: number, monthIndex: number): Record<string,
 
 const MOCK_PERSONAL: LiderPersonalStats = {
   vacation_available_days: 12,
-  home_office_dias_anio: 2,
   retardos_anio: 1,
   pending_requests: 1,
   pending_request_types: ["vacation"],
@@ -136,7 +135,7 @@ const MOCK_PERSONAL: LiderPersonalStats = {
 const MOCK_TEAM: LiderTeamStats = {
   team_active_incidents: 3,
   team_pending_vacation_requests: 4,
-  team_pending_home_office_requests: 2,
+  team_retardos_anio: 7,
   team_collaborators_count: 12,
 };
 
@@ -196,7 +195,6 @@ export function emptyLiderDashboardPayload(now: Date = new Date()): LiderDashboa
   return {
     personal: {
       vacation_available_days: null,
-      home_office_dias_anio: null,
       retardos_anio: null,
       pending_requests: null,
       pending_request_types: [],
@@ -204,7 +202,7 @@ export function emptyLiderDashboardPayload(now: Date = new Date()): LiderDashboa
     team: {
       team_active_incidents: null,
       team_pending_vacation_requests: null,
-      team_pending_home_office_requests: null,
+      team_retardos_anio: null,
       team_collaborators_count: null,
     },
     approval_requests: [],
