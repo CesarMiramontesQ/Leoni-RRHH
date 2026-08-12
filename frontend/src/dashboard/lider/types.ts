@@ -4,7 +4,6 @@ import type { EmpleadoPendingRequestType } from "../empleado/types.ts";
 /** Métricas personales del líder (mismo significado que dashboard empleado). */
 export type LiderPersonalStats = {
   vacation_available_days: number | null;
-  home_office_dias_anio: number | null;
   retardos_anio: number | null;
   pending_requests: number | null;
   pending_request_types: EmpleadoPendingRequestType[];
@@ -14,7 +13,12 @@ export type LiderPersonalStats = {
 export type LiderTeamStats = {
   team_active_incidents: number | null;
   team_pending_vacation_requests: number | null;
-  team_pending_home_office_requests: number | null;
+  /**
+   * Retardos del año en el alcance del líder, de `/faltas-retardos/estadisticas`:
+   * misma fuente y mismo scope que la página Incidencias, así que el número
+   * coincide con el que ve al abrirla. `null` = no se pudo consultar.
+   */
+  team_retardos_anio: number | null;
   team_collaborators_count: number | null;
 };
 

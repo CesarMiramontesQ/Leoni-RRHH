@@ -202,10 +202,6 @@ function iconRetardos(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
 }
 
-function iconEsteMes(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 21V6.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M9.75 21V9.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M15.75 21v-6.375c0-.621.504-1.125 1.125-1.125h3.375c.621 0 1.125.504 1.125 1.125V21" /></svg>`;
-}
-
 function iconEnProceso(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" /></svg>`;
 }
@@ -217,14 +213,9 @@ const STAT_CARD_SKELETON = `<span class="mt-1 block h-7 w-16 animate-pulse round
 
 export function renderEmpleadoStatCards(
   payload: EmpleadoDashboardPayload | null,
-  opts: { kpisCargando?: boolean; mostrarHomeOffice?: boolean } = {},
+  opts: { kpisCargando?: boolean } = {},
 ): string {
   const p = payload;
-  // Home Office solo lo pueden solicitar los administrativos (lo valida
-  // `solicitud_service._validar_creacion_home_office`), así que al resto la tarjeta
-  // les enseñaría un 0 permanente de algo que nunca podrán pedir. Por omisión no se
-  // muestra: quien no sepa la clasificación no debe enseñarla.
-  const mostrarHomeOffice = opts.mostrarHomeOffice === true;
   // Los tres KPIs de TRESS llegan en su propia petición: mientras tanto se pinta
   // un esqueleto para no confundir "cargando" con "sin dato".
   const kpisCargando = opts.kpisCargando === true;
@@ -267,20 +258,6 @@ export function renderEmpleadoStatCards(
       extra: "",
       desdeTress: true,
     },
-    ...(mostrarHomeOffice
-      ? [
-          {
-            label: "Este año",
-            labelCls: "text-violet-700",
-            iconWrap: "bg-violet-500/12 text-violet-700",
-            icon: iconEsteMes(),
-            value: fmtDays(p?.home_office_dias_anio ?? null),
-            sub: "Home Office tomados",
-            extra: "",
-            desdeTress: true,
-          },
-        ]
-      : []),
     {
       label: "En proceso",
       labelCls: "text-red-600",
@@ -315,9 +292,8 @@ export function renderEmpleadoStatCards(
     })
     .join("");
 
-  // Sin la tarjeta de Home Office son tres: se reparten el ancho en vez de dejar hueco.
-  const columnas = mostrarHomeOffice ? "xl:grid-cols-4" : "xl:grid-cols-3";
-  return `<div id="${EMPLEADO_STAT_CARDS_ID}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 ${columnas}">${html}</div>`;
+  // Tres tarjetas desde que se retiró la de Home Office: se reparten el ancho.
+  return `<div id="${EMPLEADO_STAT_CARDS_ID}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">${html}</div>`;
 }
 
 export function renderEmpleadoCalendarReplaceable(
@@ -525,7 +501,7 @@ export function renderEmpleadoPersonalDashboard(
   year: number,
   monthIndex: number,
   payload: EmpleadoDashboardPayload | null,
-  opts: { kpisCargando?: boolean; mostrarHomeOffice?: boolean } = {},
+  opts: { kpisCargando?: boolean } = {},
 ): string {
   return `
     <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">

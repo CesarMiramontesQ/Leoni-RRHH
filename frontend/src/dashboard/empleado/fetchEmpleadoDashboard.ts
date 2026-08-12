@@ -71,7 +71,7 @@ function monthsCoveredByIsoRange(startIso: string, endIso: string): Array<{ year
 /** KPIs de vacaciones, home office y retardos. Van aparte (ver abajo). */
 export type EmpleadoDashboardKpis = Pick<
   EmpleadoDashboardPayload,
-  "vacation_available_days" | "home_office_dias_anio" | "retardos_anio"
+  "vacation_available_days" | "retardos_anio"
 >;
 
 /**
@@ -90,7 +90,6 @@ export async function fetchEmpleadoDashboardKpis(): Promise<EmpleadoDashboardKpi
     if (!kpis) return null;
     return {
       vacation_available_days: kpis.vacaciones_disponibles ?? null,
-      home_office_dias_anio: kpis.home_office_dias_anio ?? null,
       retardos_anio: kpis.retardos_anio ?? null,
     };
   } catch {
@@ -174,7 +173,6 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
       ...base,
       // Los tres KPIs de nómina llegan después, por `fetchEmpleadoDashboardKpis`.
       vacation_available_days: null,
-      home_office_dias_anio: null,
       retardos_anio: null,
       calendar: {
         ...base.calendar,

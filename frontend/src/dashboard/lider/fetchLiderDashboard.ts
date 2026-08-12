@@ -2,6 +2,7 @@ import { getSolicitudesRows } from "../../api/solicitudes.ts";
 import { fetchAllIncidenciasForExport, getIncidenciasRows } from "../../api/incidencias.ts";
 import { getComedorEquipoReservasMes, type ComedorEquipoReservaApiItem } from "../../api/comedor.ts";
 import { getEmpleadosResumen } from "../../api/empleados.ts";
+import { getFaltasRetardosEstadisticas } from "../../api/faltasRetardos.ts";
 import { fetchDashboardKpis } from "../../api/dashboardKpis.ts";
 import { getEmpleadoIdFromAccessToken, getEffectiveGestorNavRol } from "../../auth/jwt.ts";
 import { emptyRhIncidenciaListFilters, type RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
@@ -208,15 +209,26 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
     const incidenciasPromise = esGerente
       ? fetchAllIncidenciasForExport(emptyRhIncidenciaListFilters()).catch(() => [] as RhIncidenciaTablaFila[])
       : getIncidenciasRows(100).catch(() => [] as RhIncidenciaTablaFila[]);
-    const [rows, mealRowsByMonth, empleadosResumen, kpis, incidenciasFilas] = await Promise.all([
-      getSolicitudesRows(100),
-      role === "supervisor"
-        ? Promise.all(mealMonths.map(({ year, month }) => getComedorEquipoReservasMes(year, month)))
-        : Promise.resolve([]),
-      getEmpleadosResumen().catch(() => null),
-      fetchDashboardKpis(),
-      incidenciasPromise,
-    ]);
+    // Retardos del año en el alcance del líder. Sale del mismo endpoint que alimenta la
+    // página Incidencias, así que la tarjeta no puede contradecir a esa pantalla.
+    const retardosPromise = getFaltasRetardosEstadisticas({
+      tipo: "retardo",
+      fecha_inicio: `${now.getFullYear()}-01-01`,
+      fecha_fin: rhIsoLocalDate(now),
+    })
+      .then((e) => e.retardo)
+      .catch(() => null);
+    const [rows, mealRowsByMonth, empleadosResumen, kpis, incidenciasFilas, teamRetardos] =
+      await Promise.all([
+        getSolicitudesRows(100),
+        role === "supervisor"
+          ? Promise.all(mealMonths.map(({ year, month }) => getComedorEquipoReservasMes(year, month)))
+          : Promise.resolve([]),
+        getEmpleadosResumen().catch(() => null),
+        fetchDashboardKpis(),
+        incidenciasPromise,
+        retardosPromise,
+      ]);
     const todayIso = rhIsoLocalDate(now);
 
     const solicitudesGestion = rows.filter(
@@ -325,7 +337,6 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         // Los tres KPIs personales salen de las cachés de nómina en Bono, igual que en el
         // dashboard del empleado: misma fuente y misma definición para los tres roles.
         vacation_available_days: kpis?.vacaciones_disponibles ?? null,
-        home_office_dias_anio: kpis?.home_office_dias_anio ?? null,
         retardos_anio: kpis?.retardos_anio ?? null,
         pending_requests: ownRows.filter((r) => r.estado === SOLICITUD_ESTADO_API.PENDIENTE).length,
         pending_request_types: Array.from(
@@ -340,9 +351,7 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         team_pending_vacation_requests: teamRows.filter(
           (r) => r.tipo === "vacaciones" && r.estado === SOLICITUD_ESTADO_API.PENDIENTE,
         ).length,
-        team_pending_home_office_requests: teamRows.filter(
-          (r) => r.tipo === "home_office" && r.estado === SOLICITUD_ESTADO_API.PENDIENTE,
-        ).length,
+        team_retardos_anio: teamRetardos,
         team_collaborators_count: teamCollaboratorsCount,
       },
       approval_requests: approvalRequests,

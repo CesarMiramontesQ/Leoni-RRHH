@@ -57,7 +57,6 @@ function personalToEmpleadoPayload(p: LiderPersonalStats): EmpleadoDashboardPayl
   const stub = emptyEmpleadoDashboardPayload();
   return {
     vacation_available_days: p.vacation_available_days,
-    home_office_dias_anio: p.home_office_dias_anio,
     retardos_anio: p.retardos_anio,
     pending_requests: p.pending_requests,
     pending_request_types: p.pending_request_types,
@@ -83,6 +82,13 @@ function fmtPersonas(n: number | null): string {
   return `${v} ${v === 1 ? "persona" : "personas"}`;
 }
 
+/** «—» cuando falta el dato: un «0» lo haría pasar por «sin retardos», igual que en
+ *  la tarjeta personal de retardos. */
+function fmtRetardos(n: number | null): string {
+  if (n === null || Number.isNaN(n)) return "—";
+  return String(Math.max(0, Math.trunc(n)));
+}
+
 function iconIncidencias(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>`;
 }
@@ -91,8 +97,9 @@ function iconVacPend(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>`;
 }
 
-function iconHoPend(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>`;
+/** Reloj: mismo lenguaje visual que la tarjeta de retardos del bloque personal. */
+function iconRetardosEquipo(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
 }
 
 function iconColaboradores(): string {
@@ -123,7 +130,7 @@ const LIDER_KPI_ICON_WRAP: Record<LiderKpiAccent, string> = {
   blue: "rh-dash-kpi-icon rh-dash-kpi-icon--blue",
 };
 
-type LiderTeamKpiCardId = "incidencias" | "vacaciones" | "home_office" | "colaboradores";
+type LiderTeamKpiCardId = "incidencias" | "vacaciones" | "retardos" | "colaboradores";
 
 export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
   const t = team;
@@ -155,12 +162,12 @@ export function renderLiderTeamStatCards(team: LiderTeamStats | null): string {
       sub: "Pendientes de aprobación",
     },
     {
-      id: "home_office",
-      title: "Home Office pendientes",
+      id: "retardos",
+      title: "Retardos del equipo",
       accent: "violet",
-      icon: iconHoPend(),
-      value: fmtPendientes(t?.team_pending_home_office_requests ?? null),
-      sub: "Home Office por aprobar",
+      icon: iconRetardosEquipo(),
+      value: fmtRetardos(t?.team_retardos_anio ?? null),
+      sub: "Acumulados este año",
     },
     {
       id: "colaboradores",
@@ -764,14 +771,9 @@ export function renderLiderTeamDashboard(
   monthIndex: number,
   payload: LiderDashboardPayload | null,
   selectedMeal: SelectedMealDetail | null = null,
-  opts: { mostrarHomeOffice?: boolean } = {},
 ): string {
   const p = payload;
-  // Su tarjeta personal de Home Office sigue la misma regla que la del empleado: solo
-  // la ve quien puede solicitarlo, es decir, clasificación Administrativo.
-  const personalHtml = renderEmpleadoStatCards(p ? personalToEmpleadoPayload(p.personal) : null, {
-    mostrarHomeOffice: opts.mostrarHomeOffice === true,
-  });
+  const personalHtml = renderEmpleadoStatCards(p ? personalToEmpleadoPayload(p.personal) : null);
   const teamHtml = renderLiderTeamStatCards(p?.team ?? null);
   const approvalsHtml = renderApprovalRequestsCard(p?.approval_requests ?? []);
   const liderChartsHtml = canAccessLiderTeamDashboard()

@@ -37,7 +37,6 @@ export function buildEmpleadoDashboardMock(now: Date = new Date()): EmpleadoDash
 
   return {
     vacation_available_days: 15,
-    home_office_dias_anio: 3,
     retardos_anio: 2,
     pending_requests: 2,
     pending_request_types: ["vacation", "homeOffice"],
@@ -55,7 +54,6 @@ export function emptyEmpleadoDashboardPayload(now: Date = new Date()): EmpleadoD
   const mo = now.getMonth();
   return {
     vacation_available_days: null,
-    home_office_dias_anio: null,
     retardos_anio: null,
     pending_requests: null,
     pending_request_types: [],

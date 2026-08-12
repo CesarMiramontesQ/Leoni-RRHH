@@ -1,5 +1,5 @@
 /**
- * Los KPIs de vacaciones, home office y retardos de los tres dashboards vienen de
+ * Los KPIs de vacaciones y retardos de los tres dashboards vienen de
  * `GET /api/v1/dashboard/mis-kpis`, no de `/api/v1/solicitudes`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,6 +59,10 @@ vi.mock("../api/comedor.ts", () => ({
   getComedorEquipoReservasMes: async () => [],
 }));
 vi.mock("../api/empleados.ts", () => ({ getEmpleadosResumen: async () => null }));
+// Retardos del equipo: la tarjeta que sustituyó a la de Home Office pendientes.
+vi.mock("../api/faltasRetardos.ts", () => ({
+  getFaltasRetardosEstadisticas: async () => ({ retardo: 12 }),
+}));
 vi.mock("../api/incidencias.ts", () => ({
   fetchAllIncidenciasForExport: async () => [],
   getIncidenciasRows: async () => [],
@@ -86,8 +90,6 @@ describe("KPIs del dashboard desde las cachés de nómina", () => {
 
     expect(fetchDashboardKpisMock).toHaveBeenCalled();
     expect(kpis?.vacation_available_days).toBe(8);
-    // Antes este campo nunca se asignaba y la tarjeta mostraba siempre "0 días".
-    expect(kpis?.home_office_dias_anio).toBe(3);
     expect(kpis?.retardos_anio).toBe(4);
   });
 
@@ -100,7 +102,6 @@ describe("KPIs del dashboard desde las cachés de nómina", () => {
     expect(fetchDashboardKpisMock).not.toHaveBeenCalled();
     expect(payload).not.toBeNull();
     expect(payload?.vacation_available_days).toBeNull();
-    expect(payload?.home_office_dias_anio).toBeNull();
     expect(payload?.retardos_anio).toBeNull();
   });
 
@@ -118,7 +119,8 @@ describe("KPIs del dashboard desde las cachés de nómina", () => {
 
     expect(fetchDashboardKpisMock).toHaveBeenCalled();
     expect(payload?.personal.vacation_available_days).toBe(8);
-    expect(payload?.personal.home_office_dias_anio).toBe(3);
     expect(payload?.personal.retardos_anio).toBe(4);
+    // La tarjeta de equipo ya no cuenta Home Office pendiente, sino retardos del año.
+    expect(payload?.team.team_retardos_anio).toBe(12);
   });
 });
