@@ -491,7 +491,11 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
   if (h.startsWith(RH_SIN_PERMISOS_HASH)) {
     return isRhOperativoUiMode() || isNonRhRhMode();
   }
-  if (h.startsWith("#/ajustes/permisos-rh") || h.startsWith("#/ajustes/vistas-rol")) {
+  if (
+    h.startsWith("#/ajustes/permisos-rh")
+    || h.startsWith("#/ajustes/vistas-rol")
+    || h.startsWith("#/ajustes/scheduler-logs")
+  ) {
     return isRhOperativoUiMode() && canAccessRhPermisosAdmin();
   }
 
@@ -534,7 +538,11 @@ export function modulosMayAccessHash(hash: string, rol: string | null): boolean 
 /** Rutas permitidas para RH en modo empleado (autoservicio). */
 export function rhEmpleadoMayAccessHash(hash: string): boolean {
   const h = (hash || "#/").trim();
-  if (h.startsWith("#/ajustes/permisos-rh") || h.startsWith("#/ajustes/vistas-rol")) return false;
+  if (
+    h.startsWith("#/ajustes/permisos-rh")
+    || h.startsWith("#/ajustes/vistas-rol")
+    || h.startsWith("#/ajustes/scheduler-logs")
+  ) return false;
   if (h.startsWith("#/comedor/gestion")) return false;
   if (h.startsWith("#/comedor/planear")) return false;
   if (h.startsWith("#/comedor/codigos-externos")) return false;
@@ -553,6 +561,7 @@ export function rhMayAccessHash(hash: string): boolean {
     if (
       h.startsWith("#/ajustes/permisos-rh")
       || h.startsWith("#/ajustes/vistas-rol")
+      || h.startsWith("#/ajustes/scheduler-logs")
       || h.startsWith(RH_SIN_PERMISOS_HASH)
     ) return false;
     const navRol = isRhGerenteUiMode() ? "gerente" : "supervisor";
@@ -566,6 +575,7 @@ export function rhMayAccessHash(hash: string): boolean {
     if (
       h.startsWith("#/ajustes/permisos-rh")
       || h.startsWith("#/ajustes/vistas-rol")
+      || h.startsWith("#/ajustes/scheduler-logs")
       || h.startsWith(RH_SIN_PERMISOS_HASH)
     ) return false;
     return hashAllowedByRole("director", hash);

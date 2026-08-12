@@ -59,6 +59,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/level-up"), titulo: "Level Up" },
   { match: (h) => h.startsWith("#/ajustes/permisos-rh"), titulo: "Permisos RH" },
   { match: (h) => h.startsWith("#/ajustes/vistas-rol"), titulo: "Vistas por rol" },
+  { match: (h) => h.startsWith("#/ajustes/scheduler-logs"), titulo: "Logs del scheduler" },
   { match: (h) => h.startsWith("#/rh-inicio"), titulo: "Modo RH" },
   { match: (h) => h === "#/" || h === "#" || h === "", titulo: "Dashboard" },
 ];

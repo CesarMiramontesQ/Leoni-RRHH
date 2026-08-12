@@ -192,6 +192,17 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
+    if (h.startsWith("#/ajustes/scheduler-logs")) {
+      void import("./pages/schedulerLogs.ts")
+        .then(({ mountSchedulerLogs }) => mountSchedulerLogs(container, signal))
+        // `activeNav: "dashboard"` porque la página no está en ningún menú: no hay
+        // ítem que resaltar. Es a propósito — se llega solo por URL.
+        .catch((err) =>
+          renderLazyPageImportError(container, "dashboard", "Logs del scheduler", err),
+        );
+      return;
+    }
+
     if (h.startsWith("#/reportes")) {
       history.replaceState(null, "", "#/comedor/reporte");
       mountComedor(container, signal);
