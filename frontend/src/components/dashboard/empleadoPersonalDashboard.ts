@@ -217,9 +217,14 @@ const STAT_CARD_SKELETON = `<span class="mt-1 block h-7 w-16 animate-pulse round
 
 export function renderEmpleadoStatCards(
   payload: EmpleadoDashboardPayload | null,
-  opts: { kpisCargando?: boolean } = {},
+  opts: { kpisCargando?: boolean; mostrarHomeOffice?: boolean } = {},
 ): string {
   const p = payload;
+  // Home Office solo lo pueden solicitar los administrativos (lo valida
+  // `solicitud_service._validar_creacion_home_office`), así que al resto la tarjeta
+  // les enseñaría un 0 permanente de algo que nunca podrán pedir. Por omisión no se
+  // muestra: quien no sepa la clasificación no debe enseñarla.
+  const mostrarHomeOffice = opts.mostrarHomeOffice === true;
   // Los tres KPIs de TRESS llegan en su propia petición: mientras tanto se pinta
   // un esqueleto para no confundir "cargando" con "sin dato".
   const kpisCargando = opts.kpisCargando === true;
@@ -262,16 +267,20 @@ export function renderEmpleadoStatCards(
       extra: "",
       desdeTress: true,
     },
-    {
-      label: "Este año",
-      labelCls: "text-violet-700",
-      iconWrap: "bg-violet-500/12 text-violet-700",
-      icon: iconEsteMes(),
-      value: fmtDays(p?.home_office_dias_anio ?? null),
-      sub: "Home Office tomados",
-      extra: "",
-      desdeTress: true,
-    },
+    ...(mostrarHomeOffice
+      ? [
+          {
+            label: "Este año",
+            labelCls: "text-violet-700",
+            iconWrap: "bg-violet-500/12 text-violet-700",
+            icon: iconEsteMes(),
+            value: fmtDays(p?.home_office_dias_anio ?? null),
+            sub: "Home Office tomados",
+            extra: "",
+            desdeTress: true,
+          },
+        ]
+      : []),
     {
       label: "En proceso",
       labelCls: "text-red-600",
@@ -306,7 +315,9 @@ export function renderEmpleadoStatCards(
     })
     .join("");
 
-  return `<div id="${EMPLEADO_STAT_CARDS_ID}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">${html}</div>`;
+  // Sin la tarjeta de Home Office son tres: se reparten el ancho en vez de dejar hueco.
+  const columnas = mostrarHomeOffice ? "xl:grid-cols-4" : "xl:grid-cols-3";
+  return `<div id="${EMPLEADO_STAT_CARDS_ID}" class="grid grid-cols-1 gap-4 sm:grid-cols-2 ${columnas}">${html}</div>`;
 }
 
 export function renderEmpleadoCalendarReplaceable(
@@ -514,7 +525,7 @@ export function renderEmpleadoPersonalDashboard(
   year: number,
   monthIndex: number,
   payload: EmpleadoDashboardPayload | null,
-  opts: { kpisCargando?: boolean } = {},
+  opts: { kpisCargando?: boolean; mostrarHomeOffice?: boolean } = {},
 ): string {
   return `
     <div class="${RH_LISTADO_PAGE_OUTER_GRADIENT} flex min-h-0 flex-1 flex-col gap-5 sm:gap-6">
