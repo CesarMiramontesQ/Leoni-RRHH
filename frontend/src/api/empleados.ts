@@ -67,7 +67,10 @@ export type EmpleadosListParams = {
   solo_sin_email?: boolean;
 };
 
-export async function getEmpleadosPage(params: EmpleadosListParams): Promise<UsuarioPage> {
+export async function getEmpleadosPage(
+  params: EmpleadosListParams,
+  opts: { signal?: AbortSignal } = {},
+): Promise<UsuarioPage> {
   const sp = new URLSearchParams();
   sp.set("page", String(params.page));
   sp.set("page_size", String(params.page_size));
@@ -89,7 +92,10 @@ export async function getEmpleadosPage(params: EmpleadosListParams): Promise<Usu
   if (params.solo_sin_lider === true) sp.set("solo_sin_lider", "true");
   if (params.solo_sin_email === true) sp.set("solo_sin_email", "true");
 
-  const res = await fetchWithAuth(`/api/v1/empleados?${sp.toString()}`);
+  const res = await fetchWithAuth(
+    `/api/v1/empleados?${sp.toString()}`,
+    opts.signal ? { signal: opts.signal } : {},
+  );
   if (!res.ok) throwIfNotOk(res, await readErrorDetail(res));
   return normalizeUsuarioPage((await res.json()) as UsuarioPage);
 }

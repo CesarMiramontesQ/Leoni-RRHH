@@ -27,6 +27,14 @@ export async function refreshAccessTokenSession(): Promise<boolean> {
 }
 
 /**
+ * Cancelación por `AbortSignal`: se distingue del fallo de red para que quien
+ * canceló su propia petición no muestre "no se pudo conectar con el servidor".
+ */
+export function isAbortError(e: unknown): boolean {
+  return e instanceof DOMException ? e.name === "AbortError" : (e as { name?: string })?.name === "AbortError";
+}
+
+/**
  * fetch con Bearer; ante 401 intenta un refresh y reintenta una vez.
  */
 export async function fetchWithAuth(url: string, init: RequestInit = {}): Promise<Response> {
@@ -46,7 +54,8 @@ export async function fetchWithAuth(url: string, init: RequestInit = {}): Promis
   let res: Response;
   try {
     res = await doFetch();
-  } catch {
+  } catch (e: unknown) {
+    if (isAbortError(e)) throw e;
     throw new Error(
       "No se pudo conectar con el servidor. Comprueba que el backend esté en ejecución (docker-compose up).",
     );
@@ -62,7 +71,8 @@ export async function fetchWithAuth(url: string, init: RequestInit = {}): Promis
 
   try {
     return await doFetch();
-  } catch {
+  } catch (e: unknown) {
+    if (isAbortError(e)) throw e;
     throw new Error(
       "No se pudo conectar con el servidor. Comprueba que el backend esté en ejecución (docker-compose up).",
     );

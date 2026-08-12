@@ -5,6 +5,7 @@ import {
   getEmpleadosResumen,
   type EmpleadosListParams,
 } from "../api/empleados.ts";
+import { isAbortError } from "../api/http.ts";
 import {
   isUsuariosFetchError,
   type AreaResponse,
@@ -74,6 +75,21 @@ const empleadosPageShellClass =
 
 const empleadosMainClass = "pt-0 pb-5 sm:pb-6";
 
+/**
+ * Región que se reemplaza en cada carga. Todo lo demás del panel —en particular
+ * la tarjeta de filtros— se pinta una vez y sobrevive a las recargas: si la caja
+ * de búsqueda se desmonta mientras viaja la petición, el usuario no puede
+ * escribir ni borrar hasta que responde el servidor.
+ */
+export const EMP_TABLA_REGION_ID = "empleados-tabla";
+
+/**
+ * Espera antes de buscar. Por encima de la pausa natural entre letras al teclear
+ * un apellido: con 400 ms cada letra salía como su propia petición (seis para
+ * "GARCIA"). La anterior se cancela, así que teclear seguido no encola trabajo.
+ */
+const BUSQUEDA_DEBOUNCE_MS = 600;
+
 function iconSearchInput(): string {
   return `<span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400" aria-hidden="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-[1.125rem]"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
@@ -119,7 +135,7 @@ function renderKpisSkeletonRh(): string {
   return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">${skel}${skel}${skel}${skel}</div>`;
 }
 
-function renderTableLoadingRh(): string {
+export function renderTableLoadingRh(): string {
   const skRow = `<tr class="rh-sol-loading-row">${"<td class=\"px-3 py-3 sm:px-4\"><div class=\"h-4 animate-pulse rounded-md bg-slate-200/80\"></div></td>".repeat(7)}</tr>`;
   return `
     <section class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE}" aria-busy="true" aria-label="Listado de empleados">
@@ -153,7 +169,7 @@ function inicialesEmpleadoTabla(raw: string): string {
   return inicialesDesdeNombreDisplay(display, { singleTokenUnaLetra: true });
 }
 
-type State = {
+export type State = {
   page: number;
   page_size: number;
   q: string;
@@ -204,7 +220,7 @@ function filtrosActivos(state: State, rh: boolean, liderUi: boolean): boolean {
   return false;
 }
 
-type PanelMode = "operativo" | "lider" | "director";
+export type PanelMode = "operativo" | "lider" | "director";
 
 function panelMode(isOperativoAdmin: boolean, kpiGestionEquipo: boolean): PanelMode {
   if (isOperativoAdmin) return "operativo";
@@ -844,8 +860,15 @@ function empleadosSelectFilterRh(id: string, name: string, labelText: string, op
 </div>`;
 }
 
-/** Vista listado RH: filtros y tabla alineados a Solicitudes. */
-function renderPanelRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage, liderUiForFilters: boolean): string {
+/**
+ * Tabla + paginación de la vista RH.
+ *
+ * Vive en su propia región (`#empleados-tabla`) porque es lo único que se
+ * reemplaza en cada carga. Los filtros quedan fuera a propósito: cuando estaban
+ * aquí dentro, cada búsqueda, paginación o clic en un KPI desmontaba la caja de
+ * búsqueda mientras viajaba la petición y no se podía escribir ni borrar.
+ */
+export function renderTablaRh(pg: UsuarioPage, pageSizeActual: number): string {
   const colCount = 7;
   const totalPages = Math.max(1, Math.ceil(pg.total / pg.page_size) || 1);
   const from = pg.total === 0 ? 0 : (pg.page - 1) * pg.page_size + 1;
@@ -875,67 +898,11 @@ function renderPanelRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage,
     })
     .join("");
 
-  const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
-  const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
-  const statusOpts = `<option value="" ${state.activo_rh === "" ? "selected" : ""}>Todos los estatus</option>
-            <option value="true" ${state.activo_rh === "true" ? "selected" : ""}>Activos</option>
-            <option value="false" ${state.activo_rh === "false" ? "selected" : ""}>No activos</option>`;
-
-  const clearVisible = filtrosActivos(state, true, liderUiForFilters);
-  const clearBtn = clearVisible
-    ? `<div class="w-full shrink-0 sm:w-auto xl:ml-1">
-        <button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} rh-sol-filters__clear w-full sm:w-auto">Limpiar filtros</button>
-      </div>`
-    : "";
-
-  const countHtml = `<p class="rh-sol-filters__count text-xs font-medium text-[#475569]" aria-live="polite">Mostrando <span class="tabular-nums font-semibold text-[#0f172a]">${escapeHtml(String(pg.total))}</span> empleados</p>`;
-
-  const searchWrap = `
-    <div class="${FILTER_FIELD_WRAP} min-w-[min(100%,20rem)] flex-[1_1_18rem]">
-      <label for="emp-search" class="${RH_LISTADO_LABEL}">Búsqueda</label>
-      <div class="relative mt-1">
-        ${iconSearchInput()}
-        <input
-          id="emp-search"
-          type="search"
-          name="emp-search"
-          autocomplete="off"
-          enterkeyhint="search"
-          placeholder="Buscar por nombre o número de empleado..."
-          value="${escapeHtml(state.q)}"
-          class="${EMP_RH_FILTER_CONTROL} ${FIELD_FOCUS}"
-        />
-        <span data-emp-search-loading class="pointer-events-none absolute inset-y-0 right-3 hidden items-center text-text-muted" aria-hidden="true">
-          <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-        </span>
-      </div>
-    </div>`;
-
-  const filtrosInner = `
-      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
-        ${searchWrap}
-        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
-        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
-        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-status", "emp-filter-status", "Estatus", statusOpts)}</div>
-        ${clearBtn}
-      </div>`;
-
   const pageSizeOpts = [10, 25, 50, 100]
-    .map((n) => `<option value="${n}" ${n === state.page_size ? "selected" : ""}>${n}</option>`)
+    .map((n) => `<option value="${n}" ${n === pageSizeActual ? "selected" : ""}>${n}</option>`)
     .join("");
 
   return `
-    <div class="flex flex-col gap-5">
-      <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros del listado de empleados">
-        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Filtros de búsqueda</h2>
-          ${countHtml}
-        </div>
-        ${filtrosInner}
-      </section>
       <section data-emp-table-region class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE} transition-opacity duration-150" aria-label="Listado de empleados">
       <div class="max-h-[min(72vh,780px)] overflow-auto">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
@@ -980,12 +947,91 @@ function renderPanelRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage,
           </button>
         </div>
       </div>
-      </section>
+      </section>`;
+}
+
+/**
+ * Botón «Limpiar filtros». Aparece y desaparece solo, dentro de su contenedor
+ * marcado, para no tener que repintar la tarjeta entera (y con ella los selects
+ * y la caja de búsqueda) cada vez que cambia si hay filtros activos.
+ */
+function clearBtnHtml(): string {
+  return `<div class="w-full shrink-0 sm:w-auto xl:ml-1">
+        <button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} rh-sol-filters__clear w-full sm:w-auto">Limpiar filtros</button>
+      </div>`;
+}
+
+/** Contador «Mostrando N empleados» de la cabecera de filtros. */
+function filtrosCountHtml(total: number): string {
+  return `Mostrando <span class="tabular-nums font-semibold text-[#0f172a]">${escapeHtml(String(total))}</span> empleados`;
+}
+
+/** Tarjeta de filtros de la vista RH. Se pinta una vez; no se repinta al cargar. */
+export function renderFiltrosRh(
+  state: State,
+  catalogo: CatalogoFiltros,
+  total: number,
+  liderUiForFilters: boolean,
+): string {
+  const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
+  const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
+  const statusOpts = `<option value="" ${state.activo_rh === "" ? "selected" : ""}>Todos los estatus</option>
+            <option value="true" ${state.activo_rh === "true" ? "selected" : ""}>Activos</option>
+            <option value="false" ${state.activo_rh === "false" ? "selected" : ""}>No activos</option>`;
+
+  const clearBtn = filtrosActivos(state, true, liderUiForFilters) ? clearBtnHtml() : "";
+
+  const searchWrap = `
+    <div class="${FILTER_FIELD_WRAP} min-w-[min(100%,20rem)] flex-[1_1_18rem]">
+      <label for="emp-search" class="${RH_LISTADO_LABEL}">Búsqueda</label>
+      <div class="relative mt-1">
+        ${iconSearchInput()}
+        <input
+          id="emp-search"
+          type="search"
+          name="emp-search"
+          autocomplete="off"
+          enterkeyhint="search"
+          placeholder="Buscar por nombre o número de empleado..."
+          value="${escapeHtml(state.q)}"
+          class="${EMP_RH_FILTER_CONTROL} ${FIELD_FOCUS}"
+        />
+        <span data-emp-search-loading class="pointer-events-none absolute inset-y-0 right-3 hidden items-center text-text-muted" aria-hidden="true">
+          <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+      </div>
+    </div>`;
+
+  return `
+      <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros del listado de empleados">
+        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Filtros de búsqueda</h2>
+          <p data-emp-filtros-count class="rh-sol-filters__count text-xs font-medium text-[#475569]" aria-live="polite">${filtrosCountHtml(total)}</p>
+        </div>
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
+        ${searchWrap}
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-status", "emp-filter-status", "Estatus", statusOpts)}</div>
+        <div data-emp-filtros-clear class="contents">${clearBtn}</div>
+      </div>
+      </section>`;
+}
+
+/** Vista listado RH: filtros y tabla alineados a Solicitudes. */
+export function renderPanelRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage, liderUiForFilters: boolean): string {
+  return `
+    <div class="flex flex-col gap-5">
+      ${renderFiltrosRh(state, catalogo, pg.total, liderUiForFilters)}
+      <div id="${EMP_TABLA_REGION_ID}">${renderTablaRh(pg, state.page_size)}</div>
     </div>`;
 }
 
-/** Listado empleados vista supervisor: mismos patrones de superficie/filtros/tabla que RH (sin columna Líder). */
-function renderPanelLiderSupervisorRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage): string {
+/** Tabla + paginación de la vista supervisor (misma región recargable que RH). */
+export function renderTablaLiderSupervisorRh(pg: UsuarioPage, pageSizeActual: number): string {
   const colCount = 7;
   const totalPages = Math.max(1, Math.ceil(pg.total / pg.page_size) || 1);
   const from = pg.total === 0 ? 0 : (pg.page - 1) * pg.page_size + 1;
@@ -1015,67 +1061,11 @@ function renderPanelLiderSupervisorRh(state: State, catalogo: CatalogoFiltros, p
     })
     .join("");
 
-  const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
-  const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
-  const liderEstatusOpts = `<option value="" ${state.estatus_lider === "" ? "selected" : ""}>Activo</option>
-            <option value="inactivo" ${state.estatus_lider === "inactivo" ? "selected" : ""}>Inactivo</option>
-            <option value="permiso" ${state.estatus_lider === "permiso" ? "selected" : ""}>Permiso</option>`;
-
-  const clearVisible = filtrosActivos(state, false, true);
-  const clearBtn = clearVisible
-    ? `<div class="w-full shrink-0 sm:w-auto xl:ml-1">
-        <button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} rh-sol-filters__clear w-full sm:w-auto">Limpiar filtros</button>
-      </div>`
-    : "";
-
-  const countHtml = `<p class="rh-sol-filters__count text-xs font-medium text-[#475569]" aria-live="polite">Mostrando <span class="tabular-nums font-semibold text-[#0f172a]">${escapeHtml(String(pg.total))}</span> empleados</p>`;
-
-  const searchWrap = `
-    <div class="${FILTER_FIELD_WRAP} min-w-[min(100%,20rem)] flex-[1_1_18rem]">
-      <label for="emp-search" class="${RH_LISTADO_LABEL}">Búsqueda</label>
-      <div class="relative mt-1">
-        ${iconSearchInput()}
-        <input
-          id="emp-search"
-          type="search"
-          name="emp-search"
-          autocomplete="off"
-          enterkeyhint="search"
-          placeholder="Nombre, ID o número…"
-          value="${escapeHtml(state.q)}"
-          class="${EMP_RH_FILTER_CONTROL} ${FIELD_FOCUS}"
-        />
-        <span data-emp-search-loading class="pointer-events-none absolute inset-y-0 right-3 hidden items-center text-text-muted" aria-hidden="true">
-          <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-          </svg>
-        </span>
-      </div>
-    </div>`;
-
-  const filtrosInner = `
-      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
-        ${searchWrap}
-        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
-        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
-        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-lider-estatus", "emp-filter-lider-estatus", "Estatus", liderEstatusOpts)}</div>
-        ${clearBtn}
-      </div>`;
-
   const pageSizeOpts = [10, 25, 50, 100]
-    .map((n) => `<option value="${n}" ${n === state.page_size ? "selected" : ""}>${n}</option>`)
+    .map((n) => `<option value="${n}" ${n === pageSizeActual ? "selected" : ""}>${n}</option>`)
     .join("");
 
   return `
-    <div class="flex flex-col gap-5">
-      <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros del listado de empleados">
-        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Filtros de búsqueda</h2>
-          ${countHtml}
-        </div>
-        ${filtrosInner}
-      </section>
       <section data-emp-table-region class="rh-sol-table-section shrink-0 overflow-hidden ${RH_LISTADO_SURFACE} transition-opacity duration-150" aria-label="Listado de empleados">
       <div class="max-h-[min(72vh,780px)] overflow-auto">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
@@ -1120,11 +1110,69 @@ function renderPanelLiderSupervisorRh(state: State, catalogo: CatalogoFiltros, p
           </button>
         </div>
       </div>
-      </section>
+      </section>`;
+}
+
+/** Tarjeta de filtros de la vista supervisor. Se pinta una vez; no se repinta al cargar. */
+export function renderFiltrosLiderSupervisorRh(state: State, catalogo: CatalogoFiltros, total: number): string {
+  const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
+  const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
+  const liderEstatusOpts = `<option value="" ${state.estatus_lider === "" ? "selected" : ""}>Activo</option>
+            <option value="inactivo" ${state.estatus_lider === "inactivo" ? "selected" : ""}>Inactivo</option>
+            <option value="permiso" ${state.estatus_lider === "permiso" ? "selected" : ""}>Permiso</option>`;
+
+  const clearBtn = filtrosActivos(state, false, true) ? clearBtnHtml() : "";
+
+  const searchWrap = `
+    <div class="${FILTER_FIELD_WRAP} min-w-[min(100%,20rem)] flex-[1_1_18rem]">
+      <label for="emp-search" class="${RH_LISTADO_LABEL}">Búsqueda</label>
+      <div class="relative mt-1">
+        ${iconSearchInput()}
+        <input
+          id="emp-search"
+          type="search"
+          name="emp-search"
+          autocomplete="off"
+          enterkeyhint="search"
+          placeholder="Nombre, ID o número…"
+          value="${escapeHtml(state.q)}"
+          class="${EMP_RH_FILTER_CONTROL} ${FIELD_FOCUS}"
+        />
+        <span data-emp-search-loading class="pointer-events-none absolute inset-y-0 right-3 hidden items-center text-text-muted" aria-hidden="true">
+          <svg class="size-4 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+        </span>
+      </div>
+    </div>`;
+
+  return `
+      <section class="${RH_LISTADO_SURFACE} rh-sol-filters-card p-4 sm:p-5" aria-label="Filtros del listado de empleados">
+        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <h2 class="text-base font-semibold tracking-tight text-[#0f172a]">Filtros de búsqueda</h2>
+          <p data-emp-filtros-count class="rh-sol-filters__count text-xs font-medium text-[#475569]" aria-live="polite">${filtrosCountHtml(total)}</p>
+        </div>
+      <div class="flex min-w-0 flex-wrap items-end gap-x-2 gap-y-2 sm:gap-x-3 xl:flex-nowrap xl:gap-x-2 xl:overflow-x-auto xl:pb-0.5">
+        ${searchWrap}
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
+        <div class="${FILTER_FIELD_WRAP}">${empleadosSelectFilterRh("emp-filter-lider-estatus", "emp-filter-lider-estatus", "Estatus", liderEstatusOpts)}</div>
+        <div data-emp-filtros-clear class="contents">${clearBtn}</div>
+      </div>
+      </section>`;
+}
+
+/** Listado empleados vista supervisor: mismos patrones de superficie/filtros/tabla que RH (sin columna Líder). */
+function renderPanelLiderSupervisorRh(state: State, catalogo: CatalogoFiltros, pg: UsuarioPage): string {
+  return `
+    <div class="flex flex-col gap-5">
+      ${renderFiltrosLiderSupervisorRh(state, catalogo, pg.total)}
+      <div id="${EMP_TABLA_REGION_ID}">${renderTablaLiderSupervisorRh(pg, state.page_size)}</div>
     </div>`;
 }
 
-function renderPanel(
+export function renderPanel(
   state: State,
   catalogo: CatalogoFiltros,
   pg: UsuarioPage,
@@ -1139,6 +1187,52 @@ function renderPanel(
     return renderPanelLiderSupervisorRh(state, catalogo, pg);
   }
 
+  return `
+    <div class="flex flex-col gap-8">
+      ${renderFiltrosClasico(state, catalogo, mode, liderUiForFilters)}
+      <div id="${EMP_TABLA_REGION_ID}">${renderTablaClasica(state, pg, mode)}</div>
+    </div>`;
+}
+
+/** Tarjeta de filtros de la vista clásica (director y líder sin shell RH). */
+export function renderFiltrosClasico(
+  state: State,
+  catalogo: CatalogoFiltros,
+  mode: PanelMode,
+  liderUiForFilters: boolean,
+): string {
+  const isLider = mode === "lider";
+  const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
+  const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
+
+  const liderEstatusOpts = `<option value="" ${state.estatus_lider === "" ? "selected" : ""}>Activo</option>
+            <option value="inactivo" ${state.estatus_lider === "inactivo" ? "selected" : ""}>Inactivo</option>
+            <option value="permiso" ${state.estatus_lider === "permiso" ? "selected" : ""}>Permiso</option>`;
+
+  const filtrosToolbar = filtrosActivos(state, false, liderUiForFilters) ? clearBtnClasicoHtml() : "";
+
+  const filtrosGrid = isLider
+    ? `<div class="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-end xl:gap-x-3 xl:gap-y-2">
+        ${empleadosSearchFieldLiderCompact(state.q)}
+        ${empleadosSelectFilterCompact("emp-filter-area", "emp-filter-area", "Área", areaOpts)}
+        ${empleadosSelectFilterCompact("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}
+        ${empleadosSelectFilterCompact("emp-filter-lider-estatus", "emp-filter-lider-estatus", "Estatus", liderEstatusOpts)}
+      </div>`
+    : `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
+        <div class="min-w-0 md:col-span-2 xl:col-span-6">${empleadosSearchInput(state.q)}</div>
+        <div class="min-w-0 md:col-span-1 xl:col-span-3">${empleadosSelectFilter("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
+        <div class="min-w-0 md:col-span-1 xl:col-span-3">${empleadosSelectFilter("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
+      </div>`;
+
+  return `
+      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-6" aria-label="Filtros del listado de empleados">
+        <div data-emp-filtros-clear class="contents">${filtrosToolbar}</div>
+        ${filtrosGrid}
+      </section>`;
+}
+
+/** Tabla + paginación de la vista clásica (misma región recargable que RH). */
+export function renderTablaClasica(state: State, pg: UsuarioPage, mode: PanelMode): string {
   const isLider = mode === "lider";
   const gestorStructuredUi = isSupervisorStructuredNavRol(getRolFromAccessToken());
   const ocultarLiderCol = isLider && gestorStructuredUi;
@@ -1166,34 +1260,6 @@ function renderPanel(
       return `<button type="button" data-emp-page="${x}" class="${cls}">${x}</button>`;
     })
     .join("");
-
-  const areaOpts = areaOptions(catalogo.areas, state.area_id, "Todas las áreas");
-  const puestoOpts = puestoOptions(catalogo.puestos, state.puesto_id, "Todos los puestos");
-
-  const liderEstatusOpts = `<option value="" ${state.estatus_lider === "" ? "selected" : ""}>Activo</option>
-            <option value="inactivo" ${state.estatus_lider === "inactivo" ? "selected" : ""}>Inactivo</option>
-            <option value="permiso" ${state.estatus_lider === "permiso" ? "selected" : ""}>Permiso</option>`;
-
-  const clearBtn = filtrosActivos(state, false, liderUiForFilters)
-    ? `<button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} w-full sm:w-auto">Limpiar filtros</button>`
-    : "";
-
-  const filtrosToolbar = clearBtn
-    ? `<div class="mb-4 flex justify-end sm:mb-3">${clearBtn}</div>`
-    : "";
-
-  const filtrosGrid = isLider
-    ? `<div class="flex flex-col gap-3 xl:flex-row xl:flex-wrap xl:items-end xl:gap-x-3 xl:gap-y-2">
-        ${empleadosSearchFieldLiderCompact(state.q)}
-        ${empleadosSelectFilterCompact("emp-filter-area", "emp-filter-area", "Área", areaOpts)}
-        ${empleadosSelectFilterCompact("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}
-        ${empleadosSelectFilterCompact("emp-filter-lider-estatus", "emp-filter-lider-estatus", "Estatus", liderEstatusOpts)}
-      </div>`
-    : `<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12 xl:items-end">
-        <div class="min-w-0 md:col-span-2 xl:col-span-6">${empleadosSearchInput(state.q)}</div>
-        <div class="min-w-0 md:col-span-1 xl:col-span-3">${empleadosSelectFilter("emp-filter-area", "emp-filter-area", "Área", areaOpts)}</div>
-        <div class="min-w-0 md:col-span-1 xl:col-span-3">${empleadosSelectFilter("emp-filter-puesto", "emp-filter-puesto", "Puesto", puestoOpts)}</div>
-      </div>`;
 
   const theadLider = `
             <tr class="text-slate-900">
@@ -1227,11 +1293,6 @@ function renderPanel(
     .join("");
 
   return `
-    <div class="flex flex-col gap-8">
-      <section class="${RH_LISTADO_SURFACE} p-4 sm:p-6" aria-label="Filtros del listado de empleados">
-        ${filtrosToolbar}
-        ${filtrosGrid}
-      </section>
       <section data-emp-table-region class="overflow-hidden ${RH_LISTADO_SURFACE} transition-opacity duration-150" aria-label="Listado de empleados">
       <div class="max-h-[min(72vh,780px)] overflow-auto">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
@@ -1266,8 +1327,14 @@ function renderPanel(
           </button>
         </div>
       </div>
-      </section>
-    </div>`;
+      </section>`;
+}
+
+/** Botón «Limpiar filtros» de la vista clásica, con su barra alineada a la derecha. */
+function clearBtnClasicoHtml(): string {
+  return `<div class="mb-4 flex justify-end sm:mb-3">
+        <button type="button" data-emp-clear-filters class="${RH_LISTADO_BTN_GHOST} w-full sm:w-auto">Limpiar filtros</button>
+      </div>`;
 }
 
 function forbiddenHtml(): string {
@@ -1310,6 +1377,10 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let latestLoadRequestId = 0;
   let exportandoListado = false;
+  /** Petición de listado en curso, para cancelarla si llega otra búsqueda. */
+  let peticionEnVuelo: AbortController | null = null;
+  /** Última firma de resaltado con la que se pintaron las tarjetas KPI. */
+  let firmaKpisPintada = "";
 
   mountAppShell(container, {
     pageTitle: "Empleados",
@@ -1402,6 +1473,81 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
 
   const kpisEl = (): HTMLElement | null => container.querySelector("#empleados-kpis");
   const panelEl = (): HTMLElement | null => container.querySelector("#empleados-panel");
+  const tablaEl = (): HTMLElement | null => container.querySelector(`#${EMP_TABLA_REGION_ID}`);
+
+  /** Tabla de la vista activa, para repintar solo esa región. */
+  function renderTablaDeVista(pg: UsuarioPage): string {
+    const pm = panelMode(isRhAdmin, kpiGestionEquipo);
+    if (pm === "operativo") return renderTablaRh(pg, state.page_size);
+    if (pm === "lider" && isSupervisorStructuredNavRol(getRolFromAccessToken())) {
+      return renderTablaLiderSupervisorRh(pg, state.page_size);
+    }
+    return renderTablaClasica(state, pg, pm);
+  }
+
+  /** Esqueleto de carga, acotado a la región de tabla. */
+  function skeletonTabla(): string {
+    return isRhAdmin || supervisorRhShell
+      ? renderTableLoadingRh()
+      : `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
+  }
+
+  /**
+   * Partes de la tarjeta de filtros que dependen del resultado: el contador y la
+   * presencia del botón «Limpiar filtros». Se actualizan en sitio para no volver
+   * a pintar los selects ni la caja de búsqueda.
+   */
+  function actualizarCabeceraFiltros(total: number | null): void {
+    if (total != null) {
+      const count = container.querySelector<HTMLElement>("[data-emp-filtros-count]");
+      if (count) count.innerHTML = filtrosCountHtml(total);
+    }
+    const slot = container.querySelector<HTMLElement>("[data-emp-filtros-clear]");
+    if (!slot) return;
+    const visible = filtrosActivos(state, isRhAdmin, kpiGestionEquipo);
+    const yaVisible = slot.childElementCount > 0;
+    if (visible === yaVisible) return;
+    const clasico = !isRhAdmin && !supervisorRhShell;
+    slot.innerHTML = visible ? (clasico ? clearBtnClasicoHtml() : clearBtnHtml()) : "";
+  }
+
+  /**
+   * Vuelca el estado sobre los controles ya montados. Solo para cambios que no
+   * nacieron del propio control (tarjetas KPI, «Limpiar filtros»); escribir el
+   * valor de la búsqueda mientras el usuario teclea le pisaría lo que escribe.
+   */
+  function sincronizarControlesFiltros(opts: { incluirBusqueda?: boolean } = {}): void {
+    if (opts.incluirBusqueda) {
+      const search = container.querySelector<HTMLInputElement>("#emp-search");
+      if (search && search.value !== state.q) search.value = state.q;
+    }
+    const setSelect = (id: string, valor: string): void => {
+      const sel = container.querySelector<HTMLSelectElement>(`#${id}`);
+      if (sel && sel.value !== valor) sel.value = valor;
+    };
+    setSelect("emp-filter-area", state.area_id);
+    setSelect("emp-filter-puesto", state.puesto_id);
+    if (isRhAdmin) setSelect("emp-filter-status", state.activo_rh);
+    if (kpiGestionEquipo) setSelect("emp-filter-lider-estatus", state.estatus_lider);
+  }
+
+  /** Firma del resaltado de tarjetas KPI: si no cambia, no hace falta repintarlas. */
+  function firmaKpis(): string {
+    return `${state.kpi_tarjeta_activa}|${state.estatus_lider}`;
+  }
+
+  function pintarKpis(): void {
+    const kEl = kpisEl();
+    if (!resumenGestion || !kEl) return;
+    kEl.innerHTML = renderKpis(
+      resumenGestion,
+      isRhAdmin,
+      kpiGestionEquipo,
+      kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
+      isRhAdmin ? rhKpiUiDesdeState(state) : null,
+    );
+    firmaKpisPintada = firmaKpis();
+  }
 
   function empleadosExportListParams(): Omit<EmpleadosListParams, "page" | "page_size"> {
     const { page: _p, page_size: _ps, ...rest } = buildEmpleadosListParams(state, isRhAdmin, kpiGestionEquipo);
@@ -1450,52 +1596,45 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
     return `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">${escapeHtml(message)}</div>`;
   }
 
-  async function loadPage(options?: { background?: boolean; preserveSearchFocus?: boolean }): Promise<void> {
+  /**
+   * Recarga el listado. Solo reemplaza la región de tabla: la tarjeta de filtros
+   * permanece montada durante toda la petición, que es lo que permite seguir
+   * escribiendo y borrando mientras carga.
+   */
+  async function loadPage(options?: { background?: boolean }): Promise<void> {
     const background = options?.background === true;
-    const preserveSearchFocus = options?.preserveSearchFocus === true;
     const panel = panelEl();
     if (!panel) return;
-    const activeSearch = container.querySelector<HTMLInputElement>("#emp-search");
-    const shouldRestoreSearch =
-      preserveSearchFocus && activeSearch instanceof HTMLInputElement && activeSearch === document.activeElement;
-    const searchSelectionStart = shouldRestoreSearch ? activeSearch.selectionStart : null;
-    const searchSelectionEnd = shouldRestoreSearch ? activeSearch.selectionEnd : null;
+
     const requestId = ++latestLoadRequestId;
-    if (background) {
-      setSearchLoading(true);
+    peticionEnVuelo?.abort();
+    const abort = new AbortController();
+    peticionEnVuelo = abort;
+
+    // Sin región de tabla (init falló) el panel se pinta entero, como antes.
+    const region = tablaEl();
+    if (!background) {
+      if (region) region.innerHTML = skeletonTabla();
+      else panel.innerHTML = skeletonTabla();
     } else {
-      panel.innerHTML =
-        isRhAdmin || supervisorRhShell
-          ? renderTableLoadingRh()
-          : `<div class="flex items-center gap-3 rounded-xl border border-border bg-white p-6 text-sm text-text-muted"><svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Cargando tabla…</div>`;
+      setSearchLoading(true);
     }
+
     try {
-      const pg = await getEmpleadosPage(buildEmpleadosListParams(state, isRhAdmin, kpiGestionEquipo));
+      const pg = await getEmpleadosPage(buildEmpleadosListParams(state, isRhAdmin, kpiGestionEquipo), {
+        signal: abort.signal,
+      });
       if (requestId !== latestLoadRequestId) return;
-      const pm = panelMode(isRhAdmin, kpiGestionEquipo);
-      panel.innerHTML = renderPanel(state, catalogo, pg, pm, kpiGestionEquipo);
-      const kEl = kpisEl();
-      if (resumenGestion && kEl) {
-        kEl.innerHTML = renderKpis(
-          resumenGestion,
-          isRhAdmin,
-          kpiGestionEquipo,
-          kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
-          isRhAdmin ? rhKpiUiDesdeState(state) : null,
-        );
+      const destino = tablaEl();
+      if (destino) {
+        destino.innerHTML = renderTablaDeVista(pg);
+        actualizarCabeceraFiltros(pg.total);
+      } else {
+        panel.innerHTML = renderPanel(state, catalogo, pg, panelMode(isRhAdmin, kpiGestionEquipo), kpiGestionEquipo);
       }
-      if (shouldRestoreSearch) {
-        const nextSearch = container.querySelector<HTMLInputElement>("#emp-search");
-        if (nextSearch) {
-          nextSearch.focus({ preventScroll: true });
-          const valueLength = nextSearch.value.length;
-          const start = searchSelectionStart == null ? valueLength : Math.min(searchSelectionStart, valueLength);
-          const end = searchSelectionEnd == null ? valueLength : Math.min(searchSelectionEnd, valueLength);
-          nextSearch.setSelectionRange(start, end);
-        }
-      }
+      if (firmaKpis() !== firmaKpisPintada) pintarKpis();
     } catch (e: unknown) {
-      if (requestId !== latestLoadRequestId) return;
+      if (isAbortError(e) || requestId !== latestLoadRequestId) return;
       if (isUsuariosFetchError(e) && e.status === 401) {
         clearAuth();
         void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
@@ -1504,15 +1643,17 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         });
         return;
       }
-      const msg =
-        isUsuariosFetchError(e) && e.status === 403
-          ? e.detail
-          : isUsuariosFetchError(e)
-            ? e.detail
-            : "Error de conexión.";
-      panel.innerHTML = `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">${escapeHtml(msg)}</div>`;
+      const msg = isUsuariosFetchError(e) ? e.detail : "Error de conexión.";
+      const destino = tablaEl();
+      const errorHtml = `<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">${escapeHtml(msg)}</div>`;
+      if (destino) destino.innerHTML = errorHtml;
+      else panel.innerHTML = errorHtml;
     } finally {
-      if (background && requestId === latestLoadRequestId) {
+      if (requestId === latestLoadRequestId) {
+        peticionEnVuelo = null;
+        // Siempre, no solo en las cargas de búsqueda: el spinner vive en la
+        // tarjeta de filtros, que ya no se repinta, así que una búsqueda
+        // cancelada por un clic en paginación lo dejaría girando para siempre.
         setSearchLoading(false);
       }
     }
@@ -1528,15 +1669,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       ]);
       catalogo = cat;
       resumenGestion = res;
-      if (kpis) {
-        kpis.innerHTML = renderKpis(
-          res,
-          isRhAdmin,
-          kpiGestionEquipo,
-          kpiGestionEquipo ? liderKpiUiDesdeState(state) : null,
-          isRhAdmin ? rhKpiUiDesdeState(state) : null,
-        );
-      }
+      pintarKpis();
       const panel = panelEl();
       if (panel) panel.innerHTML = renderPanel(state, catalogo, pg, panelMode(isRhAdmin, kpiGestionEquipo), kpiGestionEquipo);
     } catch (e: unknown) {
@@ -1578,6 +1711,10 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
           });
           if (changed) {
             state.page = 1;
+            // La tarjeta puede haber apagado el filtro de estatus: el select
+            // sigue montado, así que hay que ponerlo al día a mano.
+            sincronizarControlesFiltros();
+            actualizarCabeceraFiltros(null);
             void loadPage();
           }
           return;
@@ -1591,6 +1728,9 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         state.estatus_lider = "";
         clearKpiTarjetaFiltros(state);
         state.page = 1;
+        clearTimeout(searchTimer);
+        sincronizarControlesFiltros({ incluirBusqueda: true });
+        actualizarCabeceraFiltros(null);
         void loadPage();
         return;
       }
@@ -1622,12 +1762,14 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       if (t.id === "emp-filter-area") {
         state.area_id = (t as HTMLSelectElement).value;
         state.page = 1;
+        actualizarCabeceraFiltros(null);
         void loadPage();
         return;
       }
       if (t.id === "emp-filter-puesto") {
         state.puesto_id = (t as HTMLSelectElement).value;
         state.page = 1;
+        actualizarCabeceraFiltros(null);
         void loadPage();
         return;
       }
@@ -1635,6 +1777,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         const v = (t as HTMLSelectElement).value;
         state.activo_rh = v === "true" ? "true" : v === "false" ? "false" : "";
         state.page = 1;
+        actualizarCabeceraFiltros(null);
         void loadPage();
         return;
       }
@@ -1643,6 +1786,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
         state.estatus_lider = v === "inactivo" || v === "permiso" ? v : "";
         clearKpiTarjetaFiltros(state);
         state.page = 1;
+        actualizarCabeceraFiltros(null);
         void loadPage();
       }
     },
@@ -1656,16 +1800,19 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       if (t.id !== "emp-search") return;
       clearTimeout(searchTimer);
       searchTimer = window.setTimeout(() => {
-        state.q = (t as HTMLInputElement).value;
+        const actual = container.querySelector<HTMLInputElement>("#emp-search");
+        state.q = actual ? actual.value : state.q;
         state.page = 1;
-        void loadPage({ background: true, preserveSearchFocus: true });
-      }, 400);
+        actualizarCabeceraFiltros(null);
+        void loadPage({ background: true });
+      }, BUSQUEDA_DEBOUNCE_MS);
     },
     { signal },
   );
 
   signal.addEventListener("abort", () => {
     clearTimeout(searchTimer);
+    peticionEnVuelo?.abort();
   });
 
   void init();
