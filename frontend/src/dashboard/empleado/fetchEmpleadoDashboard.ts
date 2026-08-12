@@ -68,19 +68,21 @@ function monthsCoveredByIsoRange(startIso: string, endIso: string): Array<{ year
   return out;
 }
 
-/** KPIs de vacaciones y home office. Van aparte porque leen de TRESS (ver abajo). */
+/** KPIs de vacaciones, home office y retardos. Van aparte (ver abajo). */
 export type EmpleadoDashboardKpis = Pick<
   EmpleadoDashboardPayload,
-  "vacation_available_days" | "vacation_used_days" | "home_office_dias_anio"
+  "vacation_available_days" | "home_office_dias_anio" | "retardos_anio"
 >;
 
 /**
- * Los tres KPIs de TRESS, en su propia petición.
+ * Los tres KPIs de nómina, en su propia petición.
  *
- * No entran en `fetchEmpleadoDashboard` a propósito: TRESS es una BD externa y
- * cuando no responde, `GET /mis-kpis` tarda lo que tarde el timeout de conexión.
- * Metido en el `Promise.all` del dashboard, esa espera bloqueaba el render
- * completo aunque solicitudes y comedor ya hubieran respondido en ~50 ms.
+ * No entran en `fetchEmpleadoDashboard` a propósito: cuando el dato venía en vivo de
+ * TRESS y esa BD externa no respondía, `GET /mis-kpis` tardaba lo que tardara el timeout
+ * de conexión, y metido en el `Promise.all` del dashboard bloqueaba el render completo
+ * aunque solicitudes y comedor ya hubieran respondido en ~50 ms. Hoy los tres salen de
+ * cachés en Bono, pero la petición sigue aparte: mantiene el esqueleto de carga y evita
+ * volver a acoplar el render a un solo endpoint.
  */
 export async function fetchEmpleadoDashboardKpis(): Promise<EmpleadoDashboardKpis | null> {
   try {
@@ -88,8 +90,8 @@ export async function fetchEmpleadoDashboardKpis(): Promise<EmpleadoDashboardKpi
     if (!kpis) return null;
     return {
       vacation_available_days: kpis.vacaciones_disponibles ?? null,
-      vacation_used_days: kpis.vacaciones_tomadas_ciclo ?? null,
       home_office_dias_anio: kpis.home_office_dias_anio ?? null,
+      retardos_anio: kpis.retardos_anio ?? null,
     };
   } catch {
     return null;
@@ -170,10 +172,10 @@ export async function fetchEmpleadoDashboard(target?: CalendarMonthFetchTarget):
 
     return {
       ...base,
-      // Los tres KPIs de TRESS llegan después, por `fetchEmpleadoDashboardKpis`.
+      // Los tres KPIs de nómina llegan después, por `fetchEmpleadoDashboardKpis`.
       vacation_available_days: null,
-      vacation_used_days: null,
       home_office_dias_anio: null,
+      retardos_anio: null,
       calendar: {
         ...base.calendar,
         day_entries,

@@ -35,4 +35,13 @@ class DashboardKpisResponse(BaseModel):
     home_office_dias_anio: int | None = Field(
         default=None, description="Días de home office registrados en el año en curso."
     )
-    anio: int = Field(description="Año al que corresponde el KPI de home office.")
+    retardos_anio: int | None = Field(
+        default=None,
+        description=(
+            "Retardos del año en curso, desde la caché `levelup_incidencias_tress`. "
+            "**No depende de `disponible`**, que describe solo el bloque de vacaciones: "
+            "un empleado sin saldo sincronizado igual recibe su conteo. `None` solo si "
+            "falla la lectura; sin retardos es 0."
+        ),
+    )
+    anio: int = Field(description="Año al que corresponden los KPIs de home office y retardos.")

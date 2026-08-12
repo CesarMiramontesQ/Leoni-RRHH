@@ -322,11 +322,11 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
       ...base,
       personal: {
         ...base.personal,
-        // Los tres KPIs personales salen de TRESS (DATOS_ANALISIS), igual que en el
+        // Los tres KPIs personales salen de las cachés de nómina en Bono, igual que en el
         // dashboard del empleado: misma fuente y misma definición para los tres roles.
         vacation_available_days: kpis?.vacaciones_disponibles ?? null,
-        vacation_used_days: kpis?.vacaciones_tomadas_ciclo ?? null,
         home_office_dias_anio: kpis?.home_office_dias_anio ?? null,
+        retardos_anio: kpis?.retardos_anio ?? null,
         pending_requests: ownRows.filter((r) => r.estado === SOLICITUD_ESTADO_API.PENDIENTE).length,
         pending_request_types: Array.from(
           new Set(

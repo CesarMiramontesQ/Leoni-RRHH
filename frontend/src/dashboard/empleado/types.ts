@@ -31,10 +31,10 @@ export type EmpleadoCalendarDayEntry = {
 export type EmpleadoDashboardPayload = {
   /** Días de gozo pendientes en TRESS (todos los aniversarios). `null` = sin dato. */
   vacation_available_days: number | null;
-  /** Días ya gozados del aniversario vigente en TRESS. */
-  vacation_used_days: number | null;
   /** Días de home office registrados en TRESS en el año en curso. */
   home_office_dias_anio: number | null;
+  /** Retardos del año en curso (caché `levelup_incidencias_tress`). `null` = sin dato. */
+  retardos_anio: number | null;
   pending_requests: number | null;
   pending_request_types: EmpleadoPendingRequestType[];
   calendar: {

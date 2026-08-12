@@ -19,10 +19,11 @@ async def get_mis_kpis(
     current_user: Empleado = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DashboardKpisResponse:
-    """Vacaciones (disponibles y tomadas del ciclo) y home office del año.
+    """Vacaciones (disponibles y tomadas del ciclo), home office y retardos del año.
 
-    Las vacaciones salen de `levelup_vacaciones_disponibles` (Bono), sincronizada desde
-    TRESS; solo el home office consulta datos-analisis.
+    Todo sale de cachés en Bono sincronizadas desde TRESS —`levelup_vacaciones_disponibles`,
+    `levelup_homeoffice_tomados` y `levelup_incidencias_tress`—: ninguna consulta a
+    datos-analisis.
 
     Autoservicio: siempre son los del usuario autenticado — no recibe `empleado_id`, así
     que no hay forma de pedir los de otra persona.

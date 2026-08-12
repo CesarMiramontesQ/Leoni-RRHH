@@ -4,8 +4,8 @@ import type { EmpleadoPendingRequestType } from "../empleado/types.ts";
 /** Métricas personales del líder (mismo significado que dashboard empleado). */
 export type LiderPersonalStats = {
   vacation_available_days: number | null;
-  vacation_used_days: number | null;
   home_office_dias_anio: number | null;
+  retardos_anio: number | null;
   pending_requests: number | null;
   pending_request_types: EmpleadoPendingRequestType[];
 };

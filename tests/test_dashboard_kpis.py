@@ -19,6 +19,7 @@ from tests.conftest import (
     auth_headers,
     make_empleado,
     make_homeoffice_tomados,
+    make_incidencia_tress,
     make_vacaciones_disponibles,
 )
 
@@ -41,6 +42,22 @@ async def _sembrar_ciclo(db, no_empleado: int):
 async def _sembrar_home_office(db, no_empleado: int, dias: int = 3):
     return await make_homeoffice_tomados(
         db, no_empleado=no_empleado, anio=date.today().year, dias_tomados=dias
+    )
+
+
+async def _sembrar_retardo(db, emp, *, origen_id: int, fecha: date, tipo: str = "retardo"):
+    """Fila de la caché de incidencias tal como la escribiría el sync semanal.
+
+    `empleado_id` va poblado a propósito: `_filtros` descarta las filas sin él, y un
+    empleado que está viendo su propio dashboard existe en Bono por definición.
+    """
+    return await make_incidencia_tress(
+        db,
+        origen_id=origen_id,
+        no_empleado=emp.no_empleado,
+        empleado_id=emp.id,
+        tipo=tipo,
+        fecha_evento=fecha,
     )
 
 
@@ -219,6 +236,93 @@ async def test_sync_sin_anio_alimenta_el_dashboard_del_anio_en_curso(
     assert body["disponible"] is True
     assert body["home_office_dias_anio"] == 5
     assert body["anio"] == date.today().year
+
+
+# ─────────────────────────── retardos ───────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_cuenta_solo_los_retardos_del_anio_en_curso(client: AsyncClient, db):
+    """El conteo se acota por tipo y por año: ni una falta ni un retardo viejo suman."""
+    emp = await make_empleado(db, rol="empleado", email="kpis-ret@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
+    hoy = date.today()
+
+    await _sembrar_retardo(db, emp, origen_id=1, fecha=date(hoy.year, 1, 15))
+    await _sembrar_retardo(db, emp, origen_id=2, fecha=date(hoy.year, 2, 3))
+    await _sembrar_retardo(db, emp, origen_id=3, fecha=date(hoy.year - 1, 12, 20))
+    await _sembrar_retardo(
+        db, emp, origen_id=4, fecha=date(hoy.year, 3, 1), tipo="falta_injustificada"
+    )
+
+    body = (await client.get(URL, headers=await auth_headers(client, emp))).json()
+    assert body["retardos_anio"] == 2
+
+
+@pytest.mark.asyncio
+async def test_sin_retardos_devuelve_cero(client: AsyncClient, db):
+    """Sin filas en la caché el empleado no tuvo retardos; es un dato, no una ausencia."""
+    emp = await make_empleado(db, rol="empleado", email="kpis-ret-cero@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
+
+    body = (await client.get(URL, headers=await auth_headers(client, emp))).json()
+    assert body["retardos_anio"] == 0
+
+
+@pytest.mark.asyncio
+async def test_no_cuenta_los_retardos_de_otro_empleado(client: AsyncClient, db):
+    """El filtro va por el `no_empleado` del token, no por toda la caché."""
+    emp = await make_empleado(db, rol="empleado", email="kpis-ret-mio@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
+    otro = await make_empleado(db, rol="empleado", email="kpis-ret-otro@test")
+    hoy = date.today()
+
+    await _sembrar_retardo(db, emp, origen_id=11, fecha=date(hoy.year, 4, 2))
+    await _sembrar_retardo(db, otro, origen_id=12, fecha=date(hoy.year, 4, 3))
+    await _sembrar_retardo(db, otro, origen_id=13, fecha=date(hoy.year, 4, 4))
+
+    body = (await client.get(URL, headers=await auth_headers(client, emp))).json()
+    assert body["retardos_anio"] == 1
+
+
+@pytest.mark.asyncio
+async def test_si_falla_la_lectura_de_retardos_degrada_a_none(
+    client: AsyncClient, db, monkeypatch
+):
+    """Mismo criterio que home office: el dashboard se sirve igual, con «—» en la tarjeta."""
+    def _falla(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "app.services.dashboard_kpis_service.IncidenciasTressCacheRepository.count",
+        _falla,
+    )
+    emp = await make_empleado(db, rol="empleado", email="kpis-ret-falla@test")
+    await _sembrar_ciclo(db, emp.no_empleado)
+
+    res = await client.get(URL, headers=await auth_headers(client, emp))
+    assert res.status_code == 200
+    body = res.json()
+    assert body["disponible"] is True
+    assert body["vacaciones_disponibles"] == 8.0
+    assert body["retardos_anio"] is None
+
+
+@pytest.mark.asyncio
+async def test_retardos_llegan_aunque_no_haya_fila_de_vacaciones(
+    client: AsyncClient, db
+):
+    """Un ingreso reciente sin sincronizar no pierde el conteo: `retardos_anio` no
+    depende de `disponible`, que describe solo el bloque de vacaciones."""
+    emp = await make_empleado(
+        db, rol="empleado", email="kpis-ret-nosync@test", saldo_vacaciones=None
+    )
+    await _sembrar_retardo(db, emp, origen_id=21, fecha=date(date.today().year, 5, 6))
+
+    body = (await client.get(URL, headers=await auth_headers(client, emp))).json()
+    assert body["disponible"] is False
+    assert body["vacaciones_disponibles"] is None
+    assert body["retardos_anio"] == 1
 
 
 @pytest.mark.asyncio
