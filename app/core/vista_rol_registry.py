@@ -399,6 +399,9 @@ VISTAS_ROL: dict[str, VistaRolDef] = {v.key: v for v in _VISTAS}
 # de horas extra (Regla B, ver abajo).
 VISTA_ROL_EXEMPT_API_PREFIXES: tuple[str, ...] = RH_MODULE_EXEMPT_API_PREFIXES + (
     "/api/v1/vistas-rol",
+    # Diagnóstico solo-admin: que nadie pueda apagar por accidente la única pantalla
+    # que dice si los jobs corrieron.
+    "/api/v1/scheduler-logs",
     "/api/v1/horas-extra",
 )
 

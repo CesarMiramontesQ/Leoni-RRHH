@@ -7606,6 +7606,77 @@ components:
           items:
             $ref: "#/components/schemas/EmpleadoFocoSchema"
 
+    SchedulerLogItem:
+      type: object
+      required: [id, job_id, inicio_at, resultado]
+      properties:
+        id:
+          type: integer
+        job_id:
+          type: string
+        inicio_at:
+          type: string
+          format: date-time
+        fin_at:
+          type: [string, "null"]
+          format: date-time
+        duracion_ms:
+          type: [integer, "null"]
+        resultado:
+          type: string
+          enum: [en_curso, ok, advertencia, error]
+        resumen:
+          type: [string, "null"]
+        error:
+          type: [string, "null"]
+
+    SchedulerLogLinea:
+      type: object
+      required: [ts, nivel, mensaje]
+      properties:
+        ts:
+          type: string
+        nivel:
+          type: string
+        mensaje:
+          type: string
+
+    SchedulerLogDetalle:
+      allOf:
+        - $ref: "#/components/schemas/SchedulerLogItem"
+        - type: object
+          properties:
+            lineas:
+              type: array
+              items:
+                $ref: "#/components/schemas/SchedulerLogLinea"
+            lineas_descartadas:
+              type: integer
+
+    SchedulerLogPage:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchedulerLogItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    SchedulerJobsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+
 paths:
   # ── Root ────────────────────────────────────────────
   /:
@@ -18190,4 +18261,101 @@ paths:
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {}
         "403":
           description: Requiere el modulo 'dashboard-talento' o ser jefe (supervisor/gerente)
+
+  # ── Scheduler (pagina oculta solo-admin) ───────────
+  /api/v1/scheduler-logs:
+    get:
+      tags: [Scheduler]
+      summary: Historial de corridas de los jobs
+      description: >
+        Una fila por ejecucion de job. Solo admin
+        (`puede_administrar_permisos_rh`); el resto recibe 403.
+        No devuelve las lineas: para eso esta el detalle.
+      operationId: scheduler_logs_list
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: query
+          schema:
+            type: string
+        - name: resultado
+          in: query
+          schema:
+            type: string
+            enum: [en_curso, ok, advertencia, error]
+        - name: desde
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: hasta
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Pagina de corridas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulerLogPage"
+        "403":
+          description: No eres administrador
+
+  /api/v1/scheduler-logs/jobs:
+    get:
+      tags: [Scheduler]
+      summary: Ids de los jobs registrados
+      operationId: scheduler_logs_jobs
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Ids registrados en el scheduler
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulerJobsResponse"
+        "403":
+          description: No eres administrador
+
+  /api/v1/scheduler-logs/{log_id}:
+    get:
+      tags: [Scheduler]
+      summary: Detalle de una corrida
+      operationId: scheduler_logs_detail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: log_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Corrida con sus lineas de log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulerLogDetalle"
+        "403":
+          description: No eres administrador
+        "404":
+          description: Corrida no encontrada
 
