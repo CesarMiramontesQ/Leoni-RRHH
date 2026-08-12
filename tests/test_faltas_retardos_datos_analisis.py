@@ -159,9 +159,14 @@ async def test_busqueda_por_nombre(db, client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_empleado_sin_registro_en_bono_se_expone_como_cero(
+async def test_empleado_sin_registro_en_bono_no_aparece(
     db, client: AsyncClient, monkeypatch
 ):
+    """Hay CB_CODIGO en TRESS que nunca se dieron de alta en Bono: se ocultan.
+
+    La fila sigue en la caché (el sync no la borra), pero ninguna lectura la devuelve:
+    sin nombre ni ficha, RH no puede hacer nada con ella y ensucia todos los totales.
+    """
     _sabotear_datos_analisis(monkeypatch)
     rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
     await make_incidencia_tress(
@@ -173,9 +178,66 @@ async def test_empleado_sin_registro_en_bono_se_expone_como_cero(
 
     assert resp.status_code == 200
     data = resp.json()
+    assert data["total"] == 0
+    assert data["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_total_y_items_cuadran_al_ocultar_al_fantasma(
+    db, client: AsyncClient, monkeypatch
+):
+    """El `total` de la paginación tiene que contar lo mismo que se ve en la tabla."""
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_incidencia_tress(
+        db, origen="ausencia", origen_id=1, no_empleado=553, empleado_id=10,
+        tipo="retardo", fecha_evento=date.today(),
+    )
+    await make_incidencia_tress(
+        db, origen="ausencia", origen_id=2, no_empleado=999999, empleado_id=None,
+        tipo="retardo", fecha_evento=date.today(),
+    )
+
+    resp = await client.get("/api/v1/faltas-retardos", headers=await auth_headers(client, rh))
+
+    assert resp.status_code == 200
+    data = resp.json()
     assert data["total"] == 1
-    assert data["items"][0]["empleado_id"] == 0
-    assert data["items"][0]["empleado_nombre"] is None
+    assert [item["numero_empleado"] for item in data["items"]] == ["553"]
+
+
+@pytest.mark.asyncio
+async def test_estadisticas_excluyen_al_empleado_sin_registro_en_bono(
+    db, client: AsyncClient, monkeypatch
+):
+    """Totales, tendencia y top de empleados: ninguno cuenta al fantasma."""
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_incidencia_tress(
+        db, origen="ausencia", origen_id=1, no_empleado=553, empleado_id=10,
+        tipo="retardo", fecha_evento=date.today(),
+    )
+    for origen_id in (2, 3):
+        await make_incidencia_tress(
+            db, origen="ausencia", origen_id=origen_id, no_empleado=999999,
+            empleado_id=None, tipo="retardo", fecha_evento=date.today(),
+        )
+
+    resp = await client.get(
+        "/api/v1/faltas-retardos/estadisticas?tendencia_agrupacion=mes",
+        headers=await auth_headers(client, rh),
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_eventos"] == 1
+    assert data["retardo"] == 1
+    assert [e["total"] for e in data["eventos_por_tipo"]] == [1]
+    assert sum(e["total"] for e in data["eventos_por_mes"]) == 1
+    assert sum(e["total"] for e in data["eventos_por_periodo_y_tipo"]) == 1
+    assert [e["no_empleado"] for e in data["empleados_con_mas_eventos"]] == ["553"]
 
 
 @pytest.mark.asyncio
