@@ -1,5 +1,6 @@
 """Historial de corridas de los jobs del scheduler: modelo, envoltorio y API."""
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -33,13 +34,21 @@ def _usar_sesion_de_test(monkeypatch, db):
     """`AsyncSessionLocal` del modulo apunta a la sesion del fixture.
 
     El envoltorio abre su propia sesion en produccion; en tests reusamos la del fixture
-    para poder leer lo que escribio sin lidiar con dos conexiones.
+    para poder leer lo que escribio sin lidiar con dos conexiones. Como es LA MISMA
+    sesion para cualquier llamada (a diferencia de produccion, donde cada llamada abre
+    la suya), dos jobs solapados (`test_dos_jobs_solapados_no_mezclan_sus_lineas`) la
+    usarian a la vez y `AsyncSession` no tolera eso. El lock serializa el acceso aqui,
+    en el helper de test donde vive la sesion compartida — no en produccion, donde no
+    hace falta porque no hay sesion que compartir.
     """
     from contextlib import asynccontextmanager
 
+    lock = asyncio.Lock()
+
     @asynccontextmanager
     async def _sesion():
-        yield db
+        async with lock:
+            yield db
 
     monkeypatch.setattr(
         "app.integrations.scheduler_job_log.AsyncSessionLocal", _sesion

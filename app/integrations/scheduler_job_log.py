@@ -12,7 +12,6 @@ sin propagar nada. Un listener de APScheduler los vería «ejecutados correctame
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -151,14 +150,6 @@ async def _cerrar_corrida(
         await db.commit()
 
 
-# Serializa el acceso a `_insertar_en_curso`/`_cerrar_corrida`. `AsyncSession` no es
-# segura para uso concurrente entre tasks: dos jobs solapados que comparten sesión (el
-# caso de test con `_usar_sesion_de_test`, y potencialmente cualquier sesión con un
-# único connection pool muy angosto) corrompen el estado de la transacción si escriben
-# a la vez. La corrida del job (`fn`) no pasa por este lock — solo el registro.
-_registro_lock = asyncio.Lock()
-
-
 def con_registro(
     fn: Callable[[], Awaitable[None]], job_id: str
 ) -> Callable[[], Awaitable[None]]:
@@ -172,8 +163,7 @@ def con_registro(
     async def _job_registrado() -> None:
         inicio = datetime.now(timezone.utc)
         try:
-            async with _registro_lock:
-                fila_id = await _insertar_en_curso(job_id, inicio)
+            fila_id = await _insertar_en_curso(job_id, inicio)
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "No se pudo registrar el inicio del job %s: %s", job_id, exc
@@ -196,14 +186,13 @@ def con_registro(
             fin = datetime.now(timezone.utc)
             if fila_id is not None:
                 try:
-                    async with _registro_lock:
-                        await _cerrar_corrida(
-                            fila_id,
-                            fin=fin,
-                            duracion_ms=int((fin - inicio).total_seconds() * 1000),
-                            buffer=buffer,
-                            error_excepcion=error_excepcion,
-                        )
+                    await _cerrar_corrida(
+                        fila_id,
+                        fin=fin,
+                        duracion_ms=int((fin - inicio).total_seconds() * 1000),
+                        buffer=buffer,
+                        error_excepcion=error_excepcion,
+                    )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
                         "No se pudo cerrar el registro del job %s: %s", job_id, exc
