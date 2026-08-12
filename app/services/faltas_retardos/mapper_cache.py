@@ -13,9 +13,10 @@ from app.services.faltas_retardos.constants import ORIGEN_MANUAL, synthetic_falt
 def map_cache_row(row: dict[str, Any]) -> FaltaRetardoResponse | None:
     """Convierte una fila de la caché. Devuelve None si la fila es inservible.
 
-    `empleado_id` puede ser None cuando el empleado existe en TRESS pero no en Bono: se
-    expone como 0 en vez de descartar la fila, para que el total de la página cuadre con
-    lo que se ve.
+    Las filas sin `empleado_id` —empleado que existe en TRESS pero no en Bono— ya no
+    llegan hasta aquí: las descarta `IncidenciasTressCacheRepository._filtros`, para que
+    el total de la página cuadre con lo que se ve. El `or 0` de abajo se queda como
+    defensa por si alguna lectura futura no pasa por ese helper.
     """
     origen = str(row.get("origen") or "").strip()
     origen_id = row.get("origen_id")

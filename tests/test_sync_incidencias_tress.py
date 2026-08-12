@@ -107,6 +107,44 @@ async def test_empleado_ausente_en_bono_se_guarda_con_empleado_id_nulo(db, monke
 
 
 @pytest.mark.asyncio
+async def test_resincronizar_al_ausente_en_bono_no_lo_duplica(db, monkeypatch):
+    """El sync tiene que seguir *viendo* las filas que la página oculta.
+
+    Las lecturas de la página descartan `empleado_id` NULL, pero `map_existentes` no pasa
+    por ese filtro: si lo hiciera, cada corrida creería que la fila no existe, la volvería
+    a insertar y reventaría el UNIQUE (origen, origen_id).
+    """
+    _mock_tress(monkeypatch, [_fila(origen_id=1, no_empleado=999999)])
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    _mock_tress(monkeypatch, [_fila(origen_id=1, no_empleado=999999)])
+    stats = await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    assert len(await _filas_cache(db)) == 1
+    assert stats.insertados == 0
+    assert stats.omitidos == 1
+
+
+@pytest.mark.asyncio
+async def test_dar_de_alta_al_empleado_despues_recupera_sus_incidencias(db, monkeypatch):
+    """Alta tardía en Bono: la siguiente corrida estampa el `empleado_id`.
+
+    Es la razón por la que estas filas se ocultan y no se borran.
+    """
+    _mock_tress(monkeypatch, [_fila(origen_id=1, no_empleado=999999)])
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+    assert (await _filas_cache(db))[0].empleado_id is None
+
+    await make_empleado(db, empleado_id=42, no_empleado=999999, nombre="Tardío")
+    _mock_tress(monkeypatch, [_fila(origen_id=1, no_empleado=999999)])
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    filas = await _filas_cache(db)
+    assert len(filas) == 1
+    assert filas[0].empleado_id == 42
+
+
+@pytest.mark.asyncio
 async def test_actualiza_una_fila_corregida_en_tress(db, monkeypatch):
     await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
     _mock_tress(monkeypatch, [_fila(origen_id=1, tipo="falta_injustificada")])

@@ -73,7 +73,14 @@ class IncidenciasTressCacheRepository:
         cb_codigos: list[int] | None,
         tipo: str | None,
     ) -> list:
-        conds: list = []
+        # Incidencias de gente que no existe en Bono: fuera. TRESS tiene CB_CODIGO que
+        # nunca se dieron de alta aquí, y el sync los deja con `empleado_id` NULL (ver el
+        # modelo). Sin nombre ni ficha no le sirven a RH y descuadran cada total. El
+        # predicado vive en el helper —no en cada método— para que el `total` de la
+        # paginación, la tabla y los agregados sigan contando exactamente lo mismo.
+        # No se borran de la caché: si el empleado se da de alta después, el sync le
+        # estampa el `empleado_id` y sus incidencias reaparecen solas.
+        conds: list = [IncidenciaTress.empleado_id.is_not(None)]
         if fecha_inicio is not None:
             # Un evento con rango cuenta si sigue vigente dentro de la ventana, aunque
             # haya empezado antes: misma semántica que el SQL de datos-analisis.

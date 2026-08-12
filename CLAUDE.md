@@ -216,6 +216,16 @@ Layered architecture: **router → service → repository → models/schemas**
   caché antes de su fecha de inicio. La reconciliación de bajas **no borra** si TRESS
   devolvió 0 filas o si desaparecería más de la mitad del rango: cuenta el hecho como
   error y lo registra con `borrado omitido`.
+  - **Empleado que no existe en Bono ⇒ no se muestra.** TRESS tiene `CB_CODIGO` que nunca
+    se dieron de alta aquí; el sync los guarda con `empleado_id` NULL y las seis lecturas
+    de la caché los descartan, porque el predicado vive en el helper compartido
+    `IncidenciasTressCacheRepository._filtros`. Es lo que mantiene cuadrados entre sí el
+    `total` de la paginación, la tabla y los agregados de estadísticas y dashboard;
+    filtrar en un solo método los descuadra. El sync **no** los borra ni los filtra
+    (`map_existentes` no pasa por `_filtros`): si el empleado se da de alta después, la
+    siguiente corrida le estampa el `empleado_id` y sus incidencias reaparecen solas —
+    para un tramo histórico ya fuera de la ventana viva hay que resincronizar con
+    `--desde/--hasta`. Las **bajas sí se ven**: existen en Bono.
 - **Fecha de ingreso = caché en Bono.** La Vista 360 no consulta `dbo.COLABORA`: la fuente
   única de lectura es `levelup_empleados_tress`, que escribe `sync_empleados_tress_service`
   (job 04:10 y `python -m app.scripts.sync_empleados_tress`). El sync lee **toda**
