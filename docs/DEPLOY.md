@@ -76,6 +76,19 @@ docker compose -f docker-compose.prod.yml --env-file .env exec backend \
   python -m app.scripts.ensure_columnas_bono --check
 ```
 
+### Página de logs del scheduler
+
+El release que introduce `levelup_scheduler_job_log` (revisión `s1c2h3e4d5j6`) crea la tabla
+**vacía**: hasta que corra el primer job, `#/ajustes/scheduler-logs` se ve sin filas, y es
+correcto. No hay carga inicial que hacer — el historial no existía antes.
+
+Es una página **oculta**: no aparece en el sidebar ni en el menú de usuario. Se entra
+escribiendo la URL y solo con un usuario admin (`puede_administrar_permisos_rh`); el resto
+recibe 403.
+
+Necesita `prod-migrate.sh` (crea la tabla) **y** `prod-build-frontend.sh` (la página es
+frontend nuevo).
+
 ### Carga inicial de saldos de vacaciones (una sola vez)
 
 El release que introduce `levelup_vacaciones_disponibles` (revisión `w1c2a3c4h5e6`) crea la
