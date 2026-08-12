@@ -226,6 +226,12 @@ Layered architecture: **router → service → repository → models/schemas**
     siguiente corrida le estampa el `empleado_id` y sus incidencias reaparecen solas —
     para un tramo histórico ya fuera de la ventana viva hay que resincronizar con
     `--desde/--hasta`. Las **bajas sí se ven**: existen en Bono.
+  - **La tarjeta «Retardos» del dashboard personal sale de esta misma caché.**
+    `dashboard_kpis_service` cuenta con `IncidenciasTressCacheRepository.count`
+    (`tipo="retardo"`, del 1 de enero a hoy, `cb_codigos=[no_empleado]`) en vez de un
+    `select` propio: así hereda `_filtros` y el número coincide con el que RH ve en la
+    página Incidencias. Hereda también la latencia semanal del sync, que es aceptable
+    justo porque las dos superficies se mueven juntas.
 - **Fecha de ingreso = caché en Bono.** La Vista 360 no consulta `dbo.COLABORA`: la fuente
   única de lectura es `levelup_empleados_tress`, que escribe `sync_empleados_tress_service`
   (job 04:10 y `python -m app.scripts.sync_empleados_tress`). El sync lee **toda**

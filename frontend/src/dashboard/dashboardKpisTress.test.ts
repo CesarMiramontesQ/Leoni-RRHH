@@ -1,6 +1,6 @@
 /**
- * Los KPIs de vacaciones y home office de los tres dashboards vienen de
- * `GET /api/v1/dashboard/mis-kpis` (TRESS), no de `/api/v1/solicitudes`.
+ * Los KPIs de vacaciones, home office y retardos de los tres dashboards vienen de
+ * `GET /api/v1/dashboard/mis-kpis`, no de `/api/v1/solicitudes`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,7 @@ const KPIS: DashboardKpisResponse = {
   ciclo_aniversario: 12,
   ciclo_vence: "2026-02-16",
   home_office_dias_anio: 3,
+  retardos_anio: 4,
   anio: 2026,
 };
 
@@ -71,7 +72,7 @@ vi.mock("../auth/jwt.ts", () => ({
 }));
 vi.mock("../auth/rhUiMode.ts", () => ({ isRhEmpleadoUiMode: () => false }));
 
-describe("KPIs del dashboard desde TRESS", () => {
+describe("KPIs del dashboard desde las cachés de nómina", () => {
   beforeEach(() => {
     kpisRespuesta = KPIS;
     rolActual = "empleado";
@@ -85,9 +86,9 @@ describe("KPIs del dashboard desde TRESS", () => {
 
     expect(fetchDashboardKpisMock).toHaveBeenCalled();
     expect(kpis?.vacation_available_days).toBe(8);
-    expect(kpis?.vacation_used_days).toBe(16);
     // Antes este campo nunca se asignaba y la tarjeta mostraba siempre "0 días".
     expect(kpis?.home_office_dias_anio).toBe(3);
+    expect(kpis?.retardos_anio).toBe(4);
   });
 
   it("la carga principal del dashboard no espera a TRESS", async () => {
@@ -99,8 +100,8 @@ describe("KPIs del dashboard desde TRESS", () => {
     expect(fetchDashboardKpisMock).not.toHaveBeenCalled();
     expect(payload).not.toBeNull();
     expect(payload?.vacation_available_days).toBeNull();
-    expect(payload?.vacation_used_days).toBeNull();
     expect(payload?.home_office_dias_anio).toBeNull();
+    expect(payload?.retardos_anio).toBeNull();
   });
 
   it("si nómina no responde los KPIs quedan en null, no en cero", async () => {
@@ -117,7 +118,7 @@ describe("KPIs del dashboard desde TRESS", () => {
 
     expect(fetchDashboardKpisMock).toHaveBeenCalled();
     expect(payload?.personal.vacation_available_days).toBe(8);
-    expect(payload?.personal.vacation_used_days).toBe(16);
     expect(payload?.personal.home_office_dias_anio).toBe(3);
+    expect(payload?.personal.retardos_anio).toBe(4);
   });
 });

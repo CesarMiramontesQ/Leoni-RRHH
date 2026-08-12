@@ -44,6 +44,13 @@ function fmtPendingCount(value: number | null): string {
   return String(Math.trunc(value));
 }
 
+/** A diferencia de `fmtPendingCount`, `null` es «—»: ahí sí significa que falta el dato
+ * (falló la lectura de la caché), y un «0» lo haría pasar por "sin retardos". */
+function fmtRetardos(value: number | null): string {
+  if (value === null || Number.isNaN(value)) return "—";
+  return String(Math.max(0, Math.trunc(value)));
+}
+
 function pendingTypeLabel(t: EmpleadoPendingRequestType): string {
   if (t === "vacation") return "VAC";
   if (t === "homeOffice") return "HO";
@@ -191,8 +198,8 @@ function iconDisponibles(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m-6.53-7.11A5.5 5.5 0 0 1 12 7.5v0a5.5 5.5 0 0 1 6.53 6.39 6 6 0 0 1-1.06 2.34m-11 0A6 6 0 0 1 5.47 13.9" /></svg>`;
 }
 
-function iconUtilizados(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>`;
+function iconRetardos(): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
 }
 
 function iconEsteMes(): string {
@@ -246,12 +253,12 @@ export function renderEmpleadoStatCards(
       desdeTress: true,
     },
     {
-      label: "Utilizados",
-      labelCls: "text-orange-600",
-      iconWrap: "bg-orange-500/12 text-orange-600",
-      icon: iconUtilizados(),
-      value: fmtDays(p?.vacation_used_days ?? null),
-      sub: "Vacaciones tomadas",
+      label: "Retardos",
+      labelCls: "text-amber-600",
+      iconWrap: "bg-amber-500/12 text-amber-600",
+      icon: iconRetardos(),
+      value: fmtRetardos(p?.retardos_anio ?? null),
+      sub: "Acumulados este año",
       extra: "",
       desdeTress: true,
     },

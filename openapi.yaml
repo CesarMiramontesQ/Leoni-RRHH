@@ -389,9 +389,16 @@ components:
           type: integer
           nullable: true
           description: Días de home office registrados en el año en curso
+        retardos_anio:
+          type: integer
+          nullable: true
+          description: >-
+            Retardos del año en curso, desde la caché levelup_incidencias_tress. No depende
+            de `disponible`, que describe solo el bloque de vacaciones. null solo si falla
+            la lectura; sin retardos es 0
         anio:
           type: integer
-          description: Año al que corresponde el KPI de home office
+          description: Año al que corresponden los KPIs de home office y retardos
 
     # ── Vistas por rol ────────────────────────────────
     VistaRolCatalogItem:
