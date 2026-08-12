@@ -16,6 +16,7 @@ import { mountAppShell } from "../layouts/appShell.ts";
 import {
   FILTER_FIELD_WRAP,
   RH_LISTADO_BTN_GHOST,
+  RH_LISTADO_FOCUS_RING,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SELECT,
@@ -23,7 +24,7 @@ import {
   SELECT_CHEVRON,
   badgeApproved,
   badgeCancelled,
-  badgeInProgress,
+  badgeOpen,
   badgePending,
   badgeRejected,
   htmlAccessDenied,
@@ -51,13 +52,15 @@ function formatearFecha(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("es-MX");
 }
 
-/** Mapeo a píldoras del sistema: ok=aprobado, error=rechazado, en_curso=en progreso,
- * advertencia=pendiente (ámbar); un resultado desconocido usa el neutro, nunca el verde. */
+/** Mapeo a píldoras del sistema: ok=aprobado (emerald), error=rechazado (red),
+ * en_curso=abierto (blue, "en curso activo" — se distingue a simple vista de una
+ * advertencia), advertencia=pendiente (amber); un resultado desconocido usa el
+ * neutro, nunca el verde. */
 function badge(resultado: string): string {
   const texto = ETIQUETA_RESULTADO[resultado] ?? resultado;
   if (resultado === "ok") return badgeApproved(texto);
   if (resultado === "error") return badgeRejected(texto);
-  if (resultado === "en_curso") return badgeInProgress(texto);
+  if (resultado === "en_curso") return badgeOpen(texto);
   if (resultado === "advertencia") return badgePending(texto);
   return badgeCancelled(texto);
 }
@@ -161,14 +164,14 @@ export function mountSchedulerLogs(container: HTMLElement, signal?: AbortSignal)
       <div class="${FILTER_FIELD_WRAP}">
         <label for="scheduler-logs-filtro-job" class="${RH_LISTADO_LABEL}">Job</label>
         <div class="relative grid w-full grid-cols-1 grid-rows-1">
-          <select id="scheduler-logs-filtro-job" class="${RH_LISTADO_SELECT}"><option value="">Todos</option>${opciones}</select>
+          <select id="scheduler-logs-filtro-job" class="${RH_LISTADO_SELECT} ${RH_LISTADO_FOCUS_RING}"><option value="">Todos</option>${opciones}</select>
           ${SELECT_CHEVRON}
         </div>
       </div>
       <div class="${FILTER_FIELD_WRAP}">
         <label for="scheduler-logs-filtro-resultado" class="${RH_LISTADO_LABEL}">Resultado</label>
         <div class="relative grid w-full grid-cols-1 grid-rows-1">
-          <select id="scheduler-logs-filtro-resultado" class="${RH_LISTADO_SELECT}">
+          <select id="scheduler-logs-filtro-resultado" class="${RH_LISTADO_SELECT} ${RH_LISTADO_FOCUS_RING}">
             <option value="">Todos</option>
             <option value="ok">Correcto</option>
             <option value="advertencia">Advertencia</option>
