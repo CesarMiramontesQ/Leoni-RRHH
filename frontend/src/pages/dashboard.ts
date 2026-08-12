@@ -51,6 +51,7 @@ import {
 } from "../components/dashboard/empleadoPersonalDashboard.ts";
 import { resolveCalendarWeekStart } from "../components/dashboard/calendarShared.ts";
 import {
+  bindLiderApprovalsPagination,
   bindLiderTeamCalendarNavigation,
   renderLiderDashboardSkeleton,
   renderLiderTeamDashboard,
@@ -497,6 +498,8 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
       });
     }
   }
+  bindLiderApprovalsPagination(root, payload.approval_requests ?? []);
+
   if (canSeeDashboardTeamCalendar()) {
     bindLiderTeamCalendarNavigation(container, payload, calYear, calMonth, {
       loadMonthData: async (target) => fetchLiderDashboard(target).catch(() => null),
