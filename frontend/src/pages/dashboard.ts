@@ -1,4 +1,5 @@
 import { getDashboardKpis, type KpiFetchError, type KpiResponse } from "../api/reportes.ts";
+import { usuarioActualEsAdministrativo } from "../auth/clasificacionUsuario.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
   canAccessEmpleadoPersonalDashboard,
@@ -376,12 +377,13 @@ function mountRhOperationalDashboard(container: HTMLElement, signal?: AbortSigna
 async function hidratarKpisEmpleado(
   container: HTMLElement,
   payload: EmpleadoDashboardPayload,
+  mostrarHomeOffice: boolean,
 ): Promise<void> {
   const kpis = await fetchEmpleadoDashboardKpis().catch(() => null);
   const host = container.querySelector<HTMLElement>(`#${EMPLEADO_STAT_CARDS_ID}`);
   if (!host) return;
   const conKpis: EmpleadoDashboardPayload = { ...payload, ...(kpis ?? {}) };
-  host.outerHTML = renderEmpleadoStatCards(conKpis, { kpisCargando: false });
+  host.outerHTML = renderEmpleadoStatCards(conKpis, { kpisCargando: false, mostrarHomeOffice });
 }
 
 async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<void> {
@@ -391,6 +393,9 @@ async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<vo
   const now = new Date();
   const weekStartsOn = resolveCalendarWeekStart();
   let raw = null;
+  // La clasificación va en paralelo, no después: decide si la tarjeta de Home Office
+  // existe, y resolverla más tarde la haría aparecer o desaparecer a la vista.
+  const clasificacionPendiente = usuarioActualEsAdministrativo();
   try {
     raw = await fetchEmpleadoDashboard({
       year: now.getFullYear(),
@@ -400,6 +405,7 @@ async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<vo
   } catch {
     raw = null;
   }
+  const mostrarHomeOffice = await clasificacionPendiente;
   const payload = raw ?? emptyEmpleadoDashboardPayload(new Date());
   const cal = payload.calendar;
   const calYear = cal.initial_year ?? now.getFullYear();
@@ -407,6 +413,7 @@ async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<vo
 
   root.innerHTML = renderEmpleadoPersonalDashboard(calYear, calMonth, payload, {
     kpisCargando: true,
+    mostrarHomeOffice,
   });
   bindEmpleadoCalendarNavigation(container, payload, calYear, calMonth, {
     loadMonthData: async (target) => fetchEmpleadoDashboard(target).catch(() => null),
@@ -414,7 +421,7 @@ async function loadEmpleadoPersonalDashboard(container: HTMLElement): Promise<vo
   void injectEncuestasPendientesBanner(container);
   // Los KPIs de TRESS se piden aparte y sustituyen sus tarjetas al llegar: si esa
   // BD no responde, el resto del dashboard ya está en pantalla.
-  void hidratarKpisEmpleado(container, payload);
+  void hidratarKpisEmpleado(container, payload, mostrarHomeOffice);
 }
 
 function mountEmpleadoPersonalDashboardShell(container: HTMLElement): void {
@@ -462,6 +469,9 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
   const now = new Date();
   const weekStartsOn = resolveCalendarWeekStart();
   let raw = null;
+  // En paralelo, por lo mismo que en el dashboard del empleado: decide si existe la
+  // tarjeta personal de Home Office, así que debe saberse antes del primer pintado.
+  const clasificacionPendiente = usuarioActualEsAdministrativo();
   try {
     raw = await fetchLiderDashboard({
       year: now.getFullYear(),
@@ -471,6 +481,7 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
   } catch {
     raw = null;
   }
+  const mostrarHomeOffice = await clasificacionPendiente;
   const payload = raw ?? emptyLiderDashboardPayload(new Date());
   const cal = payload.team_calendar;
   const calYear = cal.initial_year ?? now.getFullYear();
@@ -478,7 +489,7 @@ async function loadLiderTeamDashboard(container: HTMLElement): Promise<void> {
 
   destroyChartsIn(root);
   try {
-    root.innerHTML = renderLiderTeamDashboard(calYear, calMonth, payload);
+    root.innerHTML = renderLiderTeamDashboard(calYear, calMonth, payload, null, { mostrarHomeOffice });
   } catch (e: unknown) {
     console.error("[lider-dashboard] render failed", e);
     root.innerHTML = wrapDashboardPageContent(renderError("No se pudo mostrar el dashboard. Recarga la página."));

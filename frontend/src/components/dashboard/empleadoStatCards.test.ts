@@ -48,6 +48,7 @@ describe("renderEmpleadoStatCards", () => {
         home_office_dias_anio: 3,
         retardos_anio: 4,
       }),
+      { mostrarHomeOffice: true },
     );
     expect(html).toContain("8 días");
     expect(html).toContain("3 días");
@@ -82,19 +83,87 @@ describe("renderEmpleadoStatCards", () => {
 
   it("el home office se rotula por año, que es el periodo que consulta el backend", async () => {
     const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
-    const html = renderEmpleadoStatCards(payload({ home_office_dias_anio: 3 }));
+    const html = renderEmpleadoStatCards(payload({ home_office_dias_anio: 3 }), {
+      mostrarHomeOffice: true,
+    });
     expect(html).toContain("Este año");
     expect(html).not.toContain("Este mes");
+  });
+
+  /**
+   * Home Office solo lo pueden solicitar los administrativos: el backend rechaza al
+   * resto en `_validar_creacion_home_office`. A un operativo la tarjeta le enseñaba un
+   * 0 permanente de algo que nunca podrá pedir, así que no se le muestra.
+   */
+  describe("tarjeta de Home Office según clasificación", () => {
+    it("no se muestra a quien no es administrativo", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      const html = renderEmpleadoStatCards(payload({ home_office_dias_anio: 0 }), {
+        mostrarHomeOffice: false,
+      });
+      expect(html).not.toContain("Home Office tomados");
+      expect(html).not.toContain("Este año");
+    });
+
+    it("se muestra a los administrativos", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      const html = renderEmpleadoStatCards(payload({ home_office_dias_anio: 2 }), {
+        mostrarHomeOffice: true,
+      });
+      expect(html).toContain("Home Office tomados");
+      expect(html).toContain("2 días");
+    });
+
+    it("sin decir nada no se muestra: quien no sabe la clasificación no debe enseñarla", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      expect(renderEmpleadoStatCards(payload({ home_office_dias_anio: 5 }))).not.toContain(
+        "Home Office tomados",
+      );
+    });
+
+    it("las otras tres tarjetas se reparten el ancho, sin dejar hueco", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      const sinHo = renderEmpleadoStatCards(payload({}), { mostrarHomeOffice: false });
+      const conHo = renderEmpleadoStatCards(payload({}), { mostrarHomeOffice: true });
+      expect(sinHo).toContain("xl:grid-cols-3");
+      expect(conHo).toContain("xl:grid-cols-4");
+      expect(sinHo.match(/<article/g) ?? []).toHaveLength(3);
+      expect(conHo.match(/<article/g) ?? []).toHaveLength(4);
+    });
+
+    it("ocultarla no se lleva por delante vacaciones, retardos ni solicitudes", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      const html = renderEmpleadoStatCards(
+        payload({ vacation_available_days: 8, retardos_anio: 4, pending_requests: 2 }),
+        { mostrarHomeOffice: false },
+      );
+      expect(html).toContain("Vacaciones disponibles");
+      expect(html).toContain("Acumulados este año");
+      expect(html).toContain("Solicitudes pendientes");
+      expect(html).toContain("8 días");
+    });
   });
 
   describe("mientras se esperan los KPIs de nómina", () => {
     it("pinta esqueleto en las tarjetas de TRESS, no «—»", async () => {
       const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
-      const html = renderEmpleadoStatCards(payload({}), { kpisCargando: true });
+      const html = renderEmpleadoStatCards(payload({}), {
+        kpisCargando: true,
+        mostrarHomeOffice: true,
+      });
       // Tres tarjetas vienen de las cachés de nómina: disponibles, retardos y home office.
       expect(html.match(/animate-pulse/g) ?? []).toHaveLength(3);
       expect(html).toContain('aria-busy="true"');
       expect(html).not.toContain("—");
+    });
+
+    it("sin la tarjeta de home office son dos los esqueletos de nómina", async () => {
+      const { renderEmpleadoStatCards } = await import("./empleadoPersonalDashboard.ts");
+      const html = renderEmpleadoStatCards(payload({}), {
+        kpisCargando: true,
+        mostrarHomeOffice: false,
+      });
+      expect(html.match(/animate-pulse/g) ?? []).toHaveLength(2);
     });
 
     it("la tarjeta de solicitudes en proceso no espera a nómina", async () => {

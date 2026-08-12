@@ -764,9 +764,14 @@ export function renderLiderTeamDashboard(
   monthIndex: number,
   payload: LiderDashboardPayload | null,
   selectedMeal: SelectedMealDetail | null = null,
+  opts: { mostrarHomeOffice?: boolean } = {},
 ): string {
   const p = payload;
-  const personalHtml = renderEmpleadoStatCards(p ? personalToEmpleadoPayload(p.personal) : null);
+  // Su tarjeta personal de Home Office sigue la misma regla que la del empleado: solo
+  // la ve quien puede solicitarlo, es decir, clasificación Administrativo.
+  const personalHtml = renderEmpleadoStatCards(p ? personalToEmpleadoPayload(p.personal) : null, {
+    mostrarHomeOffice: opts.mostrarHomeOffice === true,
+  });
   const teamHtml = renderLiderTeamStatCards(p?.team ?? null);
   const approvalsHtml = renderApprovalRequestsCard(p?.approval_requests ?? []);
   const liderChartsHtml = canAccessLiderTeamDashboard()
