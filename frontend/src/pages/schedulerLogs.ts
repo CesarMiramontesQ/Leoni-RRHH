@@ -14,9 +14,18 @@ import {
 import { canAccessRhPermisosAdmin } from "../auth/rhModulePermissions.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
+  FILTER_FIELD_WRAP,
+  RH_LISTADO_BTN_GHOST,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
+  RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
+  SELECT_CHEVRON,
+  badgeApproved,
+  badgeCancelled,
+  badgeInProgress,
+  badgePending,
+  badgeRejected,
   htmlAccessDenied,
 } from "../ui/uiTokens.ts";
 import { escapeHtml } from "../ui/uiUtils.ts";
@@ -28,13 +37,6 @@ const ETIQUETA_RESULTADO: Record<string, string> = {
   ok: "Correcto",
   advertencia: "Advertencia",
   error: "Error",
-};
-
-const CLASE_RESULTADO: Record<string, string> = {
-  en_curso: "bg-blue-50 text-blue-700 ring-blue-600/20",
-  ok: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  advertencia: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  error: "bg-red-50 text-red-700 ring-red-600/20",
 };
 
 export function formatearDuracion(ms: number | null): string {
@@ -49,10 +51,15 @@ function formatearFecha(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("es-MX");
 }
 
+/** Mapeo a píldoras del sistema: ok=aprobado, error=rechazado, en_curso=en progreso,
+ * advertencia=pendiente (ámbar); un resultado desconocido usa el neutro, nunca el verde. */
 function badge(resultado: string): string {
-  const clase = CLASE_RESULTADO[resultado] ?? CLASE_RESULTADO.ok;
   const texto = ETIQUETA_RESULTADO[resultado] ?? resultado;
-  return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${clase}">${escapeHtml(texto)}</span>`;
+  if (resultado === "ok") return badgeApproved(texto);
+  if (resultado === "error") return badgeRejected(texto);
+  if (resultado === "en_curso") return badgeInProgress(texto);
+  if (resultado === "advertencia") return badgePending(texto);
+  return badgeCancelled(texto);
 }
 
 export function renderTablaCorridas(items: SchedulerLogItem[]): string {
@@ -62,7 +69,7 @@ export function renderTablaCorridas(items: SchedulerLogItem[]): string {
   const filas = items
     .map(
       (item) => `
-      <tr class="cursor-pointer border-t border-[rgba(148,163,184,0.28)] hover:bg-slate-50" data-scheduler-log-id="${item.id}">
+      <tr class="cursor-pointer border-t border-[rgba(148,163,184,0.28)] hover:bg-slate-50" data-scheduler-log-id="${escapeHtml(item.id)}">
         <td class="px-3 py-2 font-mono text-xs">${escapeHtml(item.job_id)}</td>
         <td class="px-3 py-2 text-xs">${escapeHtml(formatearFecha(item.inicio_at))}</td>
         <td class="px-3 py-2 text-xs">${escapeHtml(formatearDuracion(item.duracion_ms))}</td>
@@ -95,7 +102,7 @@ function renderDetalle(detalle: SchedulerLogDetalle): string {
     .join("");
   const recortadas =
     detalle.lineas_descartadas > 0
-      ? `<p class="px-3 py-2 text-xs text-[color:var(--color-text-muted)]">${detalle.lineas_descartadas} líneas más no se guardaron.</p>`
+      ? `<p class="px-3 py-2 text-xs text-[color:var(--color-text-muted)]">${escapeHtml(detalle.lineas_descartadas)} líneas más no se guardaron.</p>`
       : "";
   return `
     <div class="${RH_LISTADO_SURFACE} mt-4">
@@ -143,7 +150,7 @@ export function mountSchedulerLogs(container: HTMLElement, signal?: AbortSignal)
     if (!filtros) return;
     let jobs: string[] = [];
     try {
-      jobs = await fetchSchedulerJobIds();
+      jobs = await fetchSchedulerJobIds(signal);
     } catch {
       jobs = [];
     }
@@ -151,39 +158,56 @@ export function mountSchedulerLogs(container: HTMLElement, signal?: AbortSignal)
       .map((j) => `<option value="${escapeHtml(j)}">${escapeHtml(j)}</option>`)
       .join("");
     filtros.innerHTML = `
-      <label class="block"><span class="${RH_LISTADO_LABEL}">Job</span>
-        <select id="scheduler-logs-filtro-job" class="rounded border px-2 py-1 text-sm"><option value="">Todos</option>${opciones}</select>
-      </label>
-      <label class="block"><span class="${RH_LISTADO_LABEL}">Resultado</span>
-        <select id="scheduler-logs-filtro-resultado" class="rounded border px-2 py-1 text-sm">
-          <option value="">Todos</option>
-          <option value="ok">Correcto</option>
-          <option value="advertencia">Advertencia</option>
-          <option value="error">Error</option>
-          <option value="en_curso">En curso</option>
-        </select>
-      </label>`;
+      <div class="${FILTER_FIELD_WRAP}">
+        <label for="scheduler-logs-filtro-job" class="${RH_LISTADO_LABEL}">Job</label>
+        <div class="relative grid w-full grid-cols-1 grid-rows-1">
+          <select id="scheduler-logs-filtro-job" class="${RH_LISTADO_SELECT}"><option value="">Todos</option>${opciones}</select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>
+      <div class="${FILTER_FIELD_WRAP}">
+        <label for="scheduler-logs-filtro-resultado" class="${RH_LISTADO_LABEL}">Resultado</label>
+        <div class="relative grid w-full grid-cols-1 grid-rows-1">
+          <select id="scheduler-logs-filtro-resultado" class="${RH_LISTADO_SELECT}">
+            <option value="">Todos</option>
+            <option value="ok">Correcto</option>
+            <option value="advertencia">Advertencia</option>
+            <option value="error">Error</option>
+            <option value="en_curso">En curso</option>
+          </select>
+          ${SELECT_CHEVRON}
+        </div>
+      </div>`;
   }
+
+  let loadSeq = 0;
 
   async function cargar(): Promise<void> {
     if (!tabla) return;
+    const seq = ++loadSeq;
+    const isStale = (): boolean => seq !== loadSeq;
     tabla.innerHTML = `<p class="px-4 py-8 text-center text-sm">Cargando…</p>`;
     try {
-      const data = await fetchSchedulerLogs({
-        job_id: filtroJob || undefined,
-        resultado: filtroResultado || undefined,
-        page,
-        page_size: PAGE_SIZE,
-      });
+      const data = await fetchSchedulerLogs(
+        {
+          job_id: filtroJob || undefined,
+          resultado: filtroResultado || undefined,
+          page,
+          page_size: PAGE_SIZE,
+        },
+        signal,
+      );
+      if (isStale()) return;
       tabla.innerHTML = renderTablaCorridas(data.items);
       if (paginacion) {
         const paginas = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
         paginacion.innerHTML = `
-          <button data-scheduler-logs-prev class="rounded border px-2 py-1" ${page <= 1 ? "disabled" : ""}>Anterior</button>
-          <span>Página ${page} de ${paginas} · ${data.total} corridas</span>
-          <button data-scheduler-logs-next class="rounded border px-2 py-1" ${page >= paginas ? "disabled" : ""}>Siguiente</button>`;
+          <button type="button" data-scheduler-logs-prev class="${RH_LISTADO_BTN_GHOST}" ${page <= 1 ? "disabled" : ""}>Anterior</button>
+          <span>Página ${escapeHtml(page)} de ${escapeHtml(paginas)} · ${escapeHtml(data.total)} corridas</span>
+          <button type="button" data-scheduler-logs-next class="${RH_LISTADO_BTN_GHOST}" ${page >= paginas ? "disabled" : ""}>Siguiente</button>`;
       }
     } catch (error: unknown) {
+      if (isStale()) return;
       const err = error as { detail?: string };
       tabla.innerHTML = `<p class="px-4 py-8 text-center text-sm text-red-600">${escapeHtml(err?.detail ?? "No se pudieron cargar las corridas.")}</p>`;
     }
@@ -207,7 +231,7 @@ export function mountSchedulerLogs(container: HTMLElement, signal?: AbortSignal)
       if (fila && detalleHost) {
         const id = Number.parseInt(fila.dataset.schedulerLogId ?? "", 10);
         if (Number.isFinite(id)) {
-          void fetchSchedulerLogDetalle(id)
+          void fetchSchedulerLogDetalle(id, signal)
             .then((detalle) => {
               detalleHost.innerHTML = renderDetalle(detalle);
             })

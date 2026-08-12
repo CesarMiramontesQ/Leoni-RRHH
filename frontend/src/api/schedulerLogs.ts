@@ -49,27 +49,29 @@ async function readErrorDetail(res: Response): Promise<string> {
 
 export async function fetchSchedulerLogs(
   filtros: SchedulerLogFiltros = {},
+  signal?: AbortSignal,
 ): Promise<SchedulerLogPage> {
   const params = new URLSearchParams();
   for (const [clave, valor] of Object.entries(filtros)) {
     if (valor !== undefined && valor !== "") params.set(clave, String(valor));
   }
   const query = params.toString();
-  const res = await fetchWithAuth(query ? `${BASE}?${query}` : BASE);
+  const res = await fetchWithAuth(query ? `${BASE}?${query}` : BASE, { signal });
   if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
   return (await res.json()) as SchedulerLogPage;
 }
 
 export async function fetchSchedulerLogDetalle(
   id: number,
+  signal?: AbortSignal,
 ): Promise<SchedulerLogDetalle> {
-  const res = await fetchWithAuth(`${BASE}/${id}`);
+  const res = await fetchWithAuth(`${BASE}/${id}`, { signal });
   if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
   return (await res.json()) as SchedulerLogDetalle;
 }
 
-export async function fetchSchedulerJobIds(): Promise<string[]> {
-  const res = await fetchWithAuth(`${BASE}/jobs`);
+export async function fetchSchedulerJobIds(signal?: AbortSignal): Promise<string[]> {
+  const res = await fetchWithAuth(`${BASE}/jobs`, { signal });
   if (!res.ok) throw { status: res.status, detail: await readErrorDetail(res) };
   return ((await res.json()) as { items: string[] }).items;
 }
