@@ -287,17 +287,89 @@ async def test_endpoint_descansos_requiere_rol_de_directorio(client, db):
 
 
 @pytest.mark.asyncio
-async def test_endpoint_descansos_permite_supervisor(client, db):
+async def test_endpoint_descansos_permite_ver_los_propios(client, db):
+    """Cualquiera puede consultar sus propios descansos, sin rol de directorio.
+
+    El formulario de nueva solicitud pinta el calendario con este endpoint y **bloquea el
+    envío** mientras no lo haya cargado, así que exigir aquí rol de gestor dejaba a un
+    colaborador de a pie sin poder pedir vacaciones.
+    """
+    from tests.conftest import auth_headers
+
+    emp = await make_empleado(db, rol="empleado", email="descansos-propios@test")
+    await _sembrar_turno_fijo(db, emp.no_empleado, tu_codigo="F9")
+
+    res = await client.get(
+        f"/api/v1/empleados/{emp.id}/descansos",
+        params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-07"},
+        headers=await auth_headers(client, emp),
+    )
+
+    assert res.status_code == 200
+    assert res.json()["descansos"] == ["2026-07-05"]
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_permite_supervisor_con_su_subordinado(client, db):
     from tests.conftest import auth_headers
 
     supervisor = await make_empleado(db, rol="supervisor", email="descansos-sup@test")
-    emp = await make_empleado(db, rol="empleado", email="descansos-sup-obj@test")
+    emp = await make_empleado(
+        db, rol="empleado", email="descansos-sup-obj@test", lider_id=supervisor.empleado_id
+    )
     await _sembrar_turno_fijo(db, emp.no_empleado, tu_codigo="F8")
 
     res = await client.get(
         f"/api/v1/empleados/{emp.id}/descansos",
         params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-07"},
         headers=await auth_headers(client, supervisor),
+    )
+
+    assert res.status_code == 200
+    assert res.json()["descansos"] == ["2026-07-05"]
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_rechaza_empleado_fuera_del_alcance_del_supervisor(client, db):
+    """Tener rol de gestor no basta: el colaborador debe estar en su equipo.
+
+    Los días que alguien descansa son un dato personal, y el resto del módulo de
+    empleados (Vista 360, métricas) ya se filtra por alcance. Sin esto, cualquier
+    supervisor podía consultar el calendario de descansos de toda la planta.
+    """
+    from tests.conftest import auth_headers
+
+    supervisor = await make_empleado(db, rol="supervisor", email="descansos-sup-ajeno@test")
+    ajeno = await make_empleado(db, rol="empleado", email="descansos-ajeno@test")
+    await _sembrar_turno_fijo(db, ajeno.no_empleado, tu_codigo="F7")
+
+    res = await client.get(
+        f"/api/v1/empleados/{ajeno.id}/descansos",
+        params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-07"},
+        headers=await auth_headers(client, supervisor),
+    )
+
+    assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_endpoint_descansos_permite_gerente_con_su_subarbol(client, db):
+    """El gerente alcanza a todo su subárbol, no solo a sus reportes directos."""
+    from tests.conftest import auth_headers
+
+    gerente = await make_empleado(db, rol="gerente", email="descansos-ger@test")
+    supervisor = await make_empleado(
+        db, rol="supervisor", email="descansos-ger-sup@test", lider_id=gerente.empleado_id
+    )
+    nieto = await make_empleado(
+        db, rol="empleado", email="descansos-ger-nieto@test", lider_id=supervisor.empleado_id
+    )
+    await _sembrar_turno_fijo(db, nieto.no_empleado, tu_codigo="F6")
+
+    res = await client.get(
+        f"/api/v1/empleados/{nieto.id}/descansos",
+        params={"fecha_inicio": "2026-07-01", "fecha_fin": "2026-07-07"},
+        headers=await auth_headers(client, gerente),
     )
 
     assert res.status_code == 200

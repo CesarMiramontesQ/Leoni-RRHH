@@ -135,12 +135,18 @@ class UsuarioService:
             )
         return None
 
-    async def _ensure_puede_ver_empleado(
+    async def ensure_puede_ver_empleado(
         self,
         current_user: Empleado,
         empleado_id: int,
         rh_ui_mode: str | None = None,
     ) -> None:
+        """Alcance del módulo `empleados`: ¿este usuario puede ver a ese colaborador?
+
+        Pública porque no solo la usan Vista 360 y métricas: la foto y los descansos
+        cuelgan del mismo módulo y deben filtrar por el mismo criterio. Un rol de gestor
+        abre el endpoint, pero el alcance de datos lo sigue fijando la jerarquía.
+        """
         scope = effective_data_scope_for_module(current_user, "empleados", rh_ui_mode)
         if scope in ("rh", "director"):
             return
@@ -528,7 +534,7 @@ class UsuarioService:
         if not usuario:
             raise NotFoundError(entidad="Usuario", id=id)
 
-        await self._ensure_puede_ver_empleado(current_user, id, rh_ui_mode=rh_ui_mode)
+        await self.ensure_puede_ver_empleado(current_user, id, rh_ui_mode=rh_ui_mode)
 
         result = await self.db.execute(
             select(Solicitud)
@@ -603,7 +609,7 @@ class UsuarioService:
         if not usuario:
             raise NotFoundError(entidad="Usuario", id=id)
 
-        await self._ensure_puede_ver_empleado(current_user, id, rh_ui_mode=rh_ui_mode)
+        await self.ensure_puede_ver_empleado(current_user, id, rh_ui_mode=rh_ui_mode)
 
         from sqlalchemy import func
 
