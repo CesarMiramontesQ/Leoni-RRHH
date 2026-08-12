@@ -28,6 +28,18 @@ logger = logging.getLogger(__name__)
 # Tope de líneas guardadas por corrida, para que un job hablador no infle la fila.
 MAX_LINEAS = 200
 
+# Tope de caracteres por mensaje: un str(exc) de SQLAlchemy puede arrastrar el SQL y
+# sus `[parameters: ...]`, que con ODBC o asyncpg pesa decenas de KB — inaceptable
+# multiplicado por MAX_LINEAS en una columna JSONB.
+MAX_MENSAJE = 2000
+_SUFIJO_TRUNCADO = "… [truncado]"
+
+
+def _truncar_mensaje(mensaje: str) -> str:
+    if len(mensaje) <= MAX_MENSAJE:
+        return mensaje
+    return mensaje[: MAX_MENSAJE - len(_SUFIJO_TRUNCADO)] + _SUFIJO_TRUNCADO
+
 
 @dataclass
 class CorridaBuffer:
@@ -38,17 +50,24 @@ class CorridaBuffer:
     descartadas: int = 0
     # Arranca en INFO: una corrida sin líneas es `ok`, no `advertencia`.
     nivel_max: int = logging.INFO
+    # Último mensaje INFO visto, se haya guardado o no en `lineas`. Varios jobs loguean
+    # warnings por empleado dentro de un bucle y su línea de conteos sale al final: si
+    # ya se llegó al tope, esa línea se descarta pero igual es el mejor resumen posible.
+    ultimo_info: str | None = None
 
     def agregar(self, record: logging.LogRecord) -> None:
         if record.levelno > self.nivel_max:
             self.nivel_max = record.levelno
-        if len(self.lineas) >= MAX_LINEAS:
-            self.descartadas += 1
-            return
         try:
             mensaje = record.getMessage()
         except Exception:  # noqa: BLE001 — un %-format roto no puede tumbar el job
             mensaje = str(record.msg)
+        mensaje = _truncar_mensaje(mensaje)
+        if record.levelno == logging.INFO:
+            self.ultimo_info = mensaje
+        if len(self.lineas) >= MAX_LINEAS:
+            self.descartadas += 1
+            return
         self.lineas.append(
             {
                 "ts": datetime.now(timezone.utc).isoformat(),
@@ -71,8 +90,19 @@ def resultado_desde_nivel(nivel_max: int) -> str:
     return "ok"
 
 
-def resumen_desde_lineas(lineas: list[dict]) -> str | None:
-    """Última línea INFO — por convención de estos jobs, la que trae los conteos."""
+def resumen_desde_lineas(
+    lineas: list[dict], ultimo_info: str | None = None
+) -> str | None:
+    """Última línea INFO — por convención de estos jobs, la que trae los conteos.
+
+    `ultimo_info` es el último mensaje INFO que vio el buffer, se haya guardado o no
+    en `lineas` (`CorridaBuffer.ultimo_info`). Si se pasa, gana sobre lo que haya en
+    `lineas`: es la única fuente que sigue siendo correcta cuando esa línea se
+    descartó por el tope de `MAX_LINEAS`. Sin argumento, el contrato original queda
+    intacto (última INFO en `lineas`, o la primera línea, o `None`).
+    """
+    if ultimo_info:
+        return ultimo_info
     for linea in reversed(lineas):
         if linea.get("nivel") == "INFO":
             return linea.get("mensaje")
@@ -141,7 +171,7 @@ async def _cerrar_corrida(
                 fin_at=fin,
                 duracion_ms=duracion_ms,
                 resultado=resultado,
-                resumen=resumen_desde_lineas(buffer.lineas),
+                resumen=resumen_desde_lineas(buffer.lineas, buffer.ultimo_info),
                 lineas=buffer.lineas,
                 lineas_descartadas=buffer.descartadas,
                 error=error,

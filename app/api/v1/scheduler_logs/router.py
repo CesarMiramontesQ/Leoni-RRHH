@@ -5,6 +5,7 @@ eso sigue siendo por CLI.
 """
 
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/api/v1/scheduler-logs", tags=["Scheduler"])
 @router.get("", response_model=SchedulerLogPage, summary="Historial de corridas")
 async def listar_corridas(
     job_id: str | None = Query(None),
-    resultado: str | None = Query(
+    resultado: Literal["en_curso", "ok", "advertencia", "error"] | None = Query(
         None, description="en_curso | ok | advertencia | error"
     ),
     desde: datetime | None = Query(None),

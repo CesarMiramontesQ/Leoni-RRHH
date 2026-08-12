@@ -82,7 +82,29 @@ async def test_admin_filtra_por_job_y_resultado(client, db):
     )
 
     assert res.status_code == 200
-    assert res.json()["total"] == 1
+    body = res.json()
+    assert body["total"] == 1
+    assert body["items"][0]["job_id"] == "sync_incidencias_tress"
+    assert body["items"][0]["resultado"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_resultado_invalido_responde_422(client, db):
+    """`resultado` es un enum acotado en el modelo (Postgres): un valor fuera de la
+    lista no puede llegar al repositorio — ahi revienta con `invalid input value for
+    enum` (500) en Postgres, mientras que en SQLite (los tests) el enum es TEXT y da
+    0 filas sin avisar. FastAPI debe rechazarlo con 422 antes de tocar la BD."""
+    admin = await make_empleado(
+        db, rol="rh", nombre="Admin Resultado Invalido", no_empleado=7007,
+        puede_administrar_permisos_rh=True,
+    )
+    headers = await auth_headers(client, admin)
+
+    res = await client.get(
+        "/api/v1/scheduler-logs?resultado=no_existe", headers=headers
+    )
+
+    assert res.status_code == 422
 
 
 @pytest.mark.asyncio

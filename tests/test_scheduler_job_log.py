@@ -198,3 +198,50 @@ async def test_si_el_registro_falla_el_job_corre_igual(db, monkeypatch):
     await con_registro(job, "job_sin_registro")()
 
     assert corrio["si"] is True
+
+
+@pytest.mark.asyncio
+async def test_si_el_cierre_falla_el_job_corre_igual_y_el_warning_no_contamina_la_corrida(
+    db, monkeypatch
+):
+    """Mitad no probada de la garantia central: el fallo del UPDATE de cierre tampoco
+    puede volverse un punto de falla para nomina (a), igual que ya cubre el fallo del
+    insert.
+
+    De paso fija el orden "reset del ContextVar antes de escribir el cierre" (b): el
+    envoltorio hace `_CORRIDA.reset(token)` ANTES de llamar `_cerrar_corrida`. Si un
+    refactor bienintencionado invirtiera ese orden, el `logger.warning` que emite el
+    cierre al fallar seguiria teniendo la corrida activa en el ContextVar y
+    `CapturaCorridaHandler` lo copiaria al buffer que ese mismo cierre esta a punto de
+    persistir — el log de "no se pudo cerrar" terminaria contaminando la corrida que
+    describe. Como el cierre nunca llega a escribir (revienta antes), la unica forma
+    de detectar la mezcla es inspeccionar el buffer en memoria (el `kwarg` que recibe
+    el reemplazo de `_cerrar_corrida`), no la fila persistida: esta se queda tal cual
+    la dejo el insert, con o sin el bug.
+    """
+    _usar_sesion_de_test(monkeypatch, db)
+    capturado: dict = {}
+
+    async def _cerrar_corrida_falla(fila_id, *, fin, duracion_ms, buffer, error_excepcion):
+        capturado["buffer"] = buffer
+        logging.getLogger("app.integrations.scheduler_job_log").warning(
+            "advertencia emitida durante el cierre"
+        )
+        raise RuntimeError("cierre caido")
+
+    monkeypatch.setattr(
+        "app.integrations.scheduler_job_log._cerrar_corrida", _cerrar_corrida_falla
+    )
+
+    corrio = {"si": False}
+
+    async def job():
+        logging.getLogger("app.main").info("Sync Y job | insertados=1")
+        corrio["si"] = True
+
+    await con_registro(job, "job_cierre_falla")()  # (a) no debe propagar
+
+    assert corrio["si"] is True
+    mensajes_en_buffer = [linea["mensaje"] for linea in capturado["buffer"].lineas]
+    assert "Sync Y job | insertados=1" in mensajes_en_buffer
+    assert "advertencia emitida durante el cierre" not in mensajes_en_buffer  # (b)

@@ -56,9 +56,12 @@ async def test_listar_filtra_por_job_y_por_resultado(db):
 
     items, total = await repo.listar(job_id="sync_turnos_uso", page=1, page_size=10)
     assert total == 2
+    assert {i.job_id for i in items} == {"sync_turnos_uso"}
 
     items, total = await repo.listar(resultado="error", page=1, page_size=10)
     assert total == 1
+    assert items[0].job_id == "sync_turnos_uso"
+    assert items[0].resultado == "error"
     assert items[0].error == "TRESS caido"
 
 

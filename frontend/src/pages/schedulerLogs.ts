@@ -22,6 +22,7 @@ import {
   RH_LISTADO_SELECT,
   RH_LISTADO_SURFACE,
   SELECT_CHEVRON,
+  alertError,
   badgeApproved,
   badgeCancelled,
   badgeOpen,
@@ -96,7 +97,10 @@ export function renderTablaCorridas(items: SchedulerLogItem[]): string {
     </table>`;
 }
 
-function renderDetalle(detalle: SchedulerLogDetalle): string {
+export function renderDetalle(detalle: SchedulerLogDetalle): string {
+  const error = detalle.error
+    ? `<div class="px-3 pt-3">${alertError(detalle.error)}</div>`
+    : "";
   const lineas = detalle.lineas
     .map(
       (linea) =>
@@ -110,6 +114,7 @@ function renderDetalle(detalle: SchedulerLogDetalle): string {
   return `
     <div class="${RH_LISTADO_SURFACE} mt-4">
       <h2 class="px-3 py-2 text-sm font-bold">${escapeHtml(detalle.job_id)} · ${escapeHtml(formatearFecha(detalle.inicio_at))}</h2>
+      ${error}
       ${lineas || `<p class="px-3 py-2 text-xs">Sin líneas.</p>`}
       ${recortadas}
     </div>`;
@@ -131,6 +136,8 @@ export function mountSchedulerLogs(container: HTMLElement, signal?: AbortSignal)
   let page = 1;
   let filtroJob = "";
   let filtroResultado = "";
+  let filtroDesde = "";
+  let filtroHasta = "";
 
   mountAppShell(container, {
     pageTitle: "Logs del scheduler",
@@ -180,6 +187,16 @@ export function mountSchedulerLogs(container: HTMLElement, signal?: AbortSignal)
           </select>
           ${SELECT_CHEVRON}
         </div>
+      </div>
+      <div class="${FILTER_FIELD_WRAP}">
+        <label for="scheduler-logs-filtro-desde" class="${RH_LISTADO_LABEL}">Desde</label>
+        <input id="scheduler-logs-filtro-desde" type="date" value="${escapeHtml(filtroDesde)}"
+          class="min-h-[42px] w-full rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white px-3 py-2 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc] ${RH_LISTADO_FOCUS_RING}"/>
+      </div>
+      <div class="${FILTER_FIELD_WRAP}">
+        <label for="scheduler-logs-filtro-hasta" class="${RH_LISTADO_LABEL}">Hasta</label>
+        <input id="scheduler-logs-filtro-hasta" type="date" value="${escapeHtml(filtroHasta)}"
+          class="min-h-[42px] w-full rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white px-3 py-2 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc] ${RH_LISTADO_FOCUS_RING}"/>
       </div>`;
   }
 
@@ -195,6 +212,8 @@ export function mountSchedulerLogs(container: HTMLElement, signal?: AbortSignal)
         {
           job_id: filtroJob || undefined,
           resultado: filtroResultado || undefined,
+          desde: filtroDesde || undefined,
+          hasta: filtroHasta || undefined,
           page,
           page_size: PAGE_SIZE,
         },
@@ -258,6 +277,16 @@ export function mountSchedulerLogs(container: HTMLElement, signal?: AbortSignal)
       }
       if (t.id === "scheduler-logs-filtro-resultado") {
         filtroResultado = (t as HTMLSelectElement).value;
+        page = 1;
+        void cargar();
+      }
+      if (t.id === "scheduler-logs-filtro-desde") {
+        filtroDesde = (t as HTMLInputElement).value;
+        page = 1;
+        void cargar();
+      }
+      if (t.id === "scheduler-logs-filtro-hasta") {
+        filtroHasta = (t as HTMLInputElement).value;
         page = 1;
         void cargar();
       }

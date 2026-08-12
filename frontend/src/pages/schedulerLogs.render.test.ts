@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { SchedulerLogItem } from "../api/schedulerLogs.ts";
-import { formatearDuracion, renderTablaCorridas } from "./schedulerLogs.ts";
+import type { SchedulerLogDetalle, SchedulerLogItem } from "../api/schedulerLogs.ts";
+import { formatearDuracion, renderDetalle, renderTablaCorridas } from "./schedulerLogs.ts";
 
 function item(overrides: Partial<SchedulerLogItem> = {}): SchedulerLogItem {
   return {
@@ -12,6 +12,15 @@ function item(overrides: Partial<SchedulerLogItem> = {}): SchedulerLogItem {
     resultado: "ok",
     resumen: "leidos=10 insertados=2",
     error: null,
+    ...overrides,
+  };
+}
+
+function detalle(overrides: Partial<SchedulerLogDetalle> = {}): SchedulerLogDetalle {
+  return {
+    ...item(),
+    lineas: [{ ts: "2026-08-12T14:30:00+00:00", nivel: "INFO", mensaje: "leidos=10 insertados=2" }],
+    lineas_descartadas: 0,
     ...overrides,
   };
 }
@@ -39,6 +48,39 @@ describe("schedulerLogs — tabla", () => {
       item({ resultado: "en_curso", fin_at: null, duracion_ms: null }),
     ]);
     expect(html).toContain("En curso");
+  });
+});
+
+describe("schedulerLogs — detalle", () => {
+  it("pinta las líneas capturadas", () => {
+    const html = renderDetalle(detalle());
+    expect(html).toContain("leidos=10 insertados=2");
+    expect(html).toContain("INFO");
+  });
+
+  it("pinta detalle.error cuando la corrida no dejó líneas propias del fallo", () => {
+    const html = renderDetalle(
+      detalle({ lineas: [], error: "RuntimeError: TRESS caido" }),
+    );
+    expect(html).toContain("RuntimeError: TRESS caido");
+  });
+
+  it("no muestra ningún bloque de error cuando detalle.error es null", () => {
+    const html = renderDetalle(detalle({ error: null }));
+    expect(html).not.toContain("role=\"alert\"");
+  });
+
+  it("escapa el contenido de las líneas y del error", () => {
+    const html = renderDetalle(
+      detalle({
+        lineas: [{ ts: "t", nivel: "INFO", mensaje: "<img src=x onerror=1>" }],
+        error: "<script>alert(1)</script>",
+      }),
+    );
+    expect(html).not.toContain("<img src=x");
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;img");
+    expect(html).toContain("&lt;script&gt;");
   });
 });
 
