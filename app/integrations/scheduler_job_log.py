@@ -12,10 +12,17 @@ sin propagar nada. Un listener de APScheduler los vería «ejecutados correctame
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Awaitable, Callable
+
+from sqlalchemy import update
+
+from app.core.database import AsyncSessionLocal
+from app.models.scheduler_job_log import SchedulerJobLog
 
 logger = logging.getLogger(__name__)
 
@@ -105,3 +112,103 @@ def instalar_captura_logs() -> None:
     handler.setLevel(logging.INFO)
     logging.getLogger().addHandler(handler)
     _handler_instalado = handler
+
+
+async def _insertar_en_curso(job_id: str, inicio: datetime) -> int | None:
+    """Devuelve el id de la fila, o `None` si no se pudo registrar."""
+    async with AsyncSessionLocal() as db:
+        fila = SchedulerJobLog(job_id=job_id, inicio_at=inicio, resultado="en_curso")
+        db.add(fila)
+        await db.commit()
+        await db.refresh(fila)
+        return fila.id
+
+
+async def _cerrar_corrida(
+    fila_id: int,
+    *,
+    fin: datetime,
+    duracion_ms: int,
+    buffer: CorridaBuffer,
+    error_excepcion: str | None,
+) -> None:
+    resultado = resultado_desde_nivel(buffer.nivel_max)
+    error = error_excepcion or primer_error(buffer.lineas)
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(SchedulerJobLog)
+            .where(SchedulerJobLog.id == fila_id)
+            .values(
+                fin_at=fin,
+                duracion_ms=duracion_ms,
+                resultado=resultado,
+                resumen=resumen_desde_lineas(buffer.lineas),
+                lineas=buffer.lineas,
+                lineas_descartadas=buffer.descartadas,
+                error=error,
+            )
+        )
+        await db.commit()
+
+
+# Serializa el acceso a `_insertar_en_curso`/`_cerrar_corrida`. `AsyncSession` no es
+# segura para uso concurrente entre tasks: dos jobs solapados que comparten sesión (el
+# caso de test con `_usar_sesion_de_test`, y potencialmente cualquier sesión con un
+# único connection pool muy angosto) corrompen el estado de la transacción si escriben
+# a la vez. La corrida del job (`fn`) no pasa por este lock — solo el registro.
+_registro_lock = asyncio.Lock()
+
+
+def con_registro(
+    fn: Callable[[], Awaitable[None]], job_id: str
+) -> Callable[[], Awaitable[None]]:
+    """Envuelve un job para dejar una fila por corrida.
+
+    No cambia la semántica del job: si `fn` propaga, se registra y se re-lanza. Lo que
+    nunca propaga es un fallo del registro — la página es diagnóstico y no puede
+    convertirse en un punto de falla nuevo para nómina.
+    """
+
+    async def _job_registrado() -> None:
+        inicio = datetime.now(timezone.utc)
+        try:
+            async with _registro_lock:
+                fila_id = await _insertar_en_curso(job_id, inicio)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "No se pudo registrar el inicio del job %s: %s", job_id, exc
+            )
+            fila_id = None
+
+        buffer = CorridaBuffer(job_id=job_id)
+        token = _CORRIDA.set(buffer)
+        error_excepcion: str | None = None
+        try:
+            await fn()
+        except BaseException as exc:
+            error_excepcion = f"{type(exc).__name__}: {exc}"
+            buffer.nivel_max = max(buffer.nivel_max, logging.ERROR)
+            raise
+        finally:
+            # Se resetea ANTES de escribir: si el cierre loguea un warning, ese warning
+            # ya no pertenece a la corrida y no debe entrar a su propio buffer.
+            _CORRIDA.reset(token)
+            fin = datetime.now(timezone.utc)
+            if fila_id is not None:
+                try:
+                    async with _registro_lock:
+                        await _cerrar_corrida(
+                            fila_id,
+                            fin=fin,
+                            duracion_ms=int((fin - inicio).total_seconds() * 1000),
+                            buffer=buffer,
+                            error_excepcion=error_excepcion,
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "No se pudo cerrar el registro del job %s: %s", job_id, exc
+                    )
+
+    _job_registrado.job_id = job_id  # type: ignore[attr-defined]
+    _job_registrado.__name__ = f"registrado__{job_id}"
+    return _job_registrado
