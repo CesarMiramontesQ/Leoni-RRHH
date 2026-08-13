@@ -9061,7 +9061,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/DescansosEmpleadoResponse"
         "403":
-          description: Requiere rol operativo/gerente/supervisor/director (o módulo RH equivalente)
+          description: >-
+            Los descansos propios los consulta cualquier usuario autenticado. Para los de
+            otro colaborador se requiere rol operativo/gerente/supervisor/director (o
+            módulo RH equivalente) **y** que esa persona esté en el alcance de quien
+            consulta: supervisor solo su equipo, gerente su subárbol; RH y director, toda
+            la plantilla
         "404":
           description: Empleado no encontrado
         "422":

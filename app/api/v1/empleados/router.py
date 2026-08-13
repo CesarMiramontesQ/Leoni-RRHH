@@ -10,7 +10,7 @@ CRUD de cuentas: /api/v1/usuarios (solo RH).
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,6 +62,39 @@ def _foto_svc(db: AsyncSession = Depends(get_db)) -> EmpleadoFotoService:
 
 def _descansos_svc(db: AsyncSession = Depends(get_db)) -> DescansosEmpleadoService:
     return DescansosEmpleadoService(db)
+
+
+_check_roles_directorio = role_checker(_ROLES_DIRECTORIO)
+
+
+async def _acceso_descansos(
+    empleado_id: int,
+    request: Request,
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    svc: UsuarioService = Depends(_svc),
+) -> Empleado:
+    """Los descansos propios los ve cualquiera; los ajenos, solo quien alcanza a esa persona.
+
+    Dos reglas, en este orden:
+
+    1. **Los propios, sin rol de gestor.** El formulario de nueva solicitud usa este
+       endpoint para pintar el calendario y **bloquea el envío** mientras no lo haya
+       cargado, así que exigir rol de directorio también para los propios dejaba a un
+       colaborador de a pie sin poder pedir vacaciones.
+    2. **Los ajenos, con rol de directorio y dentro del alcance.** El rol abre el
+       endpoint; a quién se puede consultar lo sigue fijando la jerarquía, con el mismo
+       criterio que Vista 360 y las métricas del módulo. Sin el segundo filtro, cualquier
+       supervisor podía leer el calendario de descansos de toda la planta.
+    """
+    if empleado_id == current_user.id:
+        return current_user
+    await _check_roles_directorio(
+        request=request, current_user=current_user, db=db, rh_ui_mode=rh_ui_mode
+    )
+    await svc.ensure_puede_ver_empleado(current_user, empleado_id, rh_ui_mode=rh_ui_mode)
+    return current_user
 
 
 def _rol_nombre(u: Empleado) -> str:
@@ -169,10 +202,14 @@ async def get_descansos_empleado(
     empleado_id: int,
     fecha_inicio: date = Query(..., description="Inicio inclusivo del rango"),
     fecha_fin: date = Query(..., description="Fin inclusivo del rango; máximo 366 días"),
-    current_user: Empleado = Depends(role_checker(_ROLES_DIRECTORIO)),
+    current_user: Empleado = Depends(_acceso_descansos),
     svc: DescansosEmpleadoService = Depends(_descansos_svc),
 ):
-    """Descansos del empleado, proyectados desde el turno vigente (cachés de Bono). Mismos roles que faltas/directorio."""
+    """Descansos del empleado, proyectados desde el turno vigente (cachés de Bono).
+
+    Los propios los consulta cualquiera; los de otra persona exigen rol de directorio
+    (ver `_acceso_descansos`).
+    """
     return await svc.obtener_descansos(
         empleado_id=empleado_id,
         fecha_inicio=fecha_inicio,

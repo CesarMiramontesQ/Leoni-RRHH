@@ -107,7 +107,7 @@ class EmpleadoFotoService:
         if not empleado:
             raise NotFoundError(entidad="Empleado", id=empleado_id)
 
-        await self._usuarios._ensure_puede_ver_empleado(current_user, empleado_id)
+        await self._usuarios.ensure_puede_ver_empleado(current_user, empleado_id)
 
         foto_path = self.resolve_foto_path(
             no_empleado=empleado.no_empleado,
