@@ -452,7 +452,6 @@ function setupLiderSolicitudDetalleModal(container: HTMLElement): void {
     toastContainer: container,
     getFilaById: (id) => liderSolicitudDetalleFilaCache.get(id),
     onRefrescarListado: () => loadLiderTeamDashboard(container),
-    cargarDetalleServidor: (id) => getSolicitudById(id),
   });
 }
 

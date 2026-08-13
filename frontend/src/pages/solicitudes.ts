@@ -2,7 +2,7 @@ import {
   canAccessSolicitudesPage,
   getEmpleadoDirectoryNumericIdFromAccessToken,
 } from "../auth/jwt.ts";
-import { getSolicitudById, getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
+import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
 import { getEmpleadoVacacionesDisponiblesSolicitud } from "../api/vista360.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
@@ -593,7 +593,6 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       getFilaById: (id) => allRows.find((r) => r.id === id),
       onRefrescarListado: () => recargarSolicitudesDesdeApi(),
       soloLectura: pageRole === "empleado",
-      cargarDetalleServidor: pageRole !== "empleado" ? (id) => getSolicitudById(id) : undefined,
     });
   }
 
