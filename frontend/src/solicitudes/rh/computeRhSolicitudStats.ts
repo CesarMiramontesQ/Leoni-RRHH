@@ -15,13 +15,11 @@ export function computeRhSolicitudStats(rows: readonly RhSolicitudTablaFila[]): 
   const hoy = isoHoyLocal();
   let pendientes = 0;
   let vacaciones = 0;
-  let home_office = 0;
   let aprobadas_hoy = 0;
 
   for (const r of rows) {
     if (r.estado === "pending") pendientes += 1;
     if (r.tipo === "vacaciones") vacaciones += 1;
-    if (r.tipo === "home_office") home_office += 1;
     if (
       (r.estado === "approved" || r.estado === "overridden") &&
       r.fecha_aprobacion === hoy
@@ -30,5 +28,5 @@ export function computeRhSolicitudStats(rows: readonly RhSolicitudTablaFila[]): 
     }
   }
 
-  return { pendientes, vacaciones, home_office, aprobadas_hoy };
+  return { pendientes, vacaciones, aprobadas_hoy };
 }

@@ -286,10 +286,6 @@ function iconEmpStatTomados(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>`;
 }
 
-function iconEmpStatHomeOffice(): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 21V6.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M9.75 21V9.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M15.75 21v-6.375c0-.621.504-1.125 1.125-1.125h3.375c.621 0 1.125.504 1.125 1.125V21" /></svg>`;
-}
-
 function iconEmpStatPendientes(): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
 }
@@ -307,7 +303,7 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
         </div>
         <div class="mt-2 h-3 w-36 rounded-md bg-slate-100/90"></div>
       </div>`;
-    return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">${skel.repeat(4)}</div>`;
+    return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">${skel.repeat(3)}</div>`;
   }
 
   if (vm.empleadoPersonalStatsStatus === "error") {
@@ -324,7 +320,8 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
   }[] = [
     {
       title: "Días disponibles",
-      value: String(s.dias_disponibles),
+      // null = nómina no respondió o el empleado no tiene fila en la caché de saldos.
+      value: s.dias_disponibles == null ? "—" : String(s.dias_disponibles),
       subtitle: "Saldo de vacaciones",
       iconWrap: "bg-leoni-green/12 text-leoni-green",
       icon: iconEmpStatDisponibles(),
@@ -335,13 +332,6 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
       subtitle: "Vacaciones aprobadas",
       iconWrap: "bg-orange-500/12 text-orange-600",
       icon: iconEmpStatTomados(),
-    },
-    {
-      title: "Home office tomados",
-      value: String(s.dias_home_office_tomados),
-      subtitle: "Días HO aprobados",
-      iconWrap: "bg-violet-500/12 text-violet-700",
-      icon: iconEmpStatHomeOffice(),
     },
     {
       title: "Solicitudes pendientes",
@@ -370,7 +360,7 @@ function renderEmployeePersonalStatCards(vm: RhSolicitudesAdminViewModel): strin
     )
     .join("");
 
-  return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">${html}</div>`;
+  return `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">${html}</div>`;
 }
 
 function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
@@ -384,7 +374,7 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
         </div>
         <div class="mt-3 h-8 w-20 rounded-md bg-slate-100/90"></div>
       </div>`;
-    return `<div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3 xl:grid-cols-4">${skel.repeat(4)}</div>`;
+    return `<div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3 xl:grid-cols-3">${skel.repeat(3)}</div>`;
   }
 
   if (vm.statsStatus === "error") {
@@ -396,8 +386,6 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
   const iconStatVacaciones = (): string =>
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" /></svg>`;
-  const iconStatCasa = (): string =>
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 21V6.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M9.75 21V9.375c0-.621.504-1.125 1.125-1.125h4.125c.621 0 1.125.504 1.125 1.125V21M15.75 21v-6.375c0-.621.504-1.125 1.125-1.125h3.375c.621 0 1.125.504 1.125 1.125V21" /></svg>`;
   const iconStatCheck = (): string =>
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`;
 
@@ -406,7 +394,7 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
     subtitle: string;
     value: number;
     icon: () => string;
-    accent: "pendiente" | "vacaciones" | "ho" | "aprobadas";
+    accent: "pendiente" | "vacaciones" | "aprobadas";
   }[] = [
     {
       title: "Pendientes",
@@ -421,13 +409,6 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
       value: s.vacaciones,
       icon: iconStatVacaciones,
       accent: "vacaciones",
-    },
-    {
-      title: "Home Office",
-      subtitle: "Registradas",
-      value: s.home_office,
-      icon: iconStatCasa,
-      accent: "ho",
     },
     {
       title: "Aprobadas hoy",
@@ -458,7 +439,7 @@ function renderStatCards(vm: RhSolicitudesAdminViewModel): string {
     )
     .join("");
 
-  return `<div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3 xl:grid-cols-4">${html}</div>`;
+  return `<div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-3 xl:grid-cols-3">${html}</div>`;
 }
 
 function renderFilters(

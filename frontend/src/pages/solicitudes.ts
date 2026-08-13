@@ -3,6 +3,7 @@ import {
   getEmpleadoDirectoryNumericIdFromAccessToken,
 } from "../auth/jwt.ts";
 import { getSolicitudById, getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
+import { getEmpleadoVacacionesDisponiblesSolicitud } from "../api/vista360.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
   mountSolicitudResueltaModal,
@@ -393,8 +394,28 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
 
   let empleadoBusquedaDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /**
+   * Saldo propio para la tarjeta «Días disponibles» (solo la vista empleado la muestra).
+   * `null` ⇒ la tarjeta degrada a «—»: no se puede distinguir de un cero real, y un cero
+   * inventado se lee como «no te quedan días».
+   */
+  async function cargarSaldoVacacionesPropio(): Promise<number | null> {
+    if (!pageUi.showEmployeePersonalStats || sessionEmpleadoDirId == null) return null;
+    try {
+      const saldo = await getEmpleadoVacacionesDisponiblesSolicitud(sessionEmpleadoDirId, { signal });
+      return saldo.dias_disponibles;
+    } catch {
+      return null;
+    }
+  }
+
   async function recargarSolicitudesDesdeApi(): Promise<void> {
-    allRows = await getSolicitudesRows();
+    // En paralelo: el saldo sale de otra ruta y no debe retrasar la tabla.
+    const [rows, saldoDisponible] = await Promise.all([
+      getSolicitudesRows(),
+      cargarSaldoVacacionesPropio(),
+    ]);
+    allRows = rows;
     filterOpts = buildRhSolicitudFilterOptions(allRows);
     if (isSplitGestorRole && sessionEmpleadoDirId != null) {
       const split = splitPersonalAndTeamRows(allRows, sessionEmpleadoDirId, splitGestorRole);
@@ -408,7 +429,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       personalFilterOpts = buildRhSolicitudFilterOptions([]);
       teamFilterOpts = buildRhSolicitudFilterOptions([]);
     }
-    empleadoVacacionesDisponibles = null;
+    empleadoVacacionesDisponibles = saldoDisponible;
     paint();
   }
 

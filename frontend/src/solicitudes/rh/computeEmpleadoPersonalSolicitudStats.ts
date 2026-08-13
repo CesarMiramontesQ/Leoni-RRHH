@@ -3,13 +3,16 @@ import type { RhSolicitudEmpleadoPersonalStats, RhSolicitudTablaFila } from "./t
 
 /**
  * KPIs personales a partir del listado propio del colaborador y el saldo de vacaciones (API / mock).
+ *
+ * `diasVacacionesDisponibles` viaja como `null` cuando el saldo no se pudo leer; se
+ * conserva así (no se degrada a 0) para que la tarjeta muestre «—» en vez de un cero
+ * que se lee como «no te quedan días».
  */
 export function computeEmpleadoPersonalSolicitudStats(
   rows: readonly RhSolicitudTablaFila[],
-  diasVacacionesDisponibles: number,
+  diasVacacionesDisponibles: number | null,
 ): RhSolicitudEmpleadoPersonalStats {
   let diasTomados = 0;
-  let diasHomeOfficeTomados = 0;
   let solicitudesPendientes = 0;
 
   for (const r of rows) {
@@ -17,14 +20,13 @@ export function computeEmpleadoPersonalSolicitudStats(
     if (r.estado === "pending") solicitudesPendientes += 1;
     if (r.estado === "approved" || r.estado === "overridden") {
       if (r.tipo === "vacaciones") diasTomados += d;
-      if (r.tipo === "home_office") diasHomeOfficeTomados += d;
     }
   }
 
   return {
-    dias_disponibles: Math.max(0, Math.trunc(diasVacacionesDisponibles)),
+    dias_disponibles:
+      diasVacacionesDisponibles == null ? null : Math.max(0, Math.trunc(diasVacacionesDisponibles)),
     dias_tomados: diasTomados,
-    dias_home_office_tomados: diasHomeOfficeTomados,
     solicitudes_pendientes: solicitudesPendientes,
   };
 }
