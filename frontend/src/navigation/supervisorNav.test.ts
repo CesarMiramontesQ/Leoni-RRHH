@@ -30,16 +30,19 @@ vi.mock("../auth/rhUiMode.ts", () => ({
 
 import {
   SUPERVISOR_DASHBOARD_ITEM,
+  SUPERVISOR_EQUIPO_ITEM,
   SUPERVISOR_NAV_SECTIONS,
   SUPERVISOR_TOP_ITEMS,
   getVisibleSupervisorNavSections,
 } from "./supervisorNav.ts";
 
 /** Todo lo que el menú ofrece, sin filtrar por permiso: los ítems sueltos de
- * arriba (Dashboard, Comedor) más los de las secciones. */
+ * arriba (Dashboard, Comedor), los de las secciones y el anclado al pie
+ * (Equipo). */
 const TODOS = [
   ...SUPERVISOR_TOP_ITEMS,
   ...SUPERVISOR_NAV_SECTIONS.flatMap((s) => s.items),
+  SUPERVISOR_EQUIPO_ITEM,
 ];
 
 describe("SUPERVISOR_NAV_SECTIONS", () => {
@@ -87,7 +90,6 @@ describe("SUPERVISOR_NAV_SECTIONS", () => {
       SUPERVISOR_NAV_SECTIONS.map((s) => [s.id, s.items.map((i) => i.id)]),
     );
     expect(porSeccion.equipo).toEqual([
-      "empleados",
       "metricas",
       "incidencias",
       "faltas-retardos",
@@ -116,10 +118,17 @@ describe("SUPERVISOR_NAV_SECTIONS", () => {
     expect(enSecciones).not.toContain("dashboard");
   });
 
+  it("deja Equipo fuera de las secciones: va anclado al pie, como en el menú de RH", () => {
+    expect(SUPERVISOR_EQUIPO_ITEM.id).toBe("empleados");
+    expect(SUPERVISOR_EQUIPO_ITEM.label).toBe("Equipo");
+    const enSecciones = SUPERVISOR_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.id));
+    expect(enSecciones).not.toContain("empleados");
+  });
+
   it("reagrupar no agregó ni quitó accesos", () => {
     // Los mismos 19 ids que el supervisor alcanza hoy (viajes-laborales pasó a
-    // ser exclusivo de RH y salió del menú): 17 viven en las secciones, y 2 son
-    // sueltos arriba (dashboard, comedor).
+    // ser exclusivo de RH y salió del menú): 16 viven en las secciones, 2 son
+    // sueltos arriba (dashboard, comedor) y 1 va al pie (empleados/«Equipo»).
     expect(TODOS.map((i) => i.id).sort()).toEqual(
       [
         "ciclo-desempeno",
@@ -176,7 +185,7 @@ describe("getVisibleSupervisorNavSections", () => {
       "mis-encuestas",
       "mis-encuestas-rh",
     ]);
-    expect(porSeccion.equipo).toHaveLength(5);
+    expect(porSeccion.equipo).toHaveLength(4);
   });
 
   it("con permiso de registro, Horas extra vuelve a Mis trámites en su posición", () => {
