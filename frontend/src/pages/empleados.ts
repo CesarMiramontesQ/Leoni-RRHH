@@ -90,13 +90,20 @@ export const EMP_TABLA_REGION_ID = "empleados-tabla";
  */
 const BUSQUEDA_DEBOUNCE_MS = 600;
 
+/**
+ * La misma página tiene dos nombres: para RH es el directorio completo («Empleados»)
+ * y para supervisor/gerente solo su gente («Equipo»), como en el menú lateral.
+ */
+const EMPLEADOS_PAGE_TITLE = "Empleados";
+const EQUIPO_PAGE_TITLE = "Equipo";
+
 function iconSearchInput(): string {
   return `<span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400" aria-hidden="true">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-[1.125rem]"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
   </span>`;
 }
 
-function renderEmpleadosHeroRh(showExportButton: boolean): string {
+function renderEmpleadosHeroRh(showExportButton: boolean, titulo = EMPLEADOS_PAGE_TITLE): string {
   const exportBtn = showExportButton
     ? `<div class="rh-sol-header__toolbar flex w-full shrink-0 flex-col gap-2 md:w-auto md:flex-row md:flex-nowrap md:items-center md:justify-end">
         <button
@@ -115,7 +122,7 @@ function renderEmpleadosHeroRh(showExportButton: boolean): string {
     <section class="${RH_LISTADO_SURFACE} rh-sol-hero-card p-4 sm:p-6" aria-labelledby="rh-empleados-hero-title">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-8">
         <div class="rh-sol-hero__copy min-w-0 flex-1 md:max-w-[min(100%,42rem)]">
-          <h1 id="rh-empleados-hero-title" class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">Empleados</h1>
+          <h1 id="rh-empleados-hero-title" class="text-[clamp(1.35rem,2.5vw,1.75rem)] font-semibold leading-tight tracking-tight text-[#0f172a]">${escapeHtml(titulo)}</h1>
           <p class="mt-2 max-w-full text-pretty text-sm leading-relaxed text-[#64748b] sm:text-[15px] sm:leading-relaxed">Gestión y consulta de información del personal.</p>
         </div>
         ${exportBtn}
@@ -1359,6 +1366,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   const isRhAdmin = canAccessUsuariosAdmin();
   const kpiGestionEquipo = canAccessEmpleadosKpiGestionEquipo();
   const supervisorRhShell = !isRhAdmin && isSupervisorStructuredNavRol(getRolFromAccessToken());
+  const tituloPagina = supervisorRhShell ? EQUIPO_PAGE_TITLE : EMPLEADOS_PAGE_TITLE;
 
   const state: State = {
     page: 1,
@@ -1383,7 +1391,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
   let firmaKpisPintada = "";
 
   mountAppShell(container, {
-    pageTitle: "Empleados",
+    pageTitle: tituloPagina,
     activeNav: "empleados",
     ...(isRhAdmin || supervisorRhShell ? { mainClass: empleadosMainClass } : {}),
     mainHtml: isRhAdmin
@@ -1397,7 +1405,7 @@ export function mountEmpleados(container: HTMLElement, signal: AbortSignal): voi
       : supervisorRhShell
         ? `<div class="${empleadosPageShellClass}">
       <div id="empleados-root" class="${RH_LISTADO_PAGE_OUTER_GRADIENT}">
-        ${renderEmpleadosHeroRh(isRhAdmin)}
+        ${renderEmpleadosHeroRh(isRhAdmin, tituloPagina)}
         <div id="empleados-kpis">${renderKpisSkeletonRh()}</div>
         <div id="empleados-panel">${renderTableLoadingRh()}</div>
       </div>
