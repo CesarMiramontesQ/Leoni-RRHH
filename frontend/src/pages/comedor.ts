@@ -280,15 +280,6 @@ function toReporteViewState(state: ReporteComedorState): ReporteComedorViewState
   return { ...state };
 }
 
-function emptyCalendarMonth(year: number, monthIndex: number): ComedorCalendarMonth {
-  return {
-    year,
-    monthIndex,
-    legend: [],
-    dayMetrics: {},
-  };
-}
-
 function emptyTeamReservationsPage(page: number, pageSize: number): ComedorTeamReservationsPage {
   return {
     items: [],
@@ -2401,13 +2392,9 @@ function mountComedorEmpleado(container: HTMLElement, signal: AbortSignal): void
     state.calendarError = null;
     paint();
     try {
-      const comedorId = await resolveComedorId();
-      if (comedorId == null) {
-        state.calendar = emptyCalendarMonth(state.year, state.monthIndex);
-        state.calendarState = "ready";
-        paint();
-        return;
-      }
+      // Sin gate por comedor asignado: `mis-reservas` es por empleado, no por comedor,
+      // y `turnos_empleados.comedor` está vacío para casi toda la planta (el sync de
+      // TRESS nunca escribe esa columna). Consultarlo aquí vaciaba el calendario.
       const monthsToLoad = monthsCoveredByVisibleRange(state.year, state.monthIndex);
       const reservasPorMes = await Promise.all(
         monthsToLoad.map(({ year, month }) => getComedorMisReservasMes(year, month)),
