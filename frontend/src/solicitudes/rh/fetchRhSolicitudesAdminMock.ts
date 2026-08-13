@@ -110,7 +110,7 @@ export function buildRhSolicitudesAdminViewModel(
 ): RhSolicitudesAdminViewModel {
   const stats = ui.showStatsCards ? computeRhSolicitudStats(rows) : null;
   const empleadoPersonalStats = ui.showEmployeePersonalStats
-    ? computeEmpleadoPersonalSolicitudStats(rows, empleadoVacacionesDisponibles ?? 0)
+    ? computeEmpleadoPersonalSolicitudStats(rows, empleadoVacacionesDisponibles)
     : null;
   const filtered = filterRhSolicitudRows(rows, filters);
   const table = paginateRhSolicitudes(filtered, filters);

@@ -1484,21 +1484,6 @@ body {
   color: #991b1b;
 }
 
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho {
-  border-color: rgba(124, 58, 237, 0.28);
-  background: linear-gradient(145deg, #faf5ff 0%, #ede9fe 40%, #fff 100%);
-}
-
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho .rh-sol-kpi-card__icon {
-  background: linear-gradient(145deg, #ede9fe 0%, #f5f3ff 100%);
-  color: #5b21b6;
-  border: 1px solid rgba(124, 58, 237, 0.22);
-}
-
-:is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--ho .rh-sol-kpi-card__value {
-  color: #4c1d95;
-}
-
 :is(#rh-solicitudes-page, #rh-incidencias-page, #rh-faltas-retardos-page, #rh-actas-page, #rh-comedor-page, #rh-empleados-page, .rh-dashboard-analytics) .rh-sol-kpi-card--aprobadas {
   border-color: rgba(16, 185, 129, 0.3);
   background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 35%, #fff 100%);

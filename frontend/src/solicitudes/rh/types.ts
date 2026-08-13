@@ -61,15 +61,14 @@ export type RhSolicitudTablaFila = {
 export type RhSolicitudRequestStats = {
   pendientes: number;
   vacaciones: number;
-  home_office: number;
   aprobadas_hoy: number;
 };
 
 /** KPIs personales en la página de solicitudes (variante `empleado`). */
 export type RhSolicitudEmpleadoPersonalStats = {
-  dias_disponibles: number;
+  /** `null` = saldo no disponible (nómina caída o sin fila en caché); la tarjeta muestra «—». */
+  dias_disponibles: number | null;
   dias_tomados: number;
-  dias_home_office_tomados: number;
   solicitudes_pendientes: number;
 };
 
