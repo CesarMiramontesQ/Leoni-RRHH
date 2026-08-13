@@ -5,7 +5,7 @@ import {
   type FaltaRetardoListItem,
   type FaltasRetardosPageResponse,
 } from "../api/faltasRetardos.ts";
-import { canAccessFaltasRetardosPage } from "../auth/jwt.ts";
+import { canAccessFaltasRetardosPage, canCrearFaltaRetardo } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
   mountFaltaRetardoDetalleModal,
@@ -86,6 +86,7 @@ function loadingViewModel(
     ...estadisticasFields(kpisHold),
     tableStatus: "loading",
     table: null,
+    puedeCrear: canCrearFaltaRetardo(),
   };
 }
 
@@ -111,6 +112,7 @@ function viewModelFromPage(
     estadisticasErrorMessage,
     tableStatus: pageData.total === 0 ? "empty" : "ready",
     table,
+    puedeCrear: canCrearFaltaRetardo(),
   };
 }
 
@@ -127,6 +129,7 @@ function errorViewModel(
     tableStatus: "error",
     table: null,
     tableErrorMessage: message,
+    puedeCrear: canCrearFaltaRetardo(),
   };
 }
 
@@ -293,7 +296,9 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
     (e) => {
       const t = e.target as HTMLElement;
       if (t.closest("#rh-fr-nuevo") || t.closest("#rh-fr-nueva-empty")) {
-        modal?.open();
+        // Los botones no se pintan sin permiso; el guard evita abrir el modal si
+        // alguien los reinyecta en el DOM. El POST lo cierra el backend.
+        if (canCrearFaltaRetardo()) modal?.open();
         return;
       }
       if (t.closest("[data-rh-fr-clear-filters]")) {

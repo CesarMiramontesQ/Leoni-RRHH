@@ -9,8 +9,13 @@ import {
 } from "./rhFaltasRetardosPageStyles.ts";
 import { renderRhFaltasRetardosTable } from "./rhFaltasRetardosTable.ts";
 
-/** Sin botón de sincronizar: el mirror FI/RE corre en el job semanal del backend. */
-function renderActionsToolbar(): string {
+/**
+ * Sin botón de sincronizar: el mirror FI/RE corre en el job semanal del backend.
+ * Sin botón de nuevo registro para quien no es RH: supervisor y gerente consultan
+ * lo que llega de nómina, no capturan.
+ */
+function renderActionsToolbar(vm: FaltasRetardosAdminViewModel): string {
+  if (!vm.puedeCrear) return "";
   return `
     <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-3" role="toolbar" aria-label="${escapeHtml(FR_COPY.tituloPagina)}">
       <button
@@ -43,7 +48,7 @@ export function renderRhFaltasRetardosAdminView(vm: FaltasRetardosAdminViewModel
 
   return `
     <div id="rh-faltas-retardos-root" class="rh-faltas-retardos-module rh-incidencias-module ${RH_LISTADO_PAGE_OUTER_GRADIENT} gap-4 sm:gap-5">
-      ${renderActionsToolbar()}
+      ${renderActionsToolbar(vm)}
       <div id="rh-fr-filters" class="shrink-0">${renderRhFaltasRetardosFiltersSection(vm)}</div>
       ${renderRhFaltasRetardosKpiSection(vm)}
       <details class="mt-4 flex min-h-0 flex-1 flex-col lg:mt-6 lg:flex lg:flex-1 lg:flex-col" open>

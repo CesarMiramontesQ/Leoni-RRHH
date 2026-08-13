@@ -52,6 +52,8 @@ export type FaltasRetardosAdminViewModel = {
   tableStatus: "loading" | "ready" | "empty" | "error";
   table: FaltasRetardosTableData | null;
   tableErrorMessage?: string;
+  /** Registro manual: solo personal con permisos RH (ver `canCrearFaltaRetardo`). */
+  puedeCrear: boolean;
 };
 
 export function emptyFaltasRetardosListFilters(): FaltasRetardosListFilters {

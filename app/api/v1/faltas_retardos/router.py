@@ -108,12 +108,14 @@ async def estadisticas_faltas_retardos(
 # `app.integrations.sync_ausencias_fi_job.sync_ausencias_lock`.
 
 
+# Captura manual: solo RH. Supervisor, gerente y director siguen leyendo la página
+# (los GET de arriba), pero lo que ven llega del sync de nómina; registrar a mano es
+# de RH. La vista `faltas-retardos` viene encendida de fábrica para gestores, y por eso
+# `gate_api_amplia` no la usa para ampliar: tener la pantalla no abre este endpoint.
 @router.post("", response_model=FaltaRetardoResponse, status_code=status.HTTP_201_CREATED)
 async def create_falta_retardo(
     body: FaltaRetardoCreateRequest,
-    current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
-    ),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: FaltasRetardosService = Depends(_svc),
 ):

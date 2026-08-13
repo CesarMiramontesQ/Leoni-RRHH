@@ -321,6 +321,19 @@ export function canAccessFaltasRetardosPage(): boolean {
 }
 
 /**
+ * Registrar una incidencia a mano en `#/faltas-retardos`: solo personal con
+ * permisos RH. La página la siguen viendo supervisor, gerente y director, pero
+ * la captura es de RH — lo que ellos ven son incidencias que ya vienen de nómina.
+ */
+export function canCrearFaltaRetardo(): boolean {
+  return canAccessRhAssignedModule("faltas-retardos", {
+    blockGestorTeam: true,
+    blockEmpleado: true,
+    blockDirector: true,
+  });
+}
+
+/**
  * Página de viajes laborales (`#/viajes-laborales`): exclusiva de RH.
  * Solo la ven el admin RH en Modo RH (operativo) y quien tenga el módulo
  * `viajes-laborales` otorgado desde Permisos RH; supervisor, gerente y
