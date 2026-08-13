@@ -12,31 +12,6 @@ export const SD_COPY = {
 
   seccionEmpleado: "Info empleado",
   seccionSolicitud: "Info solicitud",
-  seccionJerarquia: "Flujo jerárquico y aprobaciones",
-
-  lblSupervisorAsignado: "Supervisor asignado",
-  lblGerenteLinea: "Gerente de línea",
-  lblEstadoSupervisor: "Estado del supervisor",
-  lblEstadoGerencia: "Estado gerencia",
-
-  supSinAsignar: "Sin supervisor asignado en el organigrama.",
-  /** Textos legacy (listados); flujo actual: una sola aprobación. */
-  supPendienteAprobacion: "Pendiente de aprobación del supervisor directo.",
-  supYaAprobo: "El supervisor directo ya aprobó en el sistema.",
-  /** Modal jerarquía — solicitud pendiente (supervisor asignado). */
-  supPuedeAprobarUnPaso: "Puede aprobar o rechazar como supervisor directo del solicitante.",
-  /** Modal jerarquía — solicitud ya no pendiente. */
-  supEstadoCerrada: "Referencia de organigrama (solicitud ya no pendiente).",
-
-  gerPendienteAprobacion: "Pendiente de aprobación del gerente de línea.",
-  gerEsperaSiAplica: "Hay gerente de línea; la etapa de gerencia procede tras el supervisor.",
-  gerSinEnCadena: "No hay gerente en la cadena de mando sobre el solicitante.",
-  gerPuedeAprobarUnPaso:
-    "Puede aprobar o rechazar como gerente de línea o como gerente del equipo jerárquico del solicitante.",
-  gerEstadoCerrada: "Referencia de organigrama (solicitud ya no pendiente).",
-
-  jerarquiaUnaSolaAprobacion:
-    "Basta una sola decisión: el supervisor directo o un gerente con alcance sobre el solicitante puede aprobar o rechazar (en cualquier orden). No se requiere segunda aprobación.",
 
   /** Solicitud propia (supervisor/gerente): sin botones de decisión jerárquica. */
   avisoAutopaprobacionBloqueada:

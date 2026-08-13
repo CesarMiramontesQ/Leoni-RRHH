@@ -9,11 +9,9 @@ import { mapTablaFilaToSolicitudDetallePendiente } from "../../solicitudes/rh/ma
 import type { SolicitudDetalleAccion } from "../../solicitudes/rh/solicitudDetalleTypes.ts";
 import type { RhSolicitudTablaFila } from "../../solicitudes/rh/types.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
-import type { SolicitudApiItem } from "../../api/solicitudes.ts";
 import { getEmpleadoVacacionesDisponiblesSolicitud } from "../../api/vista360.ts";
 import {
   solicitudDetalleContentHtml,
-  solicitudDetalleJerarquiaHtml,
   solicitudDetalleLoadingBodyHtml,
   solicitudDetalleShellHtml,
 } from "./solicitudDetalleModalUi.ts";
@@ -27,8 +25,6 @@ export type SolicitudDetalleModalOptions = {
   onRefrescarListado: () => void | Promise<void>;
   /** Rol empleado: solo consulta, sin DOM de acciones de aprobación. */
   soloLectura?: boolean;
-  /** GET /solicitudes/{id} para panel de jerarquía (supervisor, gerente, RH, etc.). */
-  cargarDetalleServidor?: (id: number) => Promise<SolicitudApiItem>;
 };
 
 export type SolicitudDetalleModalHandle = {
@@ -276,24 +272,10 @@ export function mountSolicitudDetalleModal(
         document.body.style.overflow = "hidden";
         modalBody.innerHTML = solicitudDetalleLoadingBodyHtml();
 
-        let jerarquiaHtml = "";
         const ocultarDecisionJerarquica =
           !soloLectura && debeOcultarAccionesAprobacionPorAutopaprobacionDesdeSesion(fila);
 
         const cargas: Promise<void>[] = [];
-
-        if (options.cargarDetalleServidor && !soloLectura) {
-          cargas.push(
-            (async () => {
-              try {
-                const det = await options.cargarDetalleServidor!(solicitudId);
-                jerarquiaHtml = solicitudDetalleJerarquiaHtml(det);
-              } catch {
-                /* sin panel de jerarquía si falla el GET */
-              }
-            })(),
-          );
-        }
 
         if (!soloLectura && fila.tipo === "vacaciones") {
           const empleadoIdNum = Number(fila.empleado_id);
@@ -320,7 +302,6 @@ export function mountSolicitudDetalleModal(
 
         modalBody.innerHTML = solicitudDetalleContentHtml(vm, {
           soloLectura,
-          jerarquiaHtml,
           ocultarDecisionJerarquica,
         });
         if (!soloLectura && !ocultarDecisionJerarquica) bindDetailInteractions();

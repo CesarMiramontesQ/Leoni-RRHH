@@ -2,7 +2,6 @@
  * Plantillas HTML del modal de detalle de solicitud pendiente (solo presentación).
  */
 
-import type { SolicitudApiItem } from "../../api/solicitudes.ts";
 import { SD_COPY } from "../../solicitudes/rh/solicitudDetalleCopy.ts";
 import type { SolicitudDetallePendienteVm } from "../../solicitudes/rh/solicitudDetalleTypes.ts";
 import { badgePending } from "../../ui/uiTokens.ts";
@@ -24,14 +23,6 @@ const ICON_USER = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const ICON_CAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4 shrink-0 text-leoni-blue" aria-hidden="true">
   <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
 </svg>`;
-
-function kv(label: string, value: string, valueClass = VALUE): string {
-  return `
-    <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-[minmax(0,11rem)_1fr] sm:items-baseline sm:gap-4">
-      <dt class="${LABEL}">${escapeHtml(label)}</dt>
-      <dd class="${valueClass} break-words">${escapeHtml(value)}</dd>
-    </div>`;
-}
 
 export function solicitudDetalleShellHtml(): string {
   return `
@@ -99,53 +90,7 @@ export type SolicitudDetalleContentOpciones = {
   soloLectura?: boolean;
   /** Sin botones aprobar/rechazar/cambios (p. ej. solicitud propia de supervisor/gerente). */
   ocultarDecisionJerarquica?: boolean;
-  /** Panel de organigrama / etapas (solo cuando el GET devuelve metadatos). */
-  jerarquiaHtml?: string;
 };
-
-/** Panel informativo para supervisores, gerentes y RH a partir del GET enriquecido. */
-export function solicitudDetalleJerarquiaHtml(api: SolicitudApiItem): string {
-  const supNom =
-    typeof api.lider_nombre === "string" && api.lider_nombre.trim() ? api.lider_nombre.trim() : "";
-  const gerNom =
-    typeof api.gerente_linea_nombre === "string" && api.gerente_linea_nombre.trim() ?
-      api.gerente_linea_nombre.trim()
-    : "";
-
-  const sinSup = !supNom;
-  const pending = api.estado === "pending";
-
-  let estadoSup: string;
-  let estadoGer: string;
-  let alertaFlujo: string;
-
-  if (pending) {
-    estadoSup = sinSup ? SD_COPY.supSinAsignar : SD_COPY.supPuedeAprobarUnPaso;
-    estadoGer = !gerNom ? SD_COPY.gerSinEnCadena : SD_COPY.gerPuedeAprobarUnPaso;
-    alertaFlujo = `<p class="mt-3 rounded-xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50 to-white px-3.5 py-3 text-sm font-medium leading-relaxed text-emerald-900"><span class="mr-1.5 inline-block align-middle" aria-hidden="true">✓</span>${escapeHtml(
-      SD_COPY.jerarquiaUnaSolaAprobacion,
-    )}</p>`;
-  } else {
-    estadoSup = sinSup ? SD_COPY.supSinAsignar : api.supervisor_aprobo ? SD_COPY.supYaAprobo : SD_COPY.supEstadoCerrada;
-    estadoGer = !gerNom ? SD_COPY.gerSinEnCadena : SD_COPY.gerEstadoCerrada;
-    alertaFlujo = "";
-  }
-
-  return `
-    <section class="space-y-3 rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)] sm:p-5" aria-labelledby="rh-sd-jer-title">
-      <h3 id="rh-sd-jer-title" class="${SEC_HEAD}">
-        ${ICON_USER}
-        ${escapeHtml(SD_COPY.seccionJerarquia)}
-      </h3>
-      <div class="${PANEL} space-y-3.5">
-        ${kv(SD_COPY.lblSupervisorAsignado, sinSup ? "—" : supNom)}
-        ${kv(SD_COPY.lblGerenteLinea, gerNom || "—")}
-        ${kv(SD_COPY.lblEstadoSupervisor, estadoSup, "text-sm font-medium text-slate-700")}
-        ${kv(SD_COPY.lblEstadoGerencia, estadoGer, "text-sm font-medium text-slate-700")}
-        ${alertaFlujo}
-      </div>
-    </section>`;
-}
 
 export function solicitudDetalleContentHtml(
   vm: SolicitudDetallePendienteVm,
@@ -153,7 +98,6 @@ export function solicitudDetalleContentHtml(
 ): string {
   const soloLectura = opciones?.soloLectura ?? false;
   const ocultarDecisionJerarquica = opciones?.ocultarDecisionJerarquica ?? false;
-  const jerarquiaBlock = opciones?.jerarquiaHtml?.trim() ? opciones.jerarquiaHtml : "";
   const s = vm.solicitud;
   const e = vm.empleado;
   const diasTxt = `${s.total_dias} ${SD_COPY.diasUnidad}`;
@@ -180,8 +124,6 @@ export function solicitudDetalleContentHtml(
     <div class="space-y-6">
       <p id="rh-sd-error" class="hidden rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert"></p>
       <p id="rh-sd-busy-banner" class="hidden rounded-xl border border-leoni-blue/20 bg-leoni-blue/[0.06] px-4 py-3 text-center text-sm font-semibold text-leoni-blue" role="status" aria-live="polite"></p>
-
-      ${jerarquiaBlock}
 
       ${
         ocultarDecisionJerarquica && !soloLectura ?
