@@ -304,3 +304,55 @@ def test_ventana_por_defecto_respeta_las_fechas_pedidas():
     pedida = date(2020, 1, 1)
     assert _ventana_por_defecto(pedida, None) == (pedida, None)
     assert _ventana_por_defecto(None, pedida) == (None, pedida)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("rol", ["supervisor", "gerente", "director"])
+async def test_create_prohibido_para_gestores(client: AsyncClient, db, rol):
+    """Capturar a mano es de RH.
+
+    Estos roles siguen **leyendo** la página —lo que ven llega del sync de nómina—,
+    así que el guard tiene que cerrar el POST sin cerrar el GET. La vista
+    `faltas-retardos` viene encendida de fábrica para gestores y `gate_api_amplia`
+    no amplía con ella justo para que tener la pantalla no abra este endpoint.
+    """
+    gestor = await make_empleado(db, rol=rol, nombre=f"Gestor {rol}")
+    # De su propio equipo a propósito: si fuera un empleado ajeno el 403 lo daría el
+    # filtro de alcance del servicio y el test pasaría incluso sin el guard de rol.
+    empleado = await make_empleado(
+        db, rol="empleado", nombre="Colaborador Propio", lider_id=gestor.empleado_id
+    )
+    headers = await auth_headers(client, gestor)
+
+    with _mock_bono_importadas_repo(
+        empleado_id=empleado.empleado_id,
+        no_empleado=str(empleado.no_empleado),
+    ) as repo:
+        res = await client.post(
+            "/api/v1/faltas-retardos",
+            headers=headers,
+            json={
+                "empleado_id": empleado.empleado_id,
+                "tipo": "falta_justificada",
+                "fecha_evento": "2026-06-20",
+                "observaciones": "No debe registrarse",
+            },
+        )
+
+    assert res.status_code == 403, res.text
+    repo.insert_evento.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("rol", ["supervisor", "gerente", "director"])
+async def test_list_sigue_permitido_para_gestores(client: AsyncClient, db, rol):
+    """Contraparte del test anterior: cerrar el POST no debe cerrar la lectura."""
+    gestor = await make_empleado(db, rol=rol, nombre=f"Lector {rol}")
+    headers = await auth_headers(client, gestor)
+    with patch(
+        "app.services.faltas_retardos_service.FaltasRetardosService.list_eventos",
+        new_callable=AsyncMock,
+        return_value=_sample_bono_page(),
+    ):
+        res = await client.get("/api/v1/faltas-retardos", headers=headers)
+    assert res.status_code == 200, res.text

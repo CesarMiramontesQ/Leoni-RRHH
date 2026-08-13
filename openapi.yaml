@@ -9950,6 +9950,11 @@ paths:
     post:
       tags: [Faltas y retardos]
       summary: Registrar evento de asistencia
+      description: >-
+        Captura manual, reservada a RH (rol `operativo`/`rh` o el módulo
+        `faltas-retardos` otorgado desde Permisos RH). Supervisor, gerente y
+        director consultan la página con los GET de arriba, pero no registran:
+        lo que ven llega del sync de nómina.
       operationId: faltas_retardos_create
       security:
         - BearerAuth: []
@@ -9968,6 +9973,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FaltaRetardoResponse"
+        "403":
+          description: Sin permisos RH para capturar (supervisor, gerente, director)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HTTPValidationError"
         "409":
           description: Conflicto TRESS (traslape permiso/vacación/incapacidad, dry-run, etc.)
           content:

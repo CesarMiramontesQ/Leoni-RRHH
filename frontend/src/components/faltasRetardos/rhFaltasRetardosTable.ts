@@ -62,7 +62,7 @@ function renderEmptyState(vm: FaltasRetardosAdminViewModel): string {
         <p class="rh-sol-empty__sub mx-auto mt-2 max-w-md text-center text-xs leading-relaxed text-[#64748b]">${escapeHtml(FR_COPY.tablaVaciaDescripcion)}</p>
         <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
           ${showClear ? `<button type="button" data-rh-fr-clear-filters class="${RH_LISTADO_BTN_GHOST} rh-sol-filters__clear">${escapeHtml(FR_COPY.limpiarFiltros)}</button>` : ""}
-          <button type="button" id="rh-fr-nueva-empty" class="${RH_LISTADO_BTN_GHOST}">${escapeHtml(FR_COPY.nuevo)}</button>
+          ${vm.puedeCrear ? `<button type="button" id="rh-fr-nueva-empty" class="${RH_LISTADO_BTN_GHOST}">${escapeHtml(FR_COPY.nuevo)}</button>` : ""}
         </div>
       </div>
     </section>`;

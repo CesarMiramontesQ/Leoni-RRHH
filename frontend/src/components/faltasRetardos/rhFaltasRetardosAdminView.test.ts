@@ -13,6 +13,7 @@ function vm(
     estadisticasStatus: "loading",
     tableStatus: "loading",
     table: null,
+    puedeCrear: true,
     ...overrides,
   };
 }
@@ -24,8 +25,26 @@ describe("rhFaltasRetardosAdminView — toolbar", () => {
     expect(html).not.toContain("Sincronizar");
   });
 
-  it("conserva el botón de nuevo registro", () => {
-    const html = renderRhFaltasRetardosAdminView(vm());
+  it("conserva el botón de nuevo registro para quien sí puede capturar", () => {
+    const html = renderRhFaltasRetardosAdminView(vm({ puedeCrear: true }));
     expect(html).toContain('id="rh-fr-nuevo"');
+  });
+
+  it("sin permiso de captura no emite el botón: registrar a mano es de RH", () => {
+    const html = renderRhFaltasRetardosAdminView(vm({ puedeCrear: false }));
+    expect(html).not.toContain('id="rh-fr-nuevo"');
+  });
+
+  it("sin permiso de captura tampoco lo emite el estado vacío de la tabla", () => {
+    const tablaVacia = {
+      tableStatus: "empty" as const,
+      table: { items: [], total: 0, page: 1, page_size: 10 },
+    };
+    expect(renderRhFaltasRetardosAdminView(vm({ ...tablaVacia, puedeCrear: true }))).toContain(
+      'id="rh-fr-nueva-empty"',
+    );
+    expect(renderRhFaltasRetardosAdminView(vm({ ...tablaVacia, puedeCrear: false }))).not.toContain(
+      'id="rh-fr-nueva-empty"',
+    );
   });
 });
