@@ -25,7 +25,11 @@ import {
 } from "../navigation/nominasNav.ts";
 import { resolveShellSidebarActiveNav } from "../navigation/shellSidebarActiveNav.ts";
 import { EMPLEADO_TOP_ITEMS, getVisibleEmpleadoNavSections } from "../navigation/empleadoNav.ts";
-import { SUPERVISOR_TOP_ITEMS, getVisibleSupervisorNavSections } from "../navigation/supervisorNav.ts";
+import {
+  SUPERVISOR_EQUIPO_ITEM,
+  SUPERVISOR_TOP_ITEMS,
+  getVisibleSupervisorNavSections,
+} from "../navigation/supervisorNav.ts";
 import {
   isEmpleadoFlatNavRol,
   isRhStructuredNavRol,
@@ -434,9 +438,17 @@ const NAV_NOMINAS: NavItemDef = {
 
 export function footerGestionHtml(activeNav: ShellNavKey | undefined, rol: string | null): string {
   if (isRhStructuredNavRol(rol)) return "";
-  // El supervisor lleva `Empleados` dentro de la sección "Mi equipo".
-  if (isSupervisorStructuredNavRol(rol)) return "";
-  const empleadosLi = navItemLi(activeNav, rol, NAV_EMPLEADOS);
+  // Supervisor/gerente: mismo anclaje al pie que RH, con la etiqueta «Equipo».
+  const def: NavItemDef = isSupervisorStructuredNavRol(rol)
+    ? {
+        id: SUPERVISOR_EQUIPO_ITEM.id,
+        key: SUPERVISOR_EQUIPO_ITEM.key,
+        hrefFor: () => SUPERVISOR_EQUIPO_ITEM.href,
+        label: SUPERVISOR_EQUIPO_ITEM.label,
+        svgPaths: SUPERVISOR_EQUIPO_ITEM.svgPaths,
+      }
+    : NAV_EMPLEADOS;
+  const empleadosLi = navItemLi(activeNav, rol, def);
   if (empleadosLi.trim() === "") return "";
   return `<li class="mt-auto pt-6">
     <ul role="list" class="-mx-2 space-y-1 md:max-lg:-mx-0">

@@ -56,10 +56,14 @@ function countOccurrences(html: string, needle: string): number {
 }
 
 describe("renderSupervisorSidebarSections", () => {
-  it("emite el enlace a Empleados exactamente una vez, y el pie no lo repite", () => {
-    const html = renderSupervisorSidebarSections(undefined, "supervisor");
-    expect(countOccurrences(html, 'href="#/empleados"')).toBe(1);
-    expect(footerGestionHtml(undefined, "supervisor")).toBe("");
+  it("emite el enlace a Equipo exactamente una vez, y va en el pie, no en las secciones", () => {
+    const secciones = renderSupervisorSidebarSections(undefined, "supervisor");
+    const pie = footerGestionHtml(undefined, "supervisor");
+    expect(countOccurrences(secciones, 'href="#/empleados"')).toBe(0);
+    expect(countOccurrences(pie, 'href="#/empleados"')).toBe(1);
+    // `mt-auto` es lo que lo empuja al fondo del sidebar, igual que en el de RH.
+    expect(pie).toContain("mt-auto");
+    expect(pie).toContain("Equipo");
   });
 
   it("pinta las secciones plegables como <details> y deja fuera de <details> las estáticas", () => {
