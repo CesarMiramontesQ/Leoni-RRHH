@@ -74,16 +74,15 @@ const tipoIconWrapActive = `${NR_TIPO_ICON_WRAP_BASE} border-leoni-blue/25 bg-[c
 
 const tipoIconWrapInactive = `${NR_TIPO_ICON_WRAP_BASE} border-slate-200/85 bg-white/95 text-slate-500 group-hover:border-slate-300 group-hover:text-slate-600`;
 
-/** Ancho del panel del diálogo: estrecho por defecto; supervisor más ancho desde `sm` (móvil sin cambios). */
-function rhNuevaSolicitudModalDialogWidthClass(wideForSupervisor: boolean): string {
-  return wideForSupervisor
-    ? "max-w-[26rem] sm:max-w-4xl"
-    : "max-w-[26rem] sm:max-w-lg";
-}
+/**
+ * Ancho del panel del diálogo: el mismo para empleado, líder/gerente y RH. Antes
+ * dependía del rol (`sm:max-w-lg` salvo supervisor/gerente) y el modal cambiaba de
+ * tamaño según quién lo abriera. Móvil sin cambios.
+ */
+const NR_DIALOG_WIDTH_CLASS = "max-w-[26rem] sm:max-w-4xl";
 
-export function shellHtml(opts?: { wideForSupervisor?: boolean }): string {
-  const wide = opts?.wideForSupervisor === true;
-  const dialogW = rhNuevaSolicitudModalDialogWidthClass(wide);
+export function shellHtml(): string {
+  const dialogW = NR_DIALOG_WIDTH_CLASS;
   return `
     <div
       id="rh-nr-overlay"
