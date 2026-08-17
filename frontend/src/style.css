@@ -3281,6 +3281,15 @@ body {
   color: #1e40af;
 }
 
+.rh-perm-actions-menu.rh-perm-actions-menu--floating {
+  position: fixed;
+  right: auto;
+  top: auto;
+  z-index: 100;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .ppe-modal-backdrop {
   animation: comp-modal-fade-in 180ms ease;
 }
