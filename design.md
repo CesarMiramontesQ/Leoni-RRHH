@@ -578,6 +578,11 @@ Cuatro variantes definidas en `uiTokens.ts`:
 **Header**: `bg-primary` con texto blanco, sticky top, `text-xs font-semibold uppercase`.
 **Rows**: 40px height (standard density), clickable con `cursor-pointer hover:bg-active-tint`.
 **Data attributes**: `data-rh-{module}-id="{id}"` para event delegation.
+**Menú Acciones de fila**: si hay 2+ acciones (editar, admin, eliminar), un solo botón
+`Acciones` + chevron abre un menú (`role="menu"`). No poner tres botones en la celda.
+El panel se porta a `document.body` con `position: fixed` para no recortarse por el
+`overflow` de la tabla. La acción destructiva va al final, separada y en rojo.
+Referencia: Permisos RH (`ajustesPermisosRh.ts`) y Puestos (`puestoEmpleados.ts`).
 
 ### 8.5 Status Chip / Badge
 

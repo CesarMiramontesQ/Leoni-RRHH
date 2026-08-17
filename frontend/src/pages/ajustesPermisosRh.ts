@@ -20,6 +20,7 @@ import {
   BTN_PRIMARY,
   BTN_SECONDARY,
   FIELD_FOCUS,
+  RH_LISTADO_BTN_GHOST,
   RH_LISTADO_LABEL,
   RH_LISTADO_PAGE_OUTER,
   RH_LISTADO_SURFACE,
@@ -70,7 +71,7 @@ const CHEVRON_SVG = `<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="t
 const TABLE_TH =
   "rh-sol-th sticky top-0 z-20 whitespace-nowrap border-b border-[rgba(148,163,184,0.28)] px-3 py-2.5 text-left text-[13px] font-bold tracking-tight text-[#334155] sm:px-4";
 
-const TABLE_TD = "px-3 py-2.5 align-middle text-sm text-text-primary sm:px-4";
+const TABLE_TD = "px-3 py-2.5 align-top text-sm text-text-primary sm:px-4";
 
 const FILTER_INPUT =
   "rh-emp-filter-input min-h-[42px] w-full rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)] transition-[border-color,box-shadow,background-color] duration-150 ease-out placeholder:text-slate-400 hover:border-[rgba(100,116,139,0.45)] hover:bg-[#fafbfc]";
@@ -79,6 +80,113 @@ const FILTER_SELECT =
   "col-start-1 row-start-1 w-full min-h-[42px] appearance-none rounded-[12px] border border-[rgba(148,163,184,0.35)] bg-white py-2.5 pr-8 pl-3 text-sm text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.04)]";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+
+const RH_PERM_ACTIONS_PORTAL_ID = "rh-perm-actions-menu-portal";
+
+const MENU_ITEM =
+  "flex w-full items-center rounded-lg border-0 bg-transparent px-3 py-2 text-left text-[13px] font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-[#1e40af] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e40af]/40";
+
+const MENU_ITEM_DANGER =
+  "flex w-full items-center rounded-lg border-0 bg-transparent px-3 py-2 text-left text-[13px] font-semibold text-red-700 transition hover:bg-red-50 hover:text-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40";
+
+let activeMenuScrollCloser: (() => void) | null = null;
+
+function detachMenuScrollListener(): void {
+  if (!activeMenuScrollCloser) return;
+  window.removeEventListener("scroll", activeMenuScrollCloser, true);
+  window.removeEventListener("resize", activeMenuScrollCloser);
+  activeMenuScrollCloser = null;
+}
+
+function ensureActionsMenuPortal(): HTMLElement {
+  let portal = document.getElementById(RH_PERM_ACTIONS_PORTAL_ID);
+  if (!portal) {
+    portal = document.createElement("div");
+    portal.id = RH_PERM_ACTIONS_PORTAL_ID;
+    document.body.appendChild(portal);
+  }
+  return portal;
+}
+
+function collectActionMenus(root: HTMLElement): HTMLElement[] {
+  const portal = document.getElementById(RH_PERM_ACTIONS_PORTAL_ID);
+  const inRoot = Array.from(root.querySelectorAll(".rh-perm-actions-menu"));
+  const inPortal = portal ? Array.from(portal.querySelectorAll(".rh-perm-actions-menu")) : [];
+  return [...inRoot, ...inPortal] as HTMLElement[];
+}
+
+function restoreActionMenu(menu: HTMLElement, root: HTMLElement): void {
+  const wrapId = menu.dataset.rhPermActionsWrapId;
+  if (!wrapId) {
+    menu.remove();
+    return;
+  }
+  const wrap = root.querySelector(`.rh-perm-actions-wrap[data-empleado-id="${wrapId}"]`);
+  if (wrap) wrap.appendChild(menu);
+  else menu.remove();
+  delete menu.dataset.rhPermActionsWrapId;
+}
+
+function closeAllActionMenus(root: HTMLElement): void {
+  detachMenuScrollListener();
+  collectActionMenus(root).forEach((menu) => {
+    menu.classList.add("hidden");
+    menu.classList.remove("rh-perm-actions-menu--floating");
+    menu.style.top = "";
+    menu.style.left = "";
+    menu.style.maxHeight = "";
+    restoreActionMenu(menu, root);
+  });
+  root.querySelectorAll(".rh-perm-actions-trigger").forEach((btn) => {
+    btn.setAttribute("aria-expanded", "false");
+  });
+}
+
+function positionAndShowActionsMenu(trigger: HTMLElement, menu: HTMLElement, root: HTMLElement): void {
+  const wrap = trigger.closest(".rh-perm-actions-wrap") as HTMLElement | null;
+  const wrapId = wrap?.dataset.empleadoId;
+  if (wrapId) menu.dataset.rhPermActionsWrapId = wrapId;
+
+  ensureActionsMenuPortal().appendChild(menu);
+  menu.classList.remove("hidden");
+  menu.classList.add("rh-perm-actions-menu--floating");
+
+  const margin = 8;
+  const gap = 4;
+  const rect = trigger.getBoundingClientRect();
+  const menuWidth = menu.offsetWidth > 0 ? menu.offsetWidth : 216;
+  let left = rect.right - menuWidth;
+  left = Math.max(margin, Math.min(left, window.innerWidth - menuWidth - margin));
+
+  const placeMenu = (): void => {
+    const menuHeight = menu.scrollHeight;
+    const spaceBelow = window.innerHeight - rect.bottom - gap - margin;
+    const spaceAbove = rect.top - gap - margin;
+    const openUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+
+    if (openUp) {
+      const maxHeight = Math.max(120, spaceAbove);
+      const height = Math.min(menuHeight, maxHeight);
+      menu.style.maxHeight = `${maxHeight}px`;
+      menu.style.top = `${Math.max(margin, rect.top - gap - height)}px`;
+    } else {
+      menu.style.maxHeight = `${Math.max(120, spaceBelow)}px`;
+      menu.style.top = `${rect.bottom + gap}px`;
+    }
+    menu.style.left = `${left}px`;
+  };
+
+  placeMenu();
+  requestAnimationFrame(placeMenu);
+
+  detachMenuScrollListener();
+  activeMenuScrollCloser = () => closeAllActionMenus(root);
+  requestAnimationFrame(() => {
+    if (!activeMenuScrollCloser) return;
+    window.addEventListener("scroll", activeMenuScrollCloser, true);
+    window.addEventListener("resize", activeMenuScrollCloser);
+  });
+}
 
 const ROL_LABELS: Record<string, string> = {
   empleado: "Empleado",
@@ -183,9 +291,10 @@ function countActiveInGroups(
 }
 
 /**
- * Resumen de módulos por usuario: total "N de M módulos" + chips por grupo que
- * envuelven (sin scroll horizontal interno). Los grupos parciales/sin acceso
- * resaltan en ámbar/slate, de modo que un grupo como Nóminas salta a la vista.
+ * Resumen de módulos por usuario: total "N de M módulos" + chips por grupo.
+ * El contenedor lleva min-w-0/max-w-full para que flex-wrap funcione dentro de
+ * `table-fixed` (si no, los chips desbordan y se solapan con Acciones).
+ * Los grupos parciales/sin acceso resaltan en ámbar/slate.
  */
 function renderModuleSummary(
   user: RhUsuarioPermisosItem,
@@ -202,7 +311,7 @@ function renderModuleSummary(
 
   if (level === "full") {
     return `
-      <div class="flex flex-col gap-1.5">
+      <div class="flex min-w-0 max-w-full flex-col gap-1.5">
         ${summary}
         <span class="inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-900">
           <span class="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>Permisos completos
@@ -219,16 +328,16 @@ function renderModuleSummary(
     .filter((g) => g.active > 0)
     .map(({ group, active, total }) => {
       const cls = groupBadgeClass(active, total, false);
-      return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}" title="${escapeHtml(group)}: ${active}/${total}">${escapeHtml(group)} ${active}/${total}</span>`;
+      return `<span class="inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}" title="${escapeHtml(group)}: ${active}/${total}">${escapeHtml(group)} ${active}/${total}</span>`;
     })
     .join("");
 
   const chipsHtml = chips
-    ? `<div class="flex flex-wrap gap-1">${chips}</div>`
+    ? `<div class="flex min-w-0 max-w-full flex-wrap gap-1">${chips}</div>`
     : `<span class="text-xs text-text-muted">Sin módulos autorizados</span>`;
 
   return `
-    <div class="flex flex-col gap-1.5">
+    <div class="flex min-w-0 max-w-full flex-col gap-1.5">
       ${summary}
       ${chipsHtml}
     </div>`;
@@ -415,6 +524,59 @@ function renderToolbar(state: PageState, visibleTotal: number): string {
     </section>`;
 }
 
+function renderRowActions(user: RhUsuarioPermisosItem, saving: boolean): string {
+  if (!user.editable) return badgeRejected("No editable");
+
+  const adminLabel = user.puede_administrar_permisos_rh ? "Quitar admin" : "Hacer admin";
+  const adminTitle = user.puede_administrar_permisos_rh
+    ? "Quitar permiso de administrar permisos RH"
+    : "Otorgar permiso de administrar permisos RH";
+  const deleteItem = user.puede_administrar_permisos_rh
+    ? ""
+    : `<div class="my-1 border-t border-slate-100" role="separator"></div>
+       <button type="button" role="menuitem" class="${MENU_ITEM_DANGER}" data-rh-perm-action="eliminar" data-empleado-id="${user.empleado_id}">
+         Eliminar
+       </button>`;
+
+  return `
+    <div class="rh-perm-actions-wrap relative flex justify-end" data-empleado-id="${user.empleado_id}">
+      <button
+        type="button"
+        class="rh-perm-actions-trigger ${RH_LISTADO_BTN_GHOST} shrink-0 whitespace-nowrap !px-3 !py-2 text-xs [&[aria-expanded=true]_svg]:rotate-180"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        aria-label="Acciones de ${escapeHtml(formatNombreTablaRh(user.nombre))}"
+        data-rh-perm-action="toggle-menu"
+        data-empleado-id="${user.empleado_id}"
+        ${saving ? "disabled" : ""}
+      >
+        <span>Acciones</span>
+        ${CHEVRON_SVG}
+      </button>
+      <div
+        class="rh-perm-actions-menu hidden absolute right-0 top-[calc(100%+4px)] z-30 min-w-[13.5rem] rounded-[10px] border border-slate-200/95 bg-white p-1.5 shadow-[0_12px_32px_rgba(15,23,42,0.12)]"
+        role="menu"
+        aria-label="Acciones"
+      >
+        <button type="button" role="menuitem" class="${MENU_ITEM}" data-rh-perm-action="editar" data-empleado-id="${user.empleado_id}">
+          Editar permisos
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          class="${MENU_ITEM}"
+          data-rh-perm-action="admin"
+          data-empleado-id="${user.empleado_id}"
+          data-conceder="${user.puede_administrar_permisos_rh ? "0" : "1"}"
+          title="${escapeHtml(adminTitle)}"
+        >
+          ${adminLabel}
+        </button>
+        ${deleteItem}
+      </div>
+    </div>`;
+}
+
 function renderTableRow(
   user: RhUsuarioPermisosItem,
   draft: Record<string, boolean>,
@@ -426,7 +588,7 @@ function renderTableRow(
   return `
     <tr class="rh-sol-tbody-row hover:bg-[#f8fafc]/80" data-empleado-id="${user.empleado_id}">
       <td class="${TABLE_TD}">
-        <div class="min-w-[9rem] max-w-[14rem]">
+        <div class="min-w-0 max-w-[14rem]">
           <p class="truncate font-semibold text-[#0f172a]">${escapeHtml(formatNombreTablaRh(user.nombre))}</p>
           ${renderNombreSublinea(user)}
           ${
@@ -438,51 +600,13 @@ function renderTableRow(
       </td>
       <td class="${TABLE_TD} tabular-nums whitespace-nowrap text-[#334155]">${escapeHtml(formatNoEmpleadoRh(user.no_empleado))}</td>
       <td class="${TABLE_TD} whitespace-nowrap">${renderAccessBadge(level)}</td>
-      <td class="${TABLE_TD} min-w-[18rem]">
-        ${renderModuleSummary(user, draft, catalogGroups)}
-      </td>
-      <td class="${TABLE_TD} text-right whitespace-nowrap">
-        <div class="flex items-center justify-end gap-2">
-          ${
-            user.editable
-              ? `<button
-                  type="button"
-                  class="rh-permiso-editar ${BTN_GHOST} min-h-9 px-3 py-1.5 text-xs"
-                  data-empleado-id="${user.empleado_id}"
-                  ${saving ? "disabled" : ""}
-                >
-                  Editar permisos
-                </button>`
-              : badgeRejected("No editable")
-          }
-          ${
-            user.editable
-              ? `<button
-                  type="button"
-                  class="rh-permiso-admin ${user.puede_administrar_permisos_rh ? BTN_SECONDARY : BTN_GHOST} min-h-9 px-3 py-1.5 text-xs"
-                  data-empleado-id="${user.empleado_id}"
-                  data-conceder="${user.puede_administrar_permisos_rh ? "0" : "1"}"
-                  ${saving ? "disabled" : ""}
-                  title="${user.puede_administrar_permisos_rh ? "Quitar permiso de administrar permisos RH" : "Otorgar permiso de administrar permisos RH"}"
-                >
-                  ${user.puede_administrar_permisos_rh ? "Quitar admin" : "Hacer admin"}
-                </button>`
-              : ""
-          }
-          ${
-            user.editable && !user.puede_administrar_permisos_rh
-              ? `<button
-                  type="button"
-                  class="rh-permiso-eliminar ${BTN_DANGER} min-h-9 px-3 py-1.5 text-xs"
-                  data-empleado-id="${user.empleado_id}"
-                  ${saving ? "disabled" : ""}
-                  title="Quitar de la administración de permisos"
-                >
-                  Eliminar
-                </button>`
-              : ""
-          }
+      <td class="${TABLE_TD} min-w-0">
+        <div class="w-full min-w-0 overflow-hidden">
+          ${renderModuleSummary(user, draft, catalogGroups)}
         </div>
+      </td>
+      <td class="${TABLE_TD} text-right">
+        ${renderRowActions(user, saving)}
       </td>
     </tr>`;
 }
@@ -552,13 +676,13 @@ function renderTable(state: PageState, filtered: RhUsuarioPermisosItem[]): strin
     <section class="${RH_LISTADO_SURFACE} overflow-hidden" aria-label="Listado de permisos RH">
       <div class="max-h-[min(68vh,720px)] overflow-auto">
         <span class="sr-only">En pantallas pequeñas puedes desplazar la tabla horizontalmente.</span>
-        <table class="min-w-[780px] w-full table-fixed text-left">
+        <table class="min-w-[960px] w-full table-fixed text-left">
           <colgroup>
-            <col class="w-[17%]" />
-            <col class="w-[10%]" />
-            <col class="w-[15%]" />
-            <col class="w-[44%]" />
-            <col class="w-[14%]" />
+            <col class="w-[12rem]" />
+            <col class="w-[6.5rem]" />
+            <col class="w-[10rem]" />
+            <col />
+            <col class="w-[8.5rem]" />
           </colgroup>
           <thead class="rh-sol-thead">
             <tr>
@@ -973,7 +1097,11 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     document.body.style.overflow = locked ? "hidden" : "";
   };
 
-  signal?.addEventListener("abort", () => setBodyScrollLocked(false));
+  signal?.addEventListener("abort", () => {
+    setBodyScrollLocked(false);
+    closeAllActionMenus(container);
+    document.getElementById(RH_PERM_ACTIONS_PORTAL_ID)?.remove();
+  });
 
   const anyModalOpen = (): boolean =>
     state.editingEmpleadoId !== null ||
@@ -982,6 +1110,7 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     state.confirmAdminId !== null;
 
   const paint = (opts?: { preserveFilterFocus?: boolean; focusAddInput?: boolean }): void => {
+    closeAllActionMenus(container);
     mountAppShell(container, {
       mainHtml: renderPage(state),
       onSignOut: () => {
@@ -1211,6 +1340,32 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
     }
   };
 
+  const handleRowAction = (btn: HTMLElement): void => {
+    const action = btn.dataset.rhPermAction;
+    const wrap = btn.closest(".rh-perm-actions-wrap");
+    const wrapId = wrap?.getAttribute("data-empleado-id") ?? btn.dataset.empleadoId ?? "";
+
+    if (action === "toggle-menu") {
+      const menu =
+        collectActionMenus(container).find((m) => m.dataset.rhPermActionsWrapId === wrapId) ??
+        (wrap?.querySelector(".rh-perm-actions-menu") as HTMLElement | null);
+      const wasOpen = Boolean(menu && !menu.classList.contains("hidden"));
+      closeAllActionMenus(container);
+      if (menu && wrap && !wasOpen) {
+        positionAndShowActionsMenu(btn, menu, container);
+        btn.setAttribute("aria-expanded", "true");
+      }
+      return;
+    }
+
+    const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
+    if (!Number.isFinite(empleadoId)) return;
+    closeAllActionMenus(container);
+    if (action === "editar") openModal(empleadoId);
+    else if (action === "admin") askAdmin(empleadoId, btn.dataset.conceder === "1");
+    else if (action === "eliminar") askDelete(empleadoId);
+  };
+
   const bindEvents = (): void => {
     const filterInput = container.querySelector<HTMLInputElement>("#rh-perm-filter-input");
     filterInput?.addEventListener(
@@ -1280,42 +1435,6 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
           if (!Number.isFinite(nextPage)) return;
           state.page = nextPage;
           paint();
-        },
-        { signal },
-      );
-    });
-
-    container.querySelectorAll<HTMLButtonElement>(".rh-permiso-editar").forEach((btn) => {
-      btn.addEventListener(
-        "click",
-        () => {
-          const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
-          if (!Number.isFinite(empleadoId)) return;
-          openModal(empleadoId);
-        },
-        { signal },
-      );
-    });
-
-    container.querySelectorAll<HTMLButtonElement>(".rh-permiso-eliminar").forEach((btn) => {
-      btn.addEventListener(
-        "click",
-        () => {
-          const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
-          if (!Number.isFinite(empleadoId)) return;
-          askDelete(empleadoId);
-        },
-        { signal },
-      );
-    });
-
-    container.querySelectorAll<HTMLButtonElement>(".rh-permiso-admin").forEach((btn) => {
-      btn.addEventListener(
-        "click",
-        () => {
-          const empleadoId = Number.parseInt(btn.dataset.empleadoId ?? "", 10);
-          if (!Number.isFinite(empleadoId)) return;
-          askAdmin(empleadoId, btn.dataset.conceder === "1");
         },
         { signal },
       );
@@ -1524,6 +1643,12 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       "keydown",
       (ev) => {
         if (ev.key !== "Escape") return;
+        const menuOpen = collectActionMenus(container).some((m) => !m.classList.contains("hidden"));
+        if (menuOpen) {
+          ev.preventDefault();
+          closeAllActionMenus(container);
+          return;
+        }
         if (state.confirmAdminId !== null) {
           ev.preventDefault();
           cancelAdmin();
@@ -1541,6 +1666,24 @@ export function mountAjustesPermisosRh(container: HTMLElement, signal?: AbortSig
       { signal },
     );
   };
+
+  document.addEventListener(
+    "click",
+    (ev) => {
+      if (!container.isConnected) return;
+      const target = ev.target as HTMLElement;
+      const actionBtn = target.closest<HTMLElement>("[data-rh-perm-action]");
+      const portal = document.getElementById(RH_PERM_ACTIONS_PORTAL_ID);
+      if (actionBtn && (container.contains(actionBtn) || portal?.contains(actionBtn))) {
+        handleRowAction(actionBtn);
+        return;
+      }
+      if (!target.closest(".rh-perm-actions-wrap") && !target.closest(".rh-perm-actions-menu")) {
+        closeAllActionMenus(container);
+      }
+    },
+    { signal },
+  );
 
   void (async () => {
     try {
