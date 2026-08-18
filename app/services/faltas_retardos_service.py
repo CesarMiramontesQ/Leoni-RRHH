@@ -346,6 +346,7 @@ class FaltasRetardosService:
         *,
         por_periodo_y_tipo: list[dict[str, object]] | None = None,
         tendencia_agrupacion: str | None = None,
+        total_colaboradores_con_eventos: int = 0,
     ) -> FaltasRetardosEstadisticasResponse:
         por_tipo = self._normalizar_por_tipo(por_codigo)
 
@@ -392,6 +393,7 @@ class FaltasRetardosService:
             tendencia_agrupacion=tendencia_agrupacion,
             eventos_por_tipo=eventos_por_tipo,
             empleados_con_mas_eventos=empleados_con_mas_eventos,
+            total_colaboradores_con_eventos=total_colaboradores_con_eventos,
         )
 
     async def estadisticas_eventos(
@@ -401,11 +403,13 @@ class FaltasRetardosService:
         rh_ui_mode: str | None = None,
         empleado_id: int | None = None,
         tipo: str | None = None,
+        tipos: list[str] | None = None,
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
         busqueda: str | None = None,
         area: str | None = None,
         tendencia_agrupacion: str | None = None,
+        top_empleados: int = 10,
     ) -> FaltasRetardosEstadisticasResponse:
         """Agregados desde la caché, con los mismos filtros que el listado."""
         scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
@@ -425,29 +429,35 @@ class FaltasRetardosService:
             "fecha_fin": fecha_fin,
             "cb_codigos": cb_codigos,
             "tipo": tipo,
+            "tipos": list(tipos) if tipos is not None else None,
         }
 
         por_tipo = await self.cache_repo.aggregate_por_tipo(**filtros)
         por_mes = await self.cache_repo.aggregate_por_mes(**filtros)
-        top = await self.cache_repo.aggregate_empleados_top(limit=10, **filtros)
+        top, total_colaboradores = await self.cache_repo.aggregate_empleados_top(
+            limit=top_empleados, **filtros
+        )
         periodo_rows = (
             await self.cache_repo.aggregate_por_periodo_y_tipo(agrupacion=agr, **filtros)
             if agr
             else []
         )
 
-        empleados_top = await self._hidratar_empleados_top(top)
+        empleados_top = await self._hidratar_empleados_top(top, limit=top_empleados)
         return self._build_estadisticas_response(
             por_tipo,
             por_mes,
             empleados_top,
             por_periodo_y_tipo=self._map_periodo_tipo_rows(periodo_rows) if agr else None,
             tendencia_agrupacion=agr,
+            total_colaboradores_con_eventos=total_colaboradores,
         )
 
     async def _hidratar_empleados_top(
         self,
         top_cache: list[tuple[int, int, dict[str, int]]],
+        *,
+        limit: int = 10,
     ) -> list[tuple[int, str | None, str | None, int, dict[str, int]]]:
         """Convierte (no_empleado, total, por_tipo) de la caché en el shape del schema."""
         acumulado: dict[int, dict[str, int]] = {
@@ -459,7 +469,7 @@ class FaltasRetardosService:
             empleado_id, nombre = empleados.get(no_empleado, (0, None))
             salida.append((empleado_id, str(no_empleado), nombre, sum(por_tipo.values()), por_tipo))
         salida.sort(key=lambda row: (-row[3], row[0]))
-        return salida[:10]
+        return salida[: max(0, int(limit))]
 
     def _validar_fechas_goce(self, data: FaltaRetardoCreateRequest, *, administrativo: bool) -> None:
         assert data.fecha_fin is not None

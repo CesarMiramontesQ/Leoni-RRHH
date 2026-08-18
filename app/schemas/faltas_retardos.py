@@ -141,3 +141,6 @@ class FaltasRetardosEstadisticasResponse(BaseModel):
     tendencia_agrupacion: str | None = None
     eventos_por_tipo: list[FaltaRetardoTipoTotalItem]
     empleados_con_mas_eventos: list[FaltaRetardoEmpleadoTotalItem]
+    # Colaboradores con al menos un evento en el alcance, sin recortar por
+    # `top_empleados`: es lo que deja decir "Top 10 de N" sin mentir.
+    total_colaboradores_con_eventos: int = 0

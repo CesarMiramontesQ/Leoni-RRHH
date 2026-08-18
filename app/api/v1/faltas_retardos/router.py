@@ -11,6 +11,7 @@ from app.core.dependencies import get_rh_ui_mode, role_checker
 from app.models.empleados import Empleado
 from app.schemas.faltas_retardos import (
     FaltaRetardoCreateRequest,
+    FaltaRetardoTipo,
     FaltaRetardoResponse,
     FaltasRetardosEstadisticasResponse,
     FaltasRetardosPageResponse,
@@ -79,6 +80,13 @@ async def estadisticas_faltas_retardos(
     svc: FaltasRetardosService = Depends(_svc),
     empleado_id: int | None = Query(None),
     tipo: str | None = Query(None),
+    tipos: list[FaltaRetardoTipo] | None = Query(
+        None,
+        description=(
+            "Subconjunto de tipos a considerar. Acota todos los agregados, incluido "
+            "el ranking de colaboradores, que se calcula en el servidor."
+        ),
+    ),
     fecha_inicio: date | None = Query(None),
     fecha_fin: date | None = Query(None),
     busqueda: str | None = Query(None, description="Nombre o número de empleado"),
@@ -87,6 +95,9 @@ async def estadisticas_faltas_retardos(
         None,
         description="Granularidad de tendencia por tipo: dia, semana o mes",
     ),
+    top_empleados: int = Query(
+        10, ge=1, le=50, description="Tamaño de `empleados_con_mas_eventos`"
+    ),
 ):
     agr = (tendencia_agrupacion or "").strip().lower() or None
     return await svc.estadisticas_eventos(
@@ -94,11 +105,13 @@ async def estadisticas_faltas_retardos(
         rh_ui_mode=rh_ui_mode,
         empleado_id=empleado_id,
         tipo=tipo.strip() if tipo and tipo.strip() else None,
+        tipos=list(tipos) if tipos else None,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
         busqueda=busqueda.strip() if busqueda and busqueda.strip() else None,
         area=area.strip() if area and area.strip() else None,
         tendencia_agrupacion=agr,
+        top_empleados=top_empleados,
     )
 
 

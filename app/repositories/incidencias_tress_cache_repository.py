@@ -72,6 +72,7 @@ class IncidenciasTressCacheRepository:
         fecha_fin: date | None,
         cb_codigos: list[int] | None,
         tipo: str | None,
+        tipos: list[str] | None = None,
     ) -> list:
         # Incidencias de gente que no existe en Bono: fuera. TRESS tiene CB_CODIGO que
         # nunca se dieron de alta aquí, y el sync los deja con `empleado_id` NULL (ver el
@@ -95,6 +96,11 @@ class IncidenciasTressCacheRepository:
             conds.append(IncidenciaTress.no_empleado.in_(cb_codigos or [-1]))
         if tipo and tipo.strip():
             conds.append(IncidenciaTress.tipo == tipo.strip())
+        if tipos is not None:
+            # Subconjunto explícito de tipos (la tarjeta del dashboard deja fuera
+            # vacaciones y permisos con goce). Lista vacía = ningún tipo pasa; no
+            # equivale a "sin filtro", igual que `cb_codigos`.
+            conds.append(IncidenciaTress.tipo.in_(tipos or [""]))
         return conds
 
     async def count(
@@ -104,6 +110,7 @@ class IncidenciasTressCacheRepository:
         fecha_fin: date | None = None,
         cb_codigos: list[int] | None = None,
         tipo: str | None = None,
+        tipos: list[str] | None = None,
     ) -> int:
         stmt = select(func.count()).select_from(IncidenciaTress).where(
             *self._filtros(
@@ -111,6 +118,7 @@ class IncidenciasTressCacheRepository:
                 fecha_fin=fecha_fin,
                 cb_codigos=cb_codigos,
                 tipo=tipo,
+                tipos=tipos,
             )
         )
         return int((await self.db.execute(stmt)).scalar() or 0)
@@ -124,6 +132,7 @@ class IncidenciasTressCacheRepository:
         fecha_fin: date | None = None,
         cb_codigos: list[int] | None = None,
         tipo: str | None = None,
+        tipos: list[str] | None = None,
     ) -> list[dict]:
         """Filas de la página, ya con el nombre del empleado y de quien registró.
 
@@ -157,6 +166,7 @@ class IncidenciasTressCacheRepository:
                     fecha_fin=fecha_fin,
                     cb_codigos=cb_codigos,
                     tipo=tipo,
+                    tipos=tipos,
                 )
             )
             # Misma terna determinista que usaba datos-analisis.
@@ -178,6 +188,7 @@ class IncidenciasTressCacheRepository:
         fecha_fin: date | None = None,
         cb_codigos: list[int] | None = None,
         tipo: str | None = None,
+        tipos: list[str] | None = None,
     ) -> dict[str, int]:
         stmt = (
             select(IncidenciaTress.tipo, func.count().label("cnt"))
@@ -187,6 +198,7 @@ class IncidenciasTressCacheRepository:
                     fecha_fin=fecha_fin,
                     cb_codigos=cb_codigos,
                     tipo=tipo,
+                    tipos=tipos,
                 )
             )
             .group_by(IncidenciaTress.tipo)
@@ -202,6 +214,7 @@ class IncidenciasTressCacheRepository:
         fecha_fin: date | None = None,
         cb_codigos: list[int] | None = None,
         tipo: str | None = None,
+        tipos: list[str] | None = None,
     ) -> list[tuple[str, str, int]]:
         """Agrupa por día y tipo en SQL, y arma el periodo en Python.
 
@@ -221,6 +234,7 @@ class IncidenciasTressCacheRepository:
                     fecha_fin=fecha_fin,
                     cb_codigos=cb_codigos,
                     tipo=tipo,
+                    tipos=tipos,
                 )
             )
             .group_by(IncidenciaTress.fecha_evento, IncidenciaTress.tipo)
@@ -244,6 +258,7 @@ class IncidenciasTressCacheRepository:
         fecha_fin: date | None = None,
         cb_codigos: list[int] | None = None,
         tipo: str | None = None,
+        tipos: list[str] | None = None,
     ) -> list[tuple[str, int]]:
         rows = await self.aggregate_por_periodo_y_tipo(
             agrupacion="mes",
@@ -251,6 +266,7 @@ class IncidenciasTressCacheRepository:
             fecha_fin=fecha_fin,
             cb_codigos=cb_codigos,
             tipo=tipo,
+            tipos=tipos,
         )
         merged: dict[str, int] = {}
         for periodo, _clave, count in rows:
@@ -265,8 +281,13 @@ class IncidenciasTressCacheRepository:
         fecha_fin: date | None = None,
         cb_codigos: list[int] | None = None,
         tipo: str | None = None,
-    ) -> list[tuple[int, int, dict[str, int]]]:
-        """(no_empleado, total, {tipo: total}) de los empleados con más eventos."""
+        tipos: list[str] | None = None,
+    ) -> tuple[list[tuple[int, int, dict[str, int]]], int]:
+        """Top de empleados y cuántos colaboradores tienen al menos un evento.
+
+        El conteo sale de la misma agregación, antes de recortar a `limit`: si se
+        derivara del top, un «Top 10» se leería como «solo hay 10 colaboradores».
+        """
         stmt = (
             select(
                 IncidenciaTress.no_empleado,
@@ -279,6 +300,7 @@ class IncidenciasTressCacheRepository:
                     fecha_fin=fecha_fin,
                     cb_codigos=cb_codigos,
                     tipo=tipo,
+                    tipos=tipos,
                 )
             )
             .group_by(IncidenciaTress.no_empleado, IncidenciaTress.tipo)
@@ -296,7 +318,7 @@ class IncidenciasTressCacheRepository:
             for no_empleado, por_tipo in por_empleado.items()
         ]
         totales.sort(key=lambda item: (-item[1], item[0]))
-        return totales[: max(0, int(limit))]
+        return totales[: max(0, int(limit))], len(por_empleado)
 
 
 def periodo_de_fecha(fecha: date, agrupacion: str) -> str:
