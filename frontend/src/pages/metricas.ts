@@ -2,6 +2,7 @@ import { canAccessMetricasPage } from "../auth/jwt.ts";
 import { fetchIncidenciasEstadisticas, type IncidenciasFetchError } from "../api/incidencias.ts";
 import { getFaltasRetardosEstadisticas } from "../api/faltasRetardos.ts";
 import { tendenciaAgrupacionForRango } from "../dashboard/rh/filterRowsByPeriod.ts";
+import { rangoInicialMetricas } from "../dashboard/rh/rangoInicialMetricas.ts";
 import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { mountRhIncidenciasAnalyticsCharts } from "../components/incidencias/rhIncidenciasAnalyticsSection.ts";
@@ -56,7 +57,13 @@ const EMPTY_INC_CATALOG: RhIncidenciasFilterCatalog = {
   subareasRegistradas: [],
 };
 
+/**
+ * Filtros con los que abre la página. El rango es el año en curso: los tres bloques
+ * (solicitudes, Seguridad y Calidad, faltas y retardos) parten del mismo periodo en vez
+ * de que cada backend resuelva el «sin fecha» por su cuenta.
+ */
 function emptySolicitudFilterState(): RhSolicitudFilterState {
+  const rango = rangoInicialMetricas();
   return {
     tipo: "",
     area_id: "",
@@ -64,8 +71,8 @@ function emptySolicitudFilterState(): RhSolicitudFilterState {
     empleado_id: "",
     empleado_busqueda: "",
     no_empleado: "",
-    fecha_inicio: "",
-    fecha_fin: "",
+    fecha_inicio: rango.fecha_inicio,
+    fecha_fin: rango.fecha_fin,
     estado: "",
     page: 1,
     page_size: 10,
@@ -211,6 +218,12 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
       null,
     );
     solVm.personasDiaChartRows = filterRhSolicitudRows(allRows, appliedFilters);
+    // Mismo rango que las filas: si el placeholder y la gráfica usaran ventanas
+    // distintas, la tendencia cambiaría de eje al montarse.
+    solVm.analyticsRangoMeses = {
+      fecha_inicio: appliedFilters.fecha_inicio,
+      fecha_fin: appliedFilters.fecha_fin,
+    };
     const incVm = buildIncidenciasVm();
     const frVm = buildFaltasRetardosMetricasVm();
     const inner = container.querySelector("#rh-metricas-inner");
@@ -224,6 +237,8 @@ export function mountMetricas(container: HTMLElement, signal: AbortSignal): void
           solVm.tableStatus,
           destroyChart,
           destroyChartsIn,
+          "",
+          solVm.analyticsRangoMeses,
         );
         const incSection = inner.querySelector("#rh-metricas-seccion-incidencias");
         mountRhIncidenciasAnalyticsCharts(incSection ?? inner, incVm, destroyChart, destroyChartsIn);

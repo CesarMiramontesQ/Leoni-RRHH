@@ -120,12 +120,15 @@ export function renderRhSolicitudesAnalyticsSection(opts: {
   rows: readonly RhSolicitudTablaFila[];
   /** Filtro global de estado (`""` = gráfica HO usa solo aprobadas por defecto). */
   estadoFiltroActivo?: string;
+  /** Rango aplicado; sin él las series mensuales usan los últimos seis meses. */
+  rangoMeses?: { fecha_inicio: string; fecha_fin: string };
 }): string {
   if (opts.state === "hidden") return "";
   if (opts.state === "loading") return skeletonBlock();
 
   const d = computeSolicitudesAnalytics(opts.rows, undefined, {
     estadoFiltroActivo: opts.estadoFiltroActivo ?? "",
+    ...(opts.rangoMeses ? { rangoMeses: opts.rangoMeses } : {}),
   });
   if (d.kpis.total === 0) {
     return `<div id="rh-sol-analytics" class="shrink-0">
@@ -144,7 +147,7 @@ export function renderRhSolicitudesAnalyticsSection(opts: {
   </section>`;
 
   const filaTendenciaVacHo = `<section class="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-stretch">
-    <div class="lg:col-span-7">${card("Tendencia mensual", "Solicitudes creadas por mes y tipo (últimos 6 meses)", renderLinePlaceholder(tendenciaHas, RH_SOL_TENDENCIA_MES_ID, "Tendencia mensual por tipo"), "h-full")}</div>
+    <div class="lg:col-span-7">${card("Tendencia mensual", "Solicitudes creadas por mes y tipo", renderLinePlaceholder(tendenciaHas, RH_SOL_TENDENCIA_MES_ID, "Tendencia mensual por tipo"), "h-full")}</div>
     <div class="lg:col-span-5">${card("Vacaciones vs Home office", "Por mes de creación de la solicitud", renderVacHoPlaceholder(d.por_mes_vac_ho), "h-full")}</div>
   </section>`;
 
@@ -177,12 +180,16 @@ export function mountRhSolicitudesAnalyticsFromRows(
   destroyChartById: (chartId: string) => void,
   destroyChartsInContainer: (container: ParentNode) => void,
   estadoFiltroActivo = "",
+  rangoMeses?: { fecha_inicio: string; fecha_fin: string },
 ): void {
   for (const id of RH_SOL_ANALYTICS_CHART_IDS) destroyChartById(id);
   const analyticsHost = root.querySelector("#rh-sol-analytics");
   if (analyticsHost) destroyChartsInContainer(analyticsHost);
   if (tableStatus === "loading") return;
-  const analytics = computeSolicitudesAnalytics(rows, undefined, { estadoFiltroActivo });
+  const analytics = computeSolicitudesAnalytics(rows, undefined, {
+    estadoFiltroActivo,
+    ...(rangoMeses ? { rangoMeses } : {}),
+  });
   if (analytics.kpis.total <= 0 && !hoDiasPorDiaLaboralTieneDatos(analytics.ho_dias_por_dia_laboral)) return;
   mountRhSolicitudesAnalyticsCharts(root, analytics);
 }
