@@ -167,10 +167,10 @@ function renderTeamEmployeePicker(
   inputClass: string,
   hasError: boolean,
 ): string {
-  // Con integrante ya elegido y el buscador vacío la lista se repliega y manda la
-  // tarjeta de seleccionado, igual que el combobox de «Nueva solicitud» al elegir.
-  // Escribir de nuevo la vuelve a abrir para cambiar de persona.
-  const listboxOpen = search.trim().length > 0 || selectedId == null;
+  // La lista solo se despliega al escribir: abierta de entrada volcaría el equipo
+  // completo bajo el campo, que es lo que este buscador vino a evitar. Al elegir se
+  // limpia la búsqueda, así que también se repliega y manda la tarjeta del elegido.
+  const listboxOpen = search.trim().length > 0;
   const matches = filtrarEmpleadosComedor(options, search);
   const lista =
     matches.length === 0

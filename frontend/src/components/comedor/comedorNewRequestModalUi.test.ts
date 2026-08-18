@@ -117,8 +117,19 @@ describe("comedorNewRequestModalUi — buscador de miembro del equipo", () => {
     expect(input).toContain("Nombre o número de empleado");
   });
 
-  it("lista a cada integrante con su número, y elegible por clic", () => {
+  it("arranca cerrado: sin escribir nada no vuelca el equipo entero", () => {
     const html = buildComedorNewRequestFormHtml(equipoParams());
+
+    expect(html).toContain("data-comedor-modal-team-search");
+    expect(html).not.toContain("data-comedor-modal-team-pick");
+  });
+
+  it("lista a cada integrante con su número, y elegible por clic", () => {
+    const html = buildComedorNewRequestFormHtml(
+      equipoParams({
+        state: { ...params().state, supervisorRecipientScope: "team", selectedEmployeeId: null, employeeSearch: "a" },
+      }),
+    );
 
     expect(html).toContain('data-comedor-modal-team-pick="10"');
     expect(html).toContain('data-comedor-modal-team-pick="11"');
