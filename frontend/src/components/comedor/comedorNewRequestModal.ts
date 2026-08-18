@@ -12,6 +12,18 @@ import {
   type ComedorNewRequestFormErrors,
   type ComedorNewRequestFormState,
 } from "./comedorNewRequestModalUi.ts";
+import {
+  buildDescansosFeedback,
+  createDescansosEmpleadoController,
+} from "../../solicitudes/rh/descansosEmpleado.ts";
+import {
+  errorFechaEnDescanso,
+  mesesCargadosParaCalendario,
+} from "../../comedor/rh/descansosComedorFecha.ts";
+import {
+  bindWorkdayDatePicker,
+  type WorkdayDatePickerHandle,
+} from "../../ui/workdayDatePicker.ts";
 import type { ComedorMenuDelDia } from "../../comedor/rh/resolveMenuDiaFromSemana.ts";
 import type { ComedorMenuDelDiaLoader } from "../../comedor/rh/loadMenuDelDia.ts";
 import type { MenuDelDiaPanelState } from "./comedorMenuPreview.ts";
@@ -98,6 +110,7 @@ function validateForm(
   supervisorBeneficiaryConfig: ComedorSupervisorBeneficiaryModalConfig | undefined,
   teamEmployeeIds: ReadonlySet<string>,
   fechaServicioMinMensaje: string | undefined,
+  descansos: ReadonlySet<string>,
 ): ComedorNewRequestFormErrors {
   const errors: ComedorNewRequestFormErrors = {};
   if (state.personType !== "interno" && state.personType !== "externo") {
@@ -147,6 +160,9 @@ function validateForm(
       "La fecha límite para modificar este servicio de comedor ya venció (jueves de la semana anterior).";
   } else if (fechasBloqueadas?.has(state.fechaServicio)) {
     errors.fechaServicio = "Ya tienes un registro para este día.";
+  } else {
+    const descanso = errorFechaEnDescanso(state.fechaServicio, descansos);
+    if (descanso) errors.fechaServicio = descanso;
   }
   return errors;
 }
@@ -165,7 +181,7 @@ function firstInvalidSelector(
   }
   if (allowExternalPeople && errors.externalPeopleCount) return "#comedor-modal-external-count";
   if (errors.menuId) return "#comedor-modal-menu";
-  if (errors.fechaServicio) return "#comedor-modal-date";
+  if (errors.fechaServicio) return "#comedor-modal-date-trigger";
   return null;
 }
 
@@ -203,6 +219,14 @@ export function mountComedorNewRequestModal(
   const loadMenuDelDia = options.loadMenuDelDia;
   const supervisorBeneficiaryConfig = options.supervisorBeneficiaryConfig;
   let fechasBloqueadasSet: ReadonlySet<string> | null = null;
+  const descansosController = createDescansosEmpleadoController();
+  let datePickerHandle: WorkdayDatePickerHandle | null = null;
+  // El aviso de carga y los días bloqueados se refrescan por parche puntual del DOM,
+  // no con `renderForm()`: repintar cerraría el calendario abierto.
+  const desuscribirDescansos = descansosController.subscribe(() => {
+    if (!isOpen()) return;
+    aplicarDescansosAlCalendario();
+  });
   let catalog: Catalog | null = null;
   let formState = initialState(defaultEmployeeId, supervisorBeneficiaryConfig);
   let errors: ComedorNewRequestFormErrors = {};
@@ -225,16 +249,75 @@ export function mountComedorNewRequestModal(
     return !overlayEl.classList.contains("hidden");
   }
 
-  function notifyBeneficiaryUserIdChange(): void {
-    const cb = options.onBeneficiaryUserIdChange;
-    if (!cb) return;
+  function beneficiarioUserId(): number | undefined {
+    // Solo hay descansos que consultar para un empleado interno: una persona externa no
+    // tiene turno en nómina.
+    if (formState.personType !== "interno") return undefined;
     const emp = selectedEmployee();
-    if (!emp) {
-      cb(undefined);
+    if (!emp) return undefined;
+    const uid = Number.parseInt(emp.id, 10);
+    return Number.isFinite(uid) ? uid : undefined;
+  }
+
+  function notifyBeneficiaryUserIdChange(): void {
+    const uid = beneficiarioUserId();
+    sincronizarBeneficiarioDescansos(uid);
+    options.onBeneficiaryUserIdChange?.(uid);
+  }
+
+  function descansosCargados(): Set<string> {
+    return descansosController.getLoadedDates();
+  }
+
+  /** Aplica al calendario vivo lo que ya se sabe, sin repintar el formulario.
+   *
+   * `renderForm()` reemplaza todo el body por `innerHTML`: repintar aquí cerraría el
+   * popover del calendario y devolvería la vista al mes de la fecha seleccionada justo
+   * cuando el usuario está navegando meses.
+   */
+  function aplicarDescansosAlCalendario(): void {
+    const meses = mesesCargadosParaCalendario(
+      descansosController.getState(),
+      descansosController.getLoadedMonths(),
+    );
+    datePickerHandle?.setBlockedDates(descansosCargados());
+    datePickerHandle?.setLoadedMonths(meses);
+    const statusHost = bodyEl.querySelector("[data-comedor-modal-descansos-status]");
+    if (statusHost) {
+      statusHost.innerHTML = buildDescansosFeedback(
+        descansosController.getState(),
+        descansosController.getError(),
+        [],
+      ).loadHtml;
+    }
+  }
+
+  function sincronizarBeneficiarioDescansos(uid: number | undefined): void {
+    descansosController.setEmpleado(uid ?? null);
+    if (uid == null) {
+      aplicarDescansosAlCalendario();
       return;
     }
-    const uid = Number.parseInt(emp.id, 10);
-    cb(Number.isFinite(uid) ? uid : undefined);
+    const [year, monthIndex] = mesVisibleCalendario();
+    void cargarDescansosMes(year, monthIndex);
+  }
+
+  function mesVisibleCalendario(): [number, number] {
+    const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(formState.fechaServicio);
+    if (match) return [Number(match[1]), Number(match[2]) - 1];
+    const hoy = new Date();
+    return [hoy.getFullYear(), hoy.getMonth()];
+  }
+
+  /** Carga el mes visible y sus vecinos. El fallo no bloquea: degrada a calendario abierto. */
+  async function cargarDescansosMes(year: number, monthIndex: number): Promise<void> {
+    if (beneficiarioUserId() == null) return;
+    try {
+      await descansosController.loadVisibleMonths(year, monthIndex);
+    } catch {
+      // El controller ya dejó el estado en `error`; el aviso lo pinta el feedback.
+    }
+    aplicarDescansosAlCalendario();
   }
 
   function selectedEmployee(): ComedorEmployeeOption | null {
@@ -287,6 +370,8 @@ export function mountComedorNewRequestModal(
       menuDelDia,
       menuDelDiaError,
       menuDelDiaFechaIso,
+      descansosState: descansosController.getState(),
+      descansosError: descansosController.getError(),
     });
     bindInteractions();
     if (searchWasFocused) {
@@ -353,6 +438,9 @@ export function mountComedorNewRequestModal(
       searchDebounceTimer = null;
     }
     fechasBloqueadasSet = null;
+    datePickerHandle?.destroy();
+    datePickerHandle = null;
+    descansosController.setEmpleado(null);
     menuDelDiaState = "idle";
     menuDelDia = null;
     menuDelDiaError = null;
@@ -577,12 +665,26 @@ export function mountComedorNewRequestModal(
       errors.menuId = undefined;
     });
 
-    const dateInput = form.querySelector<HTMLInputElement>("[data-comedor-modal-date]");
-    dateInput?.addEventListener("change", () => {
-      formState.fechaServicio = dateInput.value;
-      errors.fechaServicio = undefined;
-      void refreshMenuDelDia(formState.fechaServicio);
-    });
+    datePickerHandle?.destroy();
+    datePickerHandle = null;
+    const datePickerRoot = form.querySelector<HTMLElement>("[data-workday-date-picker]");
+    if (datePickerRoot) {
+      datePickerHandle = bindWorkdayDatePicker(datePickerRoot, {
+        minDate: fechaMinReservaIso,
+        blockedDates: descansosCargados(),
+        loadedMonths:
+          mesesCargadosParaCalendario(
+            descansosController.getState(),
+            descansosController.getLoadedMonths(),
+          ) ?? undefined,
+        onChange: (iso) => {
+          formState.fechaServicio = iso;
+          errors.fechaServicio = undefined;
+          void refreshMenuDelDia(iso);
+        },
+        onMonthChange: (year, monthIndex) => cargarDescansosMes(year, monthIndex),
+      });
+    }
 
     const externalCountInput = form.querySelector<HTMLInputElement>("[data-comedor-modal-external-count]");
     externalCountInput?.addEventListener("input", () => {
@@ -609,6 +711,7 @@ export function mountComedorNewRequestModal(
         supervisorBeneficiaryConfig,
         new Set(teamOnlyEmployeeOptions.map((row) => row.id)),
         fechaServicioMinMensaje,
+        descansosCargados(),
       );
       if (Object.keys(errors).length > 0) {
         renderForm();
@@ -694,6 +797,7 @@ export function mountComedorNewRequestModal(
         searchDebounceTimer = null;
       }
       close();
+      desuscribirDescansos();
       host.innerHTML = "";
     },
   };

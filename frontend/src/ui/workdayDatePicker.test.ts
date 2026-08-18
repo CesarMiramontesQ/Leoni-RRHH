@@ -81,3 +81,45 @@ describe("workdayDatePicker — descansos dinámicos", () => {
     expect(calls).toBe(1);
   });
 });
+
+describe("workdayDatePicker — fecha mínima", () => {
+  it("deshabilita los días anteriores a minDate", () => {
+    const html = buildWorkdayDatePickerMonthHtml({
+      year: 2026,
+      monthIndex: 6,
+      selected: "",
+      blockWeekends: false,
+      minDate: "2026-07-15",
+    });
+
+    const anterior = html.split('data-wd-day="2026-07-14"')[1]?.split("</button>")[0];
+    const minimo = html.split('data-wd-day="2026-07-15"')[1]?.split("</button>")[0];
+    expect(anterior).toContain("disabled");
+    expect(anterior).toContain("No disponible");
+    expect(minimo).not.toContain("disabled");
+  });
+
+  it("no deshabilita nada cuando no hay minDate", () => {
+    const html = buildWorkdayDatePickerMonthHtml({
+      year: 2026,
+      monthIndex: 6,
+      selected: "",
+      blockWeekends: false,
+    });
+
+    const dia = html.split('data-wd-day="2026-07-14"')[1]?.split("</button>")[0];
+    expect(dia).not.toContain("disabled");
+  });
+
+  it("no confunde el mínimo con un descanso en la leyenda", () => {
+    const html = buildWorkdayDatePickerMonthHtml({
+      year: 2026,
+      monthIndex: 6,
+      selected: "",
+      blockWeekends: false,
+      minDate: "2026-07-15",
+    });
+
+    expect(html).not.toContain("Días en ámbar = descanso del empleado");
+  });
+});

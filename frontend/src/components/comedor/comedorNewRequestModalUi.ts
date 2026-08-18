@@ -8,6 +8,11 @@ import type { MenuDelDiaPanelState } from "../comedor/comedorMenuPreview.ts";
 import { renderComedorMenuDelDiaPanel } from "./comedorMenuPreview.ts";
 import { BTN_PRIMARY, BTN_SECONDARY } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+import { buildWorkdayDatePickerHtml } from "../../ui/workdayDatePicker.ts";
+import {
+  buildDescansosFeedback,
+  type DescansosLoadState,
+} from "../../solicitudes/rh/descansosEmpleado.ts";
 
 export type SupervisorRecipientScope = "personal" | "team";
 
@@ -35,7 +40,7 @@ export type BuildComedorNewRequestFormParams = {
   menuOptions: readonly ComedorMenuOption[];
   /** Etiqueta del selector (ej. "Tipo de comida" para empleados). */
   menuFieldLabel?: string;
-  /** ISO yyyy-mm-dd: límite mínimo del input type="date". */
+  /** ISO yyyy-mm-dd: los días anteriores no se pueden elegir en el calendario. */
   fechaMinIso?: string | null;
   /** Texto de ayuda bajo el selector de fecha. */
   fechaMinHint?: string | null;
@@ -54,6 +59,9 @@ export type BuildComedorNewRequestFormParams = {
   menuDelDia?: ComedorMenuDelDia | null;
   menuDelDiaError?: string | null;
   menuDelDiaFechaIso?: string | null;
+  /** Carga de los descansos del beneficiario; `idle` mientras no hay a quién consultar. */
+  descansosState?: DescansosLoadState;
+  descansosError?: string | null;
 };
 
 /** Etiquetas de sección: jerarquía suave para no competir con el contenido. */
@@ -240,15 +248,23 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
     menuDelDia = null,
     menuDelDiaError = null,
     menuDelDiaFechaIso = null,
+    descansosState = "idle",
+    descansosError = null,
   } = params;
   const fieldClass =
     "h-11 w-full rounded-lg border border-slate-200 bg-[var(--color-surface-container-lowest,#FFFFFF)] px-3.5 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.045)] transition-[border-color,box-shadow] duration-150 placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25 focus:shadow-[0_1px_3px_rgba(37,99,235,0.12)]";
   const errorClass = "border-red-300 focus:border-red-500 focus:ring-red-500/20";
   const menuClass = `${fieldClass} ${errors.menuId ? errorClass : ""}`;
-  const dateClass = `${fieldClass} ${errors.fechaServicio ? errorClass : ""}`;
   const employeeClass = `${fieldClass} ${errors.employee ? errorClass : ""}`;
   const externalPeopleClass = `${fieldClass} ${errors.externalPeopleCount ? errorClass : ""}`;
   const submitText = isSubmitting ? "Guardando..." : "Confirmar registro";
+  // El fallo de descansos solo informa: el registro de comida sigue habilitado (ver
+  // `mesesCargadosParaCalendario`). No replicar aquí el fail-closed de solicitudes.
+  const { loadHtml: descansosFeedbackHtml } = buildDescansosFeedback(
+    descansosState,
+    descansosError ?? "",
+    [],
+  );
 
   const supervisorSelfOption = params.supervisorSelfOption ?? null;
   const teamEmployeeOptions = params.teamEmployeeOptions ?? employeeOptions;
@@ -414,17 +430,16 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
         </div>
 
         <div class="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.05)] sm:p-5">
-          <label for="comedor-modal-date" class="${formSectionLabelClass()}">Fecha del servicio</label>
-          <input
-            id="comedor-modal-date"
-            type="date"
-            data-comedor-modal-date
-            value="${escapeHtml(state.fechaServicio)}"
-            ${fechaMinIso ? `min="${escapeHtml(fechaMinIso)}"` : ""}
-            class="${dateClass}"
-            aria-invalid="${errors.fechaServicio ? "true" : "false"}"
-          />
+          <label for="comedor-modal-date-trigger" class="${formSectionLabelClass()}">Fecha del servicio</label>
+          ${buildWorkdayDatePickerHtml({
+            inputId: "comedor-modal-date",
+            value: state.fechaServicio,
+            blockWeekends: false,
+            invalid: Boolean(errors.fechaServicio),
+            describedBy: fechaMinHint || fechaMinIso ? "comedor-modal-date-window-hint" : undefined,
+          })}
           ${fieldError(errors.fechaServicio)}
+          <div data-comedor-modal-descansos-status class="mt-2.5 empty:hidden">${descansosFeedbackHtml}</div>
           ${
             fechaMinHint
               ? `<p class="${formHintClass()}" id="comedor-modal-date-window-hint">${escapeHtml(fechaMinHint)}</p>`
