@@ -73,3 +73,102 @@ describe("comedorNewRequestModalUi — calendario con descansos", () => {
     expect(html).toContain("Ese día el colaborador descansa; elige otra fecha.");
   });
 });
+
+describe("comedorNewRequestModalUi — buscador de miembro del equipo", () => {
+  const EQUIPO = [
+    { id: "10", nombre: "Ana López", numero: "553", area: "Equipo directo", avatarUrl: null },
+    { id: "11", nombre: "José Ramírez", numero: "1819", area: "Equipo directo", avatarUrl: null },
+  ];
+
+  function equipoParams(
+    overrides: Partial<BuildComedorNewRequestFormParams> = {},
+  ): BuildComedorNewRequestFormParams {
+    const base = params(overrides);
+    return {
+      ...base,
+      state: {
+        ...base.state,
+        supervisorRecipientScope: "team",
+        selectedEmployeeId: null,
+        ...(overrides.state ?? {}),
+      },
+      supervisorSelfOption: {
+        id: "99",
+        nombre: "Yo Líder",
+        numero: "1000",
+        area: "Equipo directo",
+        avatarUrl: null,
+      },
+      teamEmployeeOptions: overrides.teamEmployeeOptions ?? EQUIPO,
+    };
+  }
+
+  it("ofrece un buscador en vez de un select nativo", () => {
+    const html = buildComedorNewRequestFormHtml(equipoParams());
+
+    expect(html).toContain("data-comedor-modal-team-search");
+    expect(html).not.toContain("data-comedor-modal-employee-select");
+  });
+
+  it("dice que se puede buscar por nombre o por número", () => {
+    const html = buildComedorNewRequestFormHtml(equipoParams());
+    const input = html.split("data-comedor-modal-team-search")[1]?.split(">")[0] ?? "";
+
+    expect(input).toContain("Nombre o número de empleado");
+  });
+
+  it("lista a cada integrante con su número, y elegible por clic", () => {
+    const html = buildComedorNewRequestFormHtml(equipoParams());
+
+    expect(html).toContain('data-comedor-modal-team-pick="10"');
+    expect(html).toContain('data-comedor-modal-team-pick="11"');
+    expect(html).toContain("1819");
+  });
+
+  it("solo lista lo que coincide con la búsqueda", () => {
+    const html = buildComedorNewRequestFormHtml(
+      equipoParams({ state: { ...params().state, supervisorRecipientScope: "team", selectedEmployeeId: null, employeeSearch: "1819" } }),
+    );
+
+    expect(html).toContain('data-comedor-modal-team-pick="11"');
+    expect(html).not.toContain('data-comedor-modal-team-pick="10"');
+  });
+
+  it("una búsqueda sin coincidencias lo dice, en vez de mostrar una lista vacía", () => {
+    const html = buildComedorNewRequestFormHtml(
+      equipoParams({ state: { ...params().state, supervisorRecipientScope: "team", selectedEmployeeId: null, employeeSearch: "zzz" } }),
+    );
+
+    expect(html).toContain("No hay coincidencias en tu equipo");
+  });
+
+  it("con integrante ya elegido y sin búsqueda, la lista se repliega", () => {
+    const html = buildComedorNewRequestFormHtml(
+      equipoParams({
+        state: { ...params().state, supervisorRecipientScope: "team", selectedEmployeeId: "10", employeeSearch: "" },
+        selectedEmployee: EQUIPO[0],
+      }),
+    );
+
+    expect(html).toContain("data-comedor-modal-team-search");
+    expect(html).not.toContain("data-comedor-modal-team-pick");
+  });
+
+  it("al volver a escribir la lista reaparece para poder cambiar", () => {
+    const html = buildComedorNewRequestFormHtml(
+      equipoParams({
+        state: { ...params().state, supervisorRecipientScope: "team", selectedEmployeeId: "10", employeeSearch: "jose" },
+        selectedEmployee: EQUIPO[0],
+      }),
+    );
+
+    expect(html).toContain('data-comedor-modal-team-pick="11"');
+  });
+
+  it("sin equipo mantiene el aviso de siempre, no un buscador vacío", () => {
+    const html = buildComedorNewRequestFormHtml(equipoParams({ teamEmployeeOptions: [] }));
+
+    expect(html).toContain("No hay colaboradores en tu equipo directo");
+    expect(html).not.toContain("data-comedor-modal-team-search");
+  });
+});

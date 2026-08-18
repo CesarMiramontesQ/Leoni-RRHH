@@ -8,6 +8,7 @@ import type { MenuDelDiaPanelState } from "../comedor/comedorMenuPreview.ts";
 import { renderComedorMenuDelDiaPanel } from "./comedorMenuPreview.ts";
 import { BTN_PRIMARY, BTN_SECONDARY } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
+import { filtrarEmpleadosComedor } from "../../comedor/rh/filtrarEmpleadosComedor.ts";
 import { buildWorkdayDatePickerHtml } from "../../ui/workdayDatePicker.ts";
 import {
   buildDescansosFeedback,
@@ -152,6 +153,78 @@ function renderEmployeeSearchResults(
         })
         .join("")}
     </ul>`;
+}
+
+/**
+ * Buscador del integrante del equipo. Mismo gesto que el combobox de «Nueva solicitud»
+ * —escribir nombre o número y elegir de la lista— pero filtrando en memoria: la lista es
+ * el equipo directo, y consultar el directorio abriría el registro a gente fuera de él.
+ */
+function renderTeamEmployeePicker(
+  options: readonly ComedorEmployeeOption[],
+  search: string,
+  selectedId: string | null,
+  inputClass: string,
+  hasError: boolean,
+): string {
+  // Con integrante ya elegido y el buscador vacío la lista se repliega y manda la
+  // tarjeta de seleccionado, igual que el combobox de «Nueva solicitud» al elegir.
+  // Escribir de nuevo la vuelve a abrir para cambiar de persona.
+  const listboxOpen = search.trim().length > 0 || selectedId == null;
+  const matches = filtrarEmpleadosComedor(options, search);
+  const lista =
+    matches.length === 0
+      ? `<li class="px-3 py-2.5 text-xs text-slate-500" role="presentation">No hay coincidencias en tu equipo.</li>`
+      : matches
+          .map((employee) => {
+            const selected = employee.id === selectedId;
+            const rowCls = selected
+              ? "bg-leoni-blue/[0.08] text-slate-900"
+              : "text-slate-800 hover:bg-slate-50";
+            return `
+            <li role="option" aria-selected="${selected ? "true" : "false"}">
+              <button
+                type="button"
+                data-comedor-modal-team-pick="${escapeHtml(employee.id)}"
+                class="flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors ${rowCls}"
+              >
+                <span class="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-semibold text-slate-700">
+                  ${escapeHtml(employee.nombre.slice(0, 2).toUpperCase())}
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-semibold">${escapeHtml(employee.nombre)}</span>
+                  <span class="mt-0.5 block truncate text-xs text-slate-500">${escapeHtml(employee.numero)}</span>
+                </span>
+              </button>
+            </li>`;
+          })
+          .join("");
+
+  return `
+    <label for="comedor-modal-team-search" class="${formSectionLabelClass()}">Integrante del equipo</label>
+    <input
+      id="comedor-modal-team-search"
+      type="search"
+      value="${escapeHtml(search)}"
+      data-comedor-modal-team-search
+      placeholder="Nombre o número de empleado..."
+      autocomplete="off"
+      role="combobox"
+      aria-expanded="${listboxOpen ? "true" : "false"}"
+      aria-controls="comedor-modal-team-listbox"
+      class="${inputClass}"
+      aria-invalid="${hasError ? "true" : "false"}"
+    />
+    ${
+      listboxOpen
+        ? `<ul
+             id="comedor-modal-team-listbox"
+             role="listbox"
+             aria-label="Integrantes de tu equipo"
+             class="mt-2 max-h-52 overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white py-1"
+           >${lista}</ul>`
+        : `<ul id="comedor-modal-team-listbox" role="listbox" hidden class="hidden" aria-label="Integrantes de tu equipo"></ul>`
+    }`;
 }
 
 function renderSelectedEmployeeCard(employee: ComedorEmployeeOption | null): string {
@@ -312,21 +385,13 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
             : isSupervisorTeam
               ? teamEmployeeOptions.length > 0
                 ? `<section>
-                     <label for="comedor-modal-employee-select" class="${formSectionLabelClass()}">Integrante del equipo</label>
-                     <select
-                       id="comedor-modal-employee-select"
-                       data-comedor-modal-employee-select
-                       class="${employeeClass}"
-                       aria-invalid="${errors.employee ? "true" : "false"}"
-                     >
-                       <option value="">Selecciona colaborador...</option>
-                       ${teamEmployeeOptions
-                         .map((employee) => {
-                           const selected = state.selectedEmployeeId === employee.id ? "selected" : "";
-                           return `<option value="${escapeHtml(employee.id)}" ${selected}>${escapeHtml(employee.nombre)}</option>`;
-                         })
-                         .join("")}
-                     </select>
+                     ${renderTeamEmployeePicker(
+                       teamEmployeeOptions,
+                       state.employeeSearch,
+                       state.selectedEmployeeId,
+                       employeeClass,
+                       Boolean(errors.employee),
+                     )}
                      ${renderSelectedEmployeeCard(selectedEmployee)}
                      ${fieldError(errors.employee)}
                    </section>`

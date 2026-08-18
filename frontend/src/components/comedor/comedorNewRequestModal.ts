@@ -172,11 +172,13 @@ function firstInvalidSelector(
   allowExternalPeople: boolean,
   allowEmployeeSearch: boolean,
   supervisorTeamEmpty: boolean,
+  supervisorTeamPicker = false,
 ): string | null {
   if (errors.personType) return "[data-comedor-modal-person-type='interno']";
   if (errors.employee) {
     if (allowEmployeeSearch) return "#comedor-modal-employee-search";
     if (supervisorTeamEmpty) return "[data-comedor-modal-supervisor-scope='team']";
+    if (supervisorTeamPicker) return "#comedor-modal-team-search";
     return "#comedor-modal-employee-select";
   }
   if (allowExternalPeople && errors.externalPeopleCount) return "#comedor-modal-external-count";
@@ -345,8 +347,13 @@ export function mountComedorNewRequestModal(
     // el HTML (innerHTML), y al re-renderizar durante la búsqueda (debounce) el input
     // se recrea y el usuario pierde el foco a mitad de escritura.
     const active = document.activeElement as HTMLInputElement | null;
-    const searchWasFocused = active?.matches?.("[data-comedor-modal-employee-search]") ?? false;
-    const caret = searchWasFocused ? active?.selectionStart ?? null : null;
+    // Los dos buscadores se recrean en cada render: el global de RH y el del equipo.
+    const focusedSearchSelector = active?.matches?.("[data-comedor-modal-employee-search]")
+      ? "[data-comedor-modal-employee-search]"
+      : active?.matches?.("[data-comedor-modal-team-search]")
+        ? "[data-comedor-modal-team-search]"
+        : null;
+    const caret = focusedSearchSelector ? active?.selectionStart ?? null : null;
     bodyEl.innerHTML = buildComedorNewRequestFormHtml({
       state: formState,
       allowExternalPeople,
@@ -374,10 +381,8 @@ export function mountComedorNewRequestModal(
       descansosError: descansosController.getError(),
     });
     bindInteractions();
-    if (searchWasFocused) {
-      const nextInput = bodyEl.querySelector<HTMLInputElement>(
-        "[data-comedor-modal-employee-search]",
-      );
+    if (focusedSearchSelector) {
+      const nextInput = bodyEl.querySelector<HTMLInputElement>(focusedSearchSelector);
       if (nextInput) {
         nextInput.focus();
         const pos = caret ?? nextInput.value.length;
@@ -659,6 +664,29 @@ export function mountComedorNewRequestModal(
       renderForm();
     });
 
+    // Buscador del integrante del equipo: filtra en memoria sobre el equipo directo, sin
+    // debounce ni petición — la lista ya está cargada.
+    const teamSearchInput = form.querySelector<HTMLInputElement>("[data-comedor-modal-team-search]");
+    teamSearchInput?.addEventListener("input", () => {
+      formState.employeeSearch = teamSearchInput.value;
+      renderForm();
+    });
+
+    form.querySelectorAll<HTMLButtonElement>("[data-comedor-modal-team-pick]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.getAttribute("data-comedor-modal-team-pick");
+        if (!id) return;
+        // Mismo efecto que elegir en el `select` que este buscador sustituye: al cambiar
+        // de beneficiario hay que recalcular su comedor y sus descansos.
+        formState.selectedEmployeeId = id;
+        // Vaciar la búsqueda repliega la lista y deja ver la tarjeta del elegido.
+        formState.employeeSearch = "";
+        errors.employee = undefined;
+        notifyBeneficiaryUserIdChange();
+        renderForm();
+      });
+    });
+
     const menuSelect = form.querySelector<HTMLSelectElement>("[data-comedor-modal-menu]");
     menuSelect?.addEventListener("change", () => {
       formState.menuId = menuSelect.value;
@@ -723,6 +751,11 @@ export function mountComedorNewRequestModal(
             supervisorBeneficiaryConfig &&
               formState.supervisorRecipientScope === "team" &&
               teamOnlyEmployeeOptions.length === 0,
+          ),
+          Boolean(
+            supervisorBeneficiaryConfig &&
+              formState.supervisorRecipientScope === "team" &&
+              teamOnlyEmployeeOptions.length > 0,
           ),
         );
         if (selector) bodyEl.querySelector<HTMLElement>(selector)?.focus();
