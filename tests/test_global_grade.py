@@ -698,3 +698,108 @@ async def test_el_catalogo_no_duplica_un_nivel_con_varios_grades(
     assert body["total"] == len(body["items"])
     assert [g["codigo"] for g in m4[0]["global_grades"]] == ["GG17", "GG18", "GG19"]
     assert (m4[0]["posicion_desde"], m4[0]["posicion_hasta"]) == (17, 19)
+
+
+@pytest.mark.asyncio
+async def test_recrear_una_equivalencia_borrada_funciona(client: AsyncClient, db):
+    """Borrar y volver a crear el mismo par no puede responder "ya existe".
+
+    El borrado es logico (`activo = False`) y la unique de la tabla no filtra por
+    `activo`, asi que la fila muerta sigue ahi: la validacion la veia y devolvia 409
+    sobre una equivalencia que el usuario ya no puede ver en la pantalla.
+    """
+    rh = await make_empleado(db, rol="rh", email="eq_recrear@leoni.test")
+    grados = await make_grados_consecutivos(db, ordenes=[10], con_equivalencia=False)
+    grade = await make_global_grade(db, codigo="GG30", orden=30)
+    headers = await auth_headers(client, rh)
+    payload = {"career_level_id": grados[0].id, "global_grade_id": grade.id}
+
+    creada = await client.post(f"{BASE}/equivalencias", json=payload, headers=headers)
+    assert creada.status_code == 201, creada.text
+    borrada = await client.delete(
+        f"{BASE}/equivalencias/{creada.json()['id']}", headers=headers
+    )
+    assert borrada.status_code in (200, 204), borrada.text
+
+    recreada = await client.post(f"{BASE}/equivalencias", json=payload, headers=headers)
+
+    assert recreada.status_code == 201, recreada.text
+    resuelta = await client.get(
+        f"{BASE}/equivalencias/resolver?career_level_id={grados[0].id}", headers=headers
+    )
+    assert [e["global_grade_codigo"] for e in resuelta.json()] == ["GG30"]
+
+
+@pytest.mark.asyncio
+async def test_recrear_una_equivalencia_borrada_no_duplica_la_fila(
+    client: AsyncClient, db
+):
+    """La unique (career_level_id, global_grade_id) no filtra por `activo`.
+
+    Si el arreglo insertara una fila nueva en vez de revivir la borrada, el INSERT
+    reventaria contra esa unique con un 500.
+    """
+    from sqlalchemy import select
+
+    from app.models.clasificacion_puesto import CareerLevelGradeMapping
+
+    rh = await make_empleado(db, rol="rh", email="eq_recrear_una@leoni.test")
+    grados = await make_grados_consecutivos(db, ordenes=[10], con_equivalencia=False)
+    grade = await make_global_grade(db, codigo="GG31", orden=31)
+    headers = await auth_headers(client, rh)
+    payload = {"career_level_id": grados[0].id, "global_grade_id": grade.id}
+
+    creada = await client.post(f"{BASE}/equivalencias", json=payload, headers=headers)
+    await client.delete(f"{BASE}/equivalencias/{creada.json()['id']}", headers=headers)
+    await client.post(f"{BASE}/equivalencias", json=payload, headers=headers)
+
+    filas = (
+        await db.execute(
+            select(CareerLevelGradeMapping).where(
+                CareerLevelGradeMapping.career_level_id == grados[0].id,
+                CareerLevelGradeMapping.global_grade_id == grade.id,
+            )
+        )
+    ).scalars().all()
+    assert len(filas) == 1
+    assert filas[0].activo is True
+
+
+@pytest.mark.asyncio
+async def test_editar_una_equivalencia_hacia_un_par_borrado_funciona(
+    client: AsyncClient, db
+):
+    """Mismo choque que al crear, por el camino del PATCH.
+
+    Si la validacion deja pasar la fila muerta pero el UPDATE no la retira, el par
+    destino ya esta tomado en la tabla y la unique responde con un 500.
+    """
+    rh = await make_empleado(db, rol="rh", email="eq_editar@leoni.test")
+    grados = await make_grados_consecutivos(db, ordenes=[10, 20], con_equivalencia=False)
+    grade = await make_global_grade(db, codigo="GG32", orden=32)
+    headers = await auth_headers(client, rh)
+
+    # El par (grados[0], grade) se crea y se borra: queda la fila muerta.
+    muerta = await client.post(
+        f"{BASE}/equivalencias",
+        json={"career_level_id": grados[0].id, "global_grade_id": grade.id},
+        headers=headers,
+    )
+    await client.delete(f"{BASE}/equivalencias/{muerta.json()['id']}", headers=headers)
+
+    # Otra equivalencia viva se edita justo hacia ese par.
+    viva = await client.post(
+        f"{BASE}/equivalencias",
+        json={"career_level_id": grados[1].id, "global_grade_id": grade.id},
+        headers=headers,
+    )
+    assert viva.status_code == 201, viva.text
+
+    editada = await client.patch(
+        f"{BASE}/equivalencias/{viva.json()['id']}",
+        json={"career_level_id": grados[0].id, "global_grade_id": grade.id},
+        headers=headers,
+    )
+
+    assert editada.status_code == 200, editada.text
+    assert editada.json()["career_level_id"] == grados[0].id
