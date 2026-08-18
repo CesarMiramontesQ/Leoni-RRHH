@@ -142,6 +142,8 @@ export type WorkdayDatePickerMonthHtmlOpts = {
   blockWeekends: boolean;
   blockedDates?: ReadonlySet<string>;
   loadedMonths?: ReadonlySet<string>;
+  /** ISO yyyy-mm-dd: los días anteriores quedan no disponibles. */
+  minDate?: string | null;
 };
 
 export function buildWorkdayDatePickerMonthHtml(
@@ -150,6 +152,7 @@ export function buildWorkdayDatePickerMonthHtml(
   const { year, monthIndex, selected, blockWeekends } = opts;
   const blockedDates = opts.blockedDates ?? new Set<string>();
   const loadedMonths = opts.loadedMonths;
+  const minDate = opts.minDate || null;
   const labels = getCalendarWeekdayLabels(1);
   const cells = buildRhCalendarMonthGrid(year, monthIndex, 1);
   const today = isoLocalDate(new Date());
@@ -170,7 +173,8 @@ export function buildWorkdayDatePickerMonthHtml(
       const weekend = isWeekendIso(cell.isoDate);
       const descanso = blockedDates.has(cell.isoDate);
       const pending = loadedMonths != null && !loadedMonths.has(cell.isoDate.slice(0, 7));
-      const blocked = pending || descanso || (blockWeekends && weekend);
+      const beforeMin = minDate != null && cell.isoDate < minDate;
+      const blocked = pending || descanso || beforeMin || (blockWeekends && weekend);
       const selectedDay = cell.isoDate === selected;
       const isToday = cell.isoDate === today;
       const muted = !cell.inCurrentMonth;
@@ -182,7 +186,7 @@ export function buildWorkdayDatePickerMonthHtml(
       } else if (descanso) {
         cls +=
           " cursor-not-allowed bg-amber-100 font-medium text-amber-900 ring-1 ring-inset ring-amber-200/90 line-through decoration-amber-500/70";
-      } else if (blockWeekends && weekend) {
+      } else if (beforeMin || (blockWeekends && weekend)) {
         cls += " cursor-not-allowed text-slate-300/70 opacity-45";
       } else if (selectedDay) {
         cls += " bg-leoni-blue font-semibold text-white shadow-sm";
@@ -250,6 +254,8 @@ export type BindWorkdayDatePickerOpts = {
   onChange: (iso: string) => void;
   blockedDates?: Iterable<string>;
   loadedMonths?: Iterable<string>;
+  /** ISO yyyy-mm-dd: los días anteriores no se pueden elegir. */
+  minDate?: string | null;
   onMonthChange?: (year: number, monthIndex: number) => void | Promise<void>;
   signal?: AbortSignal;
 };
@@ -258,7 +264,8 @@ export type WorkdayDatePickerHandle = {
   close: () => void;
   destroy: () => void;
   setBlockedDates: (dates: Iterable<string>) => void;
-  setLoadedMonths: (months: Iterable<string>) => void;
+  /** `null` quita la restricción: vuelven a ser elegibles los meses sin cargar. */
+  setLoadedMonths: (months: Iterable<string> | null) => void;
   repaint: () => void;
 };
 
@@ -290,6 +297,7 @@ export function bindWorkdayDatePicker(
   let [viewY, viewM] = monthFromValue(hidden.value);
   let blockedDates = new Set(opts.blockedDates ?? []);
   let loadedMonths = opts.loadedMonths == null ? undefined : new Set(opts.loadedMonths);
+  const minDate = opts.minDate || null;
 
   const blockWeekends = () => root.getAttribute("data-block-weekends") === "true";
 
@@ -313,6 +321,7 @@ export function bindWorkdayDatePicker(
       blockWeekends: blockWeekends(),
       blockedDates,
       loadedMonths,
+      minDate,
     });
   }
 
@@ -372,6 +381,7 @@ export function bindWorkdayDatePicker(
       const iso = dayBtn.getAttribute("data-wd-day") ?? "";
       if (!iso) return;
       if (blockWeekends() && isWeekendIso(iso)) return;
+      if (minDate != null && iso < minDate) return;
       hidden!.value = iso;
       syncLabel();
       setOpen(false);
@@ -416,7 +426,7 @@ export function bindWorkdayDatePicker(
       if (open) paintPanel();
     },
     setLoadedMonths: (months) => {
-      loadedMonths = new Set(months);
+      loadedMonths = months == null ? undefined : new Set(months);
       if (open) paintPanel();
     },
     repaint: () => {
