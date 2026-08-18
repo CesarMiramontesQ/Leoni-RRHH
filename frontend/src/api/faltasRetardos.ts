@@ -21,6 +21,11 @@ export type FaltaRetardoListItem = {
   fecha_evento: string;
   fecha_fin: string | null;
   observaciones: string | null;
+  // Solo con dato en los retardos. "HH:MM" tal como lo guarda TRESS, que usa horas
+  // >= 24 para el turno que cruza medianoche; lo traduce `horasRetardo.ts`.
+  hora_programada: string | null;
+  hora_entrada: string | null;
+  minutos_retardo: number | null;
   registrado_por_id: number | null;
   registrado_por_nombre: string | null;
   created_at: string;

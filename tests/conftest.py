@@ -462,6 +462,9 @@ async def make_incidencia_tress(
     observaciones: str | None = None,
     fecha_registro=None,
     registrado_por_id: int | None = None,
+    hora_programada: str | None = None,
+    hora_entrada: str | None = None,
+    minutos_retardo: int | None = None,
 ):
     """Siembra una fila en la caché de incidencias de TRESS.
 
@@ -481,6 +484,9 @@ async def make_incidencia_tress(
         observaciones=observaciones,
         fecha_registro=fecha_registro,
         registrado_por_id=registrado_por_id,
+        hora_programada=hora_programada,
+        hora_entrada=hora_entrada,
+        minutos_retardo=minutos_retardo,
     )
     db.add(fila)
     await db.flush()

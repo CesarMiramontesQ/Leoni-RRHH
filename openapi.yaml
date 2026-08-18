@@ -2535,6 +2535,26 @@ components:
           format: date
         observaciones:
           type: [string, "null"]
+        hora_programada:
+          type: [string, "null"]
+          description: >-
+            Hora de entrada del horario del día (HH:MM). Solo con dato cuando
+            tipo = retardo. Puede venir con hora >= 24 cuando la jornada cruza
+            medianoche ("25:00" es la 01:00 del día siguiente).
+          example: "06:00"
+        hora_entrada:
+          type: [string, "null"]
+          description: >-
+            Checada de entrada de la jornada (HH:MM). Misma convención de horas
+            >= 24 que hora_programada. Solo con dato cuando tipo = retardo.
+          example: "06:27"
+        minutos_retardo:
+          type: [integer, "null"]
+          description: >-
+            Diferencia entre hora_entrada y hora_programada. Null cuando falta
+            alguna de las dos o cuando la checada es anterior a la hora
+            programada.
+          example: 27
         registrado_por_id:
           type: [integer, "null"]
         registrado_por_nombre:

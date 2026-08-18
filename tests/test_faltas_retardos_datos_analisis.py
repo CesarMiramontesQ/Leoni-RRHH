@@ -424,3 +424,55 @@ async def test_fila_de_tress_sin_captura_local_conserva_su_origen(
     assert resp.status_code == 200
     item = resp.json()["items"][0]
     assert item["origen"] == "permiso"
+
+
+@pytest.mark.asyncio
+async def test_el_listado_expone_las_horas_del_retardo(db, client: AsyncClient, monkeypatch):
+    """El detalle del retardo se arma con lo que ya trae la caché; no hay 2° viaje."""
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_incidencia_tress(
+        db,
+        origen="ausencia",
+        origen_id=1,
+        no_empleado=553,
+        empleado_id=10,
+        tipo="retardo",
+        fecha_evento=date.today(),
+        hora_programada="06:00",
+        hora_entrada="06:27",
+        minutos_retardo=27,
+    )
+
+    resp = await client.get("/api/v1/faltas-retardos", headers=await auth_headers(client, rh))
+
+    assert resp.status_code == 200
+    item = resp.json()["items"][0]
+    assert item["hora_programada"] == "06:00"
+    assert item["hora_entrada"] == "06:27"
+    assert item["minutos_retardo"] == 27
+
+
+@pytest.mark.asyncio
+async def test_una_falta_no_trae_horas(db, client: AsyncClient, monkeypatch):
+    """Solo los retardos tienen checada de entrada; el resto viaja en null."""
+    _sabotear_datos_analisis(monkeypatch)
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_incidencia_tress(
+        db,
+        origen="ausencia",
+        origen_id=1,
+        no_empleado=553,
+        empleado_id=10,
+        tipo="falta_injustificada",
+        fecha_evento=date.today(),
+    )
+
+    resp = await client.get("/api/v1/faltas-retardos", headers=await auth_headers(client, rh))
+
+    item = resp.json()["items"][0]
+    assert item["hora_programada"] is None
+    assert item["hora_entrada"] is None
+    assert item["minutos_retardo"] is None

@@ -23,6 +23,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.utils.horario_retardo import formatear_hora_tress, minutos_de_retardo
+
 _SQL_FILE = (
     Path(__file__).resolve().parent / "sql" / "datos_analisis_faltas_retardos_base.sql"
 )
@@ -117,4 +119,12 @@ class DatosAnalisisFaltasRetardosRepository:
             "fecha_fin": _as_date(row.get("fecha_fin")),
             "observaciones": str(obs).strip() if obs and str(obs).strip() else None,
             "fecha_registro": _as_date(row.get("fecha_registro")),
+            # Solo vienen con dato en los retardos; el resto de tipos las trae en NULL.
+            # Las horas se guardan formateadas y los minutos ya resueltos porque la
+            # lectura de la pagina no puede volver a TRESS a calcularlos.
+            "hora_programada": formatear_hora_tress(row.get("hora_programada")),
+            "hora_entrada": formatear_hora_tress(row.get("hora_entrada")),
+            "minutos_retardo": minutos_de_retardo(
+                programada=row.get("hora_programada"), entrada=row.get("hora_entrada")
+            ),
         }

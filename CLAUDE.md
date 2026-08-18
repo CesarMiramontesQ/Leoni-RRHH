@@ -226,6 +226,20 @@ Layered architecture: **router → service → repository → models/schemas**
     siguiente corrida le estampa el `empleado_id` y sus incidencias reaparecen solas —
     para un tramo histórico ya fuera de la ventana viva hay que resincronizar con
     `--desde/--hasta`. Las **bajas sí se ven**: existen en Bono.
+  - **El horario del retardo viaja en la caché, ya resuelto.** `hora_programada`
+    (`dbo.HORARIO.HO_INTIME` del horario del día), `hora_entrada` (la checada de entrada
+    de la jornada) y `minutos_retardo` los llena el mismo sync, y **solo** para
+    `tipo = retardo`: el `OUTER APPLY` a `dbo.CHECADAS` lleva el predicado `AU_TIPO = 'RE'`
+    adentro para no rozar esa tabla (millones de filas) en los demás tipos. La entrada de
+    la jornada es `CH_TIPO = 1 AND CH_POSICIO = 1`; sin la posición se cuela el regreso de
+    comer, que en TRESS también es una checada de entrada. Las horas se guardan como texto
+    `"HH:MM"` y **no** como `Time` porque TRESS expresa «al día siguiente» con horas ≥ 24
+    (`"25:00"` es la 01:00 del turno que entró a las 18:00); `formatHoraRetardo` en el
+    frontend es quien traduce eso a `01:00 (+1 d)`. `minutos_retardo` es la resta de las
+    dos horas, **no** `AU_TARDES`: ese campo es lo que nómina descontó después de aplicar
+    la tolerancia del horario y difiere en ~11% de los casos, así que en pantalla
+    contradiría a las dos horas visibles. Sale NULL cuando la checada es anterior a la
+    hora programada (~0.2% de los retardos reales).
   - **La tarjeta «Retardos» del dashboard personal sale de esta misma caché.**
     `dashboard_kpis_service` cuenta con `IncidenciasTressCacheRepository.count`
     (`tipo="retardo"`, del 1 de enero a hoy, `cb_codigos=[no_empleado]`) en vez de un

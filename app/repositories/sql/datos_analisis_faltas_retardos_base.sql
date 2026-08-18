@@ -8,6 +8,14 @@
 --   renglon con rango. PM_FEC_FIN es EXCLUSIVA en TRESS, por eso el fin que se
 --   muestra es PM_FEC_FIN menos un dia.
 --
+-- Solo para los retardos (AU_TIPO 'RE') la rama A resuelve tambien la hora
+--   programada (dbo.HORARIO.HO_INTIME por el HO_CODIGO del dia) y la hora real de
+--   entrada. La entrada de la jornada es la checada con CH_TIPO 1 y CH_POSICIO 1: sin
+--   la posicion se colaria el regreso de comer, que tambien es una checada de entrada.
+--   El predicado de tipo vive DENTRO del APPLY para que no se toque CHECADAS (millones
+--   de filas) en las incidencias que no son retardos. Las horas viajan crudas ('HHMM',
+--   con horas >= 24 para el turno que cruza medianoche); las formatea Python.
+--
 -- El tipo de permiso solo vive en PM_COMENTA, que es texto libre, asi que se
 -- clasifica por palabra clave. El COLLATE CI_AI ignora mayusculas y acentos
 -- (la BD es CI_AS, o sea DEFUNCION no atraparia DEFUNCION con acento).
@@ -38,8 +46,21 @@ SELECT
     CONVERT(date, a.AU_FECHA)                                    AS fecha_evento,
     CAST(NULL AS date)                                           AS fecha_fin,
     CAST(pm.comentario AS varchar(255))                          AS observaciones,
-    CONVERT(date, pm.fecha_captura)                              AS fecha_registro
+    CONVERT(date, pm.fecha_captura)                              AS fecha_registro,
+    CAST(CASE WHEN RTRIM(a.AU_TIPO) = 'RE' THEN h.HO_INTIME END AS char(4)) AS hora_programada,
+    CAST(ch.CH_H_REAL AS char(4))                                AS hora_entrada
 FROM dbo.AUSENCIA a
+LEFT JOIN dbo.HORARIO h ON h.HO_CODIGO = a.HO_CODIGO
+OUTER APPLY (
+    SELECT TOP (1) c.CH_H_REAL
+    FROM dbo.CHECADAS c
+    WHERE RTRIM(a.AU_TIPO) = 'RE'
+      AND c.CB_CODIGO  = a.CB_CODIGO
+      AND c.AU_FECHA   = a.AU_FECHA
+      AND c.CH_TIPO    = 1
+      AND c.CH_POSICIO = 1
+    ORDER BY c.CH_H_REAL
+) ch
 OUTER APPLY (
     SELECT TOP (1)
         LTRIM(RTRIM(p2.PM_COMENTA)) AS comentario,
@@ -95,7 +116,9 @@ SELECT
     CONVERT(date, p.PM_FEC_INI)                                  AS fecha_evento,
     CONVERT(date, DATEADD(day, -1, p.PM_FEC_FIN))                AS fecha_fin,
     CAST(NULLIF(LTRIM(RTRIM(p.PM_COMENTA)), '') AS varchar(255)) AS observaciones,
-    CONVERT(date, p.PM_CAPTURA)                                  AS fecha_registro
+    CONVERT(date, p.PM_CAPTURA)                                  AS fecha_registro,
+    CAST(NULL AS char(4))                                        AS hora_programada,
+    CAST(NULL AS char(4))                                        AS hora_entrada
 FROM dbo.PERMISO p
 WHERE p.PM_TIPO = 'FJ'
   AND p.PM_CLASIFI = 0

@@ -38,6 +38,9 @@ def _fila(
     fecha_fin=None,
     observaciones=None,
     fecha_registro=None,
+    hora_programada=None,
+    hora_entrada=None,
+    minutos_retardo=None,
 ):
     """Fila tal como la emite el SQL base de datos-analisis."""
     return {
@@ -49,6 +52,9 @@ def _fila(
         "fecha_fin": fecha_fin,
         "observaciones": observaciones,
         "fecha_registro": fecha_registro,
+        "hora_programada": hora_programada,
+        "hora_entrada": hora_entrada,
+        "minutos_retardo": minutos_retardo,
     }
 
 
@@ -611,3 +617,50 @@ def test_carga_inicial_se_hace_en_dos_pasadas_sin_hueco():
     assert desde_hist is None
     assert desde_viva <= hasta_hist + timedelta(days=1)
     assert hasta_viva > date.today()
+
+
+@pytest.mark.asyncio
+async def test_persiste_las_horas_del_retardo(db, monkeypatch):
+    """El detalle del retardo sale de la caché: sin estas columnas la página no las ve."""
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    _mock_tress(
+        monkeypatch,
+        [
+            _fila(
+                origen_id=1,
+                tipo="retardo",
+                hora_programada="06:00",
+                hora_entrada="06:27",
+                minutos_retardo=27,
+            )
+        ],
+    )
+
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    fila = (await _filas_cache(db))[0]
+    assert fila.hora_programada == "06:00"
+    assert fila.hora_entrada == "06:27"
+    assert fila.minutos_retardo == 27
+
+
+@pytest.mark.asyncio
+async def test_corregir_la_checada_en_tress_actualiza_la_hora_en_la_cache(db, monkeypatch):
+    """Nómina reajusta checadas; la caché tiene que seguir el cambio, no congelarlo."""
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    _mock_tress(
+        monkeypatch,
+        [_fila(origen_id=1, tipo="retardo", hora_programada="06:00", hora_entrada="06:27", minutos_retardo=27)],
+    )
+    await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    _mock_tress(
+        monkeypatch,
+        [_fila(origen_id=1, tipo="retardo", hora_programada="06:00", hora_entrada="06:05", minutos_retardo=5)],
+    )
+    stats = await sincronizar_incidencias_tress(db, desde=DESDE, hasta=HASTA)
+
+    fila = (await _filas_cache(db))[0]
+    assert fila.hora_entrada == "06:05"
+    assert fila.minutos_retardo == 5
+    assert stats.actualizados == 1

@@ -81,6 +81,12 @@ class FaltaRetardoResponse(BaseModel):
     fecha_evento: date
     fecha_fin: Optional[date] = None
     observaciones: Optional[str] = None
+    # Solo con dato en los retardos: hora del horario, checada de entrada de la jornada
+    # y la diferencia en minutos. "HH:MM", con horas >= 24 cuando la jornada cruza
+    # medianoche (TRESS escribe "2500" para la 01:00 del turno que entró a las 18:00).
+    hora_programada: Optional[str] = None
+    hora_entrada: Optional[str] = None
+    minutos_retardo: Optional[int] = None
     registrado_por_id: Optional[int] = None
     registrado_por_nombre: Optional[str] = None
     created_at: datetime

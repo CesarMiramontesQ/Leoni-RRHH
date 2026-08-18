@@ -400,6 +400,9 @@ def _aplicar_fila_tress(
         "fecha_fin": fila.get("fecha_fin"),
         "observaciones": fila.get("observaciones"),
         "fecha_registro": fila.get("fecha_registro"),
+        "hora_programada": fila.get("hora_programada"),
+        "hora_entrada": fila.get("hora_entrada"),
+        "minutos_retardo": fila.get("minutos_retardo"),
     }
 
     actual = existentes.get((origen, int(origen_id)))
@@ -482,6 +485,10 @@ async def _reflejar_locales(
             "fecha_fin": evento.fecha_fin,
             "observaciones": evento.observaciones,
             "fecha_registro": None,
+            # Las horas solo existen en TRESS; un evento capturado a mano no las tiene.
+            "hora_programada": None,
+            "hora_entrada": None,
+            "minutos_retardo": None,
             "registrado_por_id": evento.registrado_por_id,
         }
         actual = existentes.get((ORIGEN_MANUAL, evento.id))

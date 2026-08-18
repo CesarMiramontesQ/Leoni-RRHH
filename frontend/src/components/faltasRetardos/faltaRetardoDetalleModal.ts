@@ -9,6 +9,10 @@ import {
   labelFaltaRetardoTipo,
 } from "../../faltasRetardos/rh/constants.ts";
 import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
+import {
+  formatHoraRetardo,
+  formatMinutosRetardo,
+} from "../../faltasRetardos/rh/horasRetardo.ts";
 import { escapeHtml, fmtFechaCorta, fmtTablaCelda } from "../../ui/uiUtils.ts";
 import { formatNombreEmpleadoUi } from "../../utils/nombreEmpleadoDisplay.ts";
 import { formatNoEmpleadoDisplay } from "../../utils/noEmpleadoDisplay.ts";
@@ -36,7 +40,10 @@ function labelOrigen(origen: string | null | undefined): string {
   return map[origen] ?? origen;
 }
 
-function renderDetalleBody(row: FaltaRetardoListItem): string {
+/**
+ * Cuerpo del modal. Exportado para poder verificarlo sin montar el DOM.
+ */
+export function renderFaltaRetardoDetalleBody(row: FaltaRetardoListItem): string {
   const nombre = formatNombreEmpleadoUi(row.empleado_nombre ?? "") || "—";
   const noEmp = formatNoEmpleadoDisplay(row.numero_empleado) || "—";
   const fechas = formatFaltaRetardoFechas(
@@ -51,6 +58,16 @@ function renderDetalleBody(row: FaltaRetardoListItem): string {
     : "—";
   const obs = fmtTablaCelda(row.observaciones ?? "");
 
+  // Los tres campos de horario solo existen para los retardos; en cualquier otro tipo
+  // serían tres guiones sin significado.
+  const horario =
+    row.tipo === "retardo"
+      ? `
+      ${detailRow(FR_COPY.detalleColHoraProgramada, escapeHtml(formatHoraRetardo(row.hora_programada)))}
+      ${detailRow(FR_COPY.detalleColHoraEntrada, escapeHtml(formatHoraRetardo(row.hora_entrada)))}
+      ${detailRow(FR_COPY.detalleColMinutosRetardo, escapeHtml(formatMinutosRetardo(row.minutos_retardo)))}`
+      : "";
+
   return `
     <div class="mb-4">${tipoBadge}</div>
     <dl class="grid gap-4 sm:grid-cols-2">
@@ -58,6 +75,7 @@ function renderDetalleBody(row: FaltaRetardoListItem): string {
       ${detailRow(FR_COPY.colNombre, escapeHtml(nombre))}
       ${detailRow(FR_COPY.colTipo, escapeHtml(tipoLabel))}
       ${detailRow(FR_COPY.colFechas, escapeHtml(fechas))}
+      ${horario}
       ${detailRow(FR_COPY.colObservaciones, `<span class="whitespace-pre-wrap break-words">${escapeHtml(obs)}</span>`)}
       ${detailRow(FR_COPY.colRegistrado, escapeHtml(fmtFechaCorta(row.created_at)))}
       ${detailRow(FR_COPY.colUsuario, escapeHtml(registrador))}
@@ -115,7 +133,7 @@ export function mountFaltaRetardoDetalleModal(
   }
 
   function open(row: FaltaRetardoListItem): void {
-    bodyEl.innerHTML = renderDetalleBody(row);
+    bodyEl.innerHTML = renderFaltaRetardoDetalleBody(row);
     overlayEl.classList.remove("hidden");
     overlayEl.classList.add("flex");
     document.body.style.overflow = "hidden";

@@ -64,6 +64,16 @@ class IncidenciaTress(Base):
     observaciones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # PM_CAPTURA en TRESS; alimenta el created_at de la respuesta.
     fecha_registro: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # Horas del retardo, "HH:MM". Solo vienen con dato cuando tipo == "retardo":
+    # `hora_programada` es HO_INTIME del horario del dia y `hora_entrada` la checada
+    # de entrada de la jornada (CH_TIPO 1, CH_POSICIO 1). Se guardan como texto y no
+    # como Time porque TRESS expresa "al dia siguiente" con horas >= 24 ("2500" es la
+    # 01:00 del turno que entro a las 18:00), que ningun Time admite.
+    hora_programada: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    hora_entrada: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    # Diferencia entre las dos anteriores. NULL cuando falta alguna o cuando saldria
+    # negativa (hay retardos en TRESS que checan antes de su hora).
+    minutos_retardo: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     registrado_por_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
