@@ -598,7 +598,16 @@ class EquivalenciaService:
         self,
         data: EquivalenciaCreate | EquivalenciaUpdate,
         exclude_id: int | None = None,
-    ) -> None:
+    ) -> CareerLevelGradeMapping | None:
+        """Valida el par y devuelve la fila **borrada** que ya lo ocupa, si la hay.
+
+        El borrado de una equivalencia es logico (`activo = False`) pero la unique
+        (career_level_id, global_grade_id) no filtra por `activo`, asi que la fila
+        muerta sigue reservando el par. Tratarla como un conflicto le decia al usuario
+        que ya existe una equivalencia que la pantalla no le muestra; ignorarla sin mas
+        reventaria la unique en el INSERT. Por eso se devuelve: quien llama decide si la
+        revive (crear) o la retira (actualizar).
+        """
         if not await self.grado_repo.get_activo(data.career_level_id):
             raise NotFoundError(entidad="GradoPuesto", id=data.career_level_id)
         grade = await self.grade_repo.get(data.global_grade_id)
@@ -615,7 +624,7 @@ class EquivalenciaService:
         existente = await self.repo.get_par(
             data.career_level_id, data.global_grade_id, exclude_id=exclude_id
         )
-        if existente:
+        if existente and existente.activo:
             nivel = existente.career_level
             raise ConflictError(
                 detail=(
@@ -623,12 +632,18 @@ class EquivalenciaService:
                     f"ya equivale al global grade '{grade.codigo}'"
                 )
             )
+        return existente
 
     async def crear(
         self, data: EquivalenciaCreate, current_user: Empleado
     ) -> EquivalenciaResponse:
         _require_modulo(current_user, "crear equivalencias")
-        await self._validar(data)
+        borrada = await self._validar(data)
+        if borrada is not None:
+            # Se revive la fila en vez de insertar otra: la unique del par no filtra
+            # por `activo` y un segundo INSERT chocaria contra ella.
+            await self.repo.update(borrada.id, {"activo": True})
+            return self._to_response(await self.repo.get_with_relaciones(borrada.id))
         item = await self.repo.create(
             {
                 "career_level_id": data.career_level_id,
@@ -646,7 +661,12 @@ class EquivalenciaService:
         if not item or not item.activo:
             raise NotFoundError(entidad="CareerLevelGradeMapping", id=id)
 
-        await self._validar(data, exclude_id=id)
+        borrada = await self._validar(data, exclude_id=id)
+        if borrada is not None:
+            # El par destino lo retiene una equivalencia ya borrada. Se retira de veras
+            # para dejar libre la unique; no la referencia nadie, porque el perfil que
+            # la uso guardo su global grade y no lo vuelve a derivar.
+            await self.repo.hard_delete(borrada.id)
         await self.repo.update(
             id,
             {
