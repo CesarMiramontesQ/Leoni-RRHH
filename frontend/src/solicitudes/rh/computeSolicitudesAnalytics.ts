@@ -29,7 +29,7 @@ export type SolicitudTendenciaMesSerie = {
   valores: readonly number[];
 };
 
-/** Solicitudes creadas por mes, desglosadas por tipo (últimos 6 meses). */
+/** Solicitudes creadas por mes, desglosadas por tipo (ventana: ver `rangoMeses`). */
 export type SolicitudTendenciaMesPorTipo = {
   periodos: readonly string[];
   series: readonly SolicitudTendenciaMesSerie[];
@@ -213,7 +213,31 @@ export function tendenciaMesTieneDatos(tendencia: SolicitudTendenciaMesPorTipo):
 export type ComputeSolicitudesAnalyticsOpts = {
   /** Si está vacío, la gráfica HO por día laboral usa solo aprobadas/overridden. */
   estadoFiltroActivo?: string;
+  /**
+   * Rango aplicado en la pantalla. Las series mensuales cubren sus meses en vez de los
+   * últimos seis fijos, que ignoraban el filtro y contradecían al resto de la vista.
+   * Ausente, vacío o invertido ⇒ se conserva el default de seis meses.
+   */
+  rangoMeses?: { fecha_inicio: string; fecha_fin: string };
 };
+
+/** Meses `YYYY-MM` que toca un rango ISO inclusivo; vacío si el rango no sirve. */
+function mesesDeRango(fechaInicio: string, fechaFin: string): string[] {
+  const fi = fechaInicio.trim();
+  const ff = fechaFin.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fi) || !/^\d{4}-\d{2}-\d{2}$/.test(ff)) return [];
+  if (ff < fi) return [];
+  const [yi, mi] = fi.split("-").map(Number);
+  const [yf, mf] = ff.split("-").map(Number);
+  const out: string[] = [];
+  const cursor = new Date(yi!, mi! - 1, 1);
+  const last = new Date(yf!, mf! - 1, 1);
+  while (cursor <= last) {
+    out.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return out;
+}
 
 export function computeSolicitudesAnalytics(
   rows: readonly RhSolicitudTablaFila[],
@@ -265,7 +289,10 @@ export function computeSolicitudesAnalytics(
     }
   }
 
-  const mesesVentana = ultimosMeses(6, now);
+  const mesesRango = opts.rangoMeses
+    ? mesesDeRango(opts.rangoMeses.fecha_inicio, opts.rangoMeses.fecha_fin)
+    : [];
+  const mesesVentana = mesesRango.length > 0 ? mesesRango : ultimosMeses(6, now);
   const tendencia_mes_por_tipo: SolicitudTendenciaMesPorTipo = {
     periodos: mesesVentana,
     series: RH_SOLICITUD_TIPOS_ORDEN.map((codigo) => ({

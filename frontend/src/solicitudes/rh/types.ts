@@ -130,4 +130,9 @@ export type RhSolicitudesAdminViewModel = {
   ui: SolicitudesPageUiConfig;
   /** Filas para gráfica personas-día (filtros aplicados, sin paginar). */
   personasDiaChartRows: readonly RhSolicitudTablaFila[];
+  /**
+   * Rango aplicado en Métricas. Las series mensuales lo usan como ventana; sin él caen
+   * a los últimos seis meses, que es lo que sigue haciendo la página de Solicitudes.
+   */
+  analyticsRangoMeses?: { fecha_inicio: string; fecha_fin: string };
 };

@@ -127,3 +127,59 @@ describe("computeSolicitudesAnalytics", () => {
   });
 
 });
+
+describe("computeSolicitudesAnalytics — ventana de meses según el rango", () => {
+  const HOY = new Date(2026, 7, 18);
+
+  it("sin rango conserva los últimos 6 meses", () => {
+    const d = computeSolicitudesAnalytics([], HOY);
+
+    expect(d.tendencia_mes_por_tipo.periodos).toEqual([
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+    ]);
+  });
+
+  it("con rango cubre los meses que toca, no seis fijos", () => {
+    const d = computeSolicitudesAnalytics([], HOY, {
+      rangoMeses: { fecha_inicio: "2026-01-01", fecha_fin: "2026-08-18" },
+    });
+
+    expect(d.tendencia_mes_por_tipo.periodos).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+    ]);
+  });
+
+  it("las tres series mensuales comparten la misma ventana", () => {
+    const d = computeSolicitudesAnalytics([], HOY, {
+      rangoMeses: { fecha_inicio: "2026-05-01", fecha_fin: "2026-07-31" },
+    });
+
+    expect(d.tendencia_mes_por_tipo.periodos).toEqual(["2026-05", "2026-06", "2026-07"]);
+    expect(d.por_mes_vac_ho.map((m) => m.periodo)).toEqual(["2026-05", "2026-06", "2026-07"]);
+    expect(d.dias_solicitados_por_mes.periodos).toEqual(["2026-05", "2026-06", "2026-07"]);
+  });
+
+  it("un rango incompleto o invertido cae al default de seis meses", () => {
+    const soloInicio = computeSolicitudesAnalytics([], HOY, {
+      rangoMeses: { fecha_inicio: "2026-01-01", fecha_fin: "" },
+    });
+    const invertido = computeSolicitudesAnalytics([], HOY, {
+      rangoMeses: { fecha_inicio: "2026-08-01", fecha_fin: "2026-01-01" },
+    });
+
+    expect(soloInicio.tendencia_mes_por_tipo.periodos).toHaveLength(6);
+    expect(invertido.tendencia_mes_por_tipo.periodos).toHaveLength(6);
+  });
+});

@@ -1193,6 +1193,9 @@ export function renderRhMetricasView(
         renderRhSolicitudesAnalyticsSection({
           state: analyticsState,
           rows: solicitudesVm.personasDiaChartRows,
+          ...(solicitudesVm.analyticsRangoMeses
+            ? { rangoMeses: solicitudesVm.analyticsRangoMeses }
+            : {}),
         }),
       )}
       ${renderMetricasDomainSection(
