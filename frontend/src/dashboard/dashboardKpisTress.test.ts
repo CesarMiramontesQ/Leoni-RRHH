@@ -60,8 +60,14 @@ vi.mock("../api/comedor.ts", () => ({
 }));
 vi.mock("../api/empleados.ts", () => ({ getEmpleadosResumen: async () => null }));
 // Retardos del equipo: la tarjeta que sustituyó a la de Home Office pendientes.
+// El mismo endpoint alimenta «Incidencias por colaborador», de ahí el ranking vacío.
 vi.mock("../api/faltasRetardos.ts", () => ({
-  getFaltasRetardosEstadisticas: async () => ({ retardo: 12 }),
+  getFaltasRetardosEstadisticas: async () => ({
+    retardo: 12,
+    total_eventos: 0,
+    total_colaboradores_con_eventos: 0,
+    empleados_con_mas_eventos: [],
+  }),
 }));
 vi.mock("../api/incidencias.ts", () => ({
   fetchAllIncidenciasForExport: async () => [],
