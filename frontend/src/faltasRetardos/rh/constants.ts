@@ -29,6 +29,18 @@ export const FALTA_RETARDO_TIPOS_GOCE: ReadonlySet<FaltaRetardoTipo> = new Set([
   "paternidad",
 ]);
 
+/**
+ * Tipos que cuenta la tarjeta «Incidencias por colaborador» del dashboard de líder y
+ * gerente: lo disciplinable y lo que interrumpe la operación. Fuera quedan las
+ * vacaciones —que serían la mayoría de los eventos y taparían el resto— y los permisos
+ * con goce, que son un derecho, no una incidencia del colaborador. Se deriva del
+ * catálogo para que un tipo nuevo entre solo, en vez de quedar olvidado en una lista.
+ */
+export const FALTA_RETARDO_TIPOS_DASHBOARD_EQUIPO: readonly FaltaRetardoTipo[] =
+  FALTA_RETARDO_TIPOS.filter(
+    (tipo) => tipo !== "vacaciones" && !FALTA_RETARDO_TIPOS_GOCE.has(tipo),
+  );
+
 export const FALTA_RETARDO_TIPO_LABELS: Record<FaltaRetardoTipo, string> = {
   falta_justificada: "Falta justificada",
   falta_injustificada: "Falta injustificada",

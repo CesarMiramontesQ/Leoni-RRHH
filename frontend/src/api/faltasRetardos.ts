@@ -56,11 +56,15 @@ export type FaltasRetardosListParams = {
 export type FaltasRetardosEstadisticasParams = {
   empleado_id?: number;
   tipo?: FaltaRetardoTipo | "";
+  /** Subconjunto de tipos; acota también el ranking, que se calcula en el servidor. */
+  tipos?: readonly FaltaRetardoTipo[];
   fecha_inicio?: string;
   fecha_fin?: string;
   busqueda?: string;
   area?: string;
   tendencia_agrupacion?: "dia" | "semana" | "mes";
+  /** Tamaño de `empleados_con_mas_eventos` (1-50; el API usa 10 por omisión). */
+  top_empleados?: number;
 };
 
 export type FaltasRetardosEstadisticasResponse = {
@@ -78,6 +82,8 @@ export type FaltasRetardosEstadisticasResponse = {
   }[];
   tendencia_agrupacion?: "dia" | "semana" | "mes" | null;
   eventos_por_tipo: { tipo: FaltaRetardoTipo; total: number; porcentaje: number }[];
+  /** Colaboradores con al menos un evento, sin recortar por `top_empleados`. */
+  total_colaboradores_con_eventos: number;
   empleados_con_mas_eventos: {
     empleado_id: number;
     no_empleado: string | null;
@@ -134,11 +140,13 @@ function buildFaltasRetardosQueryParams(
   const sp = new URLSearchParams();
   if (params.empleado_id != null) sp.set("empleado_id", String(params.empleado_id));
   if (params.tipo) sp.set("tipo", params.tipo);
+  for (const t of params.tipos ?? []) sp.append("tipos", t);
   if (params.fecha_inicio?.trim()) sp.set("fecha_inicio", params.fecha_inicio.trim());
   if (params.fecha_fin?.trim()) sp.set("fecha_fin", params.fecha_fin.trim());
   if (params.busqueda?.trim()) sp.set("busqueda", params.busqueda.trim());
   if (params.area?.trim()) sp.set("area", params.area.trim());
   if (params.tendencia_agrupacion) sp.set("tendencia_agrupacion", params.tendencia_agrupacion);
+  if (params.top_empleados != null) sp.set("top_empleados", String(params.top_empleados));
   return sp;
 }
 

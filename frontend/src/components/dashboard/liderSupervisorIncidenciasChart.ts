@@ -8,6 +8,8 @@ import {
 } from "../../dashboard/lider/buildSupervisorIncidenciasChart.ts";
 import type { SupervisorIncidenciasChartData } from "../../dashboard/lider/types.ts";
 import { labelTipoIncidenciaUi } from "../../incidencias/rh/tipoIncidenciaDisplay.ts";
+import { FALTA_RETARDO_TIPO_LABELS } from "../../faltasRetardos/rh/constants.ts";
+import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
   SUPERVISOR_CHARTS_PLOT_HEIGHT_PX,
@@ -31,6 +33,8 @@ const TIPO_COLOR_INDISCIPLINA = "#002147";
 const TIPO_COLOR_DANO = "#EA580C";
 const TIPO_COLOR_SEGURIDAD = "#F87171";
 const TIPO_COLOR_CALIDAD = "#00C853";
+const TIPO_COLOR_INCAPACIDAD = "#7C3AED";
+const TIPO_COLOR_SUSPENSION = "#B45309";
 const TIPO_COLOR_OTROS = "#64748B";
 
 type TipoColor = { fill: string; border: string };
@@ -61,6 +65,8 @@ function tipoColorMap(): Record<string, TipoColor> {
     dano_equipo: tipoColorEntry(TIPO_COLOR_DANO),
     seguridad: tipoColorEntry(TIPO_COLOR_SEGURIDAD),
     calidad: tipoColorEntry(TIPO_COLOR_CALIDAD),
+    incapacidad: tipoColorEntry(TIPO_COLOR_INCAPACIDAD),
+    suspension: tipoColorEntry(TIPO_COLOR_SUSPENSION),
     [SUPERVISOR_INC_CHART_OTROS_TIPO]: tipoColorEntry(TIPO_COLOR_OTROS, 0.35),
   };
 }
@@ -123,6 +129,11 @@ function resolveTipoColor(tipo: string, index: number): TipoColor {
 
 function labelTipo(tipo: string): string {
   if (tipo === SUPERVISOR_INC_CHART_OTROS_TIPO) return "Otros";
+  // La tarjeta se alimenta de la página Incidencias (`#/faltas-retardos`), cuyo catálogo
+  // cubre tipos que el labeler de Seguridad y Calidad no conoce (incapacidad,
+  // suspensión) y devolvería en crudo.
+  const propio = FALTA_RETARDO_TIPO_LABELS[tipo as FaltaRetardoTipo];
+  if (propio) return propio;
   return labelTipoIncidenciaUi(tipo);
 }
 
@@ -236,19 +247,9 @@ export function renderSupervisorIncidenciasChartCard(
         ? renderHeatmapTable(data)
         : renderHorizontalChartPanel(data);
 
-  const topMeta =
-    data?.top_n != null &&
-    data.total_colaboradores != null &&
-    data.total_colaboradores > data.top_n
-      ? `Top ${data.top_n} de ${data.total_colaboradores} colaboradores · ${grandTotal} incidencias en total. `
-      : data?.total_incidencias != null
-        ? `${grandTotal} incidencias en total. `
-        : "";
-
-  const subtitle =
-    data?.view === "heatmap"
-      ? `${topMeta}Resumen tabular por colaborador y tipo (equipos extensos).`
-      : `${topMeta}Barras horizontales por colaborador; colores diferenciados por tipo de incidencia.`;
+  // Solo el alcance: la tarjeta ya no es el histórico completo, y un número sin ventana
+  // ni tipos se lee como "todo lo que ha pasado". El total va en su propia línea.
+  const subtitle = "Faltas, retardos, incapacidades y suspensiones del último año.";
 
   const totalBadge =
     grandTotal > 0

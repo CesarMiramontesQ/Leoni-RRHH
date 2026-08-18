@@ -8,7 +8,8 @@ import { getEmpleadoIdFromAccessToken, getEffectiveGestorNavRol } from "../../au
 import { emptyRhIncidenciaListFilters, type RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyLiderDashboardPayload } from "./mock.ts";
-import { buildSupervisorIncidenciasChart, GERENTE_INCIDENCIAS_CHART_TOP_N } from "./buildSupervisorIncidenciasChart.ts";
+import { buildLiderIncidenciasTressChart } from "./buildLiderIncidenciasTressChart.ts";
+import { FALTA_RETARDO_TIPOS_DASHBOARD_EQUIPO } from "../../faltasRetardos/rh/constants.ts";
 import { buildSupervisorHomeOfficeWeekdayChart } from "./buildSupervisorHomeOfficeWeekday.ts";
 import {
   esSolicitudTipoCalendarioDashboard,
@@ -46,6 +47,20 @@ function eachIsoDayInclusive(fechaInicio: string, fechaFin: string): string[] {
   const out: string[] = [];
   for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) out.push(rhIsoLocalDate(cur));
   return out;
+}
+
+/** Colaboradores en la tarjeta «Incidencias por colaborador». */
+const INCIDENCIAS_CHART_TOP_N = 10;
+
+/**
+ * Ventana de la tarjeta «Incidencias por colaborador»: el último año, móvil.
+ * Cambiar a año calendario es mover el inicio al 1 de enero.
+ */
+function ventanaUltimoAnio(hoy: Date): { inicio: string; fin: string } {
+  const inicio = new Date(hoy);
+  inicio.setFullYear(inicio.getFullYear() - 1);
+  inicio.setDate(inicio.getDate() + 1);
+  return { inicio: rhIsoLocalDate(inicio), fin: rhIsoLocalDate(hoy) };
 }
 
 function pad2(n: number): string {
@@ -218,8 +233,26 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
     })
       .then((e) => e.retardo)
       .catch(() => null);
-    const [rows, mealRowsByMonth, empleadosResumen, kpis, incidenciasFilas, teamRetardos] =
-      await Promise.all([
+    // Tarjeta «Incidencias por colaborador»: página Incidencias (`#/faltas-retardos`),
+    // no «Seguridad y Calidad». Ventana distinta a la de retardos, así que es otra
+    // llamada; el ranking se pide con un lugar de más para que excluir al propio líder
+    // no deje la gráfica en nueve.
+    const ventana = ventanaUltimoAnio(now);
+    const incidenciasEquipoPromise = getFaltasRetardosEstadisticas({
+      tipos: FALTA_RETARDO_TIPOS_DASHBOARD_EQUIPO,
+      fecha_inicio: ventana.inicio,
+      fecha_fin: ventana.fin,
+      top_empleados: INCIDENCIAS_CHART_TOP_N + 1,
+    }).catch(() => null);
+    const [
+      rows,
+      mealRowsByMonth,
+      empleadosResumen,
+      kpis,
+      incidenciasFilas,
+      teamRetardos,
+      incidenciasEquipo,
+    ] = await Promise.all([
         getSolicitudesRows(100),
         role === "supervisor"
           ? Promise.all(mealMonths.map(({ year, month }) => getComedorEquipoReservasMes(year, month)))
@@ -228,6 +261,7 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         fetchDashboardKpis(),
         incidenciasPromise,
         retardosPromise,
+        incidenciasEquipoPromise,
       ]);
     const todayIso = rhIsoLocalDate(now);
 
@@ -278,14 +312,16 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
         : fallbackTeamCount;
     const teamActiveIncidents = countIncidenciasActivas(incidenciasFilas);
     const esLiderConGraficas = role === "supervisor" || esGerente;
-    const supervisorIncidenciasChart = esLiderConGraficas
-      ? esGerente
-        ? buildSupervisorIncidenciasChart(incidenciasFilas, myId, {
-            maxEmployees: GERENTE_INCIDENCIAS_CHART_TOP_N,
+    const supervisorIncidenciasChart =
+      esLiderConGraficas && incidenciasEquipo
+        ? buildLiderIncidenciasTressChart(incidenciasEquipo.empleados_con_mas_eventos ?? [], {
+            excludeEmpleadoId: myId,
+            totalEventos: incidenciasEquipo.total_eventos ?? 0,
+            totalColaboradores: incidenciasEquipo.total_colaboradores_con_eventos ?? 0,
+            maxEmployees: INCIDENCIAS_CHART_TOP_N,
             forceView: "bars",
           })
-        : buildSupervisorIncidenciasChart(incidenciasFilas, myId)
-      : null;
+        : null;
     const hoTeamRows = teamRows.filter(
       (r) => r.tipo === "home_office" && r.estado === SOLICITUD_ESTADO_API.APROBADO,
     );

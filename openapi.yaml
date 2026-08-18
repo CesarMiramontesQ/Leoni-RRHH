@@ -2640,6 +2640,12 @@ components:
                 type: integer
               porcentaje:
                 type: number
+        total_colaboradores_con_eventos:
+          type: integer
+          default: 0
+          description: >-
+            Colaboradores con al menos un evento en el alcance, sin recortar por
+            `top_empleados`: es lo que permite decir "Top 10 de N" sin mentir.
         empleados_con_mas_eventos:
           type: array
           items:
@@ -10035,6 +10041,17 @@ paths:
           in: query
           schema:
             $ref: "#/components/schemas/FaltaRetardoTipo"
+        - name: tipos
+          in: query
+          description: >-
+            Subconjunto de tipos a considerar. Acota todos los agregados, incluido
+            el ranking `empleados_con_mas_eventos`, que se calcula en el servidor:
+            filtrarlo en el cliente dejaría el top ordenado por tipos no mostrados.
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/FaltaRetardoTipo"
         - name: fecha_inicio
           in: query
           schema:
@@ -10061,6 +10078,14 @@ paths:
           schema:
             type: string
             enum: [dia, semana, mes]
+        - name: top_empleados
+          in: query
+          description: Tamaño de `empleados_con_mas_eventos`
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
       responses:
         "200":
           description: Totales por tipo con filtros aplicados
