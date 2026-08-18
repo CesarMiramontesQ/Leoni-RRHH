@@ -44,3 +44,70 @@ def test_cb_codigos_a_csv_ordena_y_deduplica():
 def test_repo_filtra_por_tipo_con_un_solo_bind():
     repo = DatosAnalisisFaltasRetardosRepository(MagicMock())
     assert ":tipo" in repo._filtrado()
+
+
+def test_sql_base_trae_las_horas_del_retardo():
+    """El detalle del retardo necesita hora programada y checada de entrada.
+
+    La entrada de la jornada es `CH_TIPO = 1 AND CH_POSICIO = 1`: sin la posición se
+    colaría el regreso de comer, que en TRESS también es una checada de entrada.
+    """
+    sql = load_faltas_retardos_datos_analisis_sql()
+    assert "hora_programada" in sql and "hora_entrada" in sql
+    assert "dbo.HORARIO" in sql and "dbo.CHECADAS" in sql
+    assert "CH_POSICIO" in sql
+
+
+def test_sql_base_solo_busca_checada_para_retardos():
+    """`CHECADAS` tiene millones de filas; el APPLY no debe correr para otros tipos."""
+    sql = load_faltas_retardos_datos_analisis_sql()
+    checadas = sql[sql.index("dbo.CHECADAS") : sql.index("dbo.CHECADAS") + 400]
+    assert "'RE'" in checadas
+
+
+def test_normalizar_convierte_las_horas_y_calcula_los_minutos():
+    repo = DatosAnalisisFaltasRetardosRepository(MagicMock())
+    fila = repo._normalizar(
+        {
+            "origen": "ausencia",
+            "origen_id": 7,
+            "no_empleado": 5037,
+            "tipo": "retardo",
+            "fecha_evento": None,
+            "hora_programada": "0600",
+            "hora_entrada": "0627",
+        }
+    )
+    assert fila["hora_programada"] == "06:00"
+    assert fila["hora_entrada"] == "06:27"
+    assert fila["minutos_retardo"] == 27
+
+
+def test_normalizar_deja_las_horas_en_none_para_los_demas_tipos():
+    repo = DatosAnalisisFaltasRetardosRepository(MagicMock())
+    fila = repo._normalizar(
+        {
+            "origen": "permiso",
+            "origen_id": 8,
+            "no_empleado": 553,
+            "tipo": "falta_justificada",
+            "fecha_evento": None,
+            "hora_programada": None,
+            "hora_entrada": None,
+        }
+    )
+    assert fila["hora_programada"] is None
+    assert fila["hora_entrada"] is None
+    assert fila["minutos_retardo"] is None
+
+
+def test_la_hora_programada_tambien_se_limita_a_los_retardos():
+    """`HO_INTIME` existe para toda la rama A, pero solo el retardo la usa.
+
+    Dejarla en una falta o una incapacidad guardaría en la caché un dato que ninguna
+    pantalla muestra y que contradice el contrato de la respuesta.
+    """
+    sql = load_faltas_retardos_datos_analisis_sql()
+    inicio = sql.index("AS hora_programada")
+    expresion = sql[sql.rindex("\n", 0, inicio) : inicio]
+    assert "'RE'" in expresion

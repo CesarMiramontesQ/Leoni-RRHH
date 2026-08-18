@@ -153,6 +153,9 @@ class IncidenciasTressCacheRepository:
                 IncidenciaTress.fecha_fin,
                 IncidenciaTress.observaciones,
                 IncidenciaTress.fecha_registro,
+                IncidenciaTress.hora_programada,
+                IncidenciaTress.hora_entrada,
+                IncidenciaTress.minutos_retardo,
                 IncidenciaTress.registrado_por_id,
                 registrador.nombre.label("registrado_por_nombre"),
             )

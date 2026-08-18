@@ -1,4 +1,5 @@
 import { FR_COPY } from "../../faltasRetardos/rh/faltasRetardosCopy.ts";
+import { formatEntradaCelda } from "../../faltasRetardos/rh/horasRetardo.ts";
 import {
   badgeClassFaltaRetardoTipo,
   formatFaltaRetardoFechas,
@@ -28,6 +29,7 @@ const COLS = [
   FR_COPY.colNombre,
   FR_COPY.colTipo,
   FR_COPY.colFechas,
+  FR_COPY.colEntrada,
   FR_COPY.colObservaciones,
   FR_COPY.colRegistrado,
   FR_COPY.colUsuario,
@@ -127,6 +129,7 @@ export function renderRhFaltasRetardosTable(vm: FaltasRetardosAdminViewModel): s
       <td class="max-w-[12rem] px-2 py-3 align-middle text-sm font-semibold text-slate-900 sm:px-3">${celdaTextoTruncado(nombre, 36)}</td>
       <td class="max-w-[10rem] px-2 py-3 align-middle text-sm sm:px-3">${tipoBadge(row.tipo)}</td>
       <td class="whitespace-nowrap px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${escapeHtml(fechas)}</td>
+      <td class="whitespace-nowrap px-2 py-3 align-middle text-sm tabular-nums text-slate-700 sm:px-3">${escapeHtml(formatEntradaCelda(row))}</td>
       <td class="max-w-[14rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(row.observaciones ?? "", 80)}</td>
       <td class="whitespace-nowrap px-2 py-3 align-middle text-sm text-slate-600 sm:px-3">${escapeHtml(fmtFechaCorta(row.created_at))}</td>
       <td class="max-w-[10rem] px-2 py-3 align-middle text-sm text-slate-700 sm:px-3">${celdaTextoTruncado(registrador, 32)}</td>
@@ -198,6 +201,7 @@ export function renderRhFaltasRetardosTable(vm: FaltasRetardosAdminViewModel): s
         <dl class="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs text-[#667085]">
           <div><dt>${escapeHtml(FR_COPY.colNoEmpleado)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeHtml(formatNoEmpleadoDisplay(row.numero_empleado))}</dd></div>
           <div><dt>${escapeHtml(FR_COPY.colFechas)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeHtml(fechas)}</dd></div>
+          <div><dt>${escapeHtml(FR_COPY.colEntrada)}</dt><dd class="mt-0.5 font-semibold tabular-nums text-[#111827]">${escapeHtml(formatEntradaCelda(row))}</dd></div>
           <div class="col-span-2"><dt>${escapeHtml(FR_COPY.colObservaciones)}</dt><dd class="mt-0.5 line-clamp-2 font-semibold text-[#111827]">${escapeHtml(fmtTablaCelda(row.observaciones ?? ""))}</dd></div>
           <div><dt>${escapeHtml(FR_COPY.colRegistrado)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeHtml(fmtFechaCorta(row.created_at))}</dd></div>
           <div><dt>${escapeHtml(FR_COPY.colUsuario)}</dt><dd class="mt-0.5 font-semibold text-[#111827]">${escapeHtml(fmtTablaCelda(row.registrado_por_nombre ?? ""))}</dd></div>

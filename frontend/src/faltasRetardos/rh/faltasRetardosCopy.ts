@@ -34,6 +34,10 @@ export const FR_COPY = {
   colFechas: "Fecha(s)",
   colObservaciones: "Observaciones",
   colRegistrado: "Fecha de registro",
+  colEntrada: "Entrada",
+  detalleColHoraProgramada: "Hora programada",
+  detalleColHoraEntrada: "Hora de entrada",
+  detalleColMinutosRetardo: "Minutos tarde",
   colUsuario: "Registrado por",
 
   cargandoTabla: "Cargando eventos…",
