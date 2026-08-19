@@ -9,6 +9,12 @@ export const FR_COPY = {
     total === 1 ? "1 evento encontrado" : `${total} eventos encontrados`,
   listadoDetalleToggle: "Mostrar u ocultar listado completo",
   nuevo: "Nuevo registro",
+  descargarReporte: "Descargar Reporte",
+  descargarReporteGenerando: "Generando…",
+  descargarReporteAria:
+    "Descargar en Excel las incidencias de las tres semanas anteriores",
+  descargarReporteError: "No se pudo generar el reporte; vuelve a intentarlo.",
+  descargarReporteVacio: "No hay empleados que exportar en tu alcance.",
 
   filtroBusqueda: "Buscar empleado",
   placeholderBusqueda: "Nombre o número de empleado…",

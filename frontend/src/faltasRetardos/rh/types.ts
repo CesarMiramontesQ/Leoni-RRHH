@@ -54,6 +54,8 @@ export type FaltasRetardosAdminViewModel = {
   tableErrorMessage?: string;
   /** Registro manual: solo personal con permisos RH (ver `canCrearFaltaRetardo`). */
   puedeCrear: boolean;
+  /** Descarga del reporte semanal en curso: deshabilita el botón y muestra el estado. */
+  descargandoReporte?: boolean;
 };
 
 export function emptyFaltasRetardosListFilters(): FaltasRetardosListFilters {

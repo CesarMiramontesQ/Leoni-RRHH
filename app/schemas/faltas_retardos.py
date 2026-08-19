@@ -150,3 +150,31 @@ class FaltasRetardosEstadisticasResponse(BaseModel):
     # Colaboradores con al menos un evento en el alcance, sin recortar por
     # `top_empleados`: es lo que deja decir "Top 10 de N" sin mentir.
     total_colaboradores_con_eventos: int = 0
+
+
+class FaltasRetardosReporteSemanaItem(BaseModel):
+    """Una columna semanal del reporte en Excel.
+
+    `numero` es la semana ISO y `anio` el año ISO al que pertenece: en el cambio de año
+    la semana 52/53 es del año anterior, y sin ese dato el rango no se puede reconstruir.
+    """
+
+    anio: int
+    numero: int
+    etiqueta: str
+    fecha_inicio: date
+    fecha_fin: date
+
+
+class FaltasRetardosReporteFilaItem(BaseModel):
+    """Un renglón: un empleado y una celda por semana, en el orden de `semanas`."""
+
+    no_empleado: int
+    nombre: str
+    semanas: list[str] = Field(default_factory=list)
+
+
+class FaltasRetardosReporteSemanalResponse(BaseModel):
+    generado_en: date
+    semanas: list[FaltasRetardosReporteSemanaItem] = Field(default_factory=list)
+    items: list[FaltasRetardosReporteFilaItem] = Field(default_factory=list)

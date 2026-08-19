@@ -15,6 +15,7 @@ from app.schemas.faltas_retardos import (
     FaltaRetardoResponse,
     FaltasRetardosEstadisticasResponse,
     FaltasRetardosPageResponse,
+    FaltasRetardosReporteSemanalResponse,
     FaltasRetardosTiposResponse,
 )
 from app.services.faltas_retardos_service import FaltasRetardosService
@@ -69,6 +70,22 @@ async def list_tipos_faltas_retardos(
     svc: FaltasRetardosService = Depends(_svc),
 ):
     return FaltasRetardosTiposResponse(items=svc.list_tipos())
+
+
+# Reporte semanal en Excel. Lo arma el frontend con `xlsx` —igual que el resto de las
+# descargas de la app—, así que aquí solo viajan los datos ya agrupados: una fila por
+# empleado de la plantilla activa y una celda por cada una de las tres semanas
+# anteriores. No acepta filtros: el botón descarga siempre esas tres semanas, y el único
+# recorte es el alcance del usuario (un supervisor obtiene a su equipo).
+@router.get("/reporte-semanal", response_model=FaltasRetardosReporteSemanalResponse)
+async def reporte_semanal_faltas_retardos(
+    current_user: Empleado = Depends(
+        role_checker(["operativo", "gerente", "supervisor", "director"])
+    ),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    svc: FaltasRetardosService = Depends(_svc),
+):
+    return await svc.reporte_semanal(current_user, rh_ui_mode=rh_ui_mode)
 
 
 @router.get("/estadisticas", response_model=FaltasRetardosEstadisticasResponse)

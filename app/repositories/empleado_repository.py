@@ -194,6 +194,46 @@ class EmpleadoRepository(BaseRepository[Empleado]):
                 salida.append(parsed)
         return sorted(set(salida))
 
+    async def list_plantilla_para_reporte(
+        self,
+        *,
+        estados_activos: Sequence[int],
+        empleado_ids_scope: Sequence[int] | None = None,
+    ) -> list[tuple[int, str]]:
+        """`(no_empleado, nombre)` de la plantilla activa, ordenada por número.
+
+        Universo de renglones del reporte semanal de incidencias: sale una fila por
+        empleado aunque no haya tenido nada en las tres semanas. Es **una** consulta con
+        el nombre incluido; el reporte nunca vuelve por el nombre empleado por empleado.
+
+        `empleado_ids_scope` es el alcance del usuario (None = sin restricción, como en
+        `list_no_empleados_filtrados`): un supervisor descarga a su equipo, RH a todos.
+        """
+        if not estados_activos:
+            return []
+        query = select(Empleado.no_empleado, Empleado.nombre).where(
+            Empleado.no_empleado.is_not(None),
+            Empleado.estado_id.in_(list(estados_activos)),
+        )
+        if empleado_ids_scope is not None:
+            if not empleado_ids_scope:
+                return []
+            query = query.where(Empleado.empleado_id.in_(list(empleado_ids_scope)))
+        result = await self.db.execute(query)
+
+        # Un mismo CB_CODIGO no debería repetirse entre activos, pero si pasara el
+        # empleado saldría dos veces en el Excel y el reporte pide un renglón por
+        # empleado: se queda el primer nombre no vacío.
+        vistos: dict[int, str] = {}
+        for no_empleado, nombre in result.all():
+            parsed = self._no_empleado_int(no_empleado)
+            if parsed is None:
+                continue
+            limpio = (nombre or "").strip()
+            if parsed not in vistos or (not vistos[parsed] and limpio):
+                vistos[parsed] = limpio
+        return sorted(vistos.items())
+
     async def map_por_no_empleados(
         self, no_empleados: Sequence[int]
     ) -> dict[int, tuple[int, str | None]]:

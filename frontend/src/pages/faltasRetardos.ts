@@ -2,6 +2,7 @@ import {
   createFaltaRetardo,
   getFaltasRetardosEstadisticas,
   getFaltasRetardosPage,
+  getFaltasRetardosReporteSemanal,
   type FaltaRetardoListItem,
   type FaltasRetardosPageResponse,
 } from "../api/faltasRetardos.ts";
@@ -12,10 +13,12 @@ import {
   type FaltaRetardoDetalleModalHandle,
 } from "../components/faltasRetardos/faltaRetardoDetalleModal.ts";
 import { renderRhFaltasRetardosAdminView } from "../components/faltasRetardos/rhFaltasRetardosAdminView.ts";
+import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import {
   mountNuevaFaltaRetardoModal,
   type NuevaFaltaRetardoModalHandle,
 } from "../components/faltasRetardos/nuevaFaltaRetardoModal.ts";
+import { downloadFaltasRetardosReporteExcel } from "../faltasRetardos/rh/exportFaltasRetardosReporteExcel.ts";
 import { FR_COPY } from "../faltasRetardos/rh/faltasRetardosCopy.ts";
 import {
   cloneFaltasRetardosListFilters,
@@ -158,6 +161,7 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   let lastEstadisticasStatus: FaltasRetardosAdminViewModel["estadisticasStatus"] = "loading";
   let lastEstadisticasError: string | undefined;
   let lastVm: FaltasRetardosAdminViewModel | null = null;
+  let descargandoReporte = false;
 
   function queryFromAppliedFilters() {
     return {
@@ -169,9 +173,39 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
   }
 
   function paintVm(vm: FaltasRetardosAdminViewModel): void {
-    lastVm = vm;
+    // El estado de la descarga no lo produce ninguna de las tres fábricas de view model
+    // (es ortogonal a cargar/listo/error): se estampa aquí para que cualquier repintado
+    // —incluido el de una recarga que ocurra a media descarga— conserve el botón en
+    // «Generando…» en vez de devolverlo a su estado normal.
+    lastVm = { ...vm, descargandoReporte: descargandoReporte };
     const inner = container.querySelector("#rh-faltas-retardos-inner");
     if (inner) inner.innerHTML = renderRhFaltasRetardosAdminView(lastVm);
+  }
+
+  async function descargarReporte(): Promise<void> {
+    if (descargandoReporte) return;
+    descargandoReporte = true;
+    if (lastVm) paintVm(lastVm);
+    try {
+      const data = await getFaltasRetardosReporteSemanal();
+      if (signal.aborted) return;
+      if (data.items.length === 0) {
+        showEmpleadosToast(container, FR_COPY.descargarReporteVacio, "error");
+        return;
+      }
+      downloadFaltasRetardosReporteExcel(data);
+    } catch (error: unknown) {
+      if (signal.aborted) return;
+      const fetchError = error as { detail?: string };
+      showEmpleadosToast(
+        container,
+        fetchError?.detail || FR_COPY.descargarReporteError,
+        "error",
+      );
+    } finally {
+      descargandoReporte = false;
+      if (lastVm && !signal.aborted) paintVm(lastVm);
+    }
   }
 
   mountAppShell(container, {
@@ -299,6 +333,10 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
         // Los botones no se pintan sin permiso; el guard evita abrir el modal si
         // alguien los reinyecta en el DOM. El POST lo cierra el backend.
         if (canCrearFaltaRetardo()) modal?.open();
+        return;
+      }
+      if (t.closest("#rh-fr-descargar-reporte")) {
+        void descargarReporte();
         return;
       }
       if (t.closest("[data-rh-fr-clear-filters]")) {

@@ -184,6 +184,49 @@ class IncidenciasTressCacheRepository:
         result = await self.db.execute(stmt)
         return [dict(row) for row in result.mappings().all()]
 
+    async def list_rango(
+        self,
+        *,
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        cb_codigos: list[int] | None = None,
+        tipo: str | None = None,
+        tipos: list[str] | None = None,
+    ) -> list[dict]:
+        """Todos los eventos del rango, sin paginar y sin el join a `empleados`.
+
+        Lo usa el reporte semanal en Excel, que necesita el rango completo de tres
+        semanas para repartir cada evento en su columna. No trae el nombre porque el
+        reporte ya recorre la plantilla —una sola consulta aparte— y ahí lo tiene: unir
+        aquí repetiría el nombre en cada evento del empleado.
+
+        Pasa por el mismo `_filtros` que la tabla y las estadísticas, así que un
+        empleado que no existe en Bono tampoco aparece en el reporte.
+        """
+        stmt = (
+            select(
+                IncidenciaTress.no_empleado,
+                IncidenciaTress.tipo,
+                IncidenciaTress.fecha_evento,
+                IncidenciaTress.fecha_fin,
+            )
+            .where(
+                *self._filtros(
+                    fecha_inicio=fecha_inicio,
+                    fecha_fin=fecha_fin,
+                    cb_codigos=cb_codigos,
+                    tipo=tipo,
+                    tipos=tipos,
+                )
+            )
+            .order_by(
+                IncidenciaTress.no_empleado.asc(),
+                IncidenciaTress.fecha_evento.asc(),
+            )
+        )
+        result = await self.db.execute(stmt)
+        return [dict(row) for row in result.mappings().all()]
+
     async def aggregate_por_tipo(
         self,
         *,

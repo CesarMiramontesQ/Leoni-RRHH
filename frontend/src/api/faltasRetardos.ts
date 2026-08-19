@@ -40,6 +40,28 @@ export type FaltasRetardosPageResponse = {
   page_size: number;
 };
 
+/** Una columna semanal del reporte en Excel; `numero` es la semana ISO. */
+export type FaltasRetardosReporteSemana = {
+  anio: number;
+  numero: number;
+  etiqueta: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+};
+
+/** Un renglón del reporte: `semanas` trae una celda por columna, en el mismo orden. */
+export type FaltasRetardosReporteFila = {
+  no_empleado: number;
+  nombre: string;
+  semanas: string[];
+};
+
+export type FaltasRetardosReporteSemanalResponse = {
+  generado_en: string;
+  semanas: FaltasRetardosReporteSemana[];
+  items: FaltasRetardosReporteFila[];
+};
+
 export type FaltaRetardoCreatePayload = {
   empleado_id: number;
   tipo: FaltaRetardoTipo;
@@ -181,6 +203,21 @@ export async function createFaltaRetardo(
     throw { status: res.status, detail: await readErrorDetail(res) };
   }
   return (await res.json()) as FaltaRetardoListItem;
+}
+
+/**
+ * Datos del reporte semanal, ya cuadriculados por el servidor: una fila por empleado y
+ * una celda por cada una de las tres semanas anteriores. El .xlsx lo arma el cliente
+ * (`exportFaltasRetardosReporteExcel.ts`), como el resto de las descargas de la app.
+ *
+ * No lleva filtros a propósito: el botón siempre descarga esas tres semanas.
+ */
+export async function getFaltasRetardosReporteSemanal(): Promise<FaltasRetardosReporteSemanalResponse> {
+  const res = await fetchWithAuth("/api/v1/faltas-retardos/reporte-semanal");
+  if (!res.ok) {
+    throw { status: res.status, detail: await readErrorDetail(res) };
+  }
+  return (await res.json()) as FaltasRetardosReporteSemanalResponse;
 }
 
 export async function getFaltasRetardosTipos(): Promise<FaltaRetardoTipo[]> {

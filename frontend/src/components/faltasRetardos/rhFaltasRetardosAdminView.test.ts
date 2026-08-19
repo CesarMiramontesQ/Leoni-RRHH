@@ -18,6 +18,13 @@ function vm(
   };
 }
 
+/** Fragmento del botón de descarga: el `aria-busy` de la tabla en carga no cuenta. */
+function botonDescarga(html: string): string {
+  const desde = html.indexOf('id="rh-fr-descargar-reporte"');
+  expect(desde).toBeGreaterThan(-1);
+  return html.slice(desde, html.indexOf("</button>", desde));
+}
+
 describe("rhFaltasRetardosAdminView — toolbar", () => {
   it("no renderiza el botón Sincronizar: el mirror FI/RE es un job del backend", () => {
     const html = renderRhFaltasRetardosAdminView(vm());
@@ -33,6 +40,33 @@ describe("rhFaltasRetardosAdminView — toolbar", () => {
   it("sin permiso de captura no emite el botón: registrar a mano es de RH", () => {
     const html = renderRhFaltasRetardosAdminView(vm({ puedeCrear: false }));
     expect(html).not.toContain('id="rh-fr-nuevo"');
+  });
+
+  it("el botón Descargar Reporte lo ve también quien no puede capturar", () => {
+    // Supervisor y gerente consultan sin registrar, pero sí revisan las tres semanas.
+    for (const puedeCrear of [true, false]) {
+      const html = renderRhFaltasRetardosAdminView(vm({ puedeCrear }));
+      expect(html).toContain('id="rh-fr-descargar-reporte"');
+      expect(html).toContain("Descargar Reporte");
+    }
+  });
+
+  it("mientras genera, el botón queda deshabilitado y anuncia el estado", () => {
+    const boton = botonDescarga(
+      renderRhFaltasRetardosAdminView(vm({ descargandoReporte: true })),
+    );
+    expect(boton).toContain("disabled");
+    expect(boton).toContain('aria-busy="true"');
+    expect(boton).toContain("Generando…");
+  });
+
+  it("en reposo el botón está habilitado", () => {
+    const boton = botonDescarga(
+      renderRhFaltasRetardosAdminView(vm({ descargandoReporte: false })),
+    );
+    expect(boton).toContain("Descargar Reporte");
+    expect(boton).not.toContain("disabled");
+    expect(boton).not.toContain("aria-busy");
   });
 
   it("sin permiso de captura tampoco lo emite el estado vacío de la tabla", () => {
