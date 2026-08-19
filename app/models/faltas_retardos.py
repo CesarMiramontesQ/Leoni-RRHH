@@ -28,6 +28,18 @@ FALTA_RETARDO_TIPOS_GOCE = frozenset(
     {"matrimonio", "incapacidad_interna", "defuncion", "paternidad"}
 )
 
+# Tipos que rankean el "Top de empleados con mas eventos". Fuera quedan las vacaciones
+# —que son la mayoria de los eventos y taparian el resto— y los permisos con goce, que
+# son un derecho y no una incidencia del colaborador. Es el mismo criterio que
+# `FALTA_RETARDO_TIPOS_DASHBOARD_EQUIPO` en
+# `frontend/src/faltasRetardos/rh/constants.ts`, y por la misma razon se deriva del
+# catalogo: un tipo nuevo entra solo en vez de quedar olvidado en una lista.
+FALTA_RETARDO_TIPOS_TOP_EMPLEADOS = tuple(
+    tipo
+    for tipo in FALTA_RETARDO_TIPOS
+    if tipo != "vacaciones" and tipo not in FALTA_RETARDO_TIPOS_GOCE
+)
+
 # Los pone nomina, no la app: FI y RE los calcula TRESS desde las checadas, y las
 # vacaciones llegan de la solicitud aprobada. Entran por el sync de dbo.AUSENCIA, nunca
 # por el alta de RH; el modal tampoco los ofrece

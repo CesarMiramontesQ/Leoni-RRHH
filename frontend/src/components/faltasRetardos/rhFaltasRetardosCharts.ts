@@ -2,7 +2,10 @@ import { chartCartesianScales, mountChart, renderChartCanvas } from "../../chart
 import { chartColorSlots } from "../../charts/chartTokens.ts";
 import type { FaltaRetardoTendenciaPorTipo } from "../../faltasRetardos/rh/buildFaltasRetardosTendenciaPorTipo.ts";
 import type { RhDashboardTendenciaAgrupacion } from "../../dashboard/rh/filterRowsByPeriod.ts";
-import { labelFaltaRetardoTipo } from "../../faltasRetardos/rh/constants.ts";
+import {
+  FALTA_RETARDO_TIPOS,
+  labelFaltaRetardoTipo,
+} from "../../faltasRetardos/rh/constants.ts";
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
 
 export const RH_FR_TENDENCIA_CHART_ID = "rh-fr-tendencia-mes";
@@ -286,7 +289,18 @@ export type FaltaRetardoEmpleadoChartRow = {
   byTipo: Partial<Record<FaltaRetardoTipo, number>>;
 };
 
-function tiposPresentesEnEmpleados(
+/**
+ * Tipos con al menos un evento, en el orden del catálogo.
+ *
+ * Se recorre `FALTA_RETARDO_TIPOS` y no una lista escrita a mano: el ranking del top lo
+ * calcula el servidor, y un tipo que esta funcion no devuelva se queda sin barra aunque
+ * el empleado tenga eventos. Con la lista corta, filtrar la página por vacaciones dejaba
+ * la gráfica en blanco. Quién *entra* al top es decisión del backend
+ * (`FALTA_RETARDO_TIPOS_TOP_EMPLEADOS`); aquí solo se dibuja lo que llegue.
+ *
+ * Exportada para poder verificarla sin montar un canvas.
+ */
+export function tiposPresentesEnEmpleados(
   rows: readonly FaltaRetardoEmpleadoChartRow[],
 ): FaltaRetardoTipo[] {
   const present = new Set<FaltaRetardoTipo>();
@@ -295,14 +309,7 @@ function tiposPresentesEnEmpleados(
       if ((count ?? 0) > 0) present.add(tipo as FaltaRetardoTipo);
     }
   }
-  const ordered: FaltaRetardoTipo[] = [
-    "falta_justificada",
-    "falta_injustificada",
-    "retardo",
-    "incapacidad",
-    "suspension",
-  ];
-  return ordered.filter((t) => present.has(t));
+  return FALTA_RETARDO_TIPOS.filter((t) => present.has(t));
 }
 
 export function mountFaltasRetardosEmpleadosStackedBarChart(

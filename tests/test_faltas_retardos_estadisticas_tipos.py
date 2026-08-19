@@ -117,3 +117,64 @@ async def test_tipo_desconocido_es_rechazado(db, client: AsyncClient):
     )
 
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_el_top_sin_filtro_ignora_vacaciones_y_permisos_con_goce(
+    db, client: AsyncClient
+):
+    """Sin filtro de tipo, el top no puede rankear por eventos que la grafica no dibuja.
+
+    La grafica apilada solo pinta lo disciplinable (falta, retardo, incapacidad,
+    suspension). Si el ranking suma ademas vacaciones y permisos con goce, quien llega
+    al top por esos tipos aparece con su nombre y **sin barra**.
+    """
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    await make_empleado(db, empleado_id=11, no_empleado=554, nombre="Beto")
+    origen_id = 0
+    # Ana solo tiene vacaciones y un permiso con goce: nada que dibujar.
+    for tipo in ("vacaciones", "vacaciones", "vacaciones", "vacaciones", "matrimonio"):
+        origen_id += 1
+        await make_incidencia_tress(
+            db, origen_id=origen_id, no_empleado=553, empleado_id=10,
+            tipo=tipo, fecha_evento=date.today(),
+        )
+    # Beto tiene menos eventos, pero todos son incidencias.
+    for _ in range(2):
+        origen_id += 1
+        await make_incidencia_tress(
+            db, origen_id=origen_id, no_empleado=554, empleado_id=11,
+            tipo="retardo", fecha_evento=date.today(),
+        )
+
+    resp = await client.get(
+        "/api/v1/faltas-retardos/estadisticas",
+        headers=await auth_headers(client, rh),
+    )
+
+    assert resp.status_code == 200, resp.text
+    top = resp.json()["empleados_con_mas_eventos"]
+    assert [e["no_empleado"] for e in top] == ["554"]
+
+
+@pytest.mark.asyncio
+async def test_filtrar_por_vacaciones_si_las_muestra_en_el_top(db, client: AsyncClient):
+    """El recorte es el defecto, no una prohibicion: un filtro explicito manda."""
+    rh = await make_empleado(db, empleado_id=1, no_empleado=100, nombre="RH", rol="rh")
+    await make_empleado(db, empleado_id=10, no_empleado=553, nombre="Ana")
+    for origen_id in (1, 2, 3):
+        await make_incidencia_tress(
+            db, origen_id=origen_id, no_empleado=553, empleado_id=10,
+            tipo="vacaciones", fecha_evento=date.today(),
+        )
+
+    resp = await client.get(
+        "/api/v1/faltas-retardos/estadisticas?tipo=vacaciones",
+        headers=await auth_headers(client, rh),
+    )
+
+    assert resp.status_code == 200, resp.text
+    top = resp.json()["empleados_con_mas_eventos"]
+    assert [e["no_empleado"] for e in top] == ["553"]
+    assert top[0]["total"] == 3
