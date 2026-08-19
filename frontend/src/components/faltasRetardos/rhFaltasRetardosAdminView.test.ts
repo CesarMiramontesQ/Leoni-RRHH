@@ -42,13 +42,15 @@ describe("rhFaltasRetardosAdminView — toolbar", () => {
     expect(html).not.toContain('id="rh-fr-nuevo"');
   });
 
-  it("el botón Descargar Reporte lo ve también quien no puede capturar", () => {
-    // Supervisor y gerente consultan sin registrar, pero sí revisan las tres semanas.
-    for (const puedeCrear of [true, false]) {
-      const html = renderRhFaltasRetardosAdminView(vm({ puedeCrear }));
-      expect(html).toContain('id="rh-fr-descargar-reporte"');
-      expect(html).toContain("Descargar Reporte");
-    }
+  it("el botón Descargar Reporte va detrás del mismo gate de RH que el alta", () => {
+    // Supervisor y gerente ven la página, pero el reporte es superficie de RH.
+    const conRh = renderRhFaltasRetardosAdminView(vm({ puedeCrear: true }));
+    expect(conRh).toContain('id="rh-fr-descargar-reporte"');
+    expect(conRh).toContain("Descargar Reporte");
+
+    const sinRh = renderRhFaltasRetardosAdminView(vm({ puedeCrear: false }));
+    expect(sinRh).not.toContain('id="rh-fr-descargar-reporte"');
+    expect(sinRh).not.toContain("Descargar Reporte");
   });
 
   it("mientras genera, el botón queda deshabilitado y anuncia el estado", () => {

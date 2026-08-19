@@ -209,17 +209,26 @@ async def test_la_semana_en_curso_no_aparece_en_el_reporte(db, client: AsyncClie
 
 
 @pytest.mark.asyncio
-async def test_el_supervisor_solo_descarga_a_su_equipo(db, client: AsyncClient):
-    jefe = await make_empleado(
-        db, empleado_id=20, no_empleado=200, nombre="Jefe", rol="supervisor"
+@pytest.mark.parametrize("rol", ["supervisor", "gerente", "director"])
+async def test_el_reporte_es_solo_de_rh(db, client: AsyncClient, rol: str):
+    """Quien consulta la página no descarga el reporte: es una superficie de RH.
+
+    Los GET del listado y de estadísticas siguen abiertos a estos roles —ven lo que llega
+    de nómina—, pero el botón no se les pinta y el endpoint tampoco les responde.
+    """
+    usuario = await make_empleado(
+        db, empleado_id=20, no_empleado=200, nombre="Gestor", rol=rol
     )
-    await make_empleado(db, empleado_id=21, no_empleado=201, nombre="Subordinado", lider_id=20)
-    await make_empleado(db, empleado_id=22, no_empleado=202, nombre="Ajeno")
 
     resp = await client.get(
-        "/api/v1/faltas-retardos/reporte-semanal", headers=await auth_headers(client, jefe)
+        "/api/v1/faltas-retardos/reporte-semanal",
+        headers=await auth_headers(client, usuario),
     )
 
-    assert resp.status_code == 200
-    numeros = {item["no_empleado"] for item in resp.json()["items"]}
-    assert numeros == {200, 201}
+    assert resp.status_code == 403
+
+    # El listado sí sigue disponible para el mismo usuario: el cierre es del reporte.
+    listado = await client.get(
+        "/api/v1/faltas-retardos", headers=await auth_headers(client, usuario)
+    )
+    assert listado.status_code == 200

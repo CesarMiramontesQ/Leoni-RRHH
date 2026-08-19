@@ -336,7 +336,9 @@ export function mountFaltasRetardos(container: HTMLElement, signal: AbortSignal)
         return;
       }
       if (t.closest("#rh-fr-descargar-reporte")) {
-        void descargarReporte();
+        // El botón no se pinta sin permiso; el guard evita disparar la descarga si
+        // alguien lo reinyecta en el DOM. El GET lo cierra el backend con 403.
+        if (canCrearFaltaRetardo()) void descargarReporte();
         return;
       }
       if (t.closest("[data-rh-fr-clear-filters]")) {

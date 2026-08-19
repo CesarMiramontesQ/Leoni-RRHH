@@ -10109,7 +10109,11 @@ paths:
         rango (incapacidad, suspensión, permiso con goce) aparece una vez en cada semana
         que toca, sin abrir renglones nuevos. Lee de la caché
         `levelup_incidencias_tress`, la misma fuente que el listado, así que hereda su
-        latencia semanal. No acepta filtros: el único recorte es el alcance del usuario.
+        latencia semanal. No acepta filtros. Solo RH (rol operativo o el módulo
+        `faltas-retardos` otorgado desde Permisos RH), igual que la captura manual:
+        supervisor, gerente y director consultan el listado pero reciben 403 aquí. El
+        recorte por alcance se conserva porque un usuario con el módulo otorgado puede
+        no ser admin.
       operationId: faltas_retardos_reporte_semanal
       security:
         - BearerAuth: []

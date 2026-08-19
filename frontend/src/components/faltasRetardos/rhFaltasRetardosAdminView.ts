@@ -11,9 +11,9 @@ import {
 import { renderRhFaltasRetardosTable } from "./rhFaltasRetardosTable.ts";
 
 /**
- * Descarga del reporte semanal en Excel. A diferencia de «Nuevo registro», está para
- * todo el que ve la página: supervisor y gerente también revisan las tres semanas
- * anteriores, y cada quien descarga a la gente de su alcance (lo recorta el servidor).
+ * Descarga del reporte semanal en Excel. Va detrás del mismo gate que «Nuevo registro»
+ * (`canCrearFaltaRetardo`): es una superficie de RH. Supervisor, gerente y director ven
+ * la página —lo que llega de nómina— pero no este botón, y el endpoint les responde 403.
  */
 function renderDescargarReporteButton(vm: FaltasRetardosAdminViewModel): string {
   const cargando = vm.descargandoReporte === true;
@@ -33,12 +33,14 @@ function renderDescargarReporteButton(vm: FaltasRetardosAdminViewModel): string 
 
 /**
  * Sin botón de sincronizar: el mirror FI/RE corre en el job semanal del backend.
- * Sin botón de nuevo registro para quien no es RH: supervisor y gerente consultan
- * lo que llega de nómina, no capturan. El de descargar sí lo ven todos.
+ * Toda la barra es de RH: supervisor y gerente consultan lo que llega de nómina, no
+ * capturan ni descargan el reporte.
  */
 function renderActionsToolbar(vm: FaltasRetardosAdminViewModel): string {
-  const nuevo = vm.puedeCrear
-    ? `
+  if (!vm.puedeCrear) return "";
+  return `
+    <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-3" role="toolbar" aria-label="${escapeHtml(FR_COPY.tituloPagina)}">
+      ${renderDescargarReporteButton(vm)}
       <button
         type="button"
         id="rh-fr-nuevo"
@@ -46,11 +48,7 @@ function renderActionsToolbar(vm: FaltasRetardosAdminViewModel): string {
       >
         <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>
         ${escapeHtml(FR_COPY.nuevo)}
-      </button>`
-    : "";
-  return `
-    <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-3" role="toolbar" aria-label="${escapeHtml(FR_COPY.tituloPagina)}">
-      ${renderDescargarReporteButton(vm)}${nuevo}
+      </button>
     </div>`;
 }
 

@@ -75,13 +75,15 @@ async def list_tipos_faltas_retardos(
 # Reporte semanal en Excel. Lo arma el frontend con `xlsx` —igual que el resto de las
 # descargas de la app—, así que aquí solo viajan los datos ya agrupados: una fila por
 # empleado de la plantilla activa y una celda por cada una de las tres semanas
-# anteriores. No acepta filtros: el botón descarga siempre esas tres semanas, y el único
-# recorte es el alcance del usuario (un supervisor obtiene a su equipo).
+# anteriores. No acepta filtros: el botón descarga siempre esas tres semanas.
+#
+# Solo RH, igual que la captura manual de abajo y que el botón que lo dispara: los GET de
+# arriba los siguen usando supervisor, gerente y director para consultar lo que llega de
+# nómina, pero el reporte es una superficie de RH. El recorte por alcance del servicio se
+# conserva porque un usuario con el módulo otorgado puede no ser admin.
 @router.get("/reporte-semanal", response_model=FaltasRetardosReporteSemanalResponse)
 async def reporte_semanal_faltas_retardos(
-    current_user: Empleado = Depends(
-        role_checker(["operativo", "gerente", "supervisor", "director"])
-    ),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     svc: FaltasRetardosService = Depends(_svc),
 ):

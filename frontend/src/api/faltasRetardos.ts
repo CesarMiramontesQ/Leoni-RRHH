@@ -210,7 +210,8 @@ export async function createFaltaRetardo(
  * una celda por cada una de las tres semanas anteriores. El .xlsx lo arma el cliente
  * (`exportFaltasRetardosReporteExcel.ts`), como el resto de las descargas de la app.
  *
- * No lleva filtros a propósito: el botón siempre descarga esas tres semanas.
+ * No lleva filtros a propósito: el botón siempre descarga esas tres semanas. Solo RH:
+ * a supervisor, gerente y director el endpoint les responde 403.
  */
 export async function getFaltasRetardosReporteSemanal(): Promise<FaltasRetardosReporteSemanalResponse> {
   const res = await fetchWithAuth("/api/v1/faltas-retardos/reporte-semanal");
