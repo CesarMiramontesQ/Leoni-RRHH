@@ -12,6 +12,7 @@ from app.models.faltas_retardos import (
     FALTA_RETARDO_TIPOS,
     FALTA_RETARDO_TIPOS_GOCE,
     FALTA_RETARDO_TIPOS_RANGO,
+    FALTA_RETARDO_TIPOS_TOP_EMPLEADOS,
     FaltaRetardoEvento,
 )
 from app.repositories.bono_importadas_historico_repository import BonoImportadasHistoricoRepository
@@ -434,8 +435,14 @@ class FaltasRetardosService:
 
         por_tipo = await self.cache_repo.aggregate_por_tipo(**filtros)
         por_mes = await self.cache_repo.aggregate_por_mes(**filtros)
+        # El top se rankea solo sobre lo que la grafica apilada sabe dibujar. Si sumara
+        # vacaciones y permisos con goce, quien llegue al top por esos tipos saldria con
+        # su nombre y sin barra. Un filtro explicito del usuario manda sobre el recorte.
+        filtros_top = dict(filtros)
+        if tipo is None and tipos is None:
+            filtros_top["tipos"] = list(FALTA_RETARDO_TIPOS_TOP_EMPLEADOS)
         top, total_colaboradores = await self.cache_repo.aggregate_empleados_top(
-            limit=top_empleados, **filtros
+            limit=top_empleados, **filtros_top
         )
         periodo_rows = (
             await self.cache_repo.aggregate_por_periodo_y_tipo(agrupacion=agr, **filtros)
