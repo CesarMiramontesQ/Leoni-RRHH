@@ -25,6 +25,9 @@ from app.schemas.faltas_retardos import (
     FaltaRetardoResponse,
     FaltasRetardosEstadisticasResponse,
     FaltasRetardosPageResponse,
+    FaltasRetardosReporteFilaItem,
+    FaltasRetardosReporteSemanaItem,
+    FaltasRetardosReporteSemanalResponse,
 )
 from app.services.faltas_retardos.constants import (
     ORIGEN_IMPORTADAS_HISTORICO,
@@ -33,6 +36,12 @@ from app.services.faltas_retardos.constants import (
     synthetic_falta_retardo_id,
 )
 from app.services.faltas_retardos.mapper import map_bono_row
+from app.services.faltas_retardos.reporte_semanal import (
+    SEMANAS_REPORTE,
+    celdas_por_empleado,
+    rango_cubierto,
+    semanas_previas,
+)
 from app.services.faltas_retardos.mapper_cache import map_cache_row
 from app.services.descansos_empleado_service import obtener_descansos_bono
 from app.services.tress_goce_service import (
@@ -41,6 +50,7 @@ from app.services.tress_goce_service import (
     registrar_permisos_goce_tramos_en_tress,
 )
 from app.services.tress_suspension_service import registrar_suspension_en_tress
+from app.utils.business_time import business_today
 from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.utils.descansos_fechas import (
     avanzar_hasta_reunir_dias,
@@ -303,6 +313,70 @@ class FaltasRetardosService:
             total=total,
             page=page,
             page_size=page_size,
+        )
+
+    async def reporte_semanal(
+        self,
+        current_user: Empleado,
+        *,
+        rh_ui_mode: str | None = None,
+        hoy: date | None = None,
+    ) -> FaltasRetardosReporteSemanalResponse:
+        """Datos del Excel: un renglón por empleado y una celda por semana.
+
+        Se lee de la misma caché en Bono que la tabla de la página
+        (`levelup_incidencias_tress`), así que el reporte muestra exactamente lo que RH
+        ve en pantalla y hereda su latencia semanal: lo capturado después de la última
+        corrida del sync no sale todavía.
+
+        Dos consultas en total, sin importar cuántos empleados haya: la plantilla activa
+        del alcance (con nombre incluido) y los eventos de las tres semanas. El reparto
+        por semana se hace en memoria.
+        """
+        scope_ids = await self._empleado_ids_scope(current_user, rh_ui_mode)
+        referencia = hoy or business_today()
+        semanas = semanas_previas(referencia, SEMANAS_REPORTE)
+        rango = rango_cubierto(semanas)
+
+        plantilla = await self.empleado_repo.list_plantilla_para_reporte(
+            estados_activos=settings.ESTADOS_ACTIVOS_IDS,
+            empleado_ids_scope=scope_ids,
+        )
+
+        celdas: dict[int, list[str]] = {}
+        if rango is not None and plantilla:
+            fecha_inicio, fecha_fin = rango
+            # Sin restricción de alcance no se manda la plantilla completa como filtro:
+            # mismo criterio que `_cb_codigos_filtrados`, la consulta sale más barata sin
+            # un IN de miles de números.
+            cb_codigos = [no_empleado for no_empleado, _ in plantilla] if scope_ids is not None else None
+            eventos = await self.cache_repo.list_rango(
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                cb_codigos=cb_codigos,
+            )
+            celdas = celdas_por_empleado(eventos, semanas)
+
+        return FaltasRetardosReporteSemanalResponse(
+            generado_en=referencia,
+            semanas=[
+                FaltasRetardosReporteSemanaItem(
+                    anio=semana.anio,
+                    numero=semana.numero,
+                    etiqueta=semana.etiqueta,
+                    fecha_inicio=semana.lunes,
+                    fecha_fin=semana.domingo,
+                )
+                for semana in semanas
+            ],
+            items=[
+                FaltasRetardosReporteFilaItem(
+                    no_empleado=no_empleado,
+                    nombre=nombre,
+                    semanas=celdas.get(no_empleado) or [""] * len(semanas),
+                )
+                for no_empleado, nombre in plantilla
+            ],
         )
 
     @staticmethod

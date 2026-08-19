@@ -2597,6 +2597,63 @@ components:
           items:
             $ref: "#/components/schemas/FaltaRetardoTipo"
 
+    FaltasRetardosReporteSemanaItem:
+      type: object
+      required: [anio, numero, etiqueta, fecha_inicio, fecha_fin]
+      properties:
+        anio:
+          type: integer
+          description: >-
+            Año ISO de la semana. Va junto al número porque en enero la semana 52/53
+            pertenece al año anterior y sin él el rango no es reconstruible.
+        numero:
+          type: integer
+          description: Número de semana ISO (`date.isocalendar()`).
+        etiqueta:
+          type: string
+          example: Semana 31
+        fecha_inicio:
+          type: string
+          format: date
+          description: Lunes de la semana.
+        fecha_fin:
+          type: string
+          format: date
+          description: Domingo de la semana.
+
+    FaltasRetardosReporteFilaItem:
+      type: object
+      required: [no_empleado, nombre, semanas]
+      properties:
+        no_empleado:
+          type: integer
+        nombre:
+          type: string
+        semanas:
+          type: array
+          description: >-
+            Una celda por columna, en el mismo orden que `semanas` de la respuesta.
+            Códigos separados por coma (`VAC`, `FJ`, `FI`, `RE`, `INC`, `INC1`, `SUS`);
+            cadena vacía si el empleado no tuvo incidencias esa semana.
+          items:
+            type: string
+
+    FaltasRetardosReporteSemanalResponse:
+      type: object
+      required: [generado_en, semanas, items]
+      properties:
+        generado_en:
+          type: string
+          format: date
+        semanas:
+          type: array
+          items:
+            $ref: "#/components/schemas/FaltasRetardosReporteSemanaItem"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FaltasRetardosReporteFilaItem"
+
     FaltasRetardosEstadisticasResponse:
       type: object
       required:
@@ -10038,6 +10095,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FaltasRetardosTiposResponse"
+
+  /api/v1/faltas-retardos/reporte-semanal:
+    get:
+      tags: [Faltas y retardos]
+      summary: Datos del reporte semanal de incidencias (Excel)
+      description: >-
+        Devuelve la cuadrícula del botón «Descargar Reporte»: una fila por empleado de
+        la plantilla activa y una celda por cada una de las TRES semanas ISO anteriores
+        a la de la descarga — la semana en curso queda fuera. El .xlsx lo arma el
+        frontend con `xlsx`. Cada celda lleva los códigos de las incidencias de esa
+        semana separados por coma (`FI, RE`); vacía si no hubo ninguna. Un evento con
+        rango (incapacidad, suspensión, permiso con goce) aparece una vez en cada semana
+        que toca, sin abrir renglones nuevos. Lee de la caché
+        `levelup_incidencias_tress`, la misma fuente que el listado, así que hereda su
+        latencia semanal. No acepta filtros. Solo RH (rol operativo o el módulo
+        `faltas-retardos` otorgado desde Permisos RH), igual que la captura manual:
+        supervisor, gerente y director consultan el listado pero reciben 403 aquí. El
+        recorte por alcance se conserva porque un usuario con el módulo otorgado puede
+        no ser admin.
+      operationId: faltas_retardos_reporte_semanal
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Semanas y filas del reporte
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaltasRetardosReporteSemanalResponse"
 
   /api/v1/faltas-retardos/estadisticas:
     get:

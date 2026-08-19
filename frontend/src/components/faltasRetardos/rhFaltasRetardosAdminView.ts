@@ -6,18 +6,41 @@ import { renderRhFaltasRetardosFiltersSection } from "./rhFaltasRetardosFilters.
 import {
   RH_LISTADO_PAGE_OUTER_GRADIENT,
   RH_SOLICITUDES_BTN_PRIMARY,
+  RH_SOLICITUDES_BTN_SECONDARY,
 } from "./rhFaltasRetardosPageStyles.ts";
 import { renderRhFaltasRetardosTable } from "./rhFaltasRetardosTable.ts";
 
 /**
+ * Descarga del reporte semanal en Excel. Va detrás del mismo gate que «Nuevo registro»
+ * (`canCrearFaltaRetardo`): es una superficie de RH. Supervisor, gerente y director ven
+ * la página —lo que llega de nómina— pero no este botón, y el endpoint les responde 403.
+ */
+function renderDescargarReporteButton(vm: FaltasRetardosAdminViewModel): string {
+  const cargando = vm.descargandoReporte === true;
+  const etiqueta = cargando ? FR_COPY.descargarReporteGenerando : FR_COPY.descargarReporte;
+  return `
+      <button
+        type="button"
+        id="rh-fr-descargar-reporte"
+        class="${RH_SOLICITUDES_BTN_SECONDARY} min-h-11 w-full justify-center sm:w-auto"
+        aria-label="${escapeHtml(FR_COPY.descargarReporteAria)}"
+        ${cargando ? 'disabled aria-busy="true"' : ""}
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path d="M10.75 2.75a.75.75 0 0 0-1.5 0v7.19L6.28 6.97a.75.75 0 1 0-1.06 1.06l4.25 4.25a.75.75 0 0 0 1.06 0l4.25-4.25a.75.75 0 1 0-1.06-1.06l-2.97 2.97V2.75Z" /><path d="M3.5 12.75a.75.75 0 0 0-1.5 0v1.5A2.75 2.75 0 0 0 4.75 17h10.5A2.75 2.75 0 0 0 18 14.25v-1.5a.75.75 0 0 0-1.5 0v1.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-1.5Z" /></svg>
+        ${escapeHtml(etiqueta)}
+      </button>`;
+}
+
+/**
  * Sin botón de sincronizar: el mirror FI/RE corre en el job semanal del backend.
- * Sin botón de nuevo registro para quien no es RH: supervisor y gerente consultan
- * lo que llega de nómina, no capturan.
+ * Toda la barra es de RH: supervisor y gerente consultan lo que llega de nómina, no
+ * capturan ni descargan el reporte.
  */
 function renderActionsToolbar(vm: FaltasRetardosAdminViewModel): string {
   if (!vm.puedeCrear) return "";
   return `
     <div class="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end sm:gap-3" role="toolbar" aria-label="${escapeHtml(FR_COPY.tituloPagina)}">
+      ${renderDescargarReporteButton(vm)}
       <button
         type="button"
         id="rh-fr-nuevo"
