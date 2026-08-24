@@ -11,6 +11,8 @@ export type SchedulerLogItem = {
   fin_at: string | null;
   duracion_ms: number | null;
   resultado: SchedulerLogResultado;
+  /** 1 = disparo del cron; 2..4 = reintentos automáticos tras un error. */
+  intento: number;
   resumen: string | null;
   error: string | null;
 };
