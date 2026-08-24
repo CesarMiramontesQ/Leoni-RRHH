@@ -57,6 +57,15 @@ function formatearFecha(iso: string): string {
  * en_curso=abierto (blue, "en curso activo" — se distingue a simple vista de una
  * advertencia), advertencia=pendiente (amber); un resultado desconocido usa el
  * neutro, nunca el verde. */
+/** Debe coincidir con MAX_INTENTOS del backend (app/integrations/scheduler_job_log.py). */
+const MAX_INTENTOS = 4;
+
+/** Marca visible solo en reintentos: el primer intento es el caso normal. */
+function etiquetaIntento(intento: number): string {
+  if (!intento || intento <= 1) return "";
+  return `<span class="ml-2 text-xs text-[color:var(--color-text-secondary)]">Intento ${intento}/${MAX_INTENTOS}</span>`;
+}
+
 function badge(resultado: string): string {
   const texto = ETIQUETA_RESULTADO[resultado] ?? resultado;
   if (resultado === "ok") return badgeApproved(texto);
@@ -77,7 +86,7 @@ export function renderTablaCorridas(items: SchedulerLogItem[]): string {
         <td class="px-3 py-2 font-mono text-xs">${escapeHtml(item.job_id)}</td>
         <td class="px-3 py-2 text-xs">${escapeHtml(formatearFecha(item.inicio_at))}</td>
         <td class="px-3 py-2 text-xs">${escapeHtml(formatearDuracion(item.duracion_ms))}</td>
-        <td class="px-3 py-2">${badge(item.resultado)}</td>
+        <td class="px-3 py-2">${badge(item.resultado)}${etiquetaIntento(item.intento)}</td>
         <td class="px-3 py-2 text-xs text-[color:var(--color-text-secondary)]">${escapeHtml(item.resumen ?? "")}</td>
       </tr>`,
     )
@@ -113,7 +122,7 @@ export function renderDetalle(detalle: SchedulerLogDetalle): string {
       : "";
   return `
     <div class="${RH_LISTADO_SURFACE} mt-4">
-      <h2 class="px-3 py-2 text-sm font-bold">${escapeHtml(detalle.job_id)} · ${escapeHtml(formatearFecha(detalle.inicio_at))}</h2>
+      <h2 class="px-3 py-2 text-sm font-bold">${escapeHtml(detalle.job_id)} · ${escapeHtml(formatearFecha(detalle.inicio_at))}${etiquetaIntento(detalle.intento)}</h2>
       ${error}
       ${lineas || `<p class="px-3 py-2 text-xs">Sin líneas.</p>`}
       ${recortadas}

@@ -16,6 +16,8 @@ class SchedulerLogItem(BaseModel):
     fin_at: datetime | None = None
     duracion_ms: int | None = None
     resultado: str
+    # 1 = disparo del cron; 2..4 = reintentos automáticos tras un error.
+    intento: int = 1
     resumen: str | None = None
     error: str | None = None
 

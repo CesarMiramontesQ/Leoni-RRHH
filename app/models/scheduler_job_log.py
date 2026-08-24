@@ -36,6 +36,11 @@ class SchedulerJobLog(Base):
         nullable=False,
         default="en_curso",
     )
+    # Número de intento de esta corrida: 1 = disparo del cron, 2..4 = reintentos
+    # automáticos tras un `error` (solo jobs opt-in, ver con_registro).
+    intento: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
     # Última línea INFO de la corrida (la del resumen con conteos). Se guarda aparte para
     # que el listado no tenga que traer `lineas`.
     resumen: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

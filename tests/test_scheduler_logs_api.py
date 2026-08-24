@@ -63,6 +63,7 @@ async def test_admin_lista_las_corridas_sin_lineas(client, db):
     assert body["total"] == 1
     assert body["page"] == 1
     assert body["items"][0]["resumen"] == "insertados=3"
+    assert body["items"][0]["intento"] == 1
     assert "lineas" not in body["items"][0]
 
 

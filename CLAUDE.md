@@ -307,7 +307,13 @@ Layered architecture: **router → service → repository → models/schemas**
   deduce del **nivel máximo de log** (`ok` / `advertencia` / `error`), no de una excepción:
   los wrappers de los jobs atrapan la suya, así que un listener de APScheduler los vería
   siempre como correctos. Una fila que se queda en `en_curso` significa que el proceso
-  murió a media corrida; no hay barrendero que las cierre.
+  murió a media corrida; no hay barrendero que las cierre. Los **8 jobs de sync
+  reintentan solos** tras una corrida con resultado `error` (mismo criterio del nivel de
+  log, no excepción): hasta 3 reintentos con backoff 15/30/60 min, cada uno con su
+  propia fila (`intento` 2..4). Los 3 de recordatorios **no** reintentan — envían emails
+  y un reintento a media corrida duplicaría avisos. Los reintentos son tareas asyncio,
+  no jobs de APScheduler: un reinicio del proceso los pierde (igual que un misfire), y
+  un reintento tardío del catálogo de turnos **no** re-dispara a sus dependientes.
 - Roles: empleado, supervisor, rh, director, gerente — enforced via middleware and dependencies
 - **Admin RH**: usuario admin = `is_admin_user()` (flag BD `puede_administrar_permisos_rh` en `levelup_empleados_permisos`), NO por rol. Guard unificado `require_admin_user`. La **BD es la fuente** y el flag se gestiona desde la UI de Permisos RH con el toggle "Hacer/Quitar admin" (`PUT /api/v1/rh-permisos/usuarios/{id}/admin`, body `{conceder}`; auditado `RH_PERMISOS_ADMIN_GRANTED/REVOKED`; candados: no cambiar el propio flag, no revocar al último admin). `SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS` (.env) es **solo bootstrap/recuperación** cuando no hay admins (`ensure_bootstrap_rh_admins` en lifespan o `python -m app.utils.seed`).
 - `conftest.py` provides `make_empleado()`, `make_solicitud()`, `make_incidencia()` factories and `auth_headers()` helper
