@@ -270,7 +270,7 @@ export async function getComedorProyecciones(): Promise<ComedorProyeccionesApi> 
 
 export type ComedorRhEmpleadoSinComedorApi = {
   empleado_id: number;
-  no_empleado: string;
+  no_empleado: number;
   nombre: string;
 };
 
