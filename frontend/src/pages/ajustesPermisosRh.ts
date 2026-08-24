@@ -118,7 +118,10 @@ function collectActionMenus(root: HTMLElement): HTMLElement[] {
 function restoreActionMenu(menu: HTMLElement, root: HTMLElement): void {
   const wrapId = menu.dataset.rhPermActionsWrapId;
   if (!wrapId) {
-    menu.remove();
+    // Sin wrapId el menú nunca salió de su fila: se queda donde está. Solo se
+    // retira si quedó varado fuera de un wrap (portal), porque ya no hay fila
+    // a la cual devolverlo.
+    if (!menu.closest(".rh-perm-actions-wrap")) menu.remove();
     return;
   }
   const wrap = root.querySelector(`.rh-perm-actions-wrap[data-empleado-id="${wrapId}"]`);
