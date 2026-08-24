@@ -13,6 +13,10 @@ import {
 import { BTN_PRIMARY, BTN_SECONDARY, SELECT_CHEVRON } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import { showEmpleadosToast } from "../empleados/toast.ts";
+import {
+  filtrarEmpleadosSinComedor,
+  mapEmpleadosSinComedorABusqueda,
+} from "./comedorAsignarComedorRows.ts";
 
 export type ComedorAsignarComedorModalOptions = {
   toastContainer: HTMLElement;
@@ -113,15 +117,16 @@ function renderComedorActual(
 function renderBody(
   rows: readonly RowState[],
   comedores: readonly ComedorApiItem[],
-  state: "loading" | "ready" | "idle" | "sin-resultados" | "error",
+  state: "loading" | "ready" | "empty" | "idle" | "sin-resultados" | "error",
   errorMessage: string | null,
   isSubmitting: boolean,
   query: string,
   totalSinComedor: number | null,
+  truncated: boolean,
 ): string {
   if (state === "error") {
     return `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
-      <p class="font-semibold">No fue posible completar la búsqueda.</p>
+      <p class="font-semibold">No fue posible cargar el listado.</p>
       <p class="mt-1">${escapeHtml(errorMessage ?? "Error inesperado.")}</p>
       <button type="button" data-comedor-asignar-comedor-retry class="mt-3 inline-flex min-h-10 items-center rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-800 hover:bg-red-50">Reintentar</button>
     </div>`;
@@ -132,7 +137,14 @@ function renderBody(
   if (state === "loading") {
     return `${buscador}<div class="flex items-center gap-3 py-10 text-sm text-slate-500">
       <svg class="size-5 animate-spin text-leoni-blue" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-      Buscando empleados…
+      Cargando empleados…
+    </div>`;
+  }
+
+  if (state === "empty") {
+    return `${buscador}<div class="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-600" role="status">
+      <p class="font-medium text-slate-800">Todos los empleados activos tienen comedor asignado.</p>
+      <button type="button" data-comedor-asignar-comedor-cerrar-inline class="${BTN_SECONDARY} mt-4 min-h-10 px-5">Cerrar</button>
     </div>`;
   }
 
@@ -158,8 +170,8 @@ function renderBody(
     "h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25";
 
   const aviso =
-    rows.length >= LIMITE_RESULTADOS
-      ? `<p class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Se muestran los primeros ${String(LIMITE_RESULTADOS)} resultados. Afina la búsqueda si no ves a quien buscas.</p>`
+    truncated
+      ? `<p class="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Se muestran los primeros ${String(LIMITE_RESULTADOS)}${totalSinComedor != null ? ` de ${String(totalSinComedor)}` : ""} empleados sin comedor. Afina la búsqueda si no ves a quien buscas.</p>`
       : "";
 
   return `
@@ -217,11 +229,14 @@ export function mountComedorAsignarComedorModal(
   const bodyEl = body;
   let comedores: ComedorApiItem[] = [];
   let rows: RowState[] = [];
-  let panelState: "loading" | "ready" | "idle" | "sin-resultados" | "error" = "idle";
+  /** Listado completo de activos sin comedor; la UI pinta un tope y filtra en memoria. */
+  let pendientes: ComedorRhEmpleadoBusquedaApi[] = [];
+  let panelState: "loading" | "ready" | "empty" | "idle" | "sin-resultados" | "error" = "idle";
   let errorMessage: string | null = null;
   let isSubmitting = false;
   let query = "";
   let totalSinComedor: number | null = null;
+  let truncated = false;
   let searchTimer: number | null = null;
   /** Descarta respuestas de búsquedas que ya quedaron obsoletas. */
   let searchToken = 0;
@@ -231,10 +246,12 @@ export function mountComedorAsignarComedorModal(
     overlayEl.classList.remove("flex");
     document.body.style.overflow = "";
     rows = [];
+    pendientes = [];
     panelState = "idle";
     errorMessage = null;
     isSubmitting = false;
     query = "";
+    truncated = false;
     if (searchTimer !== null) window.clearTimeout(searchTimer);
     searchTimer = null;
     searchToken += 1;
@@ -246,7 +263,7 @@ export function mountComedorAsignarComedorModal(
       ? bodyEl.querySelector<HTMLInputElement>("[data-comedor-asignar-buscar]")?.selectionStart ?? null
       : null;
     bodyEl.innerHTML = renderBody(
-      rows, comedores, panelState, errorMessage, isSubmitting, query, totalSinComedor,
+      rows, comedores, panelState, errorMessage, isSubmitting, query, totalSinComedor, truncated,
     );
     bindBody();
     if (opts?.keepFocus) {
@@ -256,25 +273,41 @@ export function mountComedorAsignarComedorModal(
     }
   }
 
+  function aplicarPendientes(texto: string): void {
+    query = texto;
+    if (pendientes.length === 0) {
+      rows = [];
+      truncated = false;
+      panelState = "empty";
+      return;
+    }
+    const filtrado = filtrarEmpleadosSinComedor(pendientes, texto, LIMITE_RESULTADOS);
+    rows = filtrado.items.map((empleado) => ({
+      empleado,
+      comedorId: empleado.comedor_id != null ? String(empleado.comedor_id) : "",
+    }));
+    truncated = filtrado.truncated;
+    panelState = filtrado.items.length > 0 ? "ready" : "sin-resultados";
+  }
+
   async function loadData(): Promise<void> {
     panelState = "loading";
     errorMessage = null;
     paint();
     try {
-      // Solo el catálogo y el contador: la lista completa son cientos de filas y ya no
-      // se pinta de golpe — se busca. El contador orienta sobre cuánto queda pendiente.
       const [catalogo, listado] = await Promise.all([
         getComedoresActivos(),
-        getComedorRhEmpleadosSinComedorAsignado().catch(() => null),
+        getComedorRhEmpleadosSinComedorAsignado(),
       ]);
       comedores = catalogo;
-      totalSinComedor = listado?.total ?? null;
-      rows = [];
-      panelState = "idle";
+      pendientes = mapEmpleadosSinComedorABusqueda(listado.items);
+      totalSinComedor = listado.total;
+      aplicarPendientes("");
     } catch (error) {
       panelState = "error";
-      errorMessage = comedorErrorMessage(error, "Error al cargar el catálogo de comedores.");
+      errorMessage = comedorErrorMessage(error, "Error al cargar los empleados sin comedor.");
       rows = [];
+      pendientes = [];
     }
     paint();
   }
@@ -282,10 +315,16 @@ export function mountComedorAsignarComedorModal(
   async function runSearch(texto: string): Promise<void> {
     const q = texto.trim();
     query = texto;
-    if (q.length < 2) {
+    if (q.length === 0) {
       searchToken += 1;
-      rows = [];
-      panelState = "idle";
+      aplicarPendientes("");
+      paint({ keepFocus: true });
+      return;
+    }
+    const local = filtrarEmpleadosSinComedor(pendientes, q, LIMITE_RESULTADOS);
+    if (local.total > 0 || q.length < 2) {
+      searchToken += 1;
+      aplicarPendientes(texto);
       paint({ keepFocus: true });
       return;
     }
@@ -298,10 +337,9 @@ export function mountComedorAsignarComedorModal(
       if (token !== searchToken) return;
       rows = resultado.items.map((empleado) => ({
         empleado,
-        // Arranca en el comedor actual: si el usuario no toca el selector, guardar no
-        // se lo cambia por accidente.
         comedorId: empleado.comedor_id != null ? String(empleado.comedor_id) : "",
       }));
+      truncated = resultado.items.length >= LIMITE_RESULTADOS;
       panelState = rows.length > 0 ? "ready" : "sin-resultados";
     } catch (error) {
       if (token !== searchToken) return;
