@@ -7715,6 +7715,10 @@ components:
         resultado:
           type: string
           enum: [en_curso, ok, advertencia, error]
+        intento:
+          type: integer
+          default: 1
+          description: "Número de intento: 1 = disparo del cron, 2..4 = reintentos automáticos tras un error."
         resumen:
           type: [string, "null"]
         error:

@@ -47,6 +47,30 @@ def test_todos_los_jobs_pasan_por_el_registro_de_corridas(sched):
         assert getattr(job.func, "job_id", None) == job.id, job.id
 
 
+# Solo los syncs reintentan: los recordatorios envían emails y un reintento a media
+# corrida podría duplicar avisos ya enviados.
+REINTENTOS_ESPERADOS = {
+    "eval360_recordatorios": False,
+    "encuestas_rh_recordatorios": False,
+    "metas_recordatorios": False,
+    "sync_vacaciones_disponibles": True,
+    "sync_homeoffice_tomados": True,
+    "sync_turnos_catalogo": True,
+    "sync_turnos_uso": True,
+    "sync_empleados_tress": True,
+    "sync_turnos_empleados": True,
+    "sync_ausencias_fi_re": True,
+    "sync_incidencias_tress": True,
+}
+
+
+def test_solo_los_syncs_tienen_reintentos(sched):
+    for job in sched.get_jobs():
+        assert (
+            getattr(job.func, "reintentos", None) is REINTENTOS_ESPERADOS[job.id]
+        ), job.id
+
+
 def test_el_scheduler_usa_la_zona_de_la_app(sched):
     assert settings.APP_TIMEZONE == "America/Mexico_City"
     for job in sched.get_jobs():

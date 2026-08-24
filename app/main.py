@@ -377,15 +377,23 @@ async def _sync_ausencias_fi_re_job():
         )
 
 
-def _add_job_registrado(sched: AsyncIOScheduler, fn, job_id: str, **cron) -> None:
+def _add_job_registrado(
+    sched: AsyncIOScheduler, fn, job_id: str, *, reintentos: bool = False, **cron
+) -> None:
     """Registra un job envuelto para que su corrida quede en la BD.
 
     El envoltorio vive en `app.integrations.scheduler_job_log`; el import es local para
     no arrastrar modelos ni sesión al importar `app.main`.
+
+    `reintentos=True` (solo los syncs): una corrida con resultado `error` se reintenta
+    con backoff. Los recordatorios quedan fuera: envían emails y un reintento a media
+    corrida podría duplicar avisos ya enviados.
     """
     from app.integrations.scheduler_job_log import con_registro
 
-    sched.add_job(con_registro(fn, job_id), "cron", id=job_id, **cron)
+    sched.add_job(
+        con_registro(fn, job_id, reintentos=reintentos), "cron", id=job_id, **cron
+    )
 
 
 def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
@@ -397,22 +405,22 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
     # Recordatorios de Metas (OKR): una vez al día (08:00).
     _add_job_registrado(sched, _metas_recordatorios_job, "metas_recordatorios", hour=8, minute=0)
     # Caché de saldos de vacaciones: una vez al día (06:00), antes de la jornada.
-    _add_job_registrado(sched, _sync_vacaciones_disponibles_job, "sync_vacaciones_disponibles", hour=6, minute=0)
+    _add_job_registrado(sched, _sync_vacaciones_disponibles_job, "sync_vacaciones_disponibles", reintentos=True, hour=6, minute=0)
     # Caché de home office tomado: una vez al día (06:00), antes de la jornada.
-    _add_job_registrado(sched, _sync_homeoffice_tomados_job, "sync_homeoffice_tomados", hour=6, minute=0)
+    _add_job_registrado(sched, _sync_homeoffice_tomados_job, "sync_homeoffice_tomados", reintentos=True, hour=6, minute=0)
     # Los tres syncs de turnos van escalonados y como jobs independientes: si uno falla,
     # los otros corren con datos ligeramente rancios en vez de caerse en cadena.
     # Catálogos de turnos y jornadas: diario a las 03:40, antes que los dos que dependen
     # de ellos.
-    _add_job_registrado(sched, _sync_turnos_catalogo_job, "sync_turnos_catalogo", hour=3, minute=40)
+    _add_job_registrado(sched, _sync_turnos_catalogo_job, "sync_turnos_catalogo", reintentos=True, hour=3, minute=40)
     # Caché de personal activo por turno: diario a las 04:00, antes del primer turno, para
     # que un cambio de turno en nómina se refleje en Ajustes Comedor al día siguiente.
-    _add_job_registrado(sched, _sync_turnos_uso_job, "sync_turnos_uso", hour=4, minute=0)
+    _add_job_registrado(sched, _sync_turnos_uso_job, "sync_turnos_uso", reintentos=True, hour=4, minute=0)
     # Datos generales del colaborador: diario a las 04:10, en la misma ventana que los
     # syncs de turnos. Es la fuente de la fecha de ingreso de la Vista 360.
-    _add_job_registrado(sched, _sync_empleados_tress_job, "sync_empleados_tress", hour=4, minute=10)
+    _add_job_registrado(sched, _sync_empleados_tress_job, "sync_empleados_tress", reintentos=True, hour=4, minute=10)
     # Turno vigente por colaborador: diario a las 04:20, también antes del primer turno.
-    _add_job_registrado(sched, _sync_turnos_empleados_job, "sync_turnos_empleados", hour=4, minute=20)
+    _add_job_registrado(sched, _sync_turnos_empleados_job, "sync_turnos_empleados", reintentos=True, hour=4, minute=20)
     # Mirror FI/RE de la semana anterior hacia importadas_historico: semanal, miércoles
     # 08:30. Escalonado frente al sync de la caché de incidencias (10:00): leen las mismas
     # tablas de TRESS, aunque escriben destinos distintos y ninguno depende del otro. La
@@ -422,13 +430,14 @@ def registrar_jobs_programados(sched: AsyncIOScheduler) -> None:
         sched,
         _sync_ausencias_fi_re_job,
         "sync_ausencias_fi_re",
+        reintentos=True,
         day_of_week="wed",
         hour=8,
         minute=30,
         max_instances=1,
     )
     # Caché de incidencias de TRESS: semanal, miércoles a las 10:00.
-    _add_job_registrado(sched, _sync_incidencias_tress_job, "sync_incidencias_tress", day_of_week="wed", hour=10, minute=0)
+    _add_job_registrado(sched, _sync_incidencias_tress_job, "sync_incidencias_tress", reintentos=True, day_of_week="wed", hour=10, minute=0)
 
 
 @asynccontextmanager
