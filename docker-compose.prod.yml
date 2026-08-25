@@ -48,6 +48,8 @@ services:
       # Segundos para establecer la conexion; el default del driver (15 s) cuelga
       # cada peticion que toque TRESS cuando no responde.
       DATOS_ANALISIS_DB_CONNECT_TIMEOUT: ${DATOS_ANALISIS_DB_CONNECT_TIMEOUT:-5}
+      # true = la app sigue y no escribe a TRESS (pruebas en prod)
+      TRESS_ESCRITURA_BLOQUEADA: ${TRESS_ESCRITURA_BLOQUEADA:-false}
       HUELLA_WHITELIST_IPS: ${HUELLA_WHITELIST_IPS:-}
       COMEDOR_TERMINAL_IPS: ${COMEDOR_TERMINAL_IPS:-}
       COMEDOR_ACCESO_HORA_INICIO: ${COMEDOR_ACCESO_HORA_INICIO:-}

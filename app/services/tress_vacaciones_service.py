@@ -67,6 +67,24 @@ async def registrar_vacaciones_en_tress(
     if gozo <= 0:
         raise DomainValidationError(detail="Los dias de vacaciones deben ser mayores a cero.")
 
+    if settings.TRESS_ESCRITURA_BLOQUEADA:
+        logger.warning(
+            "TRESS_ESCRITURA_BLOQUEADA activo: vacaciones omitidas en TRESS "
+            "(empleado=%s, %s..%s)",
+            no_empleado,
+            fecha_inicio,
+            fecha_fin,
+        )
+        return InsertarVacacionResult(
+            ok=True,
+            codigo_error=None,
+            mensaje=(
+                "Escritura a TRESS bloqueada (TRESS_ESCRITURA_BLOQUEADA). "
+                "No se persistió en nómina."
+            ),
+            nueva_llave=None,
+        )
+
     confirmar = not bool(settings.TRESS_VACACIONES_DRY_RUN)
     engine = DatosAnalisisWriteClient.create_write_engine()
     if engine is None:
