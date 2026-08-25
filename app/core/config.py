@@ -145,6 +145,10 @@ class Settings(BaseSettings):
     # atrás se releen para capturar capturas y correcciones retroactivas de nómina.
     SYNC_INCIDENCIAS_TRESS_SEMANAS: int = 8
 
+    # Kill switch de escrituras a TRESS (pruebas en prod). true = la app sigue
+    # (aprueba/registra en Bono) y no abre conexión ni INSERT a DATOS_ANALISIS.
+    TRESS_ESCRITURA_BLOQUEADA: bool = False
+
     # Vacaciones → TRESS (INSERT dbo.VACACION al aprobar)
     TRESS_VACACIONES_NOM_TIPO: int = 1
     TRESS_VACACIONES_US_CODIGO: str = "49"

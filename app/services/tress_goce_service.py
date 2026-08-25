@@ -75,6 +75,24 @@ async def registrar_permiso_goce_en_tress(
     if len(motivo) > 30:
         raise DomainValidationError(detail="El comentario TRESS no puede exceder 30 caracteres.")
 
+    if settings.TRESS_ESCRITURA_BLOQUEADA:
+        logger.warning(
+            "TRESS_ESCRITURA_BLOQUEADA activo: permiso goce omitido en TRESS "
+            "(empleado=%s, %s..%s)",
+            no_empleado,
+            fecha_inicio,
+            fecha_fin,
+        )
+        return InsertarPermisoGoceResult(
+            ok=True,
+            codigo_error=None,
+            mensaje=(
+                "Escritura a TRESS bloqueada (TRESS_ESCRITURA_BLOQUEADA). "
+                "No se persistió en nómina."
+            ),
+            nueva_llave=None,
+        )
+
     confirmar = not bool(settings.TRESS_GOCE_DRY_RUN)
     engine = DatosAnalisisWriteClient.create_write_engine()
     if engine is None:
