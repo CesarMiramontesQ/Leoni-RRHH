@@ -13,6 +13,11 @@ import {
 } from "../../ui/uiTokens.ts";
 import { escapeHtml } from "../../ui/uiUtils.ts";
 import {
+  BUSQUEDA_EQUIPO_MIN_CHARS,
+  buscarEmpleadosEquipo,
+  type BusquedaEquipoResultado,
+} from "./buscarEmpleadosEquipo.ts";
+import {
   renderHorasExtraDetalleModal,
   type HorasExtraDetalleAprobacionesState,
   type HorasExtraDetalleModalState,
@@ -253,6 +258,41 @@ function renderEmpleadoPerfilCard(emp: HorasExtraEmpleadoOption | null): string 
     </div>`;
 }
 
+const EQUIPO_INPUT = `block w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-9 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] placeholder:text-slate-400 focus:border-leoni-blue focus:outline-none focus:ring-2 focus:ring-leoni-blue/25 disabled:bg-slate-50`;
+
+/** Listbox de coincidencias del buscador de colaboradores; se repinta solo, sin recrear el input. */
+export function renderEquipoListbox(resultado: BusquedaEquipoResultado | null): string {
+  if (!resultado) {
+    return `<ul id="he-sup-empleado-listbox" role="listbox" hidden class="hidden" aria-label="Coincidencias en tu equipo"></ul>`;
+  }
+  const aviso = (texto: string) =>
+    `<li class="px-3 py-2.5 text-xs text-slate-500" role="presentation">${escapeHtml(texto)}</li>`;
+  let body: string;
+  if (resultado.estado === "minimo") {
+    body = aviso(`Escribe al menos ${BUSQUEDA_EQUIPO_MIN_CHARS} caracteres.`);
+  } else if (resultado.estado === "sin_coincidencias") {
+    body = aviso("Sin coincidencias en tu equipo.");
+  } else {
+    body = resultado.items
+      .map(
+        (e) => `
+        <li role="option" aria-selected="false">
+          <button type="button" data-he-empleado-pick="${e.id}" class="flex w-full items-baseline gap-2 px-3 py-2 text-left text-slate-800 transition-colors hover:bg-slate-50">
+            <span class="min-w-0 flex-1 truncate text-sm font-medium">${escapeHtml(e.nombre)}</span>
+            <span class="shrink-0 text-xs tabular-nums text-slate-500">#${escapeHtml(e.no_empleado)}</span>
+          </button>
+        </li>`,
+      )
+      .join("");
+    if (resultado.estado === "truncado") {
+      body += aviso("Hay más coincidencias; escribe más para acotar.");
+    }
+  }
+  return `
+    <ul id="he-sup-empleado-listbox" role="listbox" aria-label="Coincidencias en tu equipo"
+      class="absolute left-0 right-0 z-30 mt-1.5 max-h-52 overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-white py-1 shadow-md shadow-slate-900/10">${body}</ul>`;
+}
+
 function renderEmpleadoSelectSection(
   empleados: HorasExtraEmpleadoOption[],
   selectedId: number | null,
@@ -268,26 +308,32 @@ function renderEmpleadoSelectSection(
   }
 
   const selected = empleados.find((e) => e.id === selectedId) ?? null;
-  const options = empleados
-    .map((e) => {
-      const isSelected = selectedId === e.id ? " selected" : "";
-      return `<option value="${e.id}"${isSelected}>${escapeHtml(e.nombre)} · ${escapeHtml(e.no_empleado)}</option>`;
-    })
-    .join("");
+  const valorInput = selected ? `${selected.nombre} · ${selected.no_empleado}` : "";
+  const clearBtn = selected
+    ? `<button type="button" data-he-empleado-clear aria-label="Quitar colaborador" class="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-slate-400 hover:text-slate-700">
+        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4" aria-hidden="true"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"/></svg>
+      </button>`
+    : "";
 
   return `
     <section>
-      <label for="he-sup-empleado" class="${FORM_SECTION_LABEL}">Colaborador *</label>
-      <div class="${FORM_SELECT_WRAP}">
-        <select id="he-sup-empleado" name="empleado_id" required class="${FORM_SELECT}">
-          <option value="">Selecciona colaborador…</option>
-          ${options}
-        </select>
-        ${SELECT_CHEVRON}
+      <label for="he-sup-empleado-q" class="${FORM_SECTION_LABEL}">Colaborador *</label>
+      <div class="relative" data-he-empleado-combobox>
+        <svg viewBox="0 0 20 20" fill="currentColor" class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clip-rule="evenodd"/></svg>
+        <input id="he-sup-empleado-q" type="search" autocomplete="off" role="combobox" aria-autocomplete="list"
+          aria-expanded="false" aria-controls="he-sup-empleado-listbox"
+          placeholder="Nombre o número de empleado…" value="${escapeHtml(valorInput)}"
+          ${selected ? "readonly" : ""} class="${EQUIPO_INPUT}" />
+        ${clearBtn}
+        ${renderEquipoListbox(null)}
+        <input type="hidden" id="he-sup-empleado" name="empleado_id" value="${selected ? selected.id : ""}" />
       </div>
+      <p class="mt-1 text-xs text-slate-500">Escribe nombre o número de empleado y elige una coincidencia.</p>
       ${renderEmpleadoPerfilCard(selected)}
     </section>`;
 }
+
+export { buscarEmpleadosEquipo };
 
 function renderResumenSolicitud(state: HorasExtraSolicitudPageState): string {
   const colaborador =
