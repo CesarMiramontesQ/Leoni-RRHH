@@ -382,7 +382,7 @@ class ComedorService:
                 no_empleado=row.no_empleado,
                 nombre=row.nombre or "Sin nombre",
                 nombre_corto=self._nombre_corto(row.nombre),
-                area=(row.area.nombre if row.area else None),
+                area=(row.area.descripcion if row.area else None),
             )
             for row in rows
         ]

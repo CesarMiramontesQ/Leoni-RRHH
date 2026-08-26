@@ -210,6 +210,14 @@ async def test_supervisor_beneficiarios_incluye_subarbol(client: AsyncClient, db
     await make_empleado(
         db, rol="empleado", nombre="AJENO, PEDRO", email="ajeno_benef@test.leoni", password="Ajeno1!"
     )
+    # Un integrante con área real: el endpoint la expone (y no debe reventar al leerla).
+    from app.models.catalogos import Area
+
+    area = Area(area_id=9101, descripcion="Corte", estatus_id=1)
+    db.add(area)
+    await db.flush()
+    sub2.area_id = area.area_id
+    await db.flush()
 
     headers = await auth_headers(client, supervisor, password="SupBenef1!")
     response = await client.get(BENEFICIARIOS_EQUIPO_URL, headers=headers)
@@ -219,7 +227,9 @@ async def test_supervisor_beneficiarios_incluye_subarbol(client: AsyncClient, db
     # Yo primero, después todo el subárbol (directos e indirectos), nadie ajeno.
     assert ids[0] == supervisor.id
     assert set(ids) == {supervisor.id, sub1.id, sub2.id}
-    assert "area" in data[0]
+    por_id = {row["empleado_id"]: row for row in data}
+    assert por_id[sub2.id]["area"] == "Corte"
+    assert por_id[sub1.id]["area"] is None
 
 
 @pytest.mark.asyncio
