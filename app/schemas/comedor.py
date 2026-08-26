@@ -289,6 +289,7 @@ class ComedorEquipoBeneficiarioItem(BaseModel):
     no_empleado: int
     nombre: str
     nombre_corto: str
+    area: str | None = None
 
 
 class ComedorPrimeraFechaReservaResponse(BaseModel):

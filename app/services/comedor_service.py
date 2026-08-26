@@ -152,9 +152,13 @@ class ComedorService:
         """IDs de empleados visibles en vistas de comedor de equipo."""
         scope = effective_data_scope_rol(current_user, rh_ui_mode)
         if scope in ("supervisor", "gerente"):
+            # Todo el subárbol jerárquico, atravesando líderes intermedios de baja:
+            # es el mismo conjunto que alimenta la tabla, las métricas y el selector
+            # de beneficiarios, para que lo que se registra sea lo que se ve.
             equipo_ids = await self.empleado_repo.get_ids_subarbol(
                 current_user.empleado_id,
                 settings.ESTADOS_ACTIVOS_IDS,
+                atravesar_inactivos=True,
             )
             equipo_ids.add(current_user.id)
             return equipo_ids
@@ -175,15 +179,6 @@ class ComedorService:
                 detail="Solo supervisor o gerente pueden consultar datos de equipo"
             )
         return scope
-
-    def _require_gestor_supervisor_scope(
-        self,
-        current_user: Empleado,
-        rh_ui_mode: str | None = None,
-    ) -> None:
-        scope = effective_data_scope_rol(current_user, rh_ui_mode)
-        if scope != "supervisor":
-            raise ForbiddenError(detail="Solo supervisor puede consultar beneficiarios")
 
     @staticmethod
     def _nombre_corto(nombre_completo: str | None) -> str:
@@ -284,13 +279,6 @@ class ComedorService:
                 raise ForbiddenError(detail="No puedes registrar comida para otro empleado")
             return current_user.id
 
-        if scope == "gerente":
-            if beneficiario_id != current_user.id:
-                raise ForbiddenError(
-                    detail="Solo el rol supervisor puede registrar comida para terceros",
-                )
-            return current_user.id
-
         if scope in ("rh", "director"):
             if not target_user_id:
                 return current_user.id
@@ -299,20 +287,16 @@ class ComedorService:
                 raise NotFoundError(entidad="Empleado", id=target_user_id)
             return target_user_id
 
-        if scope != "supervisor":
+        if scope not in ("supervisor", "gerente"):
             raise ForbiddenError(detail="No tienes permiso para registrar reservas")
 
         if beneficiario_id == current_user.id:
             return beneficiario_id
 
-        subordinados = await self.empleado_repo.get_subordinados(
-            current_user.empleado_id,
-            settings.ESTADOS_ACTIVOS_IDS,
-        )
-        subordinados_ids = {emp.id for emp in subordinados}
-        if beneficiario_id not in subordinados_ids:
+        equipo_ids = await self._equipo_ids_comedor(current_user, rh_ui_mode)
+        if beneficiario_id not in equipo_ids:
             raise ForbiddenError(
-                detail="Solo puedes registrar para ti o para un integrante directo de tu equipo",
+                detail="Solo puedes registrar para ti o para un integrante de tu equipo",
             )
         return beneficiario_id
 
@@ -381,16 +365,16 @@ class ComedorService:
             comedor_nombre=comedor.nombre,
         )
 
-    async def list_equipo_beneficiarios_directos(
+    async def list_equipo_beneficiarios(
         self,
         current_user: Empleado,
         rh_ui_mode: str | None = None,
     ) -> list[ComedorEquipoBeneficiarioItem]:
-        self._require_gestor_supervisor_scope(current_user, rh_ui_mode)
-        subordinados = await self.empleado_repo.get_subordinados(
-            current_user.empleado_id,
-            settings.ESTADOS_ACTIVOS_IDS,
-        )
+        """Beneficiarios seleccionables por supervisor/gerente: yo + todo mi subárbol."""
+        self._require_gestor_team_scope(current_user, rh_ui_mode)
+        equipo_ids = await self._equipo_ids_comedor(current_user, rh_ui_mode)
+        equipo_ids.discard(current_user.id)
+        subordinados = await self.empleado_repo.get_by_ids_con_area(sorted(equipo_ids))
         rows = [current_user, *sorted(subordinados, key=lambda x: (x.nombre or "").lower())]
         return [
             ComedorEquipoBeneficiarioItem(
@@ -398,6 +382,7 @@ class ComedorService:
                 no_empleado=row.no_empleado,
                 nombre=row.nombre or "Sin nombre",
                 nombre_corto=self._nombre_corto(row.nombre),
+                area=(row.area.descripcion if row.area else None),
             )
             for row in rows
         ]

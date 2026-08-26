@@ -197,26 +197,39 @@ async def test_supervisor_reservas_mes_equipo(client: AsyncClient, db, monkeypat
 
 
 @pytest.mark.asyncio
-async def test_supervisor_beneficiarios_equipo_directo(client: AsyncClient, db):
+async def test_supervisor_beneficiarios_incluye_subarbol(client: AsyncClient, db):
     supervisor = await make_empleado(
         db, rol="supervisor", nombre="SUPERVISOR, ANA", email="sup_benef@test.leoni", password="SupBenef1!"
     )
     sub1 = await make_empleado(
         db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub1_benef@test.leoni", password="Sub1!"
     )
-    await make_empleado(
+    sub2 = await make_empleado(
         db, rol="empleado", nombre="RAMIREZ, LUZ", lider_id=sub1.empleado_id, email="sub2_benef@test.leoni", password="Sub2!"
     )
+    await make_empleado(
+        db, rol="empleado", nombre="AJENO, PEDRO", email="ajeno_benef@test.leoni", password="Ajeno1!"
+    )
+    # Un integrante con área real: el endpoint la expone (y no debe reventar al leerla).
+    from app.models.catalogos import Area
+
+    area = Area(area_id=9101, descripcion="Corte", estatus_id=1)
+    db.add(area)
+    await db.flush()
+    sub2.area_id = area.area_id
+    await db.flush()
 
     headers = await auth_headers(client, supervisor, password="SupBenef1!")
     response = await client.get(BENEFICIARIOS_EQUIPO_URL, headers=headers)
     assert response.status_code == 200, response.text
     data = response.json()
     ids = [row["empleado_id"] for row in data]
-    assert supervisor.id in ids
-    assert sub1.id in ids
-    # No incluye subárbol indirecto en selector
-    assert len(data) == 2
+    # Yo primero, después todo el subárbol (directos e indirectos), nadie ajeno.
+    assert ids[0] == supervisor.id
+    assert set(ids) == {supervisor.id, sub1.id, sub2.id}
+    por_id = {row["empleado_id"]: row for row in data}
+    assert por_id[sub2.id]["area"] == "Corte"
+    assert por_id[sub1.id]["area"] is None
 
 
 @pytest.mark.asyncio
@@ -286,7 +299,7 @@ async def test_supervisor_reserva_para_subordinado_refleja_en_empleado(client: A
 
 
 @pytest.mark.asyncio
-async def test_gerente_no_puede_consultar_beneficiarios_ni_reservar_para_tercero(client: AsyncClient, db, monkeypatch):
+async def test_gerente_consulta_beneficiarios_y_reserva_para_su_subarbol(client: AsyncClient, db, monkeypatch):
     from app.models.comedor import Comedor
     from app.services import comedor_service as cs
 
@@ -299,26 +312,51 @@ async def test_gerente_no_puede_consultar_beneficiarios_ni_reservar_para_tercero
         db, rol="gerente", nombre="GERENTE, ANA", email="gerente_reserva@test.leoni", password="Gerente1!"
     )
     await link_turno_comedor_empleado(db, gerente, comedor.id)
-    sub = await make_empleado(
-        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=gerente.empleado_id, email="sub_gerente@test.leoni", password="SubGerente1!"
+    supervisor = await make_empleado(
+        db, rol="supervisor", nombre="SUPER, LUIS", lider_id=gerente.empleado_id, email="sup_gerente@test.leoni", password="SupGerente1!"
     )
-    await link_turno_comedor_empleado(db, sub, comedor.id)
+    nieto = await make_empleado(
+        db, rol="empleado", nombre="LOPEZ, CARLOS", lider_id=supervisor.empleado_id, email="sub_gerente@test.leoni", password="SubGerente1!"
+    )
+    await link_turno_comedor_empleado(db, nieto, comedor.id)
+    ajeno = await make_empleado(
+        db, rol="empleado", nombre="AJENO, PEDRO", email="ajeno_gerente@test.leoni", password="Ajeno1!"
+    )
+    await link_turno_comedor_empleado(db, ajeno, comedor.id)
 
     headers = await auth_headers(client, gerente, password="Gerente1!")
     r_benef = await client.get(BENEFICIARIOS_EQUIPO_URL, headers=headers)
-    assert r_benef.status_code == 403
+    assert r_benef.status_code == 200, r_benef.text
+    ids = {row["empleado_id"] for row in r_benef.json()}
+    assert ids == {gerente.id, supervisor.id, nieto.id}
 
-    r_res = await client.post(
-        RESERVAR_URL,
-        json={
+    def body(target: int) -> dict:
+        return {
             "comedor_id": comedor.id,
             "fecha_servicio": "2026-04-28",
             "tipo_comida": "casera",
-            "target_user_id": sub.id,
-        },
-        headers=headers,
+            "target_user_id": target,
+        }
+
+    # Nieto jerárquico (2 niveles abajo): permitido.
+    r_res = await client.post(RESERVAR_URL, json=body(nieto.id), headers=headers)
+    assert r_res.status_code == 200, r_res.text
+    assert r_res.json()["empleado_id"] == nieto.id
+
+    # Fuera del subárbol: 403.
+    r_ajeno = await client.post(RESERVAR_URL, json=body(ajeno.id), headers=headers)
+    assert r_ajeno.status_code == 403
+    assert "integrante de tu equipo" in r_ajeno.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_empleado_no_puede_consultar_beneficiarios(client: AsyncClient, db):
+    empleado = await make_empleado(
+        db, rol="empleado", nombre="RASO, JUAN", email="raso_benef@test.leoni", password="Raso1!"
     )
-    assert r_res.status_code == 403
+    headers = await auth_headers(client, empleado, password="Raso1!")
+    response = await client.get(BENEFICIARIOS_EQUIPO_URL, headers=headers)
+    assert response.status_code == 403
 
 
 @pytest.mark.asyncio

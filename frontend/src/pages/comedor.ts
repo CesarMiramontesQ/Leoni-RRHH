@@ -2001,6 +2001,8 @@ function mountComedorRhPlanner(container: HTMLElement, signal: AbortSignal): voi
 function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
   const liderRol = getEffectiveGestorNavRol();
   const isSupervisor = liderRol === "supervisor";
+  // Supervisor y gerente registran comida para sí o para cualquiera de su subárbol.
+  const puedeRegistrarEquipo = liderRol === "supervisor" || liderRol === "gerente";
   const hideOpcionKpis = comedorLiderOcultaKpisOpcionAb(liderRol);
   const currentUserId = getEmpleadoDirectoryNumericIdFromAccessToken();
   const beneficiaryTargetRef = { id: undefined as number | undefined };
@@ -2130,7 +2132,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
     const modalHost = container.querySelector<HTMLElement>("#comedor-lider-new-request-modal-host");
 
     let supervisorSelfForModal: ComedorEmployeeOption | null = null;
-    if (isSupervisor && currentUserId != null && !signal.aborted) {
+    if (puedeRegistrarEquipo && currentUserId != null && !signal.aborted) {
       const resolved = await resolveEmpleadoOptionForComedor(
         String(currentUserId),
         getUserDisplayNameFromAccessToken(),
@@ -2167,7 +2169,7 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
                     id: String(row.empleado_id),
                     nombre: row.nombre_corto,
                     numero: formatNoEmpleadoDisplay(row.no_empleado),
-                    area: "Equipo directo",
+                    area: row.area ?? "Mi equipo",
                     avatarUrl: null,
                   }))
                   .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -2182,13 +2184,13 @@ function mountComedorLider(container: HTMLElement, signal: AbortSignal): void {
         },
         onSubmit: async (payload) => {
           const targetUserId =
-            isSupervisor &&
+            puedeRegistrarEquipo &&
             payload.personType === "interno" &&
             payload.supervisorSelfRegistration !== true &&
             payload.employeeId
               ? Number.parseInt(payload.employeeId, 10)
               : undefined;
-          if (isSupervisor && targetUserId != null && !Number.isFinite(targetUserId)) {
+          if (puedeRegistrarEquipo && targetUserId != null && !Number.isFinite(targetUserId)) {
             throw new Error("Selecciona un beneficiario válido.");
           }
           await reservarComedorAcceso({
