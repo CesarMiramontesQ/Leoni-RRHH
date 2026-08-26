@@ -179,7 +179,18 @@ describe("comedorNewRequestModalUi — buscador de miembro del equipo", () => {
   it("sin equipo mantiene el aviso de siempre, no un buscador vacío", () => {
     const html = buildComedorNewRequestFormHtml(equipoParams({ teamEmployeeOptions: [] }));
 
-    expect(html).toContain("No hay colaboradores en tu equipo directo");
+    expect(html).toContain("No hay colaboradores en tu equipo");
+    expect(html).not.toContain("data-comedor-modal-team-search");
+  });
+
+  it("si falló la carga del equipo muestra el error del servidor, no «equipo vacío»", () => {
+    const html = buildComedorNewRequestFormHtml(
+      equipoParams({ teamEmployeeOptions: [], teamLoadError: "Error interno del servidor" }),
+    );
+
+    expect(html).toContain("data-comedor-modal-team-error");
+    expect(html).toContain("Error interno del servidor");
+    expect(html).not.toContain("No hay colaboradores en tu equipo");
     expect(html).not.toContain("data-comedor-modal-team-search");
   });
 });

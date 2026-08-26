@@ -111,6 +111,7 @@ function validateForm(
   teamEmployeeIds: ReadonlySet<string>,
   fechaServicioMinMensaje: string | undefined,
   descansos: ReadonlySet<string>,
+  teamLoadError: string | null = null,
 ): ComedorNewRequestFormErrors {
   const errors: ComedorNewRequestFormErrors = {};
   if (state.personType !== "interno" && state.personType !== "externo") {
@@ -119,7 +120,9 @@ function validateForm(
   if (state.personType === "interno") {
     if (supervisorBeneficiaryConfig) {
       if (state.supervisorRecipientScope === "team") {
-        if (teamEmployeeIds.size === 0) {
+        if (teamLoadError) {
+          errors.employee = "No se pudo cargar tu equipo; cierra y vuelve a abrir el registro.";
+        } else if (teamEmployeeIds.size === 0) {
           errors.employee = "No hay colaboradores en tu equipo para este registro.";
         } else if (!state.selectedEmployeeId) {
           errors.employee = "Selecciona un integrante del equipo.";
@@ -246,6 +249,8 @@ export function mountComedorNewRequestModal(
   const employeeSelectionCache = new Map<string, ComedorEmployeeOption>();
   let employeeOptions: readonly ComedorEmployeeOption[] = fixedEmployee ? [fixedEmployee] : [];
   let teamOnlyEmployeeOptions: readonly ComedorEmployeeOption[] = [];
+  /** Mensaje si `loadTeamOptions` falló: se distingue de «equipo vacío» para no ocultar un 500. */
+  let teamLoadError: string | null = null;
 
   function isOpen(): boolean {
     return !overlayEl.classList.contains("hidden");
@@ -373,6 +378,7 @@ export function mountComedorNewRequestModal(
       selectedEmployee: selectedEmployee(),
       supervisorSelfOption: supervisorBeneficiaryConfig?.self ?? null,
       teamEmployeeOptions: supervisorBeneficiaryConfig ? teamOnlyEmployeeOptions : undefined,
+      teamLoadError,
       menuDelDiaState,
       menuDelDia,
       menuDelDiaError,
@@ -485,14 +491,16 @@ export function mountComedorNewRequestModal(
       }
     }
     if (supervisorBeneficiaryConfig) {
+      teamLoadError = null;
       try {
         teamOnlyEmployeeOptions = await supervisorBeneficiaryConfig.loadTeamOptions();
         for (const row of teamOnlyEmployeeOptions) {
           employeeSelectionCache.set(row.id, row);
         }
         employeeSelectionCache.set(supervisorBeneficiaryConfig.self.id, supervisorBeneficiaryConfig.self);
-      } catch {
+      } catch (error) {
         teamOnlyEmployeeOptions = [];
+        teamLoadError = error instanceof Error && error.message ? error.message : "No se pudo cargar tu equipo.";
       }
     }
     fechasBloqueadasSet = new Set();
@@ -740,6 +748,7 @@ export function mountComedorNewRequestModal(
         new Set(teamOnlyEmployeeOptions.map((row) => row.id)),
         fechaServicioMinMensaje,
         descansosCargados(),
+        teamLoadError,
       );
       if (Object.keys(errors).length > 0) {
         renderForm();

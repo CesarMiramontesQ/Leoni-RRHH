@@ -56,6 +56,8 @@ export type BuildComedorNewRequestFormParams = {
   /** Beneficiario propio (supervisor en sesión); si está definido, se muestra el selector de destinatario. */
   supervisorSelfOption?: ComedorEmployeeOption | null;
   teamEmployeeOptions?: readonly ComedorEmployeeOption[];
+  /** Fallo al cargar el equipo (mensaje del servidor); tiene prioridad sobre «equipo vacío». */
+  teamLoadError?: string | null;
   menuDelDiaState?: MenuDelDiaPanelState;
   menuDelDia?: ComedorMenuDelDia | null;
   menuDelDiaError?: string | null;
@@ -341,6 +343,7 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
 
   const supervisorSelfOption = params.supervisorSelfOption ?? null;
   const teamEmployeeOptions = params.teamEmployeeOptions ?? employeeOptions;
+  const teamLoadError = params.teamLoadError ?? null;
   const showSupervisorDestinatario =
     state.personType === "interno" && supervisorSelfOption != null && state.supervisorRecipientScope != null;
   const isSupervisorPersonal = showSupervisorDestinatario && state.supervisorRecipientScope === "personal";
@@ -383,7 +386,14 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
                  ${fieldError(errors.employee)}
                </section>`
             : isSupervisorTeam
-              ? teamEmployeeOptions.length > 0
+              ? teamLoadError
+                ? `<section>
+                     <p class="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700" role="alert" data-comedor-modal-team-error>
+                       No se pudo cargar tu equipo: ${escapeHtml(teamLoadError)}. Cierra y vuelve a abrir el registro; si persiste, avisa a RH.
+                     </p>
+                     ${fieldError(errors.employee)}
+                   </section>`
+              : teamEmployeeOptions.length > 0
                 ? `<section>
                      ${renderTeamEmployeePicker(
                        teamEmployeeOptions,
@@ -397,7 +407,7 @@ export function buildComedorNewRequestFormHtml(params: BuildComedorNewRequestFor
                    </section>`
                 : `<section>
                      <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
-                       No hay colaboradores en tu equipo directo. Puedes usar «Registro personal» o solicitar apoyo a RH.
+                       No hay colaboradores en tu equipo. Puedes usar «Registro personal» o solicitar apoyo a RH.
                      </p>
                      ${fieldError(errors.employee)}
                    </section>`
