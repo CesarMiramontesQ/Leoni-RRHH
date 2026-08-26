@@ -85,12 +85,17 @@ class HorasExtraSolicitudService:
         return sum((self._sum_horas_detalle(d) for d in solicitud.detalle), Decimal("0"))
 
     async def _empleados_elegibles_ids(self, registrante: Empleado) -> set[int]:
-        subordinados = await self.empleado_repo.get_subordinados(
-            registrante.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+        # Equipo = todo el subárbol jerárquico (lider_id, recursivo), no solo los
+        # reportes directos: la gente de un supervisor suele colgar de jefes de
+        # línea. Un líder intermedio de baja no esconde a su gente.
+        subarbol_ids = await self.empleado_repo.get_ids_subarbol(
+            registrante.empleado_id,
+            settings.ESTADOS_ACTIVOS_IDS,
+            atravesar_inactivos=True,
         )
-        if not subordinados:
+        if not subarbol_ids:
             return set()
-        empleados = await self.repo.get_empleados_by_ids([e.id for e in subordinados])
+        empleados = await self.repo.get_empleados_by_ids(sorted(subarbol_ids))
         return {
             emp.id for emp in empleados if not empleado_es_administrativo(emp)
         }

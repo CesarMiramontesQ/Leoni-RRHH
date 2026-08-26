@@ -12,6 +12,8 @@ import {
 } from "../api/horasExtraSolicitud.ts";
 import { getHorasExtraEstado } from "../api/horasExtraAprobacion.ts";
 import {
+  buscarEmpleadosEquipo,
+  renderEquipoListbox,
   formatHorasCaptura,
   getSemanasPermitidas,
   renderHorasExtraSolicitudPage,
@@ -295,9 +297,10 @@ function recalcTotals(root: HTMLElement): number {
 function updateResumenCard(root: HTMLElement): void {
   const semana = root.querySelector<HTMLSelectElement>("#he-sup-semana")?.value;
   const tipo = root.querySelector<HTMLSelectElement>("#he-sup-tipo")?.value ?? "planeado";
-  const empleadoSelect = root.querySelector<HTMLSelectElement>("#he-sup-empleado");
+  const empleadoSelect = root.querySelector<HTMLInputElement>("#he-sup-empleado");
   const colaborador =
-    empleadoSelect?.selectedOptions[0]?.text.split(" · ")[0]?.trim() ?? "Sin seleccionar";
+    root.querySelector<HTMLInputElement>("#he-sup-empleado-q")?.value.split(" · ")[0]?.trim() ||
+    "Sin seleccionar";
 
   const semanaEl = root.querySelector("#he-sup-resumen-semana");
   if (semanaEl && semana) semanaEl.textContent = semana;
@@ -563,26 +566,60 @@ export function mountHorasExtraSolicitud(container: HTMLElement): void {
       updateEstadoSolicitud(root as HTMLElement, state.empleadosFilas);
     });
 
-    root.querySelector<HTMLSelectElement>("#he-sup-empleado")?.addEventListener("change", (ev) => {
+    const seleccionarEmpleado = (empleadoId: number | null): void => {
       if (!opcionesCache) return;
-      const raw = (ev.target as HTMLSelectElement).value;
-      const empleadoId = raw ? Number.parseInt(raw, 10) : null;
       state = {
         ...state,
-        selectedEmpleadoId: empleadoId && !Number.isNaN(empleadoId) ? empleadoId : null,
-        empleadosFilas: filaFromEmpleado(
-          opcionesCache,
-          empleadoId && !Number.isNaN(empleadoId) ? empleadoId : null,
-          state.empleadosFilas,
-        ),
+        selectedEmpleadoId: empleadoId,
+        empleadosFilas: filaFromEmpleado(opcionesCache, empleadoId, state.empleadosFilas),
       };
       render();
       const pageRoot = container.querySelector("#horas-extra-solicitud-page") as HTMLElement | null;
-      if (pageRoot) {
-        updateFormLiveUi(pageRoot, state.empleadosFilas);
-        const firstInput = pageRoot.querySelector<HTMLInputElement>("input[data-he-dia]");
-        firstInput?.focus();
+      if (!pageRoot) return;
+      updateFormLiveUi(pageRoot, state.empleadosFilas);
+      if (empleadoId) {
+        pageRoot.querySelector<HTMLInputElement>("input[data-he-dia]")?.focus();
+      } else {
+        pageRoot.querySelector<HTMLInputElement>("#he-sup-empleado-q")?.focus();
       }
+    };
+
+    // Buscador de colaboradores: filtra en cliente el subárbol que trae /opciones y
+    // repinta solo el listbox, para no desmontar el input mientras se escribe.
+    const combobox = root.querySelector<HTMLElement>("[data-he-empleado-combobox]");
+    const qInput = combobox?.querySelector<HTMLInputElement>("#he-sup-empleado-q") ?? null;
+    const pintarListbox = (abierto: boolean): void => {
+      if (!combobox || !qInput || !opcionesCache) return;
+      const resultado = abierto ? buscarEmpleadosEquipo(opcionesCache.empleados, qInput.value) : null;
+      const existente = combobox.querySelector("#he-sup-empleado-listbox");
+      const html = renderEquipoListbox(resultado);
+      if (existente) existente.outerHTML = html;
+      else combobox.insertAdjacentHTML("beforeend", html);
+      qInput.setAttribute("aria-expanded", abierto ? "true" : "false");
+    };
+    if (qInput && !qInput.readOnly) {
+      qInput.addEventListener("input", () => {
+        root.querySelector("#he-sup-empleado-error")?.classList.add("hidden");
+        pintarListbox(true);
+      });
+      qInput.addEventListener("focus", () => pintarListbox(qInput.value.trim().length > 0));
+      qInput.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") pintarListbox(false);
+        if (ev.key === "Enter") ev.preventDefault();
+      });
+    }
+    combobox?.addEventListener("mousedown", (ev) => {
+      const pick = (ev.target as HTMLElement).closest<HTMLElement>("[data-he-empleado-pick]");
+      if (!pick) return;
+      ev.preventDefault();
+      const id = Number.parseInt(pick.dataset.heEmpleadoPick ?? "", 10);
+      if (!Number.isNaN(id)) seleccionarEmpleado(id);
+    });
+    combobox?.querySelector("[data-he-empleado-clear]")?.addEventListener("click", () => {
+      seleccionarEmpleado(null);
+    });
+    root.addEventListener("mousedown", (ev) => {
+      if (combobox && !combobox.contains(ev.target as Node)) pintarListbox(false);
     });
 
     bindHorasInputUx(

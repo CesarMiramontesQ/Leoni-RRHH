@@ -356,3 +356,92 @@ async def test_horas_extra_solicitud_no_expone_otro_supervisor(
         f"/api/v1/horas-extra/solicitudes/{solicitud.id}", headers=headers
     )
     assert detalle.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_horas_extra_solicitud_opciones_incluye_todo_el_subarbol(
+    client: AsyncClient, db, registrante_autorizado
+):
+    """El equipo del registrante es todo su subárbol por lider_id, no solo los directos.
+
+    Caso real: supervisor con ~100 personas que cuelgan de jefes de línea. Un líder
+    intermedio dado de baja no esconde a su gente; un administrativo del subárbol
+    se sigue excluyendo.
+    """
+    area, sub, cc, _motivo = await _seed_catalogo_horas_extra(db)
+
+    jefe_linea = await make_empleado(
+        db,
+        rol="supervisor",
+        email="he_jefe@leoni.test",
+        empleado_id=88201,
+        no_empleado=7000201,
+        nombre="Jefe Línea",
+        lider_id=registrante_autorizado.empleado_id,
+    )
+    jefe_baja = await make_empleado(
+        db,
+        rol="supervisor",
+        email="he_jefe_baja@leoni.test",
+        empleado_id=88202,
+        no_empleado=7000202,
+        nombre="Jefe Baja",
+        lider_id=registrante_autorizado.empleado_id,
+        estado_id=2,
+    )
+    nieto = await make_empleado(
+        db,
+        rol="empleado",
+        email="he_nieto@leoni.test",
+        empleado_id=88203,
+        no_empleado=7000203,
+        nombre="Operativo Nieto",
+        lider_id=jefe_linea.empleado_id,
+    )
+    bisnieto = await make_empleado(
+        db,
+        rol="empleado",
+        email="he_bisnieto@leoni.test",
+        empleado_id=88204,
+        no_empleado=7000204,
+        nombre="Operativo Bisnieto",
+        lider_id=nieto.empleado_id,
+    )
+    huerfano_de_baja = await make_empleado(
+        db,
+        rol="empleado",
+        email="he_huerfano@leoni.test",
+        empleado_id=88205,
+        no_empleado=7000205,
+        nombre="Operativo Bajo Jefe Baja",
+        lider_id=jefe_baja.empleado_id,
+    )
+    admin_cl = await make_clasificacion_administrativo(db)
+    await make_empleado(
+        db,
+        rol="empleado",
+        email="he_admin_nieto@leoni.test",
+        empleado_id=88206,
+        no_empleado=7000206,
+        nombre="Admin Nieto",
+        lider_id=jefe_linea.empleado_id,
+        clasificacion_id=admin_cl.clasificacion_id,
+    )
+    for emp in (jefe_linea, nieto, bisnieto, huerfano_de_baja):
+        emp.area_id = area.area_id
+        emp.subarea_id = sub.subarea_id
+        emp.centrocosto_id = cc.centrocosto_id
+    await db.flush()
+
+    headers = await auth_headers(client, registrante_autorizado)
+    opciones = await client.get("/api/v1/horas-extra/solicitudes/opciones", headers=headers)
+    assert opciones.status_code == 200
+    empleados = {e["no_empleado"] for e in opciones.json()["empleados"]}
+    assert {7000201, 7000203, 7000204, 7000205} <= empleados
+    assert 7000202 not in empleados  # de baja
+    assert 7000206 not in empleados  # administrativo
+
+    crear = await client.post(
+        "/api/v1/horas-extra/solicitudes", headers=headers, json=_payload_base(bisnieto.id)
+    )
+    assert crear.status_code == 201, crear.text

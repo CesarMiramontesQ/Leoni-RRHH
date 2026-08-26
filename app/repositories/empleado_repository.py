@@ -301,10 +301,18 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         return list(result.scalars().all())
 
     async def get_ids_subarbol(
-        self, lider_empleado_id: int, estados_activos: list[int]
+        self,
+        lider_empleado_id: int,
+        estados_activos: list[int],
+        *,
+        atravesar_inactivos: bool = False,
     ) -> set[int]:
         """
         IDs locales (PK) de empleados activos bajo el líder identificado por ``empleado_id``.
+
+        Con ``atravesar_inactivos`` el recorrido baja también por líderes intermedios
+        que no están activos (una baja en medio de la cadena no esconde a su gente);
+        el resultado sigue conteniendo solo empleados activos.
         """
         if not estados_activos:
             return set()
@@ -313,19 +321,20 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         frontier: set[int] = {lider_empleado_id}
         while frontier:
             expandidos |= frontier
-            result = await self.db.execute(
-                select(Empleado.id, Empleado.empleado_id).where(
-                    Empleado.lider_id.in_(frontier),
-                    Empleado.estado_id.in_(estados_activos),
-                )
+            query = select(Empleado.id, Empleado.empleado_id, Empleado.estado_id).where(
+                Empleado.lider_id.in_(frontier)
             )
+            if not atravesar_inactivos:
+                query = query.where(Empleado.estado_id.in_(estados_activos))
+            result = await self.db.execute(query)
             rows = result.all()
             if not rows:
                 break
             next_frontier: set[int] = set()
             repetidos: set[int] = set()
-            for local_id, emp_id in rows:
-                collected.add(local_id)
+            for local_id, emp_id, estado_id in rows:
+                if estado_id in estados_activos:
+                    collected.add(local_id)
                 # Sin esto, una jerarquía cíclica (A → B → C → A, o alguien puesto
                 # como líder de sí mismo) devuelve la frontera a nodos ya expandidos
                 # y el bucle consulta la BD para siempre. `lider_id` es dato de Bono:
