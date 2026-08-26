@@ -12,6 +12,8 @@ from app.models.empleados import Empleado
 from app.models.horas_extra import HorasExtraAprobador
 from app.repositories.nominas_ajustes_repository import NominasAjustesRepository
 from app.schemas.nominas_ajustes import (
+    HorasExtraAprobadorCandidatoItem,
+    HorasExtraAprobadorCandidatosResponse,
     HorasExtraAprobadoresCreate,
     HorasExtraAprobadoresListResponse,
     HorasExtraAprobadorItem,
@@ -155,6 +157,32 @@ class NominasAjustesService:
             tipo=aprobador.tipo,
             activo=aprobador.activo,
             created_at=aprobador.created_at,
+        )
+
+    async def listar_candidatos_aprobadores(
+        self, *, q: str | None = None, limit: int = 20
+    ) -> HorasExtraAprobadorCandidatosResponse:
+        """Empleados activos elegibles para el modal de aprobadores.
+
+        Existe para que la búsqueda quede bajo el prefijo de este módulo
+        (`/api/v1/nominas/ajustes`) y no exija el módulo `empleados`.
+        """
+        estados = settings.ESTADOS_ACTIVOS_IDS
+        empleados = await self.repo.list_empleados(
+            estados, q=q, autorizado=None, offset=0, limit=limit
+        )
+        return HorasExtraAprobadorCandidatosResponse(
+            items=[
+                HorasExtraAprobadorCandidatoItem(
+                    id=e.id,
+                    no_empleado=e.no_empleado,
+                    nombre=e.nombre,
+                    email=e.email,
+                    area_descripcion=e.area.descripcion if e.area else None,
+                    puesto_descripcion=e.puesto.descripcion if e.puesto else None,
+                )
+                for e in empleados
+            ]
         )
 
     async def listar_aprobadores(self) -> HorasExtraAprobadoresListResponse:

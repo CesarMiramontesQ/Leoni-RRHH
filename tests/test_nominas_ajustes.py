@@ -10,6 +10,7 @@ from tests.conftest import auth_headers, make_empleado
 
 AUTORIZADOS_URL = "/api/v1/nominas/ajustes/horas-extra/autorizados"
 APROBADORES_URL = "/api/v1/nominas/ajustes/horas-extra/aprobadores"
+CANDIDATOS_URL = f"{APROBADORES_URL}/candidatos"
 
 
 async def _reset_aprobadores(db):
@@ -299,6 +300,59 @@ async def test_aprobadores_solo_rh(
             json={"tipo": "gerente_regional", "empleado_ids": [empleado.id]},
         )
         assert crear.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_aprobadores_candidatos_con_modulo_nominas_ajustes(
+    client: AsyncClient, db
+):
+    """El buscador del modal de aprobadores no debe exigir el módulo `empleados`:
+    un usuario con solo `nominas-ajustes` busca candidatos bajo su propio prefijo."""
+    operador = await make_empleado(
+        db,
+        rol="empleado",
+        nombre="Operador Nóminas Ajustes",
+        email="op_nominas_ajustes@test.leoni",
+        password="Op3Nom!Seguro",
+        inscrito_modulos_rh=True,
+        modulos_rh={"nominas-ajustes": True},
+    )
+    candidato = await make_empleado(
+        db, rol="gerente", nombre="Gerente Candidato Regional", no_empleado=7000041
+    )
+    await make_empleado(
+        db,
+        rol="gerente",
+        nombre="Gerente Candidato Inactivo",
+        no_empleado=7000042,
+        estado_id=99,
+    )
+    headers = await auth_headers(client, operador, password="Op3Nom!Seguro")
+
+    res = await client.get(
+        CANDIDATOS_URL, headers=headers, params={"q": "Gerente Candidato"}
+    )
+    assert res.status_code == 200, res.text
+    items = res.json()["items"]
+    nos = {item["no_empleado"] for item in items}
+    assert nos == {candidato.no_empleado}
+    item = items[0]
+    assert item["id"] == candidato.id
+    assert item["nombre"] == "Gerente Candidato Regional"
+    assert {"id", "no_empleado", "nombre", "email", "area_descripcion", "puesto_descripcion"} <= set(item)
+
+
+@pytest.mark.asyncio
+async def test_aprobadores_candidatos_sin_permiso(
+    client: AsyncClient, db, empleado_base, empleado_rh
+):
+    headers_base = await auth_headers(client, empleado_base)
+    res = await client.get(CANDIDATOS_URL, headers=headers_base)
+    assert res.status_code == 403
+
+    headers_rh = await auth_headers(client, empleado_rh)
+    res_rh = await client.get(CANDIDATOS_URL, headers=headers_rh)
+    assert res_rh.status_code == 200
 
 
 @pytest.mark.asyncio
