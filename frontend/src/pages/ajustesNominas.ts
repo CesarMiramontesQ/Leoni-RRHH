@@ -1,16 +1,16 @@
-import { getEmpleadosPage } from "../api/empleados.ts";
 import {
   createHorasExtraAprobadores,
   deleteHorasExtraAprobador,
+  getHorasExtraAprobadorCandidatos,
   getHorasExtraAprobadores,
   getHorasExtraAutorizados,
   setHorasExtraAutorizacion,
+  type HorasExtraAprobadorCandidatoItem,
   type HorasExtraAprobadoresListResponse,
   type HorasExtraAprobadorItem,
   type HorasExtraAutorizadoItem,
   type NominasAjustesFetchError,
 } from "../api/nominasAjustes.ts";
-import type { UsuarioListItem } from "../api/usuarios.ts";
 import { canAccessNominasAjustesPage } from "../auth/jwt.ts";
 import { clearAuth } from "../auth/session.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
@@ -81,8 +81,8 @@ function initialAprobadoresModalState(tipo: AprobadorTipo): AprobadoresModalStat
   };
 }
 
-function toAprobadorCandidato(item: UsuarioListItem): AprobadorCandidato {
-  const areaPuesto = [item.area?.descripcion, item.puesto?.descripcion]
+function toAprobadorCandidato(item: HorasExtraAprobadorCandidatoItem): AprobadorCandidato {
+  const areaPuesto = [item.area_descripcion, item.puesto_descripcion]
     .filter(Boolean)
     .join(" · ");
   return {
@@ -376,7 +376,7 @@ export function mountAjustesNominas(container: HTMLElement, signal?: AbortSignal
       "aprobadores-modal-search",
     );
     try {
-      const data = await getEmpleadosPage({ page: 1, page_size: MODAL_RESULTS_LIMIT, q, activo: true });
+      const data = await getHorasExtraAprobadorCandidatos({ q, limit: MODAL_RESULTS_LIMIT });
       if (signal?.aborted || seq !== aprobadoresSearchSeq || !state.aprobadores.modal) return;
       const tipo = state.aprobadores.modal.tipo;
       const registrados = new Set(

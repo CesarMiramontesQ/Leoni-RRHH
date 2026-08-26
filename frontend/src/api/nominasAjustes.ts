@@ -116,6 +116,32 @@ export type HorasExtraAprobadoresListResponse = {
 
 const APROBADORES_URL = "/api/v1/nominas/ajustes/horas-extra/aprobadores";
 
+export type HorasExtraAprobadorCandidatoItem = {
+  id: number;
+  no_empleado: string;
+  nombre: string;
+  email: string | null;
+  area_descripcion: string | null;
+  puesto_descripcion: string | null;
+};
+
+export type HorasExtraAprobadorCandidatosResponse = {
+  items: HorasExtraAprobadorCandidatoItem[];
+};
+
+export async function getHorasExtraAprobadorCandidatos(params: {
+  q?: string;
+  limit?: number;
+}): Promise<HorasExtraAprobadorCandidatosResponse> {
+  const sp = new URLSearchParams();
+  if (params.q?.trim()) sp.set("q", params.q.trim());
+  if (params.limit !== undefined) sp.set("limit", String(params.limit));
+  const qs = sp.toString();
+  const res = await fetchWithAuth(`${APROBADORES_URL}/candidatos${qs ? `?${qs}` : ""}`);
+  if (!res.ok) await throwFetchError(res);
+  return (await res.json()) as HorasExtraAprobadorCandidatosResponse;
+}
+
 export async function getHorasExtraAprobadores(): Promise<HorasExtraAprobadoresListResponse> {
   const res = await fetchWithAuth(APROBADORES_URL);
   if (!res.ok) await throwFetchError(res);

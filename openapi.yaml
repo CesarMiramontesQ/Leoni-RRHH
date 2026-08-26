@@ -1219,6 +1219,36 @@ components:
           items:
             $ref: "#/components/schemas/HorasExtraAprobadorItem"
 
+    HorasExtraAprobadorCandidatoItem:
+      type: object
+      required: [id, no_empleado, nombre]
+      properties:
+        id:
+          type: integer
+          description: PK de empleados (el que espera `empleado_ids` al registrar).
+        no_empleado:
+          type: string
+        nombre:
+          type: string
+        email:
+          type: string
+          nullable: true
+        area_descripcion:
+          type: string
+          nullable: true
+        puesto_descripcion:
+          type: string
+          nullable: true
+
+    HorasExtraAprobadorCandidatosResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HorasExtraAprobadorCandidatoItem"
+
     HorasExtraAprobadoresCreate:
       type: object
       required: [tipo, empleado_ids]
@@ -9029,6 +9059,41 @@ paths:
           description: >-
             Empleados inexistentes/inactivos, ya registrados como aprobadores,
             más de un director en la petición o ya existe un director activo.
+
+  /api/v1/nominas/ajustes/horas-extra/aprobadores/candidatos:
+    get:
+      tags: [Nóminas]
+      summary: Buscar empleados activos candidatos a aprobador (solo RH)
+      description: >-
+        Buscador del modal de aprobadores. Vive bajo el prefijo de Ajustes de
+        Nóminas para que baste el módulo `nominas-ajustes`, sin requerir el
+        módulo `empleados`.
+      operationId: nominas_ajustes_horas_extra_aprobadores_candidatos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Empleados activos que coinciden con la búsqueda
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HorasExtraAprobadorCandidatosResponse"
+        "403":
+          description: Solo usuarios con rol RH o módulo nominas-ajustes
 
   /api/v1/nominas/ajustes/horas-extra/aprobadores/{aprobador_id}:
     patch:

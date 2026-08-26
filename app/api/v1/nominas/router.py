@@ -17,6 +17,7 @@ from app.schemas.horas_extra_aprobacion import (
 )
 from app.schemas.horas_extra_solicitud import HorasExtraSolicitudResponse
 from app.schemas.nominas_ajustes import (
+    HorasExtraAprobadorCandidatosResponse,
     HorasExtraAprobadoresCreate,
     HorasExtraAprobadoresListResponse,
     HorasExtraAprobadorUpdate,
@@ -272,6 +273,21 @@ async def list_horas_extra_aprobadores(
     svc: NominasAjustesService = Depends(_ajustes_svc),
 ):
     return await svc.listar_aprobadores()
+
+
+@router.get(
+    "/ajustes/horas-extra/aprobadores/candidatos",
+    response_model=HorasExtraAprobadorCandidatosResponse,
+)
+async def list_horas_extra_aprobadores_candidatos(
+    q: str | None = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: NominasAjustesService = Depends(_ajustes_svc),
+):
+    """Buscador del modal de aprobadores; vive bajo este prefijo para que
+    baste el módulo `nominas-ajustes` (sin requerir el módulo `empleados`)."""
+    return await svc.listar_candidatos_aprobadores(q=q, limit=limit)
 
 
 @router.post(

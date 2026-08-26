@@ -70,6 +70,19 @@ class HorasExtraAprobadoresListResponse(BaseModel):
     directores: list[HorasExtraAprobadorItem]
 
 
+class HorasExtraAprobadorCandidatoItem(BaseModel):
+    id: int
+    no_empleado: int
+    nombre: str
+    email: Optional[str] = None
+    area_descripcion: Optional[str] = None
+    puesto_descripcion: Optional[str] = None
+
+
+class HorasExtraAprobadorCandidatosResponse(BaseModel):
+    items: list[HorasExtraAprobadorCandidatoItem]
+
+
 class HorasExtraAprobadoresCreate(BaseModel):
     tipo: HorasExtraAprobadorTipo
     empleado_ids: list[int] = Field(min_length=1)
