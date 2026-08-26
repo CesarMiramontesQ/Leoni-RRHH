@@ -17,6 +17,24 @@ describe("buildFaltasRetardosTendenciaPorTipo", () => {
     expect(chart?.series.find((s) => s.tipo === "falta_injustificada")?.valores).toEqual([0, 3]);
   });
 
+  it("omite las vacaciones: aplastan la escala del resto de tipos", () => {
+    const chart = buildFaltasRetardosTendenciaPorTipo(
+      [
+        { periodo: "2026-06", tipo: "vacaciones", total: 400 },
+        { periodo: "2026-06", tipo: "retardo", total: 3 },
+      ],
+      ["2026-06"],
+      "mes",
+    );
+    expect(chart?.series.map((s) => s.tipo)).toEqual(["retardo"]);
+  });
+
+  it("retorna null si solo hay vacaciones", () => {
+    expect(
+      buildFaltasRetardosTendenciaPorTipo([{ periodo: "2026-06", tipo: "vacaciones", total: 5 }], ["2026-06"], "mes"),
+    ).toBeNull();
+  });
+
   it("retorna null sin datos en el periodo", () => {
     expect(buildFaltasRetardosTendenciaPorTipo([], ["2026-06"], "mes")).toBeNull();
   });

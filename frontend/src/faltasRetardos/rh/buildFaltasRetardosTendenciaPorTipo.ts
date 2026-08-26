@@ -20,6 +20,15 @@ export type FaltaRetardoTendenciaTipoSerie = {
   valores: readonly number[];
 };
 
+/**
+ * Tipos que la tendencia no grafica. Las vacaciones son la mayoría de los eventos:
+ * su línea aplasta la escala del eje Y y el resto queda pegado al cero. Siguen
+ * contando en las barras por tipo y por empleado de la misma sección.
+ */
+export const FALTA_RETARDO_TIPOS_FUERA_DE_TENDENCIA: ReadonlySet<FaltaRetardoTipo> = new Set([
+  "vacaciones",
+]);
+
 export type FaltaRetardoTendenciaPorTipo = {
   agrupacion: RhDashboardTendenciaAgrupacion;
   periodos: readonly string[];
@@ -54,7 +63,7 @@ export function buildFaltasRetardosTendenciaPorTipo(
   const grid = new Map<FaltaRetardoTipo, Map<string, number>>();
   for (const { periodo, tipo, total } of buckets) {
     const p = periodo.trim();
-    if (!p || total <= 0) continue;
+    if (!p || total <= 0 || FALTA_RETARDO_TIPOS_FUERA_DE_TENDENCIA.has(tipo)) continue;
     let row = grid.get(tipo);
     if (!row) {
       row = new Map();
