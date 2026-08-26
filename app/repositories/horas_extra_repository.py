@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
+from app.models.catalogos import Area
 from app.models.empleados import Empleado
 from app.models.horas_extra import (
     CentroCosto,
@@ -284,6 +285,13 @@ class HorasExtraRepository:
         ).group_by(HorasExtraSolicitud.estado)
         result = await self.db.execute(query)
         return {str(estado): int(cnt) for estado, cnt in result.all()}
+
+    async def list_areas_activas(self) -> list[Area]:
+        """Catálogo de áreas activas para el filtro del listado (sin pasar por /empleados)."""
+        result = await self.db.execute(
+            select(Area).where(Area.estatus_id == 1).order_by(Area.descripcion)
+        )
+        return list(result.scalars().all())
 
     async def list_centros_costo_en_solicitudes(
         self,

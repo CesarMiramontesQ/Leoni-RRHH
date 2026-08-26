@@ -22,6 +22,7 @@ from app.schemas.horas_extra import (
     HorasExtraSolicitudInfoResponse,
     HorasExtraTabFiltro,
 )
+from app.schemas.empleados import AreaResponse
 from app.schemas.horas_extra_solicitud import HorasExtraSolicitudResponse
 from app.services.horas_extra_aprobacion_service import estado_consolidado
 from app.services.horas_extra_solicitud_service import HorasExtraSolicitudService
@@ -184,6 +185,7 @@ class HorasExtraService:
         centros = await self.repo.list_centros_costo_en_solicitudes(
             ids_permitidos=ids_permitidos
         )
+        areas = await self.repo.list_areas_activas()
 
         resumen = HorasExtraResumenResponse(
             total_horas_extra=round(float(total_horas), 2),
@@ -202,6 +204,7 @@ class HorasExtraService:
             resumen=resumen,
             tabs=tabs,
             filter_options=HorasExtraFilterOptionsResponse(
+                areas=[AreaResponse.model_validate(a) for a in areas],
                 centros_costo=[
                     HorasExtraCentroCostoOption(
                         id=cc_id, label=descripcion or str(cc_id)

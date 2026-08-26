@@ -774,6 +774,11 @@ components:
       type: object
       required: [centros_costo]
       properties:
+        areas:
+          type: array
+          description: Catálogo de áreas activas para el filtro (evita depender de /empleados/catalogo-filtros).
+          items:
+            $ref: "#/components/schemas/AreaResponse"
         centros_costo:
           type: array
           items:

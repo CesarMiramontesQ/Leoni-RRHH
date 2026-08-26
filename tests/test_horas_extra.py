@@ -462,3 +462,31 @@ async def test_horas_extra_lista_expone_estado_consolidado_parcial(
     sol = response.json()["items"][0]["solicitud"]
     assert sol["estado"] == "pendiente"
     assert sol["estado_consolidado"] == "aprobado_parcial"
+
+
+@pytest.mark.asyncio
+async def test_listado_incluye_areas_para_usuario_con_solo_modulo_horas_extra(
+    client: AsyncClient, db
+):
+    """La página de Horas Extra no debe depender de `/api/v1/empleados/catalogo-filtros`:
+    un usuario inscrito solo en `nominas-horas-extra` (rol base empleado) recibe 403 ahí.
+    El catálogo de áreas del filtro viaja en el propio listado."""
+    uid = uuid.uuid4().hex[:6].upper()
+    area_id = int(uid, 16) % 900000 + 100000
+    db.add(Area(area_id=area_id, descripcion=f"Área HE {uid}", estatus_id=1))
+    await db.flush()
+
+    usuario = await make_empleado(
+        db,
+        rol="empleado",
+        email=f"he_modulo_{uid.lower()}@leoni.test",
+        inscrito_modulos_rh=True,
+        modulos_rh={"nominas-horas-extra": True},
+    )
+    headers = await auth_headers(client, usuario)
+
+    response = await client.get(LISTADO_URL, headers=headers)
+    assert response.status_code == 200, response.text
+    areas = response.json()["filter_options"]["areas"]
+    match = [a for a in areas if a["area_id"] == area_id]
+    assert match and match[0]["descripcion"] == f"Área HE {uid}"
