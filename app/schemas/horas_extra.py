@@ -5,6 +5,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.empleados import AreaResponse
 from app.schemas.horas_extra_aprobacion import HorasExtraEstadoConsolidado
 
 HorasExtraEstadoSolicitudVista = Literal[
@@ -71,6 +72,9 @@ class HorasExtraCentroCostoOption(BaseModel):
 
 
 class HorasExtraFilterOptionsResponse(BaseModel):
+    # Las áreas viajan aquí para que la página no dependa de
+    # /api/v1/empleados/catalogo-filtros, que exige el módulo `empleados`.
+    areas: list[AreaResponse] = Field(default_factory=list)
     centros_costo: list[HorasExtraCentroCostoOption]
 
 

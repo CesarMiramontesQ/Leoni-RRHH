@@ -1,4 +1,3 @@
-import { getEmpleadosCatalogoFiltros } from "../api/empleados.ts";
 import {
   getHorasExtraDetalle,
   getHorasExtraList,
@@ -311,10 +310,9 @@ export function mountHorasExtra(container: HTMLElement): void {
 
   void (async () => {
     try {
-      const [catalog, dataInitial] = await Promise.all([
-        getEmpleadosCatalogoFiltros(),
-        getHorasExtraList(listParamsFromFilters(filters, semanaActual)),
-      ]);
+      // El catálogo de áreas viaja en el propio listado: /api/v1/empleados/catalogo-filtros
+      // exige el módulo `empleados` y daba 403 a quien solo tiene `nominas-horas-extra`.
+      const dataInitial = await getHorasExtraList(listParamsFromFilters(filters, semanaActual));
 
       semanaActual = dataInitial.semana_actual;
       let data = dataInitial;
@@ -323,7 +321,7 @@ export function mountHorasExtra(container: HTMLElement): void {
         data = await getHorasExtraList(listParamsFromFilters(filters, semanaActual));
       }
       filterOptions = mergeFilterOptions(
-        catalog.areas,
+        data.filter_options.areas,
         data.filter_options.centros_costo.map((cc) => ({ id: cc.id, label: cc.label })),
       );
       const vm = buildHorasExtraViewModel(data, { filters, filterOptions, filtersStatus: "ready" });

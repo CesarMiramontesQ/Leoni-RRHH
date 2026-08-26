@@ -1,4 +1,5 @@
 import { fetchWithAuth } from "./http.ts";
+import type { AreaResponse } from "./usuarios.ts";
 import type { HorasExtraSolicitudResponse } from "./horasExtraSolicitud.ts";
 
 export type HorasExtraEstadoSolicitud =
@@ -65,6 +66,7 @@ export type HorasExtraCentroCostoOption = {
 };
 
 export type HorasExtraFilterOptionsResponse = {
+  areas: AreaResponse[];
   centros_costo: HorasExtraCentroCostoOption[];
 };
 
