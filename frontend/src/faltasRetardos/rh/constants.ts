@@ -86,6 +86,28 @@ const TIPO_PILL_CLASSES: Record<FaltaRetardoTipo, string> = {
   defuncion: "rh-inc-type-pill--t-defuncion",
 };
 
+/**
+ * Mismo color que el punto del pill de cada tipo (`::before` en `style.css`), para que
+ * la leyenda de las gráficas de Métricos coincida con la tabla de abajo. Diez tipos, diez
+ * colores distintos: los cinco que antes compartían un slot violeta ahora se distinguen.
+ */
+export const FALTA_RETARDO_TIPO_COLORS: Record<FaltaRetardoTipo, string> = {
+  falta_injustificada: "#e34948",
+  retardo: "#eda100",
+  falta_justificada: "#2a78d6",
+  suspension: "#b45309",
+  incapacidad: "#0d9488",
+  incapacidad_interna: "#3f6212",
+  vacaciones: "#1baf7a",
+  matrimonio: "#eb6834",
+  paternidad: "#be185d",
+  defuncion: "#4a3aa7",
+};
+
+export function colorFaltaRetardoTipo(tipo: FaltaRetardoTipo): string {
+  return FALTA_RETARDO_TIPO_COLORS[tipo] ?? "#64748B";
+}
+
 export function badgeClassFaltaRetardoTipo(tipo: FaltaRetardoTipo): string {
   return TIPO_PILL_CLASSES[tipo] ?? "rh-inc-type-pill--default";
 }
