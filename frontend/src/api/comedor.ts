@@ -352,6 +352,8 @@ export type ComedorEquipoBeneficiarioApiItem = {
   no_empleado: string;
   nombre: string;
   nombre_corto: string;
+  /** Área del colaborador; null si no tiene asignada. */
+  area: string | null;
 };
 
 export type ComedorEquipoMetricasApi = {

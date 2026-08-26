@@ -33,9 +33,9 @@ type Catalog = {
 };
 
 export type ComedorSupervisorBeneficiaryModalConfig = {
-  /** Ficha del supervisor en sesión (beneficiario en «Registro personal»). */
+  /** Ficha del líder (supervisor o gerente) en sesión (beneficiario en «Registro personal»). */
   self: ComedorEmployeeOption;
-  /** Solo subordinados directos; el supervisor debe estar excluido. */
+  /** Todo el subárbol del líder; el propio líder debe estar excluido. */
   loadTeamOptions: () => Promise<readonly ComedorEmployeeOption[]>;
 };
 
@@ -44,7 +44,7 @@ export type ComedorNewRequestModalOptions = {
   allowExternalPeople?: boolean;
   allowEmployeeSearch?: boolean;
   loadEmployeeOptions?: () => Promise<readonly ComedorEmployeeOption[]>;
-  /** Solo rol supervisor (comedor líder): selector personal vs equipo; no combinar con `loadEmployeeOptions` para el mismo flujo. */
+  /** Roles supervisor y gerente (comedor líder): selector personal vs equipo; no combinar con `loadEmployeeOptions` para el mismo flujo. */
   supervisorBeneficiaryConfig?: ComedorSupervisorBeneficiaryModalConfig;
   defaultEmployeeId?: string | null;
   fixedEmployee?: ComedorEmployeeOption | null;
@@ -120,7 +120,7 @@ function validateForm(
     if (supervisorBeneficiaryConfig) {
       if (state.supervisorRecipientScope === "team") {
         if (teamEmployeeIds.size === 0) {
-          errors.employee = "No hay colaboradores en tu equipo directo para este registro.";
+          errors.employee = "No hay colaboradores en tu equipo para este registro.";
         } else if (!state.selectedEmployeeId) {
           errors.employee = "Selecciona un integrante del equipo.";
         } else if (state.selectedEmployeeId === supervisorBeneficiaryConfig.self.id) {
@@ -664,7 +664,7 @@ export function mountComedorNewRequestModal(
       renderForm();
     });
 
-    // Buscador del integrante del equipo: filtra en memoria sobre el equipo directo, sin
+    // Buscador del integrante del equipo: filtra en memoria sobre el subárbol cargado, sin
     // debounce ni petición — la lista ya está cargada.
     const teamSearchInput = form.querySelector<HTMLInputElement>("[data-comedor-modal-team-search]");
     teamSearchInput?.addEventListener("input", () => {

@@ -3712,6 +3712,9 @@ components:
           type: string
         nombre_corto:
           type: string
+        area:
+          type: string
+          nullable: true
 
     ComedorEquipoMetricas:
       type: object
@@ -11198,7 +11201,7 @@ paths:
   /api/v1/comedor/accesos/equipo/beneficiarios:
     get:
       tags: [Comedor]
-      summary: Beneficiarios seleccionables (yo + equipo directo)
+      summary: Beneficiarios seleccionables por supervisor/gerente (yo + todo mi subárbol)
       operationId: comedor_equipo_beneficiarios
       security:
         - BearerAuth: []

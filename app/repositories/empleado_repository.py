@@ -347,6 +347,17 @@ class EmpleadoRepository(BaseRepository[Empleado]):
             frontier = next_frontier
         return collected
 
+    async def get_by_ids_con_area(self, ids: list[int]) -> list[Empleado]:
+        """Empleados por PK con `area` precargada (evita lazy-load en contexto async)."""
+        if not ids:
+            return []
+        result = await self.db.execute(
+            select(Empleado)
+            .options(selectinload(Empleado.area))
+            .where(Empleado.id.in_(ids))
+        )
+        return list(result.scalars().all())
+
     async def get_subordinados_directos_ids(self, lider_empleado_id: int) -> list[int]:
         """IDs locales de reportes directos (``lider_id`` = ``empleado_id`` del jefe)."""
         result = await self.db.execute(

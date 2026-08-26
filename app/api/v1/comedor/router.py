@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import (
     get_current_user,
-    gestor_supervisor_role_checker,
     gestor_team_role_checker,
     get_rh_ui_mode,
     require_comedor_terminal_ip,
@@ -295,13 +294,13 @@ async def equipo_proximas_reservas_comedor(
 
 @router.get("/accesos/equipo/beneficiarios", response_model=list[ComedorEquipoBeneficiarioItem])
 async def equipo_beneficiarios_comedor(
-    current_user: Empleado = Depends(gestor_supervisor_role_checker()),
+    current_user: Empleado = Depends(gestor_team_role_checker(["supervisor", "gerente"])),
     rh_ui_mode: str | None = Depends(get_rh_ui_mode),
     db: AsyncSession = Depends(get_db),
 ):
-    """Beneficiarios seleccionables por supervisor: yo + equipo directo."""
+    """Beneficiarios seleccionables por supervisor/gerente: yo + todo mi subárbol."""
     service = ComedorService(db)
-    return await service.list_equipo_beneficiarios_directos(
+    return await service.list_equipo_beneficiarios(
         current_user=current_user,
         rh_ui_mode=rh_ui_mode,
     )
