@@ -1382,6 +1382,8 @@ Gráficas con **varias series o categorías** usan la paleta centralizada en `fr
 
 Mapas por dominio (solicitudes, incidencias, faltas-retardos) deben referenciar `chartColorSlots()` en lugar de tokens vecinos (`--color-info`, `--color-success`, `--color-leoni-blue-light`). Gráficas de **una sola serie** pueden seguir usando `--color-accent`.
 
+**Excepción: faltas-retardos.** Sus tres gráficas de Métricos (tendencia por tipo, barra por tipo, barra por empleado) no usan los slots sino `FALTA_RETARDO_TIPO_COLORS` (`faltasRetardos/rh/constants.ts`): el mismo hex del punto de cada pill `--t-<tipo>` de la tabla. Razón: son 10 tipos y solo hay 9 slots —cinco caían al mismo violeta— y la paleta de los pills ya está validada para daltonismo; así la leyenda de la gráfica coincide con el pill que el usuario ve en la lista de abajo.
+
 ### 14.1.2 Micro-visualizacion de distribucion (barra apilada en un tile)
 
 Barra apilada al 100 % dentro de un stat tile, para una escala **ordinal con

@@ -1,9 +1,9 @@
 import { chartCartesianScales, mountChart, renderChartCanvas } from "../../charts/index.ts";
-import { chartColorSlots } from "../../charts/chartTokens.ts";
 import type { FaltaRetardoTendenciaPorTipo } from "../../faltasRetardos/rh/buildFaltasRetardosTendenciaPorTipo.ts";
 import type { RhDashboardTendenciaAgrupacion } from "../../dashboard/rh/filterRowsByPeriod.ts";
 import {
   FALTA_RETARDO_TIPOS,
+  colorFaltaRetardoTipo,
   labelFaltaRetardoTipo,
 } from "../../faltasRetardos/rh/constants.ts";
 import type { FaltaRetardoTipo } from "../../api/faltasRetardos.ts";
@@ -34,21 +34,7 @@ function colorConAlpha(hex: string, alpha: number): string {
 }
 
 function colorForTipo(tipo: FaltaRetardoTipo): string {
-  const s = chartColorSlots();
-  switch (tipo) {
-    case "falta_justificada":
-      return s.green;
-    case "falta_injustificada":
-      return s.red;
-    case "retardo":
-      return s.accent;
-    case "incapacidad":
-      return s.teal;
-    case "suspension":
-      return s.amber;
-    default:
-      return s.violet;
-  }
+  return colorFaltaRetardoTipo(tipo);
 }
 
 function etiquetaMesCorto(periodo: string): string {
