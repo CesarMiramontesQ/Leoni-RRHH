@@ -1,4 +1,3 @@
-import { canAccessUsuariosAdmin } from "../auth/jwt.ts";
 import {
   getEmpleadoMetricas,
   getEmpleadoSaldoVacacionesReal,
@@ -38,22 +37,17 @@ export async function loadEmpleadoVista360(id: number, signal: AbortSignal): Pro
       .catch(() => null);
 
   try {
-    if (canAccessUsuariosAdmin()) {
-      const [data, metricas, saldoVacacionesReal] = await Promise.all([
-        getEmpleadoVista360(id, { signal }),
-        getEmpleadoMetricas(id, { signal }).catch(() => null),
-        fetchSaldoReal(),
-      ]);
-      const incidenciasMetricas = metricas
-        ? computeIncidenciaMetricas(metricas.incidencias_por_tipo)
-        : METRICAS_VACIAS;
-      return { ok: true, data, incidenciasMetricas, saldoVacacionesReal };
-    }
-    const [data, saldoVacacionesReal] = await Promise.all([
+    // Las métricas se piden para todos: el backend ya acota por `ensure_puede_ver_empleado`
+    // (supervisor/gerente ven a su equipo), igual que el resto de la ficha.
+    const [data, metricas, saldoVacacionesReal] = await Promise.all([
       getEmpleadoVista360(id, { signal }),
+      getEmpleadoMetricas(id, { signal }).catch(() => null),
       fetchSaldoReal(),
     ]);
-    return { ok: true, data, incidenciasMetricas: null, saldoVacacionesReal };
+    const incidenciasMetricas = metricas
+      ? computeIncidenciaMetricas(metricas.incidencias_por_tipo)
+      : METRICAS_VACIAS;
+    return { ok: true, data, incidenciasMetricas, saldoVacacionesReal };
   } catch (e: unknown) {
     if (e instanceof DOMException && e.name === "AbortError") {
       return { ok: false, status: 0, message: "", aborted: true };
