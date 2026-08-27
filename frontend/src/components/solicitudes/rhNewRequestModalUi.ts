@@ -348,7 +348,7 @@ function buildSupervisorSolicitudSubjectHtml(subject: SupervisorSolicitudSujeto)
     <fieldset class="${SEC_BOX} space-y-3" aria-describedby="rh-nr-sujeto-desc">
       <legend id="rh-nr-sec-sujeto" class="${SEC_TITLE}">Sujeto de la solicitud</legend>
       <p id="rh-nr-sujeto-desc" class="text-xs leading-relaxed text-slate-500">
-        Define si registrarás tus propios días y permisos o los de un colaborador bajo tu mando directo (alcance habitual del supervisor en el sistema).
+        Define si registrarás tus propios días y permisos o los de un colaborador de tu equipo.
       </p>
       <div class="${NR_TIPO_LIST_WRAP}">
         <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
@@ -433,7 +433,7 @@ export type RhNewRequestFormParams = {
   paternidadSevenDayMode?: boolean;
   /** Controla visibilidad del bloque de Motivo. */
   showMotivoField?: boolean;
-  /** Radio personal vs equipo (solo supervisor). */
+  /** Radio personal vs equipo (supervisor y gerente). */
   showSupervisorSolicitudSubject?: boolean;
   supervisorSolicitudSubject?: SupervisorSolicitudSujeto;
   /** Reemplaza el texto de ayuda bajo titular fijo (p. ej. solicitud propia supervisor). */

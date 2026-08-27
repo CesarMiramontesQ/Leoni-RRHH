@@ -164,6 +164,61 @@ async def test_crear_solicitud_empleado_otro_colaborador_retorna_403(client: Asy
     assert response.status_code == 403
 
 
+@pytest.mark.asyncio
+async def test_crear_solicitud_gerente_para_subordinado_indirecto_retorna_201(
+    client: AsyncClient, db,
+):
+    """El modo «Equipo» del gerente alcanza todo su subárbol, no solo los directos."""
+    gerente = await make_empleado(db, rol="gerente", email="sol002d_ger@leoni.test")
+    supervisor = await make_empleado(
+        db, rol="supervisor", email="sol002d_sup@leoni.test", lider_id=gerente.empleado_id
+    )
+    nieto = await make_empleado(
+        db, rol="empleado", email="sol002d_nieto@leoni.test", lider_id=supervisor.empleado_id
+    )
+    headers = await auth_headers(client, gerente)
+
+    payload = {**SOLICITUD_VACACIONES, "empleado_id": nieto.id}
+    response = await client.post("/api/v1/solicitudes", json=payload, headers=headers)
+
+    assert response.status_code == 201
+    assert response.json()["empleado_id"] == nieto.id
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_gerente_fuera_de_su_subarbol_retorna_403(
+    client: AsyncClient, db,
+):
+    gerente = await make_empleado(db, rol="gerente", email="sol002e_ger@leoni.test")
+    ajeno = await make_empleado(db, rol="empleado", email="sol002e_ajeno@leoni.test")
+    headers = await auth_headers(client, gerente)
+
+    payload = {**SOLICITUD_VACACIONES, "empleado_id": ajeno.id}
+    response = await client.post("/api/v1/solicitudes", json=payload, headers=headers)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_supervisor_para_subordinado_indirecto_retorna_403(
+    client: AsyncClient, db,
+):
+    """El supervisor sigue limitado a reportes directos."""
+    supervisor = await make_empleado(db, rol="supervisor", email="sol002f_sup@leoni.test")
+    medio = await make_empleado(
+        db, rol="empleado", email="sol002f_medio@leoni.test", lider_id=supervisor.empleado_id
+    )
+    nieto = await make_empleado(
+        db, rol="empleado", email="sol002f_nieto@leoni.test", lider_id=medio.empleado_id
+    )
+    headers = await auth_headers(client, supervisor)
+
+    payload = {**SOLICITUD_VACACIONES, "empleado_id": nieto.id}
+    response = await client.post("/api/v1/solicitudes", json=payload, headers=headers)
+
+    assert response.status_code == 403
+
+
 # ---------------------------------------------------------------------------
 # TC-SOL-002b: Crear solicitud como gerente → 201
 # ---------------------------------------------------------------------------

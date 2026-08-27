@@ -93,7 +93,7 @@ export type RhNewRequestModalOptions = {
   allowPaidLeaveTypes?: boolean;
   /** Habilita tipo especial sin goce de sueldo (supervisor/gerente). */
   allowUnpaidLeaveType?: boolean;
-  /** Muestra radio «personal / equipo» (supervisor): requiere `supervisorDirectoryId`. */
+  /** Muestra radio «personal / equipo» (supervisor y gerente): requiere `supervisorDirectoryId`. */
   supervisorSolicitudSubjectSelector?: boolean;
   /** Id de directorio del supervisor (sesión) para modo personal y filtrado en modo equipo. */
   supervisorDirectoryId?: number;
@@ -168,7 +168,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let empleadoHighlightIndex = -1;
   /** Invalida respuestas de búsqueda obsoletas al escribir rápido. */
   let empleadoSearchSeq = 0;
-  /** Personal vs equipo (solo supervisor cuando `supervisorSolicitudSubjectSelector`). */
+  /** Personal vs equipo (supervisor/gerente cuando `supervisorSolicitudSubjectSelector`). */
   let solicitudSubjectSupervisor: SupervisorSolicitudSujeto = "personal";
   const renderCycle = createRenderCycleController(options.signal);
   const descansosController = createDescansosEmpleadoController();
