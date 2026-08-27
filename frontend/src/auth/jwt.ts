@@ -378,6 +378,18 @@ export function canAccessNominasAjustesPage(): boolean {
  * admin RH en Modo RH (operativo) y quien tenga el módulo `laborales-configuracion`
  * otorgado desde Permisos RH; supervisor, gerente, director y empleado no.
  */
+/**
+ * Contratos (`#/contratos`): exclusiva de RH. La ve el admin RH en Modo RH (operativo)
+ * y quien tenga el módulo `contratos` otorgado desde Permisos RH.
+ */
+export function canAccessContratosPage(): boolean {
+  return canAccessRhAssignedModule("contratos", {
+    blockGestorTeam: true,
+    blockEmpleado: true,
+    blockDirector: true,
+  });
+}
+
 export function canAccessLaboralesConfiguracionPage(): boolean {
   return canAccessRhAssignedModule("laborales-configuracion", {
     blockGestorTeam: true,

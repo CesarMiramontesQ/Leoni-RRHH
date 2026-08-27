@@ -1,5 +1,6 @@
 import { loadVista360ProfileFoto, releaseEmpleadoFotoCache } from "../api/empleadoFoto.ts";
 import { getEmpleadoVista360, type UsuarioVista360 } from "../api/vista360.ts";
+import { diasRestantesTexto, estatusContratoBadge, type ContratoEmpleadoResumen } from "../api/contratos.ts";
 import type { EstadoEmpleadoResponse } from "../api/usuarios.ts";
 import { isUsuariosFetchError } from "../api/usuarios.ts";
 import { canAccessEmpleadosPage, canAccessUsuariosAdmin } from "../auth/jwt.ts";
@@ -151,7 +152,26 @@ function antiguedadFechaIngresoRow(fechaIngreso: string | null): string {
   return vista360FieldRowText("Fecha de ingreso", s);
 }
 
-function antiguedadBodyHtml(fechaIngreso: string | null): string {
+/** «Contrato: <descripción> · vence 12 sep 2026 (en 16 d)» con badge; indefinido / sin dato / «—». */
+function contratoRowHtml(contrato: ContratoEmpleadoResumen | null | undefined): string {
+  if (!contrato || (!contrato.contrato_codigo && !contrato.contrato_descripcion)) {
+    return vista360FieldRowText("Contrato", null);
+  }
+  const nombre = escapeHtml(contrato.contrato_descripcion ?? contrato.contrato_codigo ?? "—");
+  let detalle = "";
+  if (contrato.estatus === "indefinido") {
+    detalle = `<span class="text-text-muted">· no vence</span>`;
+  } else if (contrato.fecha_vencimiento) {
+    const cuando = diasRestantesTexto(contrato.dias_restantes);
+    detalle = `<span class="text-text-muted">· ${contrato.estatus === "vencido" ? "venció" : "vence"} ${escapeHtml(formatFechaIngreso(contrato.fecha_vencimiento))}${cuando ? ` (${escapeHtml(cuando.toLowerCase())})` : ""}</span>`;
+  }
+  return vista360FieldRowHtml(
+    "Contrato",
+    `<span class="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">${nombre} ${detalle} ${estatusContratoBadge(contrato.estatus)}</span>`,
+  );
+}
+
+function antiguedadBodyHtml(fechaIngreso: string | null, contrato?: ContratoEmpleadoResumen | null): string {
   const parts = antiguedadAniosMeses(fechaIngreso);
   const tiempoInner =
     parts === null
@@ -165,7 +185,12 @@ function antiguedadBodyHtml(fechaIngreso: string | null): string {
         <p class="text-sm font-semibold text-amber-950">No registrada en el sistema</p>
       </div>
     </div>`;
-  return antiguedadFechaIngresoRow(fechaIngreso) + vista360FieldRowHtml("Tiempo en empresa", tiempoInner) + evaluacionBlock;
+  return (
+    antiguedadFechaIngresoRow(fechaIngreso) +
+    vista360FieldRowHtml("Tiempo en empresa", tiempoInner) +
+    contratoRowHtml(contrato) +
+    evaluacionBlock
+  );
 }
 
 function listSectionHtml(title: string, items: string[]): string {
@@ -602,7 +627,7 @@ function renderVista360Content(
     iconSvg: iconCalendar,
     iconTone: "sky",
     // Fecha de ingreso real (CB_FEC_ING) con fallback al `registro` legacy si la BD externa no respondió.
-    bodyHtml: antiguedadBodyHtml(data.fecha_ingreso ?? u.registro),
+    bodyHtml: antiguedadBodyHtml(data.fecha_ingreso ?? u.registro, data.contrato),
   });
 
   const grid = `

@@ -243,6 +243,13 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
       return;
     }
 
+    if (h.startsWith("#/contratos")) {
+      void import("./pages/contratos.ts")
+        .then(({ mountContratos }) => mountContratos(container, signal))
+        .catch((err) => renderLazyPageImportError(container, "laborales", "Contratos", err));
+      return;
+    }
+
     if (h === "#/laborales") {
       mountLaboralesHub(container);
       return;
