@@ -102,6 +102,7 @@ async def test_parsing_logica_get_datos_generales_por_empleado():
         554: date(2020, 6, 20),  # date ya pasaba tal cual
         555: None,               # clave existe con valor None
     }
+    result = {k: v.fecha_ingreso for k, v in result.items()}
 
     assert result == expected
 
@@ -120,7 +121,16 @@ def fake_datos_generales(monkeypatch):
                 self._engine = engine
 
             async def get_datos_generales_por_empleado(self):
-                return dict(por_empleado)
+                from app.repositories.datos_analisis_catalogos_read_repository import (
+                    DatosGeneralesColabora,
+                )
+
+                # Los tests viejos pasan solo la fecha de ingreso; los de contrato pasan
+                # el dataclass completo.
+                return {
+                    k: v if isinstance(v, DatosGeneralesColabora) else DatosGeneralesColabora(fecha_ingreso=v)
+                    for k, v in por_empleado.items()
+                }
 
         monkeypatch.setattr(
             "app.services.sync_empleados_tress_service.DatosAnalisisReadClient.create_read_engine",
@@ -256,3 +266,140 @@ async def test_sync_sin_datos_analisis_configurada_levanta_connection_error(db, 
 
     with pytest.raises(ConnectionError):
         await sincronizar_empleados_tress(db, origen="test", execute=True)
+
+
+# ----------------------------------------------------------------------- contrato
+
+
+@pytest.mark.asyncio
+async def test_parsing_contrato_normaliza_fecha_vacia_de_tress_y_codigo_con_padding():
+    from app.repositories.datos_analisis_catalogos_read_repository import (
+        DatosAnalisisCatalogosReadRepository,
+    )
+
+    repo = DatosAnalisisCatalogosReadRepository(None)
+    repo._filas = AsyncMock(
+        return_value=[
+            {
+                "no_empleado": 1,
+                "fecha_ingreso": None,
+                "contrato_codigo": "TD  ",
+                "contrato_descripcion": "TIEMPO DETERMINADO 90 DIAS",
+                "contrato_dias": 90,
+                "fecha_contrato": datetime(2026, 8, 1),
+            },
+            # «Vacío» de TRESS: no es una fecha real.
+            {
+                "no_empleado": 2,
+                "fecha_ingreso": None,
+                "contrato_codigo": "TD",
+                "contrato_descripcion": "X",
+                "contrato_dias": 90,
+                "fecha_contrato": datetime(1899, 12, 30),
+            },
+            # Código sin fila en dbo.CONTRATO: el LEFT JOIN deja NULL.
+            {
+                "no_empleado": 3,
+                "fecha_ingreso": None,
+                "contrato_codigo": "ZZ",
+                "contrato_descripcion": None,
+                "contrato_dias": None,
+                "fecha_contrato": datetime(2026, 1, 1),
+            },
+        ]
+    )
+
+    r = await repo.get_datos_generales_por_empleado()
+
+    assert r[1].contrato_codigo == "TD"
+    assert r[1].contrato_dias == 90
+    assert r[1].fecha_contrato == date(2026, 8, 1)
+    assert r[2].fecha_contrato is None
+    assert r[3].contrato_dias is None
+    assert r[3].contrato_descripcion is None
+
+
+def test_sql_colabora_datos_generales_trae_contrato_con_left_join():
+    from app.repositories.datos_analisis_catalogos_read_repository import (
+        load_colabora_datos_generales_sql,
+    )
+
+    sql = load_colabora_datos_generales_sql().upper()
+    assert "LEFT JOIN DBO.CONTRATO" in sql
+    assert "CB_CONTRAT" in sql and "CB_FEC_CON" in sql and "TB_DIAS" in sql
+
+
+def test_calcular_fecha_vencimiento():
+    from app.repositories.datos_analisis_catalogos_read_repository import DatosGeneralesColabora
+    from app.services.sync_empleados_tress_service import calcular_fecha_vencimiento
+
+    con = DatosGeneralesColabora(contrato_dias=90, fecha_contrato=date(2026, 8, 1))
+    assert calcular_fecha_vencimiento(con) == date(2026, 10, 30)
+    assert calcular_fecha_vencimiento(DatosGeneralesColabora(contrato_dias=0, fecha_contrato=date(2026, 8, 1))) is None
+    assert calcular_fecha_vencimiento(DatosGeneralesColabora(contrato_dias=90, fecha_contrato=None)) is None
+    assert calcular_fecha_vencimiento(DatosGeneralesColabora(contrato_dias=None, fecha_contrato=date(2026, 8, 1))) is None
+
+
+@pytest.mark.asyncio
+async def test_sync_escribe_contrato_y_vencimiento(db, fake_datos_generales):
+    from app.repositories.datos_analisis_catalogos_read_repository import DatosGeneralesColabora
+    from app.repositories.empleados_tress_repository import EmpleadosTressRepository
+    from app.services.sync_empleados_tress_service import sincronizar_empleados_tress
+    from tests.conftest import make_empleado
+
+    e1 = await make_empleado(db, no_empleado=771001)
+    e2 = await make_empleado(db, no_empleado=771002)
+    e3 = await make_empleado(db, no_empleado=771003)
+    e4 = await make_empleado(db, no_empleado=771004)
+    fake_datos_generales(
+        {
+            e1.no_empleado: DatosGeneralesColabora(
+                fecha_ingreso=date(2020, 1, 1),
+                contrato_codigo="TD",
+                contrato_descripcion="90 DIAS",
+                contrato_dias=90,
+                fecha_contrato=date(2026, 8, 1),
+            ),
+            e2.no_empleado: DatosGeneralesColabora(
+                contrato_codigo="IN", contrato_descripcion="INDEFINIDO", contrato_dias=0,
+                fecha_contrato=date(2019, 5, 5),
+            ),
+            # Con duración pero sin fecha: dato incompleto.
+            e3.no_empleado: DatosGeneralesColabora(contrato_codigo="TD", contrato_dias=90),
+            # Sin catálogo.
+            e4.no_empleado: DatosGeneralesColabora(contrato_codigo="ZZ", fecha_contrato=date(2026, 1, 1)),
+        }
+    )
+
+    stats = await sincronizar_empleados_tress(db, origen="test")
+    assert stats.insertados == 4
+    assert stats.contratos_dato_incompleto == 1
+    assert stats.contratos_sin_catalogo == 1
+
+    repo = EmpleadosTressRepository(db)
+    f1 = await repo.get_por_no_empleado(e1.no_empleado)
+    assert f1.contrato_codigo == "TD"
+    assert f1.fecha_vencimiento_contrato == date(2026, 10, 30)
+    f2 = await repo.get_por_no_empleado(e2.no_empleado)
+    assert f2.contrato_dias == 0 and f2.fecha_vencimiento_contrato is None
+    f3 = await repo.get_por_no_empleado(e3.no_empleado)
+    assert f3.fecha_vencimiento_contrato is None
+    f4 = await repo.get_por_no_empleado(e4.no_empleado)
+    assert f4.contrato_dias is None and f4.fecha_vencimiento_contrato is None
+
+    # Segunda corrida con contrato renovado: actualiza, no duplica.
+    fake_datos_generales(
+        {
+            e1.no_empleado: DatosGeneralesColabora(
+                fecha_ingreso=date(2020, 1, 1),
+                contrato_codigo="TD",
+                contrato_descripcion="90 DIAS",
+                contrato_dias=90,
+                fecha_contrato=date(2026, 10, 30),
+            ),
+        }
+    )
+    stats = await sincronizar_empleados_tress(db, origen="test")
+    assert stats.actualizados == 1 and stats.insertados == 0
+    f1 = await repo.get_por_no_empleado(e1.no_empleado)
+    assert f1.fecha_vencimiento_contrato == date(2027, 1, 28)

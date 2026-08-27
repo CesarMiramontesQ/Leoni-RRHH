@@ -31,6 +31,8 @@ def _print_stats(stats: SyncEmpleadosTressStats, *, execute: bool) -> None:
     print(f"Actualizados:            {stats.actualizados}")
     print(f"Sin cambios:             {stats.omitidos}")
     print(f"Sin empleado en Bono:    {stats.sin_empleado_en_bono}")
+    print(f"Contratos sin catálogo:  {stats.contratos_sin_catalogo}")
+    print(f"Contratos sin fecha:     {stats.contratos_dato_incompleto}")
 
 
 async def ejecutar(*, execute: bool, no_empleado: int | None) -> int:

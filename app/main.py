@@ -240,8 +240,9 @@ async def _sync_turnos_empleados_job():
 async def _sync_empleados_tress_job():
     """Refresca los datos generales del colaborador desde DATOS_ANALISIS (diario, 04:10).
 
-    Alimenta la fecha de ingreso que muestra la Vista 360. Va en la misma ventana que los
-    syncs de turnos; no hay dependencia entre ellos, solo se agrupan las lecturas a TRESS.
+    Alimenta la fecha de ingreso que muestra la Vista 360 y el contrato actual que lee la
+    página Contratos. Va en la misma ventana que los syncs de turnos; no hay dependencia
+    entre ellos, solo se agrupan las lecturas a TRESS.
     """
     try:
         from app.core.database import AsyncSessionLocal
@@ -649,6 +650,7 @@ from app.api.v1.operaciones.router import router as operaciones_router
 from app.api.v1.talento.router import router as talento_router
 from app.api.v1.scheduler_logs.router import router as scheduler_logs_router
 from app.api.v1.laborales_config.router import router as laborales_config_router
+from app.api.v1.contratos.router import router as contratos_router
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -704,6 +706,7 @@ app.include_router(operaciones_router)
 app.include_router(talento_router)
 app.include_router(scheduler_logs_router)
 app.include_router(laborales_config_router)
+app.include_router(contratos_router)
 
 
 # ── Root ──────────────────────────────────────────────────────
