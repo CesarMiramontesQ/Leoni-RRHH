@@ -697,6 +697,8 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
       allowUnpaidLeaveType: false,
       supervisorSolicitudSubjectSelector: isSplitGestorRole && sessionEmpleadoDirId != null,
       supervisorDirectoryId: isSplitGestorRole && sessionEmpleadoDirId != null ? sessionEmpleadoDirId : undefined,
+      // Solo RH (modo operativo) registra cualquier fecha; el resto solicita desde mañana.
+      aplicarAnticipacionMinima: pageRole !== "operativo",
     });
   }
 

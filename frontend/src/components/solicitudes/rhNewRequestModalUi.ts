@@ -13,6 +13,9 @@ import {
   MENSAJE_DEFUNCION_TRES_DIAS,
   MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
   MENSAJE_HOME_OFFICE_MES_LIMITE,
+  MENSAJE_ANTICIPACION_MINIMA,
+  fechaInicioCumpleAnticipacion,
+  tipoRequiereAnticipacionMinima,
   MENSAJE_MATRIMONIO_DOS_DIAS,
   MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES,
   MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
@@ -449,6 +452,8 @@ export type RhNewRequestFormParams = {
   descansosState?: DescansosLoadState;
   descansosError?: string;
   fechasDescansoExcluidas?: readonly string[];
+  /** Texto corto bajo el rango de fechas cuando aplica la anticipación mínima. */
+  anticipacionHint?: string;
 };
 
 export const RESUMEN_BASE =
@@ -799,6 +804,11 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
             : "Define el periodo cubierto por la solicitud. Ambas fechas forman un solo rango."
           }
         </p>
+        ${
+          p.anticipacionHint ?
+            `<p class="text-xs text-slate-500" data-rh-nr-anticipacion-hint>${escapeHtml(p.anticipacionHint)}</p>`
+          : ""
+        }
         <div data-rh-nr-descansos-load-status>${descansosFeedback.loadHtml}</div>
         <div data-rh-nr-descansos-effective-summary>${descansosFeedback.effectiveSummaryHtml}</div>
         ${
@@ -934,6 +944,8 @@ export function computeRhModalFormUi(
   homeOfficePuedeSolicitarMes: boolean | null = null,
   descansosState: DescansosLoadState = "ready",
   descansos: ReadonlySet<string> = new Set(),
+  /** ISO de la primera fecha permitida (anticipación mínima); `null` = sin restricción (RH). */
+  fechaMinimaIso: string | null = null,
 ): RhModalComputedUi {
   const usaDiasLaboralesAdmin =
     empleadoEsAdministrativo === true &&
@@ -957,8 +969,12 @@ export function computeRhModalFormUi(
           : calcularDiasSolicitadosInclusive(fechaInicio, fechaFin);
   const bothDates = Boolean(fechaInicio.trim() && fechaFin.trim());
   const fechasOk = fechasOrdenValidas(fechaInicio, fechaFin);
-  const fechaInInvalid = bothDates && !fechasOk;
-  const fechaFinInvalid = fechaInInvalid;
+  const anticipacionIncumplida =
+    tipoRequiereAnticipacionMinima(tipo) &&
+    fechaInicio.trim() !== "" &&
+    !fechaInicioCumpleAnticipacion(fechaInicio, fechaMinimaIso);
+  const fechaInInvalid = (bothDates && !fechasOk) || anticipacionIncumplida;
+  const fechaFinInvalid = bothDates && !fechasOk;
   const vacacionesAdminFinDeSemana =
     tipo === "vacaciones" &&
     empleadoEsAdministrativo === true &&
@@ -1038,6 +1054,9 @@ export function computeRhModalFormUi(
   if (bothDates && !fechasOk) {
     resumenState = "error";
     resumenHint = "La fecha de fin debe ser igual o posterior a la de inicio.";
+  } else if (anticipacionIncumplida) {
+    resumenState = "error";
+    resumenHint = MENSAJE_ANTICIPACION_MINIMA;
   } else if (bothDates && dias <= 0 && !vacacionesAdminFinDeSemana && !permisoSinGoceAdminFinDeSemana) {
     resumenState = "error";
     resumenHint = "El rango debe incluir al menos un día calendario.";
@@ -1121,6 +1140,7 @@ export function computeRhModalFormUi(
     !homeOfficeSinAdministrativo &&
     !homeOfficeMesOcupado &&
     descansosListos &&
+    !anticipacionIncumplida &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);
 
   return {

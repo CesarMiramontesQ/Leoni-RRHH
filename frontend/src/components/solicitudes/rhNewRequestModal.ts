@@ -29,7 +29,10 @@ import {
   MENSAJE_PATERNIDAD_SIETE_DIAS_HABILES,
   MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
+  MENSAJE_ANTICIPACION_MINIMA,
   esRangoDefuncionValido,
+  fechaMinimaSolicitudIso,
+  tipoRequiereAnticipacionMinima,
   esRangoMatrimonioValido,
   esRangoPaternidadValido,
   rangoIncluyeFinDeSemana,
@@ -97,6 +100,11 @@ export type RhNewRequestModalOptions = {
   supervisorSolicitudSubjectSelector?: boolean;
   /** Id de directorio del supervisor (sesión) para modo personal y filtrado en modo equipo. */
   supervisorDirectoryId?: number;
+  /**
+   * Aplica la anticipación mínima (vacaciones y home office desde mañana): bloquea hoy y el
+   * pasado en el calendario y prellena mañana. RH (modo operativo) la deja en `false`.
+   */
+  aplicarAnticipacionMinima?: boolean;
 };
 
 export type RhNewRequestModalOpenOptions = {
@@ -117,8 +125,20 @@ export type RhNewRequestModalHandle = {
   destroy: () => void;
 };
 
+function hoyLocalIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestModalOptions): RhNewRequestModalHandle {
   const fixedSelfId = options.fixedEmpleadoDirectoryId;
+  /** Primera fecha permitida para el tipo actual, o `null` si no aplica (RH u otros tipos). */
+  const fechaMinimaParaTipo = (t: string): string | null =>
+    options.aplicarAnticipacionMinima === true && tipoRequiereAnticipacionMinima(t)
+      ? fechaMinimaSolicitudIso(hoyLocalIso())
+      : null;
+  /** Fecha inicial del formulario: mañana si aplica la anticipación, hoy si no. */
+  const fechaInicialParaTipo = (t: string): string => fechaMinimaParaTipo(t) ?? hoyLocalIso();
   host.innerHTML = shellHtml();
   const overlay = host.querySelector("#rh-nr-overlay") as HTMLElement | null;
   const body = host.querySelector("#rh-nr-body") as HTMLElement | null;
@@ -615,6 +635,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       contextoHoPuedeSolicitarMes,
       descansosState,
       descansos,
+      fechaMinimaParaTipo(tipo),
     );
     const itemsParaSelector = listaEmpleadosParaSelector();
     const selectedItem = selectedEmpleadoItemFromId(selectedEmpleadoId);
@@ -666,6 +687,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       descansosState,
       descansosError: descansosController.getError(),
       fechasDescansoExcluidas: resumenDescansos?.fechasExcluidas ?? [],
+      anticipacionHint: fechaMinimaParaTipo(tipo) ? MENSAJE_ANTICIPACION_MINIMA : undefined,
     });
     bindFormInteractions();
     applyRhModalLiveFeedback(
@@ -1111,6 +1133,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     if (inicioPicker) {
       inicioHandle = bindWorkdayDatePicker(inicioPicker, {
         onChange: () => void onFechaInicioChange(),
+        minDate: fechaMinimaParaTipo(tipo),
         blockedDates: blockedForPicker,
         ...(requiereDescansosPicker
           ? { loadedMonths: descansosController.getLoadedMonths() }
@@ -1122,6 +1145,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     if (finPicker) {
       finHandle = bindWorkdayDatePicker(finPicker, {
         onChange: () => void onFechaFinChange(),
+        minDate: fechaMinimaParaTipo(tipo),
         blockedDates: blockedForPicker,
         ...(requiereDescansosPicker
           ? { loadedMonths: descansosController.getLoadedMonths() }
@@ -1557,13 +1581,11 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
             selectedId = poolFinal.some((u) => u.id === prefill) ? String(prefill) : "";
           }
 
-          const today = new Date();
-          const iso = (d: Date) =>
-            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          const fechaInicial = fechaInicialParaTipo(tipo);
           renderForm({
             selectedId,
-            fechaInicio: iso(today),
-            fechaFin: iso(today),
+            fechaInicio: fechaInicial,
+            fechaFin: fechaInicial,
             motivo: "",
           });
           const ctxEmpDir =
@@ -1580,12 +1602,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
           }
         } else {
           if (!(await refreshContextForEmpleado(fixedSelfId))) return;
-          const today = new Date();
-          const iso = (d: Date) =>
-            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          const fechaInicial = fechaInicialParaTipo(tipo);
           renderForm({
-            fechaInicio: iso(today),
-            fechaFin: iso(today),
+            fechaInicio: fechaInicial,
+            fechaFin: fechaInicial,
             motivo: "",
           });
           focusFechaInicioPicker();

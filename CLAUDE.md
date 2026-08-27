@@ -313,6 +313,15 @@ Layered architecture: **router → service → repository → models/schemas**
     `solicitud_service` / `faltas_retardos_service` comparten fuente: si el modal contara
     con una y el servidor validara con otra, el usuario vería rechazada una solicitud por un
     cálculo que la UI nunca le mostró.
+- **Anticipación mínima de vacaciones y home office = mañana.** `_validar_anticipacion_minima`
+  (`solicitud_service`, constante `DIAS_ANTICIPACION_MINIMA = 1`, «hoy» = `business_today()`)
+  rechaza con 422 `fecha_inicio <= hoy` al crear y al reenviar tras `changes_requested`.
+  Solo el scope efectivo `rh` (módulo RH de solicitudes) queda exento; supervisor y gerente
+  la sufren también al crear a nombre de su equipo. Permiso sin goce y demás tipos no
+  la llevan. El modal la espeja (`aplicarAnticipacionMinima`, `minDate` del picker,
+  prellenado en mañana, `rhNewRequestDays.fechaMinimaSolicitudIso`) y la apaga solo en
+  `pageRole === "operativo"`. En tests, `conftest` congela `business_today` del servicio en
+  2026-01-05 (autouse) porque las fechas literales de la suite ya son pasado.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 - **Alcance del listado de solicitudes del gerente = preferencia propia, solo visualización.**
   `levelup_empleados_config.profundidad_equipo` (NULL = todo el subárbol, 1..3 = niveles
