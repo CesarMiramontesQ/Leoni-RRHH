@@ -257,7 +257,7 @@ async def get_vacaciones_disponibles_solicitud(
 )
 async def get_home_office_disponibilidad_empleado(
     empleado_id: int,
-    fecha: date = Query(..., description="Fecha de referencia (mes calendario a validar)"),
+    fecha: date = Query(..., description="Fecha de referencia (bloque de semanas a validar)"),
     excluir_solicitud_id: int | None = Query(
         None,
         description="Excluir solicitud al corregir (changes_requested)",
@@ -265,8 +265,8 @@ async def get_home_office_disponibilidad_empleado(
     current_user: Empleado = Depends(get_current_user),
     svc: SolicitudService = Depends(_sol_svc),
 ):
-    """Indica si el colaborador puede solicitar Home Office en el mes de `fecha`."""
-    return await svc.home_office_disponibilidad_mes(
+    """Indica si el colaborador es elegible y puede solicitar Home Office en `fecha`."""
+    return await svc.home_office_disponibilidad(
         empleado_id=empleado_id,
         fecha_referencia=fecha,
         current_user=current_user,

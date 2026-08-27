@@ -33,6 +33,7 @@ from app.core.rh_ui_mode import (
     rh_tiene_alcance_gestor,
 )
 from app.utils.clasificacion_empleado import empleado_es_administrativo
+from app.utils.homeoffice_periodo import bloque_semanas
 from app.utils.vacaciones_fechas import (
     defuncion_rango_para_empleado,
     paternidad_rango,
@@ -58,6 +59,7 @@ from app.models.empleados import Empleado
 from app.models.solicitudes import Solicitud
 from app.repositories.comedor_repository import ComedorAccesoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
+from app.repositories.homeoffice_reglas_area_repository import HomeOfficeReglasAreaRepository
 from app.repositories.solicitud_repository import (
     SolicitudAprobacionRepository,
     SolicitudRepository,
@@ -775,6 +777,47 @@ class SolicitudService:
                 )
             )
 
+    MSG_HOME_OFFICE_NO_ELEGIBLE = (
+        "Home Office no está disponible para este colaborador: requiere clasificación "
+        "Administrativo y que su área tenga regla de home office configurada."
+    )
+    MSG_HOME_OFFICE_CUPO = (
+        "Ya existe una solicitud de Home Office activa en el periodo permitido para el área."
+    )
+
+    async def _home_office_cupo(
+        self,
+        *,
+        empleado_id: int,
+        fecha_referencia: date,
+        exclude_solicitud_id: int | None = None,
+    ) -> tuple[bool, int, bool]:
+        """(elegible, dias_usados, puede_solicitar) para la fecha dada.
+
+        Elegible = clasificación Administrativo **y** área con regla activa en
+        `levelup_homeoffice_reglas_area`. El cupo se cuenta en el bloque fijo de semanas
+        ISO de la regla (`bloque_semanas`). No elegible ⇒ (False, 0, False).
+        """
+        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
+        if empleado is None or not empleado_es_administrativo(empleado):
+            return False, 0, False
+        if empleado.area_id is None:
+            return False, 0, False
+        regla = await HomeOfficeReglasAreaRepository(self.db).get_regla_vigente(
+            empleado.area_id
+        )
+        if regla is None:
+            return False, 0, False
+        desde, hasta = bloque_semanas(fecha_referencia, regla.periodo_semanas)
+        usados = await self.repo.count_home_office_activos_en_rango(
+            empleado_id=empleado_id,
+            desde=desde,
+            hasta=hasta,
+            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+            exclude_solicitud_id=exclude_solicitud_id,
+        )
+        return True, usados, usados < regla.dias_permitidos
+
     async def _validar_creacion_home_office(
         self,
         *,
@@ -790,14 +833,13 @@ class SolicitudService:
                     "(fecha inicio y fin iguales)."
                 )
             )
-        empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
-        if empleado is None or not empleado_es_administrativo(empleado):
-            raise DomainValidationError(
-                detail=(
-                    "Home Office solo está disponible para colaboradores "
-                    "con clasificación Administrativo."
-                )
-            )
+        elegible, _usados, puede = await self._home_office_cupo(
+            empleado_id=empleado_id,
+            fecha_referencia=fecha_inicio,
+            exclude_solicitud_id=exclude_solicitud_id,
+        )
+        if not elegible:
+            raise DomainValidationError(detail=self.MSG_HOME_OFFICE_NO_ELEGIBLE)
         if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
             raise DomainValidationError(
                 detail=(
@@ -805,20 +847,8 @@ class SolicitudService:
                     "(lunes a viernes)."
                 )
             )
-        usados = await self.repo.count_home_office_activos_en_mes(
-            empleado_id=empleado_id,
-            year=fecha_inicio.year,
-            month=fecha_inicio.month,
-            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
-            exclude_solicitud_id=exclude_solicitud_id,
-        )
-        if usados >= 1:
-            raise DomainValidationError(
-                detail=(
-                    "Ya existe una solicitud de Home Office activa en el mes seleccionado. "
-                    "Solo se permite un día por mes."
-                )
-            )
+        if not puede:
+            raise DomainValidationError(detail=self.MSG_HOME_OFFICE_CUPO)
 
     async def _validar_permiso_sin_goce_sueldo_fechas(
         self,
@@ -838,32 +868,31 @@ class SolicitudService:
                 )
             )
 
-    async def home_office_disponibilidad_mes(
+    async def home_office_disponibilidad(
         self,
         empleado_id: int,
         fecha_referencia: date,
         current_user: Empleado,
         exclude_solicitud_id: int | None = None,
     ) -> "HomeOfficeDisponibilidadResponse":
+        """Elegibilidad y cupo de HO para la fecha. No expone la regla del área
+        (días/periodo): el empleado solo ve si puede o no."""
         from app.schemas.solicitudes import HomeOfficeDisponibilidadResponse
         from app.services.vacaciones_service import VacacionesService
 
         await VacacionesService(self.db)._ensure_puede_ver_empleado(
             current_user, empleado_id
         )
-        usados = await self.repo.count_home_office_activos_en_mes(
+        elegible, usados, puede = await self._home_office_cupo(
             empleado_id=empleado_id,
-            year=fecha_referencia.year,
-            month=fecha_referencia.month,
-            estados_activos=list(_ESTADOS_EMPALME_ACTIVO),
+            fecha_referencia=fecha_referencia,
             exclude_solicitud_id=exclude_solicitud_id,
         )
         return HomeOfficeDisponibilidadResponse(
             empleado_id=empleado_id,
-            anio=fecha_referencia.year,
-            mes=fecha_referencia.month,
+            elegible=elegible,
             dias_usados=usados,
-            puede_solicitar=usados < 1,
+            puede_solicitar=puede,
         )
 
     async def _resolver_empleado_objetivo_crear_solicitud(

@@ -194,7 +194,8 @@ class SolicitudAprobacionResponse(BaseModel):
 
 class HomeOfficeDisponibilidadResponse(BaseModel):
     empleado_id: int
-    anio: int
-    mes: int
+    # Administrativo y con regla de HO activa en su área. False ⇒ el tipo HO no se ofrece.
+    elegible: bool
+    # HO activos en el bloque de semanas de la regla que contiene la fecha consultada.
     dias_usados: int = Field(..., ge=0)
     puede_solicitar: bool

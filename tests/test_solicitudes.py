@@ -127,16 +127,13 @@ async def test_crear_solicitud_supervisor_para_subordinado_home_office_un_dia_re
     client: AsyncClient,
     db,
 ):
-    from tests.conftest import make_clasificacion_administrativo
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
     supervisor = await make_empleado(db, rol="supervisor", email="sol002b_sup_ho@leoni.test")
-    subordinado = await make_empleado(
+    subordinado = await make_empleado_home_office(
         db,
-        rol="empleado",
         email="sol002b_sub_ho@leoni.test",
         lider_id=supervisor.empleado_id,
-        clasificacion_id=cl_admin.clasificacion_id,
     )
     headers = await auth_headers(client, supervisor)
     payload = {
@@ -335,15 +332,9 @@ async def test_crear_solicitud_periodos_solapados_mismo_tipo_retorna_409(
 async def test_crear_solicitud_empalme_tipos_distintos_retorna_409(
     client: AsyncClient, db
 ):
-    from tests.conftest import make_clasificacion_administrativo
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
-    empleado = await make_empleado(
-        db,
-        rol="empleado",
-        email="sol004d-empalme@test",
-        clasificacion_id=cl_admin.clasificacion_id,
-    )
+    empleado = await make_empleado_home_office(db, email="sol004d-empalme@test")
     await make_solicitud(
         db,
         empleado_id=empleado.id,
@@ -1752,15 +1743,9 @@ async def test_crear_solicitud_tipos_validos(tipo, client: AsyncClient, db):
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_home_office_empleado_un_dia_valido(client: AsyncClient, db):
-    from tests.conftest import make_clasificacion_administrativo
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
-    empleado = await make_empleado(
-        db,
-        rol="empleado",
-        email="sol027_ho1@leoni.test",
-        clasificacion_id=cl_admin.clasificacion_id,
-    )
+    empleado = await make_empleado_home_office(db, email="sol027_ho1@leoni.test")
     headers = await auth_headers(client, empleado)
     response = await client.post(
         "/api/v1/solicitudes",
@@ -1822,15 +1807,9 @@ async def test_crear_solicitud_rh_home_office_no_administrativo_retorna_422(
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_home_office_fin_de_semana_retorna_422(client: AsyncClient, db):
-    from tests.conftest import make_clasificacion_administrativo
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
-    empleado = await make_empleado(
-        db,
-        rol="empleado",
-        email="sol027_ho_weekend@leoni.test",
-        clasificacion_id=cl_admin.clasificacion_id,
-    )
+    empleado = await make_empleado_home_office(db, email="sol027_ho_weekend@leoni.test")
     headers = await auth_headers(client, empleado)
     response = await client.post(
         "/api/v1/solicitudes",
@@ -1847,15 +1826,9 @@ async def test_crear_solicitud_home_office_fin_de_semana_retorna_422(client: Asy
 
 @pytest.mark.asyncio
 async def test_crear_solicitud_home_office_empleado_rango_retorna_422(client: AsyncClient, db):
-    from tests.conftest import make_clasificacion_administrativo
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
-    empleado = await make_empleado(
-        db,
-        rol="empleado",
-        email="sol027_ho2@leoni.test",
-        clasificacion_id=cl_admin.clasificacion_id,
-    )
+    empleado = await make_empleado_home_office(db, email="sol027_ho2@leoni.test")
     headers = await auth_headers(client, empleado)
     response = await client.post(
         "/api/v1/solicitudes",
@@ -1898,17 +1871,15 @@ async def test_crear_solicitud_rh_home_office_rango_retorna_422(client: AsyncCli
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_home_office_segundo_mes_mismo_mes_retorna_422(
+async def test_crear_solicitud_home_office_segundo_en_mismo_bloque_retorna_422(
     client: AsyncClient, db,
 ):
-    from tests.conftest import make_clasificacion_administrativo
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
-    empleado = await make_empleado(
-        db,
-        rol="empleado",
-        email="sol027_ho_mes@leoni.test",
-        clasificacion_id=cl_admin.clasificacion_id,
+    # Regla «1 cada 2 semanas»: 3 y 10 de junio de 2026 (semanas ISO 23 y 24) caen
+    # en el mismo bloque.
+    empleado = await make_empleado_home_office(
+        db, email="sol027_ho_mes@leoni.test", periodo_semanas=2
     )
     await make_solicitud(
         db,
@@ -1929,20 +1900,14 @@ async def test_crear_solicitud_home_office_segundo_mes_mismo_mes_retorna_422(
         headers=headers,
     )
     assert response.status_code == 422
-    assert "mes" in response.text.lower()
+    assert "periodo" in response.text.lower()
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_home_office_meses_distintos_ok(client: AsyncClient, db):
-    from tests.conftest import make_clasificacion_administrativo
+async def test_crear_solicitud_home_office_bloques_distintos_ok(client: AsyncClient, db):
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
-    empleado = await make_empleado(
-        db,
-        rol="empleado",
-        email="sol027_ho_mes_ok@leoni.test",
-        clasificacion_id=cl_admin.clasificacion_id,
-    )
+    empleado = await make_empleado_home_office(db, email="sol027_ho_mes_ok@leoni.test")
     await make_solicitud(
         db,
         empleado_id=empleado.id,
@@ -1968,15 +1933,9 @@ async def test_crear_solicitud_home_office_meses_distintos_ok(client: AsyncClien
 async def test_patch_revision_home_office_mismo_mes_excluye_solicitud_actual(
     client: AsyncClient, db,
 ):
-    from tests.conftest import make_clasificacion_administrativo
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
-    empleado = await make_empleado(
-        db,
-        rol="empleado",
-        email="sol027_ho_rev@leoni.test",
-        clasificacion_id=cl_admin.clasificacion_id,
-    )
+    empleado = await make_empleado_home_office(db, email="sol027_ho_rev@leoni.test")
     solicitud = await make_solicitud(
         db,
         empleado_id=empleado.id,
@@ -2000,15 +1959,9 @@ async def test_patch_revision_home_office_mismo_mes_excluye_solicitud_actual(
 
 @pytest.mark.asyncio
 async def test_get_home_office_disponibilidad_empleado(client: AsyncClient, db):
-    from tests.conftest import make_clasificacion_administrativo
+    from tests.conftest import make_empleado_home_office
 
-    cl_admin = await make_clasificacion_administrativo(db)
-    empleado = await make_empleado(
-        db,
-        rol="empleado",
-        email="sol027_ho_disp@leoni.test",
-        clasificacion_id=cl_admin.clasificacion_id,
-    )
+    empleado = await make_empleado_home_office(db, email="sol027_ho_disp@leoni.test")
     await make_solicitud(
         db,
         empleado_id=empleado.id,
@@ -2020,13 +1973,94 @@ async def test_get_home_office_disponibilidad_empleado(client: AsyncClient, db):
     headers = await auth_headers(client, empleado)
     response = await client.get(
         f"/api/v1/empleados/{empleado.id}/home-office/disponibilidad",
-        params={"fecha": "2026-06-15"},
+        params={"fecha": "2026-06-05"},
         headers=headers,
     )
     assert response.status_code == 200
     body = response.json()
+    assert body["elegible"] is True
     assert body["dias_usados"] == 1
     assert body["puede_solicitar"] is False
+
+    # Semana siguiente: el bloque de «1 por semana» ya está libre.
+    response = await client.get(
+        f"/api/v1/empleados/{empleado.id}/home-office/disponibilidad",
+        params={"fecha": "2026-06-08"},
+        headers=headers,
+    )
+    assert response.json()["puede_solicitar"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_home_office_disponibilidad_no_elegible_sin_regla_de_area(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_empleado_home_office
+
+    empleado = await make_empleado_home_office(
+        db, email="sol027_ho_noregla@leoni.test", con_regla=False
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.get(
+        f"/api/v1/empleados/{empleado.id}/home-office/disponibilidad",
+        params={"fecha": "2026-06-05"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["elegible"] is False
+    assert body["puede_solicitar"] is False
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_home_office_regla_de_area_apagada_retorna_422(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_empleado_home_office
+
+    empleado = await make_empleado_home_office(
+        db, email="sol027_ho_apagada@leoni.test", regla_activa=False
+    )
+    headers = await auth_headers(client, empleado)
+    response = await client.post(
+        "/api/v1/solicitudes",
+        json={"tipo": "home_office", "fecha_inicio": "2026-06-02", "fecha_fin": "2026-06-02"},
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "regla" in response.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_crear_solicitud_home_office_dos_dias_por_semana_permite_segundo(
+    client: AsyncClient, db,
+):
+    from tests.conftest import make_empleado_home_office
+
+    empleado = await make_empleado_home_office(
+        db, email="sol027_ho_2xsem@leoni.test", dias_permitidos=2, periodo_semanas=1
+    )
+    await make_solicitud(
+        db,
+        empleado_id=empleado.id,
+        tipo="home_office",
+        estado="approved",
+        fecha_inicio=date(2026, 6, 2),
+        fecha_fin=date(2026, 6, 2),
+    )
+    headers = await auth_headers(client, empleado)
+    ok = await client.post(
+        "/api/v1/solicitudes",
+        json={"tipo": "home_office", "fecha_inicio": "2026-06-04", "fecha_fin": "2026-06-04"},
+        headers=headers,
+    )
+    assert ok.status_code == 201
+    tercero = await client.post(
+        "/api/v1/solicitudes",
+        json={"tipo": "home_office", "fecha_inicio": "2026-06-05", "fecha_fin": "2026-06-05"},
+        headers=headers,
+    )
+    assert tercero.status_code == 422
 
 
 @pytest.mark.asyncio
