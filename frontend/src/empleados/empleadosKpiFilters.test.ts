@@ -63,9 +63,18 @@ describe("empleadosKpiFilters", () => {
       expect(kpiFiltrarSinEmail(state)).toBe(true);
     });
 
-    it("ignora tarjetas de supervisor en vista RH", () => {
+    it("contratos también filtra en vista RH y es excluyente con las otras tarjetas", () => {
+      const state = makeState({ kpi_tarjeta_activa: "sin-lider" });
+      expect(applyKpiTarjetaClick(state, "contratos", rhOpts).changed).toBe(true);
+      expect(kpiFiltrarContratos(state)).toBe(true);
+      expect(kpiFiltrarSinLider(state)).toBe(false);
+      expect(applyKpiTarjetaClick(state, "contratos", rhOpts).changed).toBe(true);
+      expect(state.kpi_tarjeta_activa).toBe("");
+    });
+
+    it("ignora la tarjeta equipo (solo supervisor) en vista RH", () => {
       const state = makeState();
-      const result = applyKpiTarjetaClick(state, "contratos", rhOpts);
+      const result = applyKpiTarjetaClick(state, "equipo", rhOpts);
       expect(result.changed).toBe(false);
       expect(state.kpi_tarjeta_activa).toBe("");
     });

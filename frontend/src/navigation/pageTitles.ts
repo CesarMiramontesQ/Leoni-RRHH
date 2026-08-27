@@ -21,6 +21,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/incidencias"), titulo: "Seguridad y Calidad" },
   { match: (h) => h.startsWith("#/faltas-retardos"), titulo: "Incidencias" },
   { match: (h) => h.startsWith("#/viajes-laborales"), titulo: "Viajes laborales" },
+  { match: (h) => h.startsWith("#/contratos"), titulo: "Contratos" },
   { match: (h) => h.startsWith("#/actas"), titulo: "Actas" },
   { match: (h) => h.startsWith("#/reportes"), titulo: "Reporte comedor" },
   { match: (h) => h.startsWith("#/puestos/ajustes"), titulo: "Ajustes para perfiles de puesto" },

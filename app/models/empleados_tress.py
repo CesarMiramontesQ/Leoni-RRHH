@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Date, DateTime, Integer, func
+from sqlalchemy import Date, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -18,9 +18,16 @@ class EmpleadoTress(Base):
     (DATOS_ANALISIS). Existe para que la Vista 360 no abra una conexión ODBC en cada
     apertura del detalle de un empleado.
 
-    Hoy solo guarda la fecha de ingreso (``CB_FEC_ING``), que Bono no tiene en ninguna
+    Guarda la fecha de ingreso (``CB_FEC_ING``) y el **contrato actual** (``CB_CONTRAT`` +
+    ``CB_FEC_CON`` resueltos contra ``dbo.CONTRATO``), datos que Bono no tiene en ninguna
     parte: ``empleados`` es una tabla legada del esquema externo y no se le pueden agregar
     columnas.
+
+    Del contrato se guarda una foto **desnormalizada** (código, descripción, días) y el
+    vencimiento ya calculado (``fecha_contrato + contrato_dias``). ``fecha_vencimiento_contrato``
+    NULL significa «no vence» cuando ``contrato_dias == 0`` (indefinido) y «sin dato» en los
+    demás casos (sin catálogo o fecha vacía). El estatus vigente/por vencer/vencido **no** se
+    guarda: depende de «hoy» y lo calcula ``contratos_service`` al leer.
 
     Dos decisiones deliberadas:
 
@@ -38,6 +45,15 @@ class EmpleadoTress(Base):
     # Relación por no_empleado; sin FK declarativa (patrón Bono / levelup_emails).
     no_empleado: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     fecha_ingreso: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # Contrato actual (dbo.COLABORA.CB_CONTRAT → dbo.CONTRATO). Desnormalizado a propósito.
+    contrato_codigo: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    contrato_descripcion: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # TB_DIAS: 0 = indefinido; NULL = código sin fila en el catálogo.
+    contrato_dias: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    fecha_contrato: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fecha_vencimiento_contrato: Mapped[Optional[date]] = mapped_column(
+        Date, nullable=True, index=True
+    )
     sincronizado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

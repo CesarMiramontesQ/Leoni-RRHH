@@ -1,7 +1,8 @@
 """Sincroniza los datos generales del colaborador desde DATOS_ANALISIS (TRESS) hacia Bono.
 
-Escribe `levelup_empleados_tress.fecha_ingreso`, que es de donde la Vista 360 lee la fecha
-de ingreso. Se dispara desde dos lugares, ambos contra esta misma función:
+Escribe `levelup_empleados_tress`: la fecha de ingreso que lee la Vista 360 y el contrato
+actual (tipo, duración, inicio y vencimiento) que lee la página Contratos. Se dispara desde
+dos lugares, ambos contra esta misma función:
 
 - el job diario de las 04:10 (`app/main.py`), en la misma ventana que los syncs de turnos,
 - el CLI `python -m app.scripts.sync_empleados_tress`.
@@ -19,6 +20,12 @@ Tres reglas que conviene no revertir:
   se queda. Borrarla destruiría el dato sin ganar nada.
 - **Solo se crean filas para números que existan en `empleados`.** Sembrar filas huérfanas
   llenaría la caché de gente que Bono no conoce.
+
+Del contrato se guarda el vencimiento ya calculado (`fecha_contrato + contrato_dias`) y
+**no** el estatus: vigente/por vencer/vencido depende de «hoy» y lo resuelve
+`contratos_service` al leer. Un contrato con duración (`TB_DIAS > 0`) pero sin fecha de
+inicio real (NULL o el «vacío» 1899-12-30 de TRESS) queda con vencimiento NULL y se
+cuenta en `contratos_dato_incompleto`, que el sync reporta como advertencia.
 """
 
 from __future__ import annotations
@@ -27,7 +34,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -38,6 +45,7 @@ from app.models.empleados import Empleado
 from app.models.empleados_tress import EmpleadoTress
 from app.repositories.datos_analisis_catalogos_read_repository import (
     DatosAnalisisCatalogosReadRepository,
+    DatosGeneralesColabora,
 )
 from app.repositories.empleados_tress_repository import EmpleadosTressRepository
 
@@ -57,10 +65,40 @@ class SyncEmpleadosTressStats:
     omitidos: int = 0
     # Viene en COLABORA pero Bono no lo conoce: no se crea fila.
     sin_empleado_en_bono: int = 0
+    # TB_DIAS > 0 pero CB_FEC_CON vacío: no se puede calcular el vencimiento.
+    contratos_dato_incompleto: int = 0
+    # CB_CONTRAT sin fila en dbo.CONTRATO.
+    contratos_sin_catalogo: int = 0
 
 
 def _ahora() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def calcular_fecha_vencimiento(datos: DatosGeneralesColabora) -> date | None:
+    """`fecha_contrato + contrato_dias`; None si es indefinido (0 días) o falta un dato."""
+    if not datos.contrato_dias or datos.contrato_dias <= 0 or datos.fecha_contrato is None:
+        return None
+    return datos.fecha_contrato + timedelta(days=datos.contrato_dias)
+
+
+_CAMPOS_CONTRATO = (
+    "contrato_codigo",
+    "contrato_descripcion",
+    "contrato_dias",
+    "fecha_contrato",
+)
+
+
+def _aplicar_datos(fila: EmpleadoTress, datos: DatosGeneralesColabora) -> bool:
+    """Copia los datos a la fila y devuelve si algo cambió."""
+    nuevos = {campo: getattr(datos, campo) for campo in _CAMPOS_CONTRATO}
+    nuevos["fecha_ingreso"] = datos.fecha_ingreso
+    nuevos["fecha_vencimiento_contrato"] = calcular_fecha_vencimiento(datos)
+    cambio = any(getattr(fila, campo) != valor for campo, valor in nuevos.items())
+    for campo, valor in nuevos.items():
+        setattr(fila, campo, valor)
+    return cambio
 
 
 async def sincronizar_empleados_tress(
@@ -81,7 +119,7 @@ async def sincronizar_empleados_tress(
         )
 
 
-async def _leer_origen(*, origen: str) -> dict[int, date | None]:
+async def _leer_origen(*, origen: str) -> dict[int, DatosGeneralesColabora]:
     try:
         engine = DatosAnalisisReadClient.create_read_engine()
     except Exception as exc:  # noqa: BLE001 — driver ausente o URL inválida
@@ -150,25 +188,22 @@ async def _sincronizar(
     existentes = await EmpleadosTressRepository(db).map_existentes()
 
     try:
-        for no_empleado, fecha_ingreso in por_empleado.items():
+        for no_empleado, datos in por_empleado.items():
             fila = existentes.get(no_empleado)
             if fila is None:
                 if no_empleado not in conocidos:
                     stats.sin_empleado_en_bono += 1
                     continue
-                db.add(
-                    EmpleadoTress(
-                        no_empleado=no_empleado,
-                        fecha_ingreso=fecha_ingreso,
-                        sincronizado_en=_ahora(),
-                    )
-                )
+                fila = EmpleadoTress(no_empleado=no_empleado, sincronizado_en=_ahora())
+                _aplicar_datos(fila, datos)
+                db.add(fila)
                 stats.insertados += 1
+                _contar_contrato(stats, datos)
                 continue
 
-            cambio = fila.fecha_ingreso != fecha_ingreso
-            fila.fecha_ingreso = fecha_ingreso
+            cambio = _aplicar_datos(fila, datos)
             fila.sincronizado_en = _ahora()
+            _contar_contrato(stats, datos)
             if cambio:
                 stats.actualizados += 1
             else:
@@ -182,6 +217,14 @@ async def _sincronizar(
         await db.rollback()
         raise
 
+    if stats.contratos_dato_incompleto or stats.contratos_sin_catalogo:
+        logger.warning(
+            "Sync datos generales | contratos sin vencimiento calculable | origen=%s | "
+            "dato_incompleto=%d | sin_catalogo=%d",
+            origen,
+            stats.contratos_dato_incompleto,
+            stats.contratos_sin_catalogo,
+        )
     logger.info(
         "Sync datos generales | fin | origen=%s | origen_filas=%d | insertados=%d | "
         "actualizados=%d | omitidos=%d | sin_empleado_en_bono=%d | duracion=%.2fs",
@@ -194,3 +237,10 @@ async def _sincronizar(
         time.monotonic() - inicio,
     )
     return stats
+
+
+def _contar_contrato(stats: SyncEmpleadosTressStats, datos: DatosGeneralesColabora) -> None:
+    if datos.contrato_codigo and datos.contrato_dias is None:
+        stats.contratos_sin_catalogo += 1
+    elif datos.contrato_dias and datos.contrato_dias > 0 and datos.fecha_contrato is None:
+        stats.contratos_dato_incompleto += 1

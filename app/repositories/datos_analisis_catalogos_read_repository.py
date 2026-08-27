@@ -4,14 +4,15 @@ Lectura directa a SQL Server datos-analisis para los syncs que alimentan caché 
 Reúne los cuatro SELECT de solo lectura (uno por archivo en ``sql/``, no todos con sufijo
 ``_catalogo``): catálogo de turnos (``levelup_turnos``), catálogo de jornadas
 (``levelup_horarios``), turno vigente por empleado (``levelup_turnos_empleados``, vía
-``dbo.COLABORA``) y datos generales del colaborador —hoy solo fecha de ingreso—
-(``levelup_empleados_tress``, también desde ``dbo.COLABORA``). Solo lo usan esos syncs
+``dbo.COLABORA``) y datos generales del colaborador —fecha de ingreso y contrato actual—
+(``levelup_empleados_tress``, desde ``dbo.COLABORA`` + ``dbo.CONTRATO``). Solo lo usan esos syncs
 (``sync_turnos_catalogo``, ``sync_turnos_empleados``, ``sync_empleados_tress``); ninguna
 carga de página pasa por aquí.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,45 @@ def load_colabora_turnos_sql() -> str:
 
 def load_colabora_datos_generales_sql() -> str:
     return _SQL_COLABORA_DATOS_GENERALES_FILE.read_text(encoding="utf-8")
+
+
+# «Vacío» de TRESS para columnas datetime: un contrato anclado ahí no tiene fecha real.
+FECHA_VACIA_TRESS = date(1899, 12, 30)
+
+
+@dataclass(frozen=True)
+class DatosGeneralesColabora:
+    """Una fila de ``dbo.COLABORA`` ya normalizada, tal como la consume el sync."""
+
+    fecha_ingreso: date | None = None
+    contrato_codigo: str | None = None
+    contrato_descripcion: str | None = None
+    # TB_DIAS del catálogo: 0 = indefinido; None = código sin fila en dbo.CONTRATO.
+    contrato_dias: int | None = None
+    # None también cuando TRESS trae su «vacío» (1899-12-30).
+    fecha_contrato: date | None = None
+
+
+def _a_date(valor: Any) -> date | None:
+    if isinstance(valor, datetime):
+        valor = valor.date()
+    return valor if isinstance(valor, date) else None
+
+
+def _a_texto(valor: Any) -> str | None:
+    if valor is None:
+        return None
+    texto = str(valor).strip()
+    return texto or None
+
+
+def _a_int(valor: Any) -> int | None:
+    if valor is None:
+        return None
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return None
 
 
 class DatosAnalisisCatalogosReadRepository:
@@ -76,23 +116,27 @@ class DatosAnalisisCatalogosReadRepository:
             salida[no_empleado] = tu_codigo
         return salida
 
-    async def get_datos_generales_por_empleado(self) -> dict[int, date | None]:
-        """``{no_empleado: fecha_ingreso}`` de todo ``dbo.COLABORA``.
+    async def get_datos_generales_por_empleado(self) -> dict[int, DatosGeneralesColabora]:
+        """``{no_empleado: DatosGeneralesColabora}`` de todo ``dbo.COLABORA``.
 
-        La clave es ``int`` porque la columna destino lo es. ``CB_FEC_ING`` es ``datetime``
-        en TRESS y se normaliza a ``date``; un valor ausente viaja como ``None``.
+        La clave es ``int`` porque la columna destino lo es. Las fechas vienen como
+        ``datetime`` en TRESS y se normalizan a ``date``; un valor ausente viaja como
+        ``None``. La fecha de contrato «vacía» de TRESS (1899-12-30) también se convierte
+        en ``None`` para que el sync la trate como dato incompleto.
         """
-        salida: dict[int, date | None] = {}
+        salida: dict[int, DatosGeneralesColabora] = {}
         for fila in await self._filas(load_colabora_datos_generales_sql()):
-            crudo = fila.get("no_empleado")
-            if crudo is None:
+            no_empleado = _a_int(fila.get("no_empleado"))
+            if no_empleado is None:
                 continue
-            try:
-                no_empleado = int(crudo)
-            except (TypeError, ValueError):
-                continue
-            valor = fila.get("fecha_ingreso")
-            if isinstance(valor, datetime):
-                valor = valor.date()
-            salida[no_empleado] = valor if isinstance(valor, date) else None
+            fecha_contrato = _a_date(fila.get("fecha_contrato"))
+            if fecha_contrato == FECHA_VACIA_TRESS:
+                fecha_contrato = None
+            salida[no_empleado] = DatosGeneralesColabora(
+                fecha_ingreso=_a_date(fila.get("fecha_ingreso")),
+                contrato_codigo=_a_texto(fila.get("contrato_codigo")),
+                contrato_descripcion=_a_texto(fila.get("contrato_descripcion")),
+                contrato_dias=_a_int(fila.get("contrato_dias")),
+                fecha_contrato=fecha_contrato,
+            )
         return salida

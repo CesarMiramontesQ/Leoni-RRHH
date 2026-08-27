@@ -1,3 +1,4 @@
+import type { ContratoEmpleadoResumen } from "./contratos.ts";
 import { fetchWithAuth } from "./http.ts";
 import type { UsuarioListItem, UsuariosFetchError } from "./usuarios.ts";
 
@@ -41,6 +42,8 @@ export type UsuarioVista360 = {
   turno_empleado?: Vista360TurnoEmpleado | null;
   /** Fecha de ingreso real (CB_FEC_ING de dbo.COLABORA); null si la BD externa no responde. */
   fecha_ingreso: string | null;
+  /** Contrato actual (misma caché de TRESS); null si el empleado no está sincronizado. */
+  contrato: ContratoEmpleadoResumen | null;
 };
 
 export type MetricasUsuario = {

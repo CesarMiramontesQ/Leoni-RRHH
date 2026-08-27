@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import auth_headers, make_empleado
+from tests.conftest import auth_headers, make_empleado, make_empleado_tress
 
 
 @pytest.mark.asyncio
@@ -31,7 +31,6 @@ async def test_resumen_supervisor_colaboradores_y_contratos_en_equipo(
         no_empleado=7000047,
         estado_id=1,
         lider_id=sup.empleado_id,
-        fecha_fin_contrato=fin_contrato,
     )
     await make_empleado(
         db,
@@ -41,8 +40,10 @@ async def test_resumen_supervisor_colaboradores_y_contratos_en_equipo(
         no_empleado=7000052,
         estado_id=1,
         lider_id=None,
-        fecha_fin_contrato=fin_contrato,
     )
+    # El KPI lee la caché de TRESS, no la fecha manual de levelup_empleados_config.
+    await make_empleado_tress(db, 7000047, contrato_dias=90, fecha_vencimiento_contrato=fin_contrato)
+    await make_empleado_tress(db, 7000052, contrato_dias=90, fecha_vencimiento_contrato=fin_contrato)
 
     headers = await auth_headers(client, sup)
     response = await client.get("/api/v1/empleados/resumen", headers=headers)

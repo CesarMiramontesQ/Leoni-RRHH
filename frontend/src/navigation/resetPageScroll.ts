@@ -31,6 +31,7 @@ const LABORALES_ROUTE_PREFIXES = [
   "#/incidencias",
   "#/actas",
   "#/viajes-laborales",
+  "#/contratos",
 ] as const;
 
 function matchesRoutePrefix(hash: string, prefixes: readonly string[]): boolean {

@@ -438,11 +438,28 @@ async def make_empleado_tress(
     db: AsyncSession,
     no_empleado: int,
     fecha_ingreso: date | None = None,
+    *,
+    contrato_codigo: str | None = None,
+    contrato_descripcion: str | None = None,
+    contrato_dias: int | None = None,
+    fecha_contrato: date | None = None,
+    fecha_vencimiento_contrato: date | None = None,
 ):
-    """Fila de `levelup_empleados_tress` (caché de datos generales de dbo.COLABORA)."""
+    """Fila de `levelup_empleados_tress` (caché de datos generales de dbo.COLABORA).
+
+    El vencimiento se pasa ya calculado, igual que lo deja el sync.
+    """
     from app.models.empleados_tress import EmpleadoTress
 
-    fila = EmpleadoTress(no_empleado=int(no_empleado), fecha_ingreso=fecha_ingreso)
+    fila = EmpleadoTress(
+        no_empleado=int(no_empleado),
+        fecha_ingreso=fecha_ingreso,
+        contrato_codigo=contrato_codigo,
+        contrato_descripcion=contrato_descripcion,
+        contrato_dias=contrato_dias,
+        fecha_contrato=fecha_contrato,
+        fecha_vencimiento_contrato=fecha_vencimiento_contrato,
+    )
     db.add(fila)
     await db.flush()
     await db.refresh(fila)

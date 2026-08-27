@@ -100,10 +100,12 @@ docker-compose exec backend python -m app.scripts.sync_turnos_empleados --no-emp
 
 # Datos generales del colaborador: dbo.COLABORA → levelup_empleados_tress (Bono).
 # Mismo servicio que el job de las 04:10; necesario para la carga inicial (sin él, la
-# Vista 360 muestra la fecha de ingreso vacía).
+# Vista 360 muestra la fecha de ingreso vacía y la página Contratos sale en 0).
 docker-compose exec backend python -m app.scripts.sync_empleados_tress            # dry-run
 docker-compose exec backend python -m app.scripts.sync_empleados_tress --execute
 docker-compose exec backend python -m app.scripts.sync_empleados_tress --no-empleado 553 --execute
+# El mismo sync trae el contrato actual (CB_CONTRAT/CB_FEC_CON + dbo.CONTRATO) para la
+# página Contratos; no hay script ni job aparte.
 
 # Incidencias de TRESS: DATOS_ANALISIS → levelup_incidencias_tress (Bono).
 # Mismo servicio que el job semanal de los miércoles 10:00; necesario para la carga inicial.
@@ -263,6 +265,32 @@ Layered architecture: **router → service → repository → models/schemas**
   `dbo.COLABORA`, sin filtrar `CB_ACTIVO` —la Vista 360 se abre también sobre bajas— y
   **nunca borra**. Empleado sin fila ⇒ el campo viaja como `null`, igual que degradaba
   antes ante un fallo de la BD externa.
+- **Contrato actual = caché en Bono, en la misma tabla.** La página Contratos
+  (`#/contratos`, módulo RH `contratos`, API `/api/v1/contratos`) y la fila «Contrato» de la
+  Vista 360 leen `levelup_empleados_tress.contrato_*`, que llena el **mismo** sync de las
+  04:10 con `dbo.COLABORA.CB_CONTRAT/CB_FEC_CON` + `LEFT JOIN dbo.CONTRATO` (`TB_ELEMENT`,
+  `TB_DIAS`). No hay tabla `levelup_contratos` ni job aparte: es la misma foto por empleado.
+  - Se guarda el vencimiento **ya calculado** (`fecha_contrato + contrato_dias`) pero **no**
+    el estatus: `vigente / por_vencer / vencido / indefinido / sin_dato` depende de «hoy» y de
+    la ventana que RH elige en pantalla (15/30/60/90, default 30), así que lo calculan
+    `contratos_service.calcular_estatus` (Python, por fila) y `estatus_contrato_expr` (SQL,
+    para filtrar y para los KPIs) con la **misma regla**; si cambias una, cambia la otra.
+    Los cinco estatus son excluyentes y suman el total.
+  - `TB_DIAS = 0` ⇒ indefinido (no vence). `TB_DIAS NULL` (código sin fila en el catálogo)
+    o `CB_FEC_CON` vacío (NULL o el «vacío» **1899-12-30** de TRESS) ⇒ vencimiento NULL y
+    estatus `sin_dato`; el sync los cuenta en `contratos_sin_catalogo` /
+    `contratos_dato_incompleto` y los reporta como advertencia.
+  - El listado muestra **solo activos** (`ESTADOS_ACTIVOS_IDS`) aunque la caché guarde
+    también las bajas (la Vista 360 sí las abre). Supervisor = `lider_id` directo, sin
+    recorrer la jerarquía (hay ciclos reales). El CSV es UTF-8 con BOM y días restantes
+    negativos cuando ya venció.
+  - El KPI «Contratos por vencer» de la página Empleados (tarjeta-filtro en RH y en
+    supervisor/gerente, parámetro `solo_contratos_por_vencer`) lee **esta misma caché** vía
+    `UsuarioRepository._contrato_por_vencer_condition` (hoy ≤ vencimiento ≤ hoy+30).
+    `levelup_empleados_config.fecha_fin_contrato` (captura manual) ya **no** alimenta ningún
+    KPI; la columna sigue existiendo solo por compatibilidad.
+  - Histórico («qué contrato tenía en la fecha X», `SP_KARDEX_CB_CONTRAT`) queda fuera a
+    propósito; para eso haría falta una tabla aparte con varias filas por empleado.
 - **Descansos = proyección desde Bono, no lectura de TRESS.** Ninguna ruta que dispare un
   usuario consulta el kardex (`SP_KARDEX_CB_TURNO`) ni `dbo.AUSENCIA`.
   `obtener_descansos_bono` resuelve `empleado → turno vigente (levelup_turnos_empleados) →
