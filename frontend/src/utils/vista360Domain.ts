@@ -1,5 +1,5 @@
 import type { UsuarioListItem } from "../api/usuarios.ts";
-import type { ActaBrief, SolicitudBrief, UsuarioVista360Usuario } from "../api/vista360.ts";
+import type { UsuarioVista360Usuario } from "../api/vista360.ts";
 
 export function usuarioToListItem(u: UsuarioVista360Usuario): UsuarioListItem {
   return {
@@ -56,10 +56,3 @@ export function antiguedadAniosMeses(fechaIngresoIso: string | null): { years: n
   return { years, months };
 }
 
-export function formatSolicitudLine(s: SolicitudBrief): string {
-  return `${s.tipo} · ${s.estado} · ${formatFechaHora(s.created_at)}`;
-}
-
-export function formatActaLine(a: ActaBrief): string {
-  return `Acta #${a.id} · ${a.estado} · ${formatFechaHora(a.created_at)}`;
-}

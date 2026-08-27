@@ -15,63 +15,16 @@ import {
 } from "../components/vista360/incidenciasMetricasCards.ts";
 import { escapeHtml } from "../components/vista360/html.ts";
 import { vista360ProfileHeaderHtml } from "../components/vista360/profileHeader.ts";
-import { bindVista360RegistrosTablas } from "../components/vista360/bindVista360Registros.ts";
-import {
-  vista360TabButtonClass,
-  vista360TabsHtml,
-  type Vista360TabId,
-  type Vista360TableTabId,
-} from "../components/vista360/tabs.ts";
-import { renderVista360TablaMount } from "../components/vista360/vista360RegistrosTabla.ts";
-import {
-  fetchEval360CursosSugeridos,
-  fetchEval360ResumenEmpleado,
-  generarEval360Pdi,
-  type ResumenEmpleadoApi,
-} from "../api/evaluacion360.ts";
-import { getHistorialEmpleado, type HistorialObjetivoEmpleadoApi } from "../api/historialObjetivo.ts";
 import { loadEmpleadoVista360, type EmpleadoIncidenciasMetricas } from "../hooks/useVista360.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
-  alertWarning,
-  badgeApproved,
-  badgeCancelled,
-  badgePending,
-  badgeRejected,
-  errorState,
   htmlAccessDenied,
-  RH_LISTADO_SURFACE,
-  skeletonBlock,
 } from "../ui/uiTokens.ts";
 import {
   antiguedadAniosMeses,
-  formatActaLine,
   formatFechaIngreso,
-  formatSolicitudLine,
   usuarioToListItem,
 } from "../utils/vista360Domain.ts";
-
-const VISTA360_TAB_IDS: Vista360TabId[] = [
-  "incidencias",
-  "historial",
-  "beneficios",
-  "capacidades",
-  "plan_desarrollo",
-  "evaluacion360",
-  "historial_objetivo",
-  "actas",
-  "registros-comedor",
-];
-
-/** Lee `?tab=` del hash `#/empleados/{id}?tab=historial`. */
-export function parseVista360InitialTabFromHash(hash: string): Vista360TabId {
-  const q = hash.indexOf("?");
-  if (q < 0) return "incidencias";
-  const params = new URLSearchParams(hash.slice(q + 1));
-  const t = params.get("tab");
-  if (t && (VISTA360_TAB_IDS as readonly string[]).includes(t)) return t as Vista360TabId;
-  return "incidencias";
-}
 
 const iconUser = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 const iconBriefcase = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.184 2.675-.394.633-1.086 1.185-2.066 1.185H7c-.98 0-1.672-.552-2.066-1.185-.397-.639-1.184-1.581-1.184-2.675v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.182-2.649a2.18 2.18 0 0 0-.908-.91 2.18 2.18 0 0 0-1.661-.75H7.5a2.18 2.18 0 0 0-1.661.75 2.18 2.18 0 0 0-.908.91C4.517 5.691 3.75 6.625 3.75 7.706v3.784a2.18 2.18 0 0 0 .75 1.661m16.5 0A2.25 2.25 0 0 1 18 16.5h-12a2.25 2.25 0 0 1-2.25-2.25V8.25A2.25 2.25 0 0 1 6 6h12a2.25 2.25 0 0 1 2.25 2.25v5.25Z" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
@@ -90,24 +43,11 @@ function forbiddenHtml(): string {
 
 function skeletonHtml(showRhMetricas: boolean): string {
   const estadisticasBlock = vista360EstadisticasSkeletonHtml(showRhMetricas);
-  const quickActionsSkeleton = showRhMetricas
-    ? ""
-    : `
-      <div class="flex flex-wrap gap-4">
-        <div class="h-9 w-36 rounded-md bg-slate-100"></div>
-        <div class="h-9 w-32 rounded-md bg-slate-100"></div>
-        <div class="h-9 w-40 rounded-md bg-slate-100"></div>
-      </div>`;
-  const tabsSkeleton = `
-      <div class="flex flex-wrap gap-2">
-        ${Array.from({ length: 8 }, () => '<div class="h-10 w-28 rounded-xl bg-slate-100"></div>').join("")}
-      </div>
-      <div class="min-h-[12rem] rounded-2xl bg-slate-100"></div>`;
   const gridSkeleton = `
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         ${Array.from({ length: 3 }, () => '<div class="min-h-40 rounded-2xl bg-slate-100"></div>').join("")}
       </div>`;
-  const bodyBlock = `${gridSkeleton}${estadisticasBlock}${quickActionsSkeleton}${tabsSkeleton}`;
+  const bodyBlock = `${gridSkeleton}${estadisticasBlock}`;
   return `
     <div class="animate-pulse space-y-6" aria-busy="true">
       <div class="rounded-2xl border border-border/70 bg-white p-6 shadow-sm">
@@ -189,367 +129,8 @@ function antiguedadBodyHtml(fechaIngreso: string | null, contrato?: ContratoEmpl
   );
 }
 
-function listSectionHtml(title: string, items: string[]): string {
-  if (items.length === 0) {
-    return `
-      <div class="rounded-lg border border-dashed border-border py-8 text-center">
-        <p class="text-sm text-text-muted">${escapeHtml(title)}: sin registros.</p>
-      </div>`;
-  }
-  const lis = items.map((line) => `<li class="border-b border-slate-100 py-3 text-sm text-text-primary last:border-0">${escapeHtml(line)}</li>`).join("");
-  return `
-    <div>
-      <h4 class="text-xs font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(title)}</h4>
-      <ul class="mt-2 list-none p-0 m-0">${lis}</ul>
-    </div>`;
-}
-
-// ─── Screen 3: Capacidades vs perfil requerido (fake data) ───
-const FAKE_CAPABILITIES = [
-  { code: "CR-01", label: "Crimpado manual", cur: 3, req: 4 },
-  { code: "CR-02", label: "Crimpado automatizado", cur: 2, req: 4 },
-  { code: "EN-01", label: "Ensamble general", cur: 4, req: 4 },
-  { code: "EN-02", label: "Ensamble tablero", cur: 3, req: 5 },
-  { code: "RT-01", label: "Ruteo en tablero", cur: 2, req: 3 },
-  { code: "SO-01", label: "Soldadura manual", cur: 3, req: 3 },
-  { code: "IP-01", label: "Inspección visual IPC", cur: 2, req: 4 },
-  { code: "SE-01", label: "Seguridad eléctrica LOTO", cur: 4, req: 4 },
-];
-
-function renderCapacidadesPanel(): string {
-  const gapCount = FAKE_CAPABILITIES.filter((c) => c.cur < c.req).length;
-  const rows = FAKE_CAPABILITIES.map((c) => {
-    const gap = c.cur < c.req;
-    const pctCur = (c.cur / 5) * 100;
-    const pctReq = (c.req / 5) * 100;
-    const barColor = gap ? "bg-blue-500" : "bg-slate-700";
-    const markerLeft = `calc(${pctReq}% - 1px)`;
-    return `
-      <div class="grid grid-cols-[64px_1fr_220px_40px_40px] items-center gap-3">
-        <span class="font-mono text-xs text-slate-400">${c.code}</span>
-        <span class="text-xs font-semibold text-text-primary">${c.label}</span>
-        <div class="relative h-2.5 rounded-full bg-slate-100">
-          <div class="absolute inset-y-0 left-0 rounded-full ${barColor}" style="width:${pctCur}%"></div>
-          <div class="absolute -top-0.5 -bottom-0.5 w-0.5 bg-slate-800" style="left:${markerLeft}"></div>
-        </div>
-        <span class="font-mono text-xs font-semibold ${gap ? "text-blue-600" : "text-text-primary"}">${c.cur}</span>
-        <span class="font-mono text-xs text-slate-400">/${c.req}</span>
-      </div>`;
-  }).join("");
-
-  return `
-    <div class="rounded-xl border border-border bg-white">
-      <div class="flex items-center justify-between border-b border-border px-5 py-4">
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary">Capacidades vs. perfil requerido</h3>
-          <p class="mt-0.5 text-xs text-text-muted">Operador de Ensamble · Línea 2 · ${gapCount} brechas detectadas</p>
-        </div>
-        <a href="#/capacidades" class="text-xs font-semibold text-blue-600 hover:underline">Ver matriz completa →</a>
-      </div>
-      <div class="flex flex-col gap-3 p-5">${rows}</div>
-      <div class="flex items-center gap-6 border-t border-border bg-slate-50 px-5 py-3 text-xs text-slate-600">
-        <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-5 rounded-full bg-blue-500"></span> Nivel actual (brecha)</span>
-        <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-5 rounded-full bg-slate-700"></span> Nivel actual (OK)</span>
-        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-0.5 bg-slate-800"></span> Requerido</span>
-      </div>
-    </div>`;
-}
-
-// ─── Screen 3: Plan de desarrollo (fake data) ───
-const FAKE_PLAN = [
-  { fase: "1 · Inducción extendida", curso: "Seguridad eléctrica LOTO", estado: "completada" as const, fecha: "02/04/26", score: 4.6 },
-  { fase: "2 · Operación", curso: "Crimpado manual nivel 2", estado: "en curso" as const, fecha: "13/05/26", score: null },
-  { fase: "3 · Operación", curso: "Ruteo en tablero · básico", estado: "pendiente" as const, fecha: "27/05/26", score: null },
-  { fase: "4 · Calidad", curso: "IPC-A-620 · Inspección visual", estado: "pendiente" as const, fecha: "10/06/26", score: null },
-  { fase: "5 · Polivalencia", curso: "OPL-2041 · Cambio herramental", estado: "sugerido" as const, fecha: "Por agendar", score: null },
-];
-
-function planEstadoBadge(estado: string): string {
-  const map: Record<string, string> = {
-    completada: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    "en curso": "bg-amber-50 text-amber-700 border-amber-200",
-    pendiente: "bg-slate-50 text-slate-600 border-slate-200",
-    sugerido: "bg-blue-50 text-blue-600 border-blue-200",
-  };
-  const cls = map[estado] ?? map["pendiente"];
-  return `<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${cls}"><span class="size-1.5 rounded-full bg-current"></span>${estado}</span>`;
-}
-
-function renderPlanDesarrolloPanel(): string {
-  const steps = FAKE_PLAN.map((p, i) => {
-    const isLast = i === FAKE_PLAN.length - 1;
-    const circleBase = "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold";
-    const circleClass =
-      p.estado === "completada"
-        ? `${circleBase} bg-emerald-500 text-white`
-        : `${circleBase} border border-slate-300 bg-slate-100 text-slate-500`;
-    const circleContent = p.estado === "completada" ? "✓" : String(i + 1);
-    const connector = isLast ? "" : `<div class="mx-auto mt-1 w-0.5 flex-1 bg-slate-200"></div>`;
-    const scoreHtml = p.score != null ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-600">★ ${p.score}</span>` : "";
-    return `
-      <div class="grid grid-cols-[24px_1fr] gap-3" style="min-height:${isLast ? "auto" : "72px"}">
-        <div class="flex flex-col items-center">
-          <div class="${circleClass}">${circleContent}</div>
-          ${connector}
-        </div>
-        <div class="pb-3">
-          <p class="font-mono text-[10px] uppercase tracking-wide text-slate-400">${p.fase}</p>
-          <p class="mt-0.5 text-sm font-semibold text-text-primary">${p.curso}</p>
-          <div class="mt-1.5 flex flex-wrap items-center gap-2">
-            ${planEstadoBadge(p.estado)}
-            <span class="text-xs text-slate-400">${p.fecha}</span>
-            ${scoreHtml}
-          </div>
-        </div>
-      </div>`;
-  }).join("");
-
-  return `
-    <div class="rounded-xl border border-border bg-white">
-      <div class="flex items-center justify-between border-b border-border px-5 py-4">
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary">Plan de desarrollo</h3>
-          <p class="mt-0.5 text-xs text-text-muted">Generado a partir de brechas · Aprobado 14/03/26</p>
-        </div>
-        <span class="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-blue-700">${FAKE_PLAN.length} etapas</span>
-      </div>
-      <div class="p-5">${steps}</div>
-    </div>`;
-}
-
-function isTableTab(tab: Vista360TabId): tab is Vista360TableTabId {
-  return tab === "incidencias" || tab === "actas" || tab === "registros-comedor";
-}
-
-// ── Panel Evaluación 360° (carga bajo demanda) ────────────────────────────────
-function renderEval360PanelPlaceholder(): string {
-  return `<div id="v360-eval360-mount" data-loaded="0">
-    <div class="h-40 animate-pulse rounded-xl bg-slate-100"></div>
-  </div>`;
-}
-
-function e360Fmt(n: number | null | undefined): string {
-  return n == null ? "—" : Number(n).toFixed(1);
-}
-
-function e360BrechaBadge(estado: string | null): string {
-  const map: Record<string, string> = {
-    cumple: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    riesgo: "border-amber-200 bg-amber-50 text-amber-800",
-    brecha: "border-red-200 bg-red-50 text-red-800",
-  };
-  const labels: Record<string, string> = { cumple: "Cumple", riesgo: "Riesgo", brecha: "Brecha" };
-  if (!estado) return "—";
-  return `<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${map[estado] ?? ""}">${labels[estado] ?? estado}</span>`;
-}
-
-function renderEval360PanelContent(resumen: ResumenEmpleadoApi, cursos: Awaited<ReturnType<typeof fetchEval360CursosSugeridos>>): string {
-  if (!resumen.tiene_datos) {
-    return `<div class="rounded-xl border border-slate-200 bg-white px-5 py-12 text-center text-sm text-text-muted">
-      Este colaborador aún no tiene resultados de Evaluación 360°.
-    </div>`;
-  }
-  const comp = resumen.competencias
-    .map(
-      (c) => `
-    <tr class="border-b border-slate-100">
-      <td class="px-3 py-2 text-sm font-medium text-text-primary">${escapeHtml(c.competencia_nombre ?? "—")}</td>
-      <td class="px-3 py-2 text-center text-sm tabular-nums text-slate-600">${e360Fmt(c.nivel_esperado)}</td>
-      <td class="px-3 py-2 text-center text-sm tabular-nums text-slate-600">${e360Fmt(c.promedio_general)}</td>
-      <td class="px-3 py-2 text-center">${e360BrechaBadge(c.estado_brecha)}</td>
-    </tr>`,
-    )
-    .join("");
-
-  const evol = resumen.evolucion.length
-    ? resumen.evolucion
-        .map(
-          (e) => `<div class="flex items-center justify-between border-b border-slate-100 py-1.5 text-sm">
-        <span class="text-text-primary">${escapeHtml(e.campana_nombre)}</span>
-        <span class="font-semibold tabular-nums text-leoni-blue">${e360Fmt(e.calificacion_general)}</span>
-      </div>`,
-        )
-        .join("")
-    : '<p class="text-sm text-text-muted">Sin historial previo.</p>';
-
-  const cursosHtml = cursos.length
-    ? cursos
-        .map(
-          (g) => `
-      <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
-        <p class="text-xs font-semibold text-text-primary">${escapeHtml(g.competencia_nombre ?? "—")} ${e360BrechaBadge(g.estado_brecha)}</p>
-        ${
-          g.cursos.length
-            ? `<ul class="mt-1.5 space-y-1">${g.cursos.map((c) => `<li class="text-sm text-slate-700">• ${escapeHtml(c.nombre)}${c.modalidad ? ` <span class="text-xs text-text-muted">(${escapeHtml(c.modalidad)})</span>` : ""}</li>`).join("")}</ul>`
-            : '<p class="mt-1 text-xs text-text-muted">Sin cursos asociados en el catálogo.</p>'
-        }
-      </div>`,
-        )
-        .join("")
-    : '<p class="text-sm text-text-muted">Sin brechas que sugieran cursos.</p>';
-
-  return `
-    <div class="space-y-5">
-      <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="text-xs font-medium text-text-muted">${escapeHtml(resumen.campana_nombre ?? "Evaluación 360°")}</p>
-          <p class="mt-0.5 text-3xl font-bold tabular-nums text-leoni-blue">${e360Fmt(resumen.calificacion_general)}</p>
-          <p class="text-xs text-text-muted">Calificación general (última campaña)</p>
-        </div>
-        <button type="button" data-e360-generar-pdi data-participante="${resumen.participante_id ?? ""}" class="inline-flex items-center justify-center rounded-lg bg-leoni-blue px-3 py-2 text-sm font-semibold text-white hover:bg-leoni-blue/90">Generar plan de desarrollo</button>
-      </div>
-      <div class="grid gap-5 lg:grid-cols-2">
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 class="mb-3 text-sm font-semibold text-text-primary">Competencias y brechas</h3>
-          <div class="overflow-x-auto"><table class="min-w-full text-left"><thead><tr class="text-xs font-semibold uppercase tracking-wide text-text-muted"><th class="px-3 py-2">Competencia</th><th class="px-3 py-2 text-center">Esperado</th><th class="px-3 py-2 text-center">Obtenido</th><th class="px-3 py-2 text-center">Estado</th></tr></thead><tbody>${comp}</tbody></table></div>
-        </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 class="mb-3 text-sm font-semibold text-text-primary">Evolución histórica</h3>
-          ${evol}
-        </div>
-      </div>
-      <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <h3 class="mb-3 text-sm font-semibold text-text-primary">Cursos sugeridos por brecha</h3>
-        <div class="grid gap-3 sm:grid-cols-2">${cursosHtml}</div>
-      </div>
-    </div>`;
-}
-
-async function loadEval360Panel(
-  root: HTMLElement,
-  empleadoId: number,
-  signal: AbortSignal,
-): Promise<void> {
-  const mount = root.querySelector<HTMLElement>("#v360-eval360-mount");
-  if (!mount || mount.dataset.loaded === "1") return;
-  mount.dataset.loaded = "1";
-  const resumen = await fetchEval360ResumenEmpleado(empleadoId);
-  if (signal.aborted || !mount.isConnected) return;
-  if (!resumen) {
-    mount.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">No se pudo cargar la Evaluación 360°.</div>`;
-    return;
-  }
-  const cursos = resumen.tiene_datos && resumen.participante_id
-    ? await fetchEval360CursosSugeridos(resumen.participante_id)
-    : [];
-  if (signal.aborted || !mount.isConnected) return;
-  mount.innerHTML = renderEval360PanelContent(resumen, cursos);
-
-  mount.querySelector<HTMLButtonElement>("[data-e360-generar-pdi]")?.addEventListener("click", async (e) => {
-    const btn = e.currentTarget as HTMLButtonElement;
-    const pid = Number(btn.dataset.participante);
-    if (!pid) return;
-    btn.disabled = true;
-    btn.textContent = "Generando…";
-    const res = await generarEval360Pdi(pid);
-    btn.disabled = false;
-    btn.textContent = "Generar plan de desarrollo";
-    window.alert(
-      res
-        ? res.creados > 0
-          ? `Se crearon ${res.creados} acciones de desarrollo (ver pestaña Plan de desarrollo).`
-          : "No hay nuevas brechas: el plan ya está actualizado."
-        : "No se pudo generar el plan de desarrollo.",
-    );
-  });
-}
-
-// ── Panel Historial objetivo (carga bajo demanda) ─────────────────────────────
-const HO_FUENTE_LABELS: Record<string, string> = {
-  actas: "Actas",
-  faltas: "Faltas y retardos",
-  incidencias: "Incidencias",
-  progresivo: "Progresivo (semanas sin bono)",
-};
-
-function renderHistorialObjetivoPanelPlaceholder(): string {
-  return `<div id="v360-historial-objetivo-mount" data-loaded="0">
-    ${skeletonBlock({ className: `${RH_LISTADO_SURFACE} h-40`, label: "Cargando historial objetivo…" })}
-  </div>`;
-}
-
-function hoFmt(n: number): string {
-  return Number(n).toFixed(1);
-}
-
-function hoSemaforoBadge(semaforo: string): string {
-  if (semaforo === "verde") return badgeApproved("Verde");
-  if (semaforo === "amarillo") return badgePending("Amarillo");
-  if (semaforo === "rojo") return badgeRejected("Rojo");
-  return badgeCancelled("Sin datos");
-}
-
-function renderHistorialObjetivoPanelContent(data: HistorialObjetivoEmpleadoApi): string {
-  const r = data.resultado;
-
-  const avisoBono = !data.bono_disponible
-    ? alertWarning(
-        "Los datos de faltas/retardos e incidencias (Bono) no están disponibles en este momento; el índice se calculó solo con actas.",
-      )
-    : "";
-
-  const desglose = r.desglose
-    .map((f) => {
-      const tipos = f.tipos.length
-        ? `<ul class="mt-2 space-y-1">${f.tipos
-            .map(
-              (t) => `
-        <li class="flex items-center justify-between gap-2 text-sm">
-          <span class="text-text-secondary">${escapeHtml(t.tipo)} <span class="text-text-muted">×${t.conteo}</span></span>
-          <span class="font-semibold tabular-nums text-slate-700">-${hoFmt(t.penalizacion)}</span>
-        </li>`,
-            )
-            .join("")}</ul>`
-        : `<p class="mt-2 text-sm text-text-muted">Sin eventos en el rango.</p>`;
-      return `
-      <div class="rounded-lg border border-slate-100 px-3 py-2.5">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-text-muted">${escapeHtml(HO_FUENTE_LABELS[f.fuente] ?? f.fuente)}</p>
-          <p class="text-sm font-semibold tabular-nums text-slate-700">-${hoFmt(f.penalizacion)}</p>
-        </div>
-        ${tipos}
-      </div>`;
-    })
-    .join("");
-
-  return `
-    <div class="space-y-5">
-      ${avisoBono}
-      <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p class="text-xs font-medium text-text-muted">Índice objetivo</p>
-          <p class="mt-0.5 text-3xl font-bold tabular-nums text-leoni-blue">${hoFmt(r.indice)}</p>
-          <p class="text-xs text-text-muted">Penalización total: <span class="font-semibold tabular-nums">${hoFmt(r.penalizacion_total)}</span></p>
-        </div>
-        ${hoSemaforoBadge(r.semaforo)}
-      </div>
-      <div class="rounded-xl border border-slate-200 bg-white p-5">
-        <h3 class="mb-3 text-sm font-semibold text-text-primary">Desglose por fuente</h3>
-        <div class="grid gap-3 sm:grid-cols-2">${desglose}</div>
-      </div>
-    </div>`;
-}
-
-async function loadHistorialObjetivoPanel(
-  root: HTMLElement,
-  empleadoId: number,
-  signal: AbortSignal,
-): Promise<void> {
-  const mount = root.querySelector<HTMLElement>("#v360-historial-objetivo-mount");
-  if (!mount || mount.dataset.loaded === "1") return;
-  mount.dataset.loaded = "1";
-  const data = await getHistorialEmpleado(empleadoId);
-  if (signal.aborted || !mount.isConnected) return;
-  if (!data) {
-    mount.innerHTML = errorState({ message: "No se pudo cargar el historial objetivo." });
-    return;
-  }
-  mount.innerHTML = renderHistorialObjetivoPanelContent(data);
-}
-
 function renderVista360Content(
   data: UsuarioVista360,
-  activeTab: Vista360TabId,
   incidenciasMetricas: EmpleadoIncidenciasMetricas | null,
   saldoVacacionesReal: number | null,
 ): string {
@@ -573,30 +154,12 @@ function renderVista360Content(
 
   const te = data.turno_empleado;
 
-  const quickActions = `
-    <div class="rounded-2xl border border-border/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/5">
-      <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500/90">Acciones rápidas</p>
-      <div class="flex flex-wrap gap-2.5">
-      <button type="button" disabled title="Próximamente" class="inline-flex min-h-10 w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm font-semibold text-slate-500 opacity-80 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed sm:w-auto">
-        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path d="M3 3.5A1.5 1.5 0 0 1 4.5 2h6.879a1.5 1.5 0 0 1 1.06.44l4.122 4.12A1.5 1.5 0 0 1 17 7.622V16.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 16.5v-13Z" /></svg>
-        Generar documento</button>
-      <button type="button" disabled title="Próximamente" class="inline-flex min-h-10 w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm font-semibold text-slate-500 opacity-80 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed sm:w-auto">
-        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-11.25a.75.75 0 0 0-1.5 0v2.5h-2.5a.75.75 0 0 0 0 1.5h2.5v2.5a.75.75 0 0 0 1.5 0v-2.5h2.5a.75.75 0 0 0 0-1.5h-2.5v-2.5Z" clip-rule="evenodd" /></svg>
-        Solicitar gafete</button>
-      <button type="button" disabled title="Próximamente" class="inline-flex min-h-10 w-full items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm font-semibold text-slate-500 opacity-80 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2 disabled:cursor-not-allowed sm:w-auto">
-        <svg viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm1-12a1 1 0 1 0-2 0v4a1 1 0 0 0 .293.707l2.828 2.829a1 1 0 1 0 1.415-1.415L11 9.586V6Z" clip-rule="evenodd" /></svg>
-        Registro asistencia</button>
-      </div>
-    </div>`;
-
   const estadisticasSection =
     showRh && incidenciasMetricas !== null
       ? vista360EstadisticasCardsHtml(incidenciasMetricas, saldoVacacionesReal)
       : showRh
         ? vista360EstadisticasSkeletonHtml(true)
         : vista360EstadisticasCardsHtml(null, saldoVacacionesReal);
-
-  const accionesRapidasSection = showRh ? "" : quickActions;
 
   const cardPersonales = vista360CardHtml({
     title: "Personales",
@@ -631,59 +194,6 @@ function renderVista360Content(
       ${cardPersonales}${cardLaborales}${cardAntiguedad}
     </div>`;
 
-  const tabs = vista360TabsHtml(activeTab);
-
-  const panel = (id: Vista360TabId, inner: string): string => {
-    const hidden = id !== activeTab;
-    return `
-      <div
-        id="v360-panel-${id}"
-        role="tabpanel"
-        aria-labelledby="v360-tab-${id}"
-        data-v360-panel="${id}"
-        class="pt-6 ${hidden ? "hidden" : ""}"
-        ${hidden ? "hidden" : ""}
-      >${inner}</div>`;
-  };
-
-  const historialInner = `
-    <div class="rounded-2xl border border-border/80 bg-white p-5 shadow-sm sm:p-6">
-      <div class="space-y-8">
-        ${listSectionHtml(
-          "Solicitudes recientes",
-          data.solicitudes_recientes.map(formatSolicitudLine),
-        )}
-        ${listSectionHtml(
-          "Actas firmadas",
-          data.actas_firmadas.map(formatActaLine),
-        )}
-      </div>
-    </div>`;
-
-  // El saldo sale de nómina (TRESS); "—" cuando datos-analisis no responde.
-  const beneficiosInner = `
-    <div class="max-w-md rounded-2xl border border-border/80 bg-white p-6 shadow-sm">
-      <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500/90">Saldo de vacaciones</p>
-      <p class="mt-2 text-3xl font-bold tabular-nums text-leoni-blue">${
-        saldoVacacionesReal === null ? "—" : escapeHtml(String(saldoVacacionesReal))
-      }</p>
-      <p class="mt-2 text-sm text-text-muted">Días disponibles según nómina (TRESS).</p>
-    </div>`;
-
-  const capacidadesInner = renderCapacidadesPanel();
-  const planDesarrolloInner = renderPlanDesarrolloPanel();
-
-  const panels =
-    panel("incidencias", renderVista360TablaMount("incidencias")) +
-    panel("historial", historialInner) +
-    panel("beneficios", beneficiosInner) +
-    panel("capacidades", capacidadesInner) +
-    panel("plan_desarrollo", planDesarrolloInner) +
-    panel("evaluacion360", renderEval360PanelPlaceholder()) +
-    panel("historial_objetivo", renderHistorialObjetivoPanelPlaceholder()) +
-    panel("actas", renderVista360TablaMount("actas")) +
-    panel("registros-comedor", renderVista360TablaMount("registros-comedor"));
-
   return `
     <div id="v360-loaded" class="space-y-6">
       ${whenModuleBackLinkVisible(`
@@ -696,74 +206,14 @@ function renderVista360Content(
       ${header}
       ${grid}
       ${estadisticasSection}
-      ${accionesRapidasSection}
-      ${tabs}
-      <div id="v360-panels-wrap">${panels}</div>
     </div>`;
-}
-
-function bindVista360TabDelegation(
-  v360Root: HTMLElement,
-  getContent: () => HTMLElement | null,
-  signal: AbortSignal,
-  onTabChange?: (tab: Vista360TabId) => void,
-): void {
-  v360Root.addEventListener(
-    "click",
-    (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-v360-tab]");
-      const contentEl = getContent();
-      if (!btn || !contentEl || !contentEl.contains(btn)) return;
-      const tab = btn.getAttribute("data-v360-tab") as Vista360TabId | null;
-      if (!tab) return;
-
-      contentEl.querySelectorAll<HTMLButtonElement>("[data-v360-tab]").forEach((b) => {
-        const id = b.getAttribute("data-v360-tab") as Vista360TabId;
-        const on = id === tab;
-        b.setAttribute("aria-selected", on ? "true" : "false");
-        b.className = vista360TabButtonClass(on);
-      });
-
-      contentEl.querySelectorAll<HTMLElement>("[data-v360-panel]").forEach((p) => {
-        const id = p.getAttribute("data-v360-panel") as Vista360TabId;
-        const show = id === tab;
-        p.classList.toggle("hidden", !show);
-        if (show) p.removeAttribute("hidden");
-        else p.setAttribute("hidden", "");
-      });
-
-      onTabChange?.(tab);
-    },
-    { signal },
-  );
-}
-
-function setupVista360Tablas(
-  v360Root: HTMLElement,
-  empleadoId: number,
-  noEmpleado: string,
-  initialTab: Vista360TabId,
-  signal: AbortSignal,
-): { loadTab: (tab: Vista360TabId) => void } {
-  const { loadTab } = bindVista360RegistrosTablas({
-    root: v360Root,
-    empleadoId,
-    noEmpleado,
-    signal,
-  });
-  if (isTableTab(initialTab)) {
-    void loadTab(initialTab);
-  }
-  return { loadTab };
 }
 
 export function mountEmployeeVista360(
   container: HTMLElement,
   empleadoId: number,
   signal: AbortSignal,
-  opts?: { initialTab?: Vista360TabId },
 ): void {
-  const initialTab: Vista360TabId = opts?.initialTab ?? "incidencias";
   if (!canAccessEmpleadosPage()) {
     mountAppShell(container, {
       pageTitle: "Vista 360",
@@ -793,25 +243,11 @@ export function mountEmployeeVista360(
   const v360Root = container.querySelector("#v360-root") as HTMLElement | null;
   const modalHost = container.querySelector("#v360-edit-modal-host") as HTMLElement | null;
 
-  let tablasLoader: { loadTab: (tab: Vista360TabId) => void } | null = null;
   let editModal: EditarAsignacionModalHandle | null = null;
 
-  function afterVista360Rendered(noEmpleado: string): void {
+  function afterVista360Rendered(): void {
     if (!v360Root) return;
     void loadVista360ProfileFoto(v360Root, empleadoId, signal);
-    tablasLoader = setupVista360Tablas(v360Root, empleadoId, noEmpleado, initialTab, signal);
-    bindVista360TabDelegation(
-      v360Root,
-      () => container.querySelector("#v360-content"),
-      signal,
-      (tab) => {
-        if (isTableTab(tab)) tablasLoader?.loadTab(tab);
-        if (tab === "evaluacion360") void loadEval360Panel(v360Root, empleadoId, signal);
-        if (tab === "historial_objetivo") void loadHistorialObjetivoPanel(v360Root, empleadoId, signal);
-      },
-    );
-    if (initialTab === "evaluacion360") void loadEval360Panel(v360Root, empleadoId, signal);
-    if (initialTab === "historial_objetivo") void loadHistorialObjetivoPanel(v360Root, empleadoId, signal);
   }
 
   if (isRh && modalHost && v360Root) {
@@ -822,8 +258,8 @@ export function mountEmployeeVista360(
         const r = await loadEmpleadoVista360(empleadoId, signal);
         if (!r.ok && r.aborted) return;
         if (r.ok) {
-          contentEl.innerHTML = renderVista360Content(r.data, initialTab, r.incidenciasMetricas, r.saldoVacacionesReal);
-          afterVista360Rendered(r.data.usuario.no_empleado);
+          contentEl.innerHTML = renderVista360Content(r.data, r.incidenciasMetricas, r.saldoVacacionesReal);
+          afterVista360Rendered();
         } else {
           contentEl.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 shadow-sm">${escapeHtml(r.message)}</div>`;
         }
@@ -856,8 +292,8 @@ export function mountEmployeeVista360(
     if (!r.ok && r.aborted) return;
     if (!contentEl) return;
     if (r.ok) {
-      contentEl.innerHTML = renderVista360Content(r.data, initialTab, r.incidenciasMetricas, r.saldoVacacionesReal);
-      afterVista360Rendered(r.data.usuario.no_empleado);
+      contentEl.innerHTML = renderVista360Content(r.data, r.incidenciasMetricas, r.saldoVacacionesReal);
+      afterVista360Rendered();
       return;
     }
     if (r.status === 401) {

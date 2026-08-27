@@ -115,7 +115,7 @@ function renderRankingRow(item: HistorialObjetivoEquipoItemApi): string {
     <td class="px-3 py-3 align-middle text-sm tabular-nums text-slate-700">-${hoFmt(item.resultado.penalizacion_total)}</td>
     <td class="px-3 py-3 align-middle text-sm">${renderDesgloseResumen(item)}</td>
     <td class="px-3 py-3 align-middle">
-      <a href="#/empleados/${item.empleado_id}?tab=historial_objetivo" class="${BTN_GHOST}">Ver ficha</a>
+      <a href="#/empleados/${item.empleado_id}" class="${BTN_GHOST}">Ver ficha</a>
     </td>
   </tr>`;
 }
