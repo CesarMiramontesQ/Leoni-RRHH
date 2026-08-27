@@ -8,6 +8,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.schemas.contratos import ContratoEmpleadoResumen
 from app.schemas.empleados import (
     AreaResponse,
     CategoriaResponse,
@@ -145,6 +146,8 @@ class UsuarioVista360Response(BaseModel):
     # Fecha de ingreso real desde SQL Server datos-analisis (CB_FEC_ING de dbo.COLABORA);
     # None si la BD externa no está disponible (el frontend cae a `registro`).
     fecha_ingreso: Optional[date] = None
+    # Contrato actual (misma caché). None si el empleado no está sincronizado.
+    contrato: Optional[ContratoEmpleadoResumen] = None
 
 
 class MetricasUsuarioResponse(BaseModel):

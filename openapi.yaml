@@ -54,6 +54,8 @@ tags:
   - name: Level Up - Catálogos Cursos
     description: Catálogos de cursos (categorías, tipos, instructores, proveedores)
 
+  - name: Contratos
+    description: Vencimientos de contrato del personal (caché de TRESS en Bono)
 components:
   securitySchemes:
     BearerAuth:
@@ -1716,6 +1718,112 @@ components:
         puede_solicitar:
           type: boolean
 
+    EstatusContrato:
+      type: string
+      enum: [vencido, por_vencer, vigente, indefinido, sin_dato]
+      description: >
+        Excluyentes. `indefinido` = TB_DIAS 0; `sin_dato` = sin vencimiento calculable
+        (código sin catálogo o duración sin fecha de inicio); `vencido` < hoy;
+        `por_vencer` hoy..hoy+ventana; `vigente` después de la ventana.
+
+    ContratoEmpleadoResumen:
+      type: object
+      required: [estatus]
+      properties:
+        contrato_codigo:
+          type: string
+          nullable: true
+          description: CB_CONTRAT sin padding.
+        contrato_descripcion:
+          type: string
+          nullable: true
+          description: TB_ELEMENT del catálogo; null si el código no existe en dbo.CONTRATO.
+        contrato_dias:
+          type: integer
+          nullable: true
+          description: TB_DIAS. 0 = indefinido; null = sin catálogo.
+        fecha_contrato:
+          type: string
+          format: date
+          nullable: true
+          description: CB_FEC_CON; null también cuando TRESS trae su «vacío» 1899-12-30.
+        fecha_vencimiento:
+          type: string
+          format: date
+          nullable: true
+          description: fecha_contrato + contrato_dias; null si indefinido o sin dato.
+        dias_restantes:
+          type: integer
+          nullable: true
+          description: Negativo si ya venció; null si no vence o no hay dato.
+        estatus:
+          $ref: "#/components/schemas/EstatusContrato"
+        sincronizado_en:
+          type: string
+          format: date-time
+          nullable: true
+
+    ContratoEmpleadoItem:
+      allOf:
+        - $ref: "#/components/schemas/ContratoEmpleadoResumen"
+        - type: object
+          required: [empleado_id, no_empleado, nombre]
+          properties:
+            empleado_id:
+              type: integer
+            no_empleado:
+              type: integer
+            nombre:
+              type: string
+            area:
+              type: string
+              nullable: true
+            puesto:
+              type: string
+              nullable: true
+            supervisor:
+              type: string
+              nullable: true
+              description: Líder directo (`lider_id`), sin recorrer la jerarquía.
+
+    ContratosListResponse:
+      type: object
+      required: [items, total, page, page_size, ventana_dias]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContratoEmpleadoItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        ventana_dias:
+          type: integer
+
+    ContratosKpisResponse:
+      type: object
+      required: [vencidos, por_vencer, vigentes, indefinidos, sin_dato, total, ventana_dias]
+      properties:
+        vencidos: { type: integer }
+        por_vencer: { type: integer }
+        vigentes: { type: integer }
+        indefinidos: { type: integer }
+        sin_dato: { type: integer }
+        total: { type: integer }
+        ventana_dias: { type: integer }
+
+    ContratoAreaOption:
+      type: object
+      required: [area_id, descripcion]
+      properties:
+        area_id:
+          type: integer
+        descripcion:
+          type: string
+
     HomeOfficeReglaAreaItem:
       type: object
       required: [area_id, area_descripcion, activo]
@@ -1803,6 +1911,11 @@ components:
             Fecha de ingreso real (CB_FEC_ING de dbo.COLABORA en SQL Server
             datos-analisis). null si la BD externa no está disponible; el
             frontend cae al campo `registro`.
+        contrato:
+          allOf:
+            - $ref: "#/components/schemas/ContratoEmpleadoResumen"
+          nullable: true
+          description: Contrato actual desde la misma caché (`levelup_empleados_tress`); null si el empleado no está sincronizado.
 
     MetricasUsuarioResponse:
       type: object
@@ -9134,6 +9247,158 @@ paths:
           description: Área inexistente o inactiva
         "422":
           description: Valores fuera de rango
+
+  /api/v1/contratos:
+    get:
+      tags: [Contratos]
+      summary: Contratos del personal activo (vencimientos, indefinidos, sin dato)
+      operationId: contratos_list
+      description: >
+        Lee solo la caché en Bono (`levelup_empleados_tress`, sync diario 04:10); nunca
+        DATOS_ANALISIS. Requiere el módulo RH `contratos` (role_checker operativo). Solo
+        empleados activos en Bono; ordenado por `fecha_vencimiento` asc con NULL al final.
+        El estatus se calcula al leer contra la fecha actual y `ventana_dias`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: ventana_dias
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+          description: Días que definen «por vencer» (hoy ≤ vencimiento ≤ hoy + N).
+        - name: estatus
+          in: query
+          schema: { $ref: "#/components/schemas/EstatusContrato" }
+        - name: area_id
+          in: query
+          schema: { type: integer }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+          description: Nombre (ilike) o número de empleado.
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+      responses:
+        "200":
+          description: Listado paginado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContratosListResponse"
+        "403":
+          description: Sin módulo `contratos`
+
+  /api/v1/contratos/kpis:
+    get:
+      tags: [Contratos]
+      summary: Conteo por estatus de contrato
+      operationId: contratos_kpis
+      description: >
+        Los cinco estatus son excluyentes y suman `total`. Respeta `area_id` y `q`, no
+        `estatus`; `ventana_dias` mueve gente entre `por_vencer` y `vigente`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: ventana_dias
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+        - name: area_id
+          in: query
+          schema: { type: integer }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+      responses:
+        "200":
+          description: Conteos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContratosKpisResponse"
+        "403":
+          description: Sin módulo `contratos`
+
+  /api/v1/contratos/areas:
+    get:
+      tags: [Contratos]
+      summary: Áreas con personal activo en la caché de contratos
+      operationId: contratos_areas
+      description: Para el combo de filtro. Vive bajo `/contratos` por la regla de prefijo de `role_checker`.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Áreas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContratoAreaOption"
+        "403":
+          description: Sin módulo `contratos`
+
+  /api/v1/contratos/export.csv:
+    get:
+      tags: [Contratos]
+      summary: Exportar el listado filtrado a CSV
+      operationId: contratos_export_csv
+      description: >
+        Mismos filtros que el listado, sin paginar. UTF-8 con BOM, separador coma, CRLF.
+        Columnas: No. empleado, Nombre, Área, Puesto, Supervisor, Tipo, Contrato, Días
+        contrato, Fecha contrato, Fecha vencimiento, Días restantes (negativo si venció), Estatus.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: ventana_dias
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+        - name: estatus
+          in: query
+          schema: { $ref: "#/components/schemas/EstatusContrato" }
+        - name: area_id
+          in: query
+          schema: { type: integer }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+      responses:
+        "200":
+          description: Archivo CSV, cabecera Content-Disposition attachment (contratos.csv)
+          content:
+            text/csv:
+              schema:
+                type: string
+        "403":
+          description: Sin módulo `contratos`
+
+  /api/v1/contratos/empleados/{no_empleado}:
+    get:
+      tags: [Contratos]
+      summary: Contrato actual de un empleado
+      operationId: contratos_empleado
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: no_empleado
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contrato
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContratoEmpleadoResumen"
+        "403":
+          description: Sin módulo `contratos`
+        "404":
+          description: El empleado no está en la caché
 
   /api/v1/nominas/ajustes/horas-extra/aprobadores:
     get:

@@ -21,6 +21,7 @@ from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.core.rh_module_registry import user_has_module
 from app.repositories.comedor_repository import ComedorRepository
 from app.repositories.empleados_tress_repository import EmpleadosTressRepository
+from app.services.contratos_service import ContratosService
 from app.models.empleados import Empleado
 from app.models.roles import Rol
 from app.models.solicitudes import Solicitud
@@ -589,6 +590,7 @@ class UsuarioService:
         fecha_ingreso = await EmpleadosTressRepository(self.db).get_fecha_ingreso(
             usuario.no_empleado
         )
+        contrato = await ContratosService(self.db).resumen_empleado(usuario.no_empleado)
 
         return UsuarioVista360Response(
             usuario=UsuarioResponse.model_validate(usuario),
@@ -597,6 +599,7 @@ class UsuarioService:
             actas_firmadas=[ActaBrief.model_validate(a) for a in actas],
             turno_empleado=turno_empleado,
             fecha_ingreso=fecha_ingreso,
+            contrato=contrato,
         )
 
     async def get_metricas(
