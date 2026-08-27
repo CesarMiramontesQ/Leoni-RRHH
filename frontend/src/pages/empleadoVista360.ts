@@ -41,8 +41,8 @@ function forbiddenHtml(): string {
   });
 }
 
-function skeletonHtml(showRhMetricas: boolean): string {
-  const estadisticasBlock = vista360EstadisticasSkeletonHtml(showRhMetricas);
+function skeletonHtml(): string {
+  const estadisticasBlock = vista360EstadisticasSkeletonHtml(true);
   const gridSkeleton = `
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         ${Array.from({ length: 3 }, () => '<div class="min-h-40 rounded-2xl bg-slate-100"></div>').join("")}
@@ -155,11 +155,9 @@ function renderVista360Content(
   const te = data.turno_empleado;
 
   const estadisticasSection =
-    showRh && incidenciasMetricas !== null
+    incidenciasMetricas !== null
       ? vista360EstadisticasCardsHtml(incidenciasMetricas, saldoVacacionesReal)
-      : showRh
-        ? vista360EstadisticasSkeletonHtml(true)
-        : vista360EstadisticasCardsHtml(null, saldoVacacionesReal);
+      : vista360EstadisticasSkeletonHtml(true);
 
   const cardPersonales = vista360CardHtml({
     title: "Personales",
@@ -233,7 +231,7 @@ export function mountEmployeeVista360(
     mainHtml: `
       <div class="${vista360PageShellClass}">
         <div id="v360-root" class="mx-auto w-full max-w-[1320px] space-y-6 px-2 pb-2 sm:px-3">
-          <div id="v360-content">${skeletonHtml(isRh)}</div>
+          <div id="v360-content">${skeletonHtml()}</div>
         </div>
       </div>
       ${isRh ? `<div id="v360-edit-modal-host"></div>` : ""}`,
@@ -254,7 +252,7 @@ export function mountEmployeeVista360(
     editModal = mountEditarAsignacionModal(modalHost, {
       onSuccess: async () => {
         if (!contentEl) return;
-        contentEl.innerHTML = skeletonHtml(isRh);
+        contentEl.innerHTML = skeletonHtml();
         const r = await loadEmpleadoVista360(empleadoId, signal);
         if (!r.ok && r.aborted) return;
         if (r.ok) {
@@ -287,7 +285,7 @@ export function mountEmployeeVista360(
   async function load(): Promise<void> {
     if (!contentEl) return;
     releaseEmpleadoFotoCache(empleadoId);
-    contentEl.innerHTML = skeletonHtml(isRh);
+    contentEl.innerHTML = skeletonHtml();
     const r = await loadEmpleadoVista360(empleadoId, signal);
     if (!r.ok && r.aborted) return;
     if (!contentEl) return;
