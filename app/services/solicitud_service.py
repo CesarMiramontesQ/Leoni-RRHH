@@ -27,7 +27,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.data_scope import effective_data_scope_for_module
+from app.core.data_scope import effective_data_scope_for_module, empleado_ids_scope_por_modulo
 from app.core.rh_ui_mode import (
     is_rh_empleado_ui_mode,
     rh_tiene_alcance_gestor,
@@ -965,11 +965,14 @@ class SolicitudService:
             return target
 
         if scope_rol in ("gerente", "supervisor"):
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+            # Misma fuente que el buscador de empleados del modal: supervisor =
+            # reportes directos, gerente = todo su subárbol activo. Si esto y el
+            # buscador divergieran, el modal ofrecería colaboradores para los que
+            # el POST responde 403.
+            permitidos = await empleado_ids_scope_por_modulo(
+                self.empleado_repo, current_user, "solicitudes", rh_ui_mode
             )
-            permitidos = {e.id for e in subordinados} | {current_user.id}
-            if requested not in permitidos:
+            if permitidos is not None and requested not in set(permitidos):
                 raise ForbiddenError(
                     detail="No puedes crear solicitudes para empleados fuera de tu equipo"
                 )
