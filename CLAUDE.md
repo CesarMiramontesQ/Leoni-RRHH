@@ -314,6 +314,18 @@ Layered architecture: **router → service → repository → models/schemas**
     con una y el servidor validara con otra, el usuario vería rechazada una solicitud por un
     cálculo que la UI nunca le mostró.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
+- **Alcance del listado de solicitudes del gerente = preferencia propia, solo visualización.**
+  `levelup_empleados_config.profundidad_equipo` (NULL = todo el subárbol, 1..3 = niveles
+  bajo el gerente) la edita el propio gerente con el select «Mostrar» de la sección
+  «Solicitudes del Equipo» (`GET/PUT /api/v1/solicitudes/me/alcance-equipo`, bajo
+  `/solicitudes` porque es self-service). Solo la aplica `list_solicitudes` (y por
+  tanto el conteo de pendientes del dashboard de líder, que sale del mismo GET); el
+  detalle, la aprobación y las notificaciones siguen con el subárbol completo, así que
+  una solicitud fuera del alcance se sigue abriendo desde su deep-link. Solo scope
+  efectivo `gerente`: un gerente con módulo RH de solicitudes se eleva a global y no ve
+  el select; supervisor sigue en reportes directos y no tiene la opción. El recorrido
+  del gerente pasa `atravesar_inactivos=True` (un líder de baja no esconde a su gente,
+  igual que Horas Extra).
 
 ### Frontend (frontend/src/)
 - `pages/` — Page-level modules (one .ts per page: login, dashboard, solicitudes, etc.)

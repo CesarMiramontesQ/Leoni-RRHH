@@ -56,6 +56,7 @@ from app.services.tress_goce_service import (
 from app.services.tress_home_office_service import registrar_home_office_en_tress
 from app.services.tress_vacaciones_service import registrar_vacaciones_en_tress
 from app.models.empleados import Empleado
+from app.models.empleados_rh import ensure_rh_config
 from app.models.solicitudes import Solicitud
 from app.repositories.comedor_repository import ComedorAccesoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
@@ -66,6 +67,8 @@ from app.repositories.solicitud_repository import (
 )
 from app.schemas import PaginatedResponse
 from app.schemas.solicitudes import (
+    AlcanceEquipoResponse,
+    AlcanceEquipoUpdate,
     ESTADO_SOLICITUD_APROBADA,
     SolicitudAprobacionCreate,
     SolicitudAprobacionResponse,
@@ -545,8 +548,15 @@ class SolicitudService:
             )
 
         elif scope_rol == "gerente":
+            # Alcance de visualización elegido por el gerente (None = todo el
+            # subárbol). Solo acota el listado: el detalle y la aprobación siguen
+            # usando el subárbol completo. Un líder intermedio dado de baja no
+            # esconde a su gente (mismo criterio que Horas Extra).
             equipo = await self.empleado_repo.get_ids_subarbol(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id,
+                settings.ESTADOS_ACTIVOS_IDS,
+                atravesar_inactivos=True,
+                max_niveles=current_user.profundidad_equipo,
             )
             ids = list(equipo) + [current_user.id]
             items, next_cursor = await self.repo.list_by_equipo(
@@ -577,6 +587,33 @@ class SolicitudService:
             next_cursor=next_cursor,
             total=total,
         )
+
+    # ── Alcance del equipo (gerente) ─────────────────────────────────────────
+
+    async def get_alcance_equipo(
+        self, current_user: Empleado, rh_ui_mode: str | None = None
+    ) -> AlcanceEquipoResponse:
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
+        return AlcanceEquipoResponse(
+            aplica=scope_rol == "gerente",
+            profundidad_equipo=current_user.profundidad_equipo,
+        )
+
+    async def set_alcance_equipo(
+        self,
+        current_user: Empleado,
+        body: AlcanceEquipoUpdate,
+        rh_ui_mode: str | None = None,
+    ) -> AlcanceEquipoResponse:
+        scope_rol = effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode)
+        if scope_rol != "gerente":
+            raise ForbiddenError(
+                detail="El alcance del equipo solo lo configura un gerente"
+            )
+        config = ensure_rh_config(self.db, current_user)
+        config.profundidad_equipo = body.profundidad_equipo
+        await self.db.commit()
+        return AlcanceEquipoResponse(aplica=True, profundidad_equipo=body.profundidad_equipo)
 
     # ── Obtener uno ──────────────────────────────────────────────────────────
 

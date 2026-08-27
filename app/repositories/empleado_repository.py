@@ -306,6 +306,7 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         estados_activos: list[int],
         *,
         atravesar_inactivos: bool = False,
+        max_niveles: int | None = None,
     ) -> set[int]:
         """
         IDs locales (PK) de empleados activos bajo el líder identificado por ``empleado_id``.
@@ -313,13 +314,22 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         Con ``atravesar_inactivos`` el recorrido baja también por líderes intermedios
         que no están activos (una baja en medio de la cadena no esconde a su gente);
         el resultado sigue conteniendo solo empleados activos.
+
+        ``max_niveles`` corta el recorrido a N niveles bajo el líder (1 = solo
+        directos). None = sin límite. Un líder inactivo ocupa su nivel igual.
         """
         if not estados_activos:
+            return set()
+        if max_niveles is not None and max_niveles < 1:
             return set()
         collected: set[int] = set()
         expandidos: set[int] = set()
         frontier: set[int] = {lider_empleado_id}
+        nivel = 0
         while frontier:
+            if max_niveles is not None and nivel >= max_niveles:
+                break
+            nivel += 1
             expandidos |= frontier
             query = select(Empleado.id, Empleado.empleado_id, Empleado.estado_id).where(
                 Empleado.lider_id.in_(frontier)

@@ -199,3 +199,24 @@ class HomeOfficeDisponibilidadResponse(BaseModel):
     # HO activos en el bloque de semanas de la regla que contiene la fecha consultada.
     dias_usados: int = Field(..., ge=0)
     puede_solicitar: bool
+
+
+# ── Alcance del equipo (gerente) ─────────────────────────────────────────────
+
+PROFUNDIDAD_EQUIPO_MAX = 3
+
+
+class AlcanceEquipoUpdate(BaseModel):
+    """Niveles jerárquicos que baja el listado de solicitudes del equipo.
+
+    1 = solo reportes directos … 3; ``None`` = todo el subárbol.
+    """
+
+    profundidad_equipo: Optional[int] = Field(None, ge=1, le=PROFUNDIDAD_EQUIPO_MAX)
+
+
+class AlcanceEquipoResponse(BaseModel):
+    """``aplica`` = el usuario actual ve el listado con alcance de gerente."""
+
+    aplica: bool
+    profundidad_equipo: Optional[int] = None

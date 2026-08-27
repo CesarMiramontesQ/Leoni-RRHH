@@ -209,6 +209,11 @@ class Empleado(Base):
         return bool(self.rh_config.acceso_rh_removido) if self.rh_config else False
 
     @property
+    def profundidad_equipo(self) -> Optional[int]:
+        """Niveles que baja el listado de solicitudes del equipo (gerente). None = todo."""
+        return self.rh_config.profundidad_equipo if self.rh_config else None
+
+    @property
     def puede_administrar_permisos_rh(self) -> bool:
         return (
             bool(self.rh_permisos.puede_administrar_permisos_rh)
