@@ -1954,6 +1954,26 @@ components:
           type: integer
 
     # ── Solicitudes ───────────────────────────────────
+    AlcanceEquipoUpdate:
+      type: object
+      properties:
+        profundidad_equipo:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 3
+          description: Niveles bajo el gerente (1 = solo directos). null = todo el subárbol.
+    AlcanceEquipoResponse:
+      type: object
+      required: [aplica]
+      properties:
+        aplica:
+          type: boolean
+          description: true si el usuario ve el listado con alcance de gerente
+        profundidad_equipo:
+          type: integer
+          nullable: true
+
     SolicitudCreate:
       type: object
       required: [tipo, fecha_inicio, fecha_fin]
@@ -9848,6 +9868,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/HTTPValidationError"
 
+  /api/v1/solicitudes/me/alcance-equipo:
+    get:
+      tags: [Solicitudes]
+      summary: Alcance del listado de equipo del usuario actual (gerente)
+      description: >-
+        Cuántos niveles jerárquicos baja el listado de solicitudes del equipo.
+        `aplica` es true solo cuando el scope efectivo es gerente. Solo
+        visualización: no acota detalle, aprobación ni notificaciones.
+      operationId: solicitudes_get_alcance_equipo
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Alcance actual
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlcanceEquipoResponse'
+    put:
+      tags: [Solicitudes]
+      summary: Guardar el alcance del listado de equipo (solo gerente)
+      operationId: solicitudes_set_alcance_equipo
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlcanceEquipoUpdate'
+      responses:
+        '200':
+          description: Alcance guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlcanceEquipoResponse'
+        '403':
+          description: El usuario no tiene scope de gerente
+        '422':
+          description: Profundidad fuera de rango (1..3 o null)
   /api/v1/solicitudes/{solicitud_id}:
     get:
       tags: [Solicitudes]

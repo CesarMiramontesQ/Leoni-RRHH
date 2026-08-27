@@ -314,3 +314,38 @@ export async function patchSolicitudRevision(
   }
   return (await res.json()) as SolicitudApiItem;
 }
+
+// ── Alcance del equipo (gerente): cuántos niveles baja el listado ──────────────
+
+export type AlcanceEquipoProfundidad = 1 | 2 | 3 | null;
+
+export type AlcanceEquipo = {
+  /** true = el usuario ve el listado con alcance de gerente y puede configurarlo. */
+  aplica: boolean;
+  /** 1..3 niveles bajo el gerente; null = todo el subárbol. */
+  profundidad_equipo: AlcanceEquipoProfundidad;
+};
+
+export async function getAlcanceEquipo(): Promise<AlcanceEquipo> {
+  const res = await fetchWithAuth("/api/v1/solicitudes/me/alcance-equipo");
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as SolicitudesFetchError;
+  }
+  return (await res.json()) as AlcanceEquipo;
+}
+
+export async function putAlcanceEquipo(
+  profundidad: AlcanceEquipoProfundidad,
+): Promise<AlcanceEquipo> {
+  const res = await fetchWithAuth("/api/v1/solicitudes/me/alcance-equipo", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profundidad_equipo: profundidad }),
+  });
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw { status: res.status, detail } as SolicitudesFetchError;
+  }
+  return (await res.json()) as AlcanceEquipo;
+}

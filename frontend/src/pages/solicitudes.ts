@@ -2,7 +2,13 @@ import {
   canAccessSolicitudesPage,
   getEmpleadoDirectoryNumericIdFromAccessToken,
 } from "../auth/jwt.ts";
-import { getSolicitudesRows, type SolicitudesFetchError } from "../api/solicitudes.ts";
+import {
+  getAlcanceEquipo,
+  getSolicitudesRows,
+  putAlcanceEquipo,
+  type AlcanceEquipoProfundidad,
+  type SolicitudesFetchError,
+} from "../api/solicitudes.ts";
 import { getEmpleadoVacacionesDisponiblesSolicitud } from "../api/vista360.ts";
 import { clearAuth } from "../auth/session.ts";
 import {
@@ -40,12 +46,16 @@ import type {
   RhSolicitudTablaFila,
 } from "../solicitudes/rh/types.ts";
 import {
+  FIELD_FOCUS,
   RH_LISTADO_PAGE_OUTER_GRADIENT,
+  RH_LISTADO_SELECT,
   RH_SOLICITUDES_BTN_PRIMARY,
   RH_SOLICITUDES_BTN_SECONDARY,
   RH_LISTADO_SURFACE,
+  SELECT_CHEVRON,
   htmlAccessDenied,
 } from "../ui/uiTokens.ts";
+import { escapeHtml } from "../ui/uiUtils.ts";
 
 type SolicitudesScope = "main" | "personal" | "equipo";
 
@@ -210,10 +220,50 @@ function splitPersonalAndTeamRows(
   };
 }
 
-function equipoSectionSubtitle(role: "supervisor" | "gerente"): string {
-  return role === "gerente"
-    ? "Trámites de todo tu equipo jerárquico (supervisores y colaboradores en todos los niveles)"
-    : "Trámites del personal a tu cargo";
+function equipoSectionSubtitle(
+  role: "supervisor" | "gerente",
+  profundidad: AlcanceEquipoProfundidad = null,
+): string {
+  if (role !== "gerente") return "Trámites del personal a tu cargo";
+  if (profundidad === 1) return "Trámites de tus reportes directos";
+  if (profundidad != null) return `Trámites de tu equipo hasta ${profundidad} niveles debajo de ti`;
+  return "Trámites de todo tu equipo jerárquico (supervisores y colaboradores en todos los niveles)";
+}
+
+/** Opciones del selector de alcance del gerente. `""` = todo el subárbol. */
+const ALCANCE_EQUIPO_OPCIONES: ReadonlyArray<{ value: "" | "1" | "2" | "3"; label: string }> = [
+  { value: "", label: "Todo mi equipo" },
+  { value: "1", label: "Solo mis directos" },
+  { value: "2", label: "Hasta 2 niveles" },
+  { value: "3", label: "Hasta 3 niveles" },
+];
+
+function parseAlcanceEquipoValue(raw: string): AlcanceEquipoProfundidad {
+  if (raw === "1" || raw === "2" || raw === "3") return Number(raw) as 1 | 2 | 3;
+  return null;
+}
+
+/**
+ * Selector «Mostrar: …» en la cabecera de «Solicitudes del Equipo». Solo para el
+ * gerente: define cuántos niveles baja el listado (preferencia guardada en el servidor).
+ */
+function renderAlcanceEquipoSelector(
+  profundidad: AlcanceEquipoProfundidad,
+  disabled: boolean,
+): string {
+  const current = profundidad == null ? "" : String(profundidad);
+  const opts = ALCANCE_EQUIPO_OPCIONES.map(
+    (o) =>
+      `<option value="${o.value}"${o.value === current ? " selected" : ""}>${escapeHtml(o.label)}</option>`,
+  ).join("");
+  return `
+    <label class="flex items-center gap-2 text-xs text-text-muted sm:text-sm">
+      <span class="whitespace-nowrap font-medium">Mostrar</span>
+      <span class="relative grid min-w-[11rem]">
+        <select data-rh-sol-alcance-equipo class="${RH_LISTADO_SELECT} ${FIELD_FOCUS}" aria-label="Niveles del equipo a mostrar"${disabled ? " disabled" : ""}>${opts}</select>
+        ${SELECT_CHEVRON}
+      </span>
+    </label>`;
 }
 
 function renderSplitSolicitudesView(
@@ -223,6 +273,7 @@ function renderSplitSolicitudesView(
     showExportButton: boolean;
     showNewRequestButton: boolean;
     equipoSubtitle: string;
+    equipoHeaderActionsHtml?: string;
   },
 ): string {
   const exportBtn = options.showExportButton
@@ -268,6 +319,7 @@ function renderSplitSolicitudesView(
         scope: "equipo",
         title: "Solicitudes del Equipo",
         subtitle: options.equipoSubtitle,
+        headerActionsHtml: options.equipoHeaderActionsHtml,
       })}
     </div>`;
 }
@@ -301,8 +353,32 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   const pageUi = buildDefaultSolicitudesPageUiConfig(pageRole);
   const isSplitGestorRole = pageRole === "supervisor" || pageRole === "gerente";
   const splitGestorRole = pageRole === "gerente" ? "gerente" : "supervisor";
-  const equipoSubtitle = equipoSectionSubtitle(splitGestorRole);
+  let equipoSubtitle = equipoSectionSubtitle(splitGestorRole);
   const sessionEmpleadoDirId = getEmpleadoDirectoryNumericIdFromAccessToken();
+
+  // Alcance del gerente: cuántos niveles baja el listado del equipo. Solo se
+  // muestra el selector si el backend confirma que aplica (scope gerente real,
+  // no elevado a RH). Se guarda al cambiar y se recarga la lista.
+  let alcanceEquipoAplica = false;
+  let alcanceEquipoProfundidad: AlcanceEquipoProfundidad = null;
+  let alcanceEquipoGuardando = false;
+
+  function equipoHeaderActionsHtml(): string | undefined {
+    if (!alcanceEquipoAplica) return undefined;
+    return renderAlcanceEquipoSelector(alcanceEquipoProfundidad, alcanceEquipoGuardando);
+  }
+
+  async function cargarAlcanceEquipo(): Promise<void> {
+    if (pageRole !== "gerente") return;
+    try {
+      const alcance = await getAlcanceEquipo();
+      alcanceEquipoAplica = alcance.aplica;
+      alcanceEquipoProfundidad = alcance.profundidad_equipo;
+      equipoSubtitle = equipoSectionSubtitle(splitGestorRole, alcanceEquipoProfundidad);
+    } catch {
+      alcanceEquipoAplica = false;
+    }
+  }
 
   const hashDeepLink = parseSolicitudesHashDeepLink();
   if (
@@ -410,10 +486,11 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   }
 
   async function recargarSolicitudesDesdeApi(): Promise<void> {
-    // En paralelo: el saldo sale de otra ruta y no debe retrasar la tabla.
+    // En paralelo: el saldo y el alcance salen de otras rutas y no deben retrasar la tabla.
     const [rows, saldoDisponible] = await Promise.all([
       getSolicitudesRows(),
       cargarSaldoVacacionesPropio(),
+      cargarAlcanceEquipo(),
     ]);
     allRows = rows;
     filterOpts = buildRhSolicitudFilterOptions(allRows);
@@ -519,6 +596,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
             showExportButton: pageUi.showExportButton,
             showNewRequestButton: pageUi.showNewRequestButton,
             equipoSubtitle,
+            equipoHeaderActionsHtml: equipoHeaderActionsHtml(),
           })
         : renderRhSolicitudesAdminView(vm);
       const scrollDeep = solicitudesDeepLinkScrollTarget;
@@ -575,6 +653,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
               showExportButton: pageUi.showExportButton,
               showNewRequestButton: pageUi.showNewRequestButton,
               equipoSubtitle,
+              equipoHeaderActionsHtml: equipoHeaderActionsHtml(),
             },
           )
         : renderRhSolicitudesAdminView(loadingViewModel(pageUi))
@@ -830,6 +909,29 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
   pageRoot?.addEventListener(
     "change",
     (e) => {
+      const alcanceSel = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-sol-alcance-equipo]");
+      if (alcanceSel) {
+        const nuevo = parseAlcanceEquipoValue(alcanceSel.value);
+        const anterior = alcanceEquipoProfundidad;
+        alcanceEquipoProfundidad = nuevo;
+        alcanceEquipoGuardando = true;
+        paint();
+        void putAlcanceEquipo(nuevo)
+          .then(async (saved) => {
+            alcanceEquipoProfundidad = saved.profundidad_equipo;
+            equipoSubtitle = equipoSectionSubtitle(splitGestorRole, alcanceEquipoProfundidad);
+            teamState.page = 1;
+            await recargarSolicitudesDesdeApi();
+          })
+          .catch(() => {
+            alcanceEquipoProfundidad = anterior;
+          })
+          .finally(() => {
+            alcanceEquipoGuardando = false;
+            paint();
+          });
+        return;
+      }
       const sel = (e.target as HTMLElement).closest<HTMLSelectElement>("[data-rh-sol-filter]");
       if (sel) {
         const selectScope = scopeFromInteractiveElement(sel);
@@ -896,6 +998,7 @@ export function mountSolicitudes(container: HTMLElement, signal: AbortSignal): v
               showExportButton: pageUi.showExportButton,
               showNewRequestButton: pageUi.showNewRequestButton,
               equipoSubtitle,
+              equipoHeaderActionsHtml: equipoHeaderActionsHtml(),
             },
           );
         } else {

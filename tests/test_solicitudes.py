@@ -2298,3 +2298,160 @@ async def test_aprobar_otro_gerente_sin_permiso_o_ya_aprobada(client: AsyncClien
         headers=headers_b,
     )
     assert r2.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Alcance del equipo (gerente): profundidad configurable del listado
+# ---------------------------------------------------------------------------
+
+async def _armar_cadena_gerente(db, prefijo: str):
+    """gerente → supervisor → empleado (3 niveles); una solicitud por nivel inferior."""
+    gerente = await make_empleado(db, rol="gerente", email=f"{prefijo}g@leoni.test")
+    supervisor = await make_empleado(
+        db, rol="supervisor", email=f"{prefijo}s@leoni.test", lider_id=gerente.empleado_id
+    )
+    empleado = await make_empleado(
+        db, rol="empleado", email=f"{prefijo}e@leoni.test", lider_id=supervisor.empleado_id
+    )
+    sol_sup = await make_solicitud(db, empleado_id=supervisor.id)
+    sol_emp = await make_solicitud(db, empleado_id=empleado.id)
+    return gerente, supervisor, empleado, sol_sup, sol_emp
+
+
+@pytest.mark.asyncio
+async def test_alcance_equipo_get_gerente_default_todo(client: AsyncClient, db):
+    gerente = await make_empleado(db, rol="gerente", email="alc001g@leoni.test")
+    headers = await auth_headers(client, gerente)
+    response = await client.get("/api/v1/solicitudes/me/alcance-equipo", headers=headers)
+    assert response.status_code == 200
+    assert response.json() == {"aplica": True, "profundidad_equipo": None}
+
+
+@pytest.mark.asyncio
+async def test_alcance_equipo_get_supervisor_no_aplica(client: AsyncClient, db):
+    supervisor = await make_empleado(db, rol="supervisor", email="alc002s@leoni.test")
+    headers = await auth_headers(client, supervisor)
+    response = await client.get("/api/v1/solicitudes/me/alcance-equipo", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["aplica"] is False
+
+
+@pytest.mark.asyncio
+async def test_alcance_equipo_put_supervisor_403(client: AsyncClient, db):
+    supervisor = await make_empleado(db, rol="supervisor", email="alc003s@leoni.test")
+    headers = await auth_headers(client, supervisor)
+    response = await client.put(
+        "/api/v1/solicitudes/me/alcance-equipo",
+        json={"profundidad_equipo": 1},
+        headers=headers,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_alcance_equipo_put_fuera_de_rango_422(client: AsyncClient, db):
+    gerente = await make_empleado(db, rol="gerente", email="alc004g@leoni.test")
+    headers = await auth_headers(client, gerente)
+    for valor in (0, 4):
+        response = await client.put(
+            "/api/v1/solicitudes/me/alcance-equipo",
+            json={"profundidad_equipo": valor},
+            headers=headers,
+        )
+        assert response.status_code == 422, valor
+
+
+@pytest.mark.asyncio
+async def test_alcance_equipo_profundidad_1_solo_directos_en_listado(client: AsyncClient, db):
+    gerente, supervisor, empleado, sol_sup, sol_emp = await _armar_cadena_gerente(db, "alc005")
+    headers = await auth_headers(client, gerente)
+
+    put = await client.put(
+        "/api/v1/solicitudes/me/alcance-equipo",
+        json={"profundidad_equipo": 1},
+        headers=headers,
+    )
+    assert put.status_code == 200
+    assert put.json() == {"aplica": True, "profundidad_equipo": 1}
+
+    get = await client.get("/api/v1/solicitudes/me/alcance-equipo", headers=headers)
+    assert get.json()["profundidad_equipo"] == 1
+
+    listado = await client.get("/api/v1/solicitudes", headers=headers)
+    assert listado.status_code == 200
+    ids = {item["id"] for item in listado.json()["items"]}
+    assert sol_sup.id in ids
+    assert sol_emp.id not in ids
+    assert listado.json()["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_alcance_equipo_profundidad_2_incluye_nivel_2(client: AsyncClient, db):
+    gerente, supervisor, empleado, sol_sup, sol_emp = await _armar_cadena_gerente(db, "alc006")
+    headers = await auth_headers(client, gerente)
+    await client.put(
+        "/api/v1/solicitudes/me/alcance-equipo",
+        json={"profundidad_equipo": 2},
+        headers=headers,
+    )
+    listado = await client.get("/api/v1/solicitudes", headers=headers)
+    ids = {item["id"] for item in listado.json()["items"]}
+    assert {sol_sup.id, sol_emp.id} <= ids
+
+
+@pytest.mark.asyncio
+async def test_alcance_equipo_volver_a_null_restaura_todo(client: AsyncClient, db):
+    gerente, supervisor, empleado, sol_sup, sol_emp = await _armar_cadena_gerente(db, "alc007")
+    headers = await auth_headers(client, gerente)
+    await client.put(
+        "/api/v1/solicitudes/me/alcance-equipo",
+        json={"profundidad_equipo": 1},
+        headers=headers,
+    )
+    await client.put(
+        "/api/v1/solicitudes/me/alcance-equipo",
+        json={"profundidad_equipo": None},
+        headers=headers,
+    )
+    listado = await client.get("/api/v1/solicitudes", headers=headers)
+    ids = {item["id"] for item in listado.json()["items"]}
+    assert {sol_sup.id, sol_emp.id} <= ids
+
+
+@pytest.mark.asyncio
+async def test_alcance_equipo_no_acota_detalle_ni_aprobacion(client: AsyncClient, db):
+    """Solo visualización: con profundidad 1 el gerente sigue viendo y aprobando nivel 2."""
+    gerente, supervisor, empleado, sol_sup, sol_emp = await _armar_cadena_gerente(db, "alc008")
+    headers = await auth_headers(client, gerente)
+    await client.put(
+        "/api/v1/solicitudes/me/alcance-equipo",
+        json={"profundidad_equipo": 1},
+        headers=headers,
+    )
+    detalle = await client.get(f"/api/v1/solicitudes/{sol_emp.id}", headers=headers)
+    assert detalle.status_code == 200
+    aprobar = await client.put(
+        f"/api/v1/solicitudes/{sol_emp.id}/approve",
+        json=APROBACION_PAYLOAD,
+        headers=headers,
+    )
+    assert aprobar.status_code == 200, aprobar.text
+
+
+@pytest.mark.asyncio
+async def test_listado_gerente_atraviesa_lider_intermedio_inactivo(client: AsyncClient, db):
+    gerente = await make_empleado(db, rol="gerente", email="alc009g@leoni.test")
+    supervisor = await make_empleado(
+        db, rol="supervisor", email="alc009s@leoni.test", lider_id=gerente.empleado_id
+    )
+    empleado = await make_empleado(
+        db, rol="empleado", email="alc009e@leoni.test", lider_id=supervisor.empleado_id
+    )
+    await db.execute(update(Empleado).where(Empleado.id == supervisor.id).values(estado_id=99))
+    await db.commit()
+    sol_emp = await make_solicitud(db, empleado_id=empleado.id)
+
+    headers = await auth_headers(client, gerente)
+    listado = await client.get("/api/v1/solicitudes", headers=headers)
+    ids = {item["id"] for item in listado.json()["items"]}
+    assert sol_emp.id in ids

@@ -1213,7 +1213,13 @@ export function renderRhMetricasView(
 
 export function renderRhSolicitudesScopedSection(
   vm: RhSolicitudesAdminViewModel,
-  options: { scope: Exclude<SolicitudesRenderScope, "main">; title: string; subtitle: string },
+  options: {
+    scope: Exclude<SolicitudesRenderScope, "main">;
+    title: string;
+    subtitle: string;
+    /** HTML opcional a la derecha del título (p. ej. el selector de alcance del gerente). */
+    headerActionsHtml?: string;
+  },
 ): string {
   const tableHtml = vm.ui.variant === "empleado" ? renderEmpleadoSolicitudesTable(vm, options.scope) : renderTable(vm, options.scope);
   const sectionShell =
@@ -1229,8 +1235,11 @@ export function renderRhSolicitudesScopedSection(
   return `
     <section${sectionIdAttr} class="${sectionShell}">
       <header class="mb-4 border-b border-slate-200/90 pb-3">
-        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <h2 class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(options.title)}${chip}</h2>
+        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h2 class="text-base font-semibold text-text-primary sm:text-lg">${escapeHtml(options.title)}${chip}</h2>
+          </div>
+          ${options.headerActionsHtml ?? ""}
         </div>
         <p class="mt-1.5 text-xs leading-snug text-text-muted sm:text-sm">${escapeHtml(options.subtitle)}</p>
       </header>

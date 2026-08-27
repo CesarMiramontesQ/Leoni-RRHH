@@ -22,6 +22,8 @@ from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
 from app.models.empleados import Empleado
 from app.schemas import PaginatedResponse
 from app.schemas.solicitudes import (
+    AlcanceEquipoResponse,
+    AlcanceEquipoUpdate,
     SolicitudAprobacionCreate,
     SolicitudAprobacionResponse,
     SolicitudCreate,
@@ -67,6 +69,32 @@ async def create_solicitud(
         current_user=current_user,
         background_tasks=background_tasks,
         rh_ui_mode=rh_ui_mode,
+    )
+
+
+# Preferencia self-service del gerente: cuántos niveles baja el listado de su
+# equipo. Vive bajo /solicitudes (prefijo self-service) y va antes de /{solicitud_id}
+# para que "me" no se lea como id.
+@router.get("/me/alcance-equipo", response_model=AlcanceEquipoResponse)
+async def get_alcance_equipo(
+    current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    db: AsyncSession = Depends(get_db),
+):
+    service = SolicitudService(db)
+    return await service.get_alcance_equipo(current_user=current_user, rh_ui_mode=rh_ui_mode)
+
+
+@router.put("/me/alcance-equipo", response_model=AlcanceEquipoResponse)
+async def set_alcance_equipo(
+    body: AlcanceEquipoUpdate,
+    current_user: Empleado = Depends(get_current_user),
+    rh_ui_mode: str | None = Depends(get_rh_ui_mode),
+    db: AsyncSession = Depends(get_db),
+):
+    service = SolicitudService(db)
+    return await service.set_alcance_equipo(
+        current_user=current_user, body=body, rh_ui_mode=rh_ui_mode
     )
 
 
