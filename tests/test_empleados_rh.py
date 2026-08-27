@@ -263,6 +263,13 @@ async def test_list_empleados_rh_solo_contratos_por_vencer_lee_cache_tress(
     await make_empleado_tress(db, 7000303, contrato_dias=0)
     baja = await make_empleado(db, rol="empleado", estado_id=2, no_empleado=7000304)
     await make_empleado_tress(db, 7000304, contrato_dias=90, fecha_vencimiento_contrato=hoy + timedelta(days=5))
+    # Sin fila en levelup_empleados_config (caso real en Bono): debe aparecer igual.
+    from app.models.empleados_rh import EmpleadoRhConfig
+    from sqlalchemy import delete
+
+    sin_config = await make_empleado(db, rol="empleado", estado_id=1, no_empleado=7000305)
+    await db.execute(delete(EmpleadoRhConfig).where(EmpleadoRhConfig.empleado_id == sin_config.empleado_id))
+    await make_empleado_tress(db, 7000305, contrato_dias=90, fecha_vencimiento_contrato=hoy + timedelta(days=3))
     await db.commit()
 
     headers = await auth_headers(client, empleado_rh)
@@ -273,9 +280,9 @@ async def test_list_empleados_rh_solo_contratos_por_vencer_lee_cache_tress(
     )
     assert r.status_code == 200
     ids = {item["id"] for item in r.json()["items"]}
-    assert por_vencer.id in ids
+    assert por_vencer.id in ids and sin_config.id in ids
     assert lejano.id not in ids and indefinido.id not in ids and baja.id not in ids
-    assert r.json()["total"] == 1
+    assert r.json()["total"] == 2
 
 
 @pytest.mark.asyncio

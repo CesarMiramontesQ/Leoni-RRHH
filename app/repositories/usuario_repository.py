@@ -8,7 +8,6 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.empleados import Empleado
-from app.models.empleados_rh import EmpleadoRhConfig
 from app.models.empleados_tress import EmpleadoTress
 from app.models.catalogos import Area, ClasificacionEmpleado, Puesto
 from app.repositories.base import BaseRepository
@@ -186,11 +185,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
             selectinload(Empleado.categoria),
             selectinload(Empleado.clasificacion),
         )
-        if solo_contrato_por_vencer:
-            query = query.join(
-                EmpleadoRhConfig,
-                EmpleadoRhConfig.empleado_id == Empleado.empleado_id,
-            )
+        # El filtro de contrato lee la caché de TRESS por subquery (ver
+        # `_contrato_por_vencer_condition`); no hay que unir levelup_empleados_config,
+        # cuyo INNER JOIN dejaba fuera a quien no tiene fila de configuración.
         for cond in conditions:
             query = query.where(cond)
         query = query.order_by(Empleado.id).offset(offset).limit(limit)
@@ -229,11 +226,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
             clasificacion_admin_ids=clasificacion_admin_ids,
         )
         query = select(func.count()).select_from(Empleado)
-        if solo_contrato_por_vencer:
-            query = query.join(
-                EmpleadoRhConfig,
-                EmpleadoRhConfig.empleado_id == Empleado.empleado_id,
-            )
+        # El filtro de contrato lee la caché de TRESS por subquery (ver
+        # `_contrato_por_vencer_condition`); no hay que unir levelup_empleados_config,
+        # cuyo INNER JOIN dejaba fuera a quien no tiene fila de configuración.
         for cond in conditions:
             query = query.where(cond)
         result = await self.db.execute(query)
