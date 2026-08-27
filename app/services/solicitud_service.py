@@ -32,6 +32,7 @@ from app.core.rh_ui_mode import (
     is_rh_empleado_ui_mode,
     rh_tiene_alcance_gestor,
 )
+from app.utils.business_time import business_today
 from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.utils.homeoffice_periodo import bloque_semanas
 from app.utils.vacaciones_fechas import (
@@ -345,6 +346,25 @@ def _asegurar_no_autopaprobacion_jerarquica(
         raise ForbiddenError(
             detail="No puedes aprobar ni rechazar tu propia solicitud; debe actuar otro aprobador de la cadena"
         )
+
+
+# Anticipación mínima (en días) para vacaciones y home office: la fecha de inicio
+# debe ser al menos mañana. Fija en código a propósito; el frontend espeja la
+# misma constante en `solicitudes/rh/rhNewRequestDays.ts`.
+DIAS_ANTICIPACION_MINIMA = 1
+_TIPOS_CON_ANTICIPACION_MINIMA = frozenset({"vacaciones", "home_office"})
+MSG_ANTICIPACION_MINIMA = (
+    "Las solicitudes de vacaciones y home office deben registrarse con al menos "
+    "un día de anticipación: la fecha de inicio no puede ser hoy ni una fecha pasada."
+)
+
+
+def _validar_anticipacion_minima(tipo: str, fecha_inicio: date, scope_rol: str) -> None:
+    """Rechaza vacaciones/HO con `fecha_inicio <= hoy`. Solo RH (scope global) queda exento."""
+    if tipo not in _TIPOS_CON_ANTICIPACION_MINIMA or scope_rol == "rh":
+        return
+    if fecha_inicio < business_today() + timedelta(days=DIAS_ANTICIPACION_MINIMA):
+        raise DomainValidationError(detail=MSG_ANTICIPACION_MINIMA)
 
 
 class SolicitudService:
@@ -1008,6 +1028,7 @@ class SolicitudService:
 
         fecha_inicio = data.fecha_inicio
         fecha_fin = data.fecha_fin
+        _validar_anticipacion_minima(data.tipo, fecha_inicio, scope_rol)
         if data.tipo == "home_office":
             await self._validar_creacion_home_office(
                 empleado_id=target.id,
@@ -1644,6 +1665,12 @@ class SolicitudService:
                     f"estado actual: '{solicitud.estado}'"
                 )
             )
+
+        _validar_anticipacion_minima(
+            solicitud.tipo,
+            data.fecha_inicio,
+            effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode),
+        )
 
         duplicado = await self.repo.count(
             filters=[

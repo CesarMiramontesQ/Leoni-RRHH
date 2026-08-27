@@ -953,3 +953,16 @@ async def make_empleado_home_office(
     empleado.area_id = area.area_id
     await db.flush()
     return empleado
+
+
+@pytest.fixture(autouse=True)
+def _solicitudes_hoy_fijo(monkeypatch):
+    """Congela «hoy» para la regla de anticipación mínima de solicitudes.
+
+    Los tests de solicitudes usan fechas literales de 2026 que ya son pasado; sin
+    esto, `_validar_anticipacion_minima` las rechazaría con 422. Un test que quiera
+    otro «hoy» vuelve a parchear `business_today` sobre este mismo módulo.
+    """
+    from app.services import solicitud_service
+
+    monkeypatch.setattr(solicitud_service, "business_today", lambda: date(2026, 1, 5))

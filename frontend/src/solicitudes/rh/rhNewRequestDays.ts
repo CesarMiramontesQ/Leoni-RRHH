@@ -318,3 +318,31 @@ export const MENSAJE_HOME_OFFICE_MES_LIMITE =
 
 export const HOME_OFFICE_RESUMEN_BASE =
   "Home Office: un solo día por solicitud, entre semana (lunes a viernes). La frecuencia permitida depende del área del colaborador.";
+
+/**
+ * Anticipación mínima para vacaciones y home office: la fecha de inicio debe ser al
+ * menos mañana. Espejo de `DIAS_ANTICIPACION_MINIMA` en `app/services/solicitud_service.py`.
+ * RH (modo operativo) queda exento y sigue registrando cualquier fecha.
+ */
+export const SOLICITUD_DIAS_ANTICIPACION_MINIMA = 1;
+
+export const MENSAJE_ANTICIPACION_MINIMA =
+  "Se solicita con al menos un día de anticipación: hoy y fechas pasadas no están disponibles.";
+
+export function tipoRequiereAnticipacionMinima(tipo: string): boolean {
+  return tipo === "vacaciones" || tipo === "home_office";
+}
+
+/** Primera fecha seleccionable (ISO) a partir de `hoyIso`. */
+export function fechaMinimaSolicitudIso(hoyIso: string): string {
+  return sumarDiasIso(hoyIso, SOLICITUD_DIAS_ANTICIPACION_MINIMA);
+}
+
+/** `true` si no hay fecha mínima o si `fechaInicioIso >= fechaMinimaIso` (comparación ISO). */
+export function fechaInicioCumpleAnticipacion(
+  fechaInicioIso: string,
+  fechaMinimaIso: string | null,
+): boolean {
+  if (!fechaMinimaIso || !fechaInicioIso) return true;
+  return fechaInicioIso >= fechaMinimaIso;
+}

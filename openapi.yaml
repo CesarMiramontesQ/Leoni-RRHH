@@ -9845,6 +9845,10 @@ paths:
     post:
       tags: [Solicitudes]
       summary: Crear solicitud
+      description: >
+        Vacaciones y home office exigen anticipación mínima: `fecha_inicio` debe ser
+        al menos mañana (zona America/Mexico_City); hoy o una fecha pasada responde 422.
+        Solo RH (scope global del módulo de solicitudes) queda exento.
       operationId: solicitudes_create
       security:
         - BearerAuth: []
@@ -10038,7 +10042,10 @@ paths:
     patch:
       tags: [Solicitudes]
       summary: Reenviar solicitud con cambios
-      description: Solo el creador puede usar este endpoint. Solo funciona en estado changes_requested.
+      description: >
+        Solo el creador puede usar este endpoint. Solo funciona en estado changes_requested.
+        Vacaciones y home office aplican la misma anticipación mínima que en la creación
+        (`fecha_inicio` ≥ mañana; RH exento).
       operationId: solicitudes_revision
       security:
         - BearerAuth: []
