@@ -169,20 +169,30 @@ async def test_set_autorizacion_horas_extra_escribe_hija_y_autor(db):
     assert permisos.puede_registrar_horas_extra is True
 
 
-async def test_contratos_por_vencer_filtra_via_join_tabla_hija(db):
+async def test_contratos_por_vencer_lee_la_cache_de_tress_no_la_fecha_manual(db):
+    from tests.conftest import make_empleado_tress
+
     hoy = date.today()
-    por_vencer = await make_empleado(
-        db, rol="empleado", estado_id=1, fecha_fin_contrato=hoy + timedelta(days=10)
+    por_vencer = await make_empleado(db, rol="empleado", estado_id=1)
+    await make_empleado_tress(
+        db, por_vencer.no_empleado, contrato_dias=90,
+        fecha_vencimiento_contrato=hoy + timedelta(days=10),
     )
-    # Sin fecha de fin: no debe contar.
-    await make_empleado(db, rol="empleado", estado_id=1, fecha_fin_contrato=None)
+    # Fecha manual capturada en levelup_empleados_config: ya no cuenta.
+    await make_empleado(db, rol="empleado", estado_id=1, fecha_fin_contrato=hoy + timedelta(days=5))
+    # Indefinido y vencido: tampoco.
+    indef = await make_empleado(db, rol="empleado", estado_id=1)
+    await make_empleado_tress(db, indef.no_empleado, contrato_dias=0)
+    venc = await make_empleado(db, rol="empleado", estado_id=1)
+    await make_empleado_tress(
+        db, venc.no_empleado, contrato_dias=90, fecha_vencimiento_contrato=hoy - timedelta(days=1)
+    )
 
     repo = UsuarioRepository(db)
     total = await repo.count_contratos_por_vencer(
         estados_activos=[1], ids_permitidos=None, hoy=hoy, dias_ventana=30
     )
     assert total == 1
-    assert por_vencer.fecha_fin_contrato == hoy + timedelta(days=10)
 
 
 async def test_empleados_no_tiene_columnas_del_proyecto():

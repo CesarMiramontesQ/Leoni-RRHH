@@ -284,9 +284,11 @@ Layered architecture: **router → service → repository → models/schemas**
     también las bajas (la Vista 360 sí las abre). Supervisor = `lider_id` directo, sin
     recorrer la jerarquía (hay ciclos reales). El CSV es UTF-8 con BOM y días restantes
     negativos cuando ya venció.
-  - Existe **otra** métrica «Contratos por vencer» en la página Empleados que sale de
-    `levelup_empleados_config.fecha_fin_contrato` (capturada a mano). No se unificaron:
-    son dos fuentes distintas y queda pendiente decidir si la manual se retira.
+  - El KPI «Contratos por vencer» de la página Empleados (y su filtro
+    `solo_contratos_por_vencer`) lee **esta misma caché** vía
+    `UsuarioRepository._contrato_por_vencer_condition` (hoy ≤ vencimiento ≤ hoy+30).
+    `levelup_empleados_config.fecha_fin_contrato` (captura manual) ya **no** alimenta ningún
+    KPI; la columna sigue existiendo solo por compatibilidad.
   - Histórico («qué contrato tenía en la fecha X», `SP_KARDEX_CB_CONTRAT`) queda fuera a
     propósito; para eso haría falta una tabla aparte con varias filas por empleado.
 - **Descansos = proyección desde Bono, no lectura de TRESS.** Ninguna ruta que dispare un

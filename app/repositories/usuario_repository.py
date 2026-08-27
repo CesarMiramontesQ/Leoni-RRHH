@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.empleados import Empleado
 from app.models.empleados_rh import EmpleadoRhConfig
+from app.models.empleados_tress import EmpleadoTress
 from app.models.catalogos import Area, ClasificacionEmpleado, Puesto
 from app.repositories.base import BaseRepository
 
@@ -126,13 +127,10 @@ class UsuarioRepository(BaseRepository[Empleado]):
                 # Cada token debe existir en alguno de los campos (AND entre tokens).
                 conditions.append(or_(*token_like))
         if solo_contrato_por_vencer and hoy_contrato is not None:
-            hasta = hoy_contrato + timedelta(days=dias_ventana_contrato)
-            conditions.extend(
-                [
-                    EmpleadoRhConfig.fecha_fin_contrato.isnot(None),
-                    EmpleadoRhConfig.fecha_fin_contrato >= hoy_contrato,
-                    EmpleadoRhConfig.fecha_fin_contrato <= hasta,
-                ]
+            conditions.append(
+                UsuarioRepository._contrato_por_vencer_condition(
+                    hoy_contrato, dias_ventana_contrato
+                )
             )
         if solo_sin_lider:
             conditions.append(Empleado.lider_id.is_(None))
@@ -343,6 +341,21 @@ class UsuarioRepository(BaseRepository[Empleado]):
         result = await self.db.execute(query)
         return [(str(label), int(total)) for label, total in result.all()]
 
+    @staticmethod
+    def _contrato_por_vencer_condition(hoy: date, dias_ventana: int):
+        """«Por vencer» = hoy ≤ vencimiento ≤ hoy + N, leído de la caché de TRESS
+        (`levelup_empleados_tress.fecha_vencimiento_contrato`, sync 04:10). Misma regla
+        que `contratos_service.calcular_estatus`; la fecha manual
+        `levelup_empleados_config.fecha_fin_contrato` ya no se usa para este KPI."""
+        hasta = hoy + timedelta(days=dias_ventana)
+        return Empleado.no_empleado.in_(
+            select(EmpleadoTress.no_empleado).where(
+                EmpleadoTress.fecha_vencimiento_contrato.isnot(None),
+                EmpleadoTress.fecha_vencimiento_contrato >= hoy,
+                EmpleadoTress.fecha_vencimiento_contrato <= hasta,
+            )
+        )
+
     async def count_contratos_por_vencer(
         self,
         estados_activos: list[int],
@@ -352,12 +365,9 @@ class UsuarioRepository(BaseRepository[Empleado]):
     ) -> int:
         if not estados_activos:
             return 0
-        hasta = hoy + timedelta(days=dias_ventana)
         conditions = [
             Empleado.estado_id.in_(estados_activos),
-            EmpleadoRhConfig.fecha_fin_contrato.isnot(None),
-            EmpleadoRhConfig.fecha_fin_contrato >= hoy,
-            EmpleadoRhConfig.fecha_fin_contrato <= hasta,
+            UsuarioRepository._contrato_por_vencer_condition(hoy, dias_ventana),
         ]
         if ids_permitidos is not None:
             if not ids_permitidos:
@@ -366,10 +376,6 @@ class UsuarioRepository(BaseRepository[Empleado]):
         query = (
             select(func.count())
             .select_from(Empleado)
-            .join(
-                EmpleadoRhConfig,
-                EmpleadoRhConfig.empleado_id == Empleado.empleado_id,
-            )
             .where(*conditions)
         )
         result = await self.db.execute(query)
