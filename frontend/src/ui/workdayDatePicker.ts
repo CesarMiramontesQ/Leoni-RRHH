@@ -144,6 +144,8 @@ export type WorkdayDatePickerMonthHtmlOpts = {
   loadedMonths?: ReadonlySet<string>;
   /** ISO yyyy-mm-dd: los días anteriores quedan no disponibles. */
   minDate?: string | null;
+  /** ISO → descripción. Festivos de la planta: no seleccionables, con color propio. */
+  festivos?: ReadonlyMap<string, string>;
 };
 
 export function buildWorkdayDatePickerMonthHtml(
@@ -151,6 +153,7 @@ export function buildWorkdayDatePickerMonthHtml(
 ): string {
   const { year, monthIndex, selected, blockWeekends } = opts;
   const blockedDates = opts.blockedDates ?? new Set<string>();
+  const festivos = opts.festivos ?? new Map<string, string>();
   const loadedMonths = opts.loadedMonths;
   const minDate = opts.minDate || null;
   const labels = getCalendarWeekdayLabels(1);
@@ -171,10 +174,12 @@ export function buildWorkdayDatePickerMonthHtml(
   const days = cells
     .map((cell) => {
       const weekend = isWeekendIso(cell.isoDate);
-      const descanso = blockedDates.has(cell.isoDate);
+      const festivo = festivos.get(cell.isoDate) ?? null;
+      const descanso = festivo == null && blockedDates.has(cell.isoDate);
       const pending = loadedMonths != null && !loadedMonths.has(cell.isoDate.slice(0, 7));
       const beforeMin = minDate != null && cell.isoDate < minDate;
-      const blocked = pending || descanso || beforeMin || (blockWeekends && weekend);
+      const blocked =
+        pending || festivo != null || descanso || beforeMin || (blockWeekends && weekend);
       const selectedDay = cell.isoDate === selected;
       const isToday = cell.isoDate === today;
       const muted = !cell.inCurrentMonth;
@@ -183,6 +188,9 @@ export function buildWorkdayDatePickerMonthHtml(
         "flex size-8 items-center justify-center rounded-lg text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue/40";
       if (pending) {
         cls += " cursor-not-allowed text-slate-300/70 opacity-45";
+      } else if (festivo != null) {
+        cls +=
+          " cursor-not-allowed bg-rose-100 font-medium text-rose-900 ring-1 ring-inset ring-rose-200/90 line-through decoration-rose-500/70";
       } else if (descanso) {
         cls +=
           " cursor-not-allowed bg-amber-100 font-medium text-amber-900 ring-1 ring-inset ring-amber-200/90 line-through decoration-amber-500/70";
@@ -207,14 +215,22 @@ export function buildWorkdayDatePickerMonthHtml(
             blocked
               ? `disabled aria-disabled="true" tabindex="-1" aria-label="${escapeHtml(
                   `${cell.isoDate} — ${
-                    pending ? "Consultando descansos" : descanso ? "Descanso" : "No disponible"
+                    pending
+                      ? "Consultando descansos"
+                      : festivo != null
+                        ? `Festivo: ${festivo}`
+                        : descanso
+                          ? "Descanso"
+                          : "No disponible"
                   }`,
                 )}"${
                   pending
                     ? ' title="Consultando descansos"'
-                    : descanso
-                      ? ' title="Descanso"'
-                      : ""
+                    : festivo != null
+                      ? ` title="${escapeHtml(`Festivo: ${festivo}`)}"`
+                      : descanso
+                        ? ' title="Descanso"'
+                        : ""
                 }`
               : `aria-label="${escapeHtml(cell.isoDate)}"`
           }
@@ -224,6 +240,7 @@ export function buildWorkdayDatePickerMonthHtml(
     .join("");
 
   const showDescansoLegend = blockedDates.size > 0 || loadedMonths != null;
+  const showFestivoLegend = festivos.size > 0;
 
   return `
     <div class="flex items-center justify-between gap-2 pb-2">
@@ -243,6 +260,11 @@ export function buildWorkdayDatePickerMonthHtml(
         : ""
     }
     ${
+      showFestivoLegend
+        ? `<p class="mt-2 border-t border-slate-100 pt-2 text-[11px] leading-relaxed text-rose-900/80"><span class="mr-1.5 inline-block size-2.5 rounded-sm bg-rose-200 ring-1 ring-rose-300/80 align-middle" aria-hidden="true"></span>Días en rosa = festivo de la planta (no seleccionables; no descuentan vacaciones).</p>`
+        : ""
+    }
+    ${
       blockWeekends
         ? `<p class="mt-2 border-t border-slate-100 pt-2 text-[11px] leading-relaxed text-slate-400">Sábados y domingos no disponibles para personal administrativo.</p>`
         : ""
@@ -256,6 +278,7 @@ export type BindWorkdayDatePickerOpts = {
   loadedMonths?: Iterable<string>;
   /** ISO yyyy-mm-dd: los días anteriores no se pueden elegir. */
   minDate?: string | null;
+  festivos?: ReadonlyMap<string, string>;
   onMonthChange?: (year: number, monthIndex: number) => void | Promise<void>;
   signal?: AbortSignal;
 };
@@ -266,6 +289,7 @@ export type WorkdayDatePickerHandle = {
   setBlockedDates: (dates: Iterable<string>) => void;
   /** `null` quita la restricción: vuelven a ser elegibles los meses sin cargar. */
   setLoadedMonths: (months: Iterable<string> | null) => void;
+  setFestivos: (festivos: ReadonlyMap<string, string>) => void;
   repaint: () => void;
 };
 
@@ -287,6 +311,7 @@ export function bindWorkdayDatePicker(
       destroy: () => {},
       setBlockedDates: () => {},
       setLoadedMonths: () => {},
+      setFestivos: () => {},
       repaint: () => {},
     };
   }
@@ -297,6 +322,7 @@ export function bindWorkdayDatePicker(
   let [viewY, viewM] = monthFromValue(hidden.value);
   let blockedDates = new Set(opts.blockedDates ?? []);
   let loadedMonths = opts.loadedMonths == null ? undefined : new Set(opts.loadedMonths);
+  let festivos: ReadonlyMap<string, string> = opts.festivos ?? new Map();
   const minDate = opts.minDate || null;
 
   const blockWeekends = () => root.getAttribute("data-block-weekends") === "true";
@@ -322,6 +348,7 @@ export function bindWorkdayDatePicker(
       blockedDates,
       loadedMonths,
       minDate,
+      festivos,
     });
   }
 
@@ -427,6 +454,10 @@ export function bindWorkdayDatePicker(
     },
     setLoadedMonths: (months) => {
       loadedMonths = months == null ? undefined : new Set(months);
+      if (open) paintPanel();
+    },
+    setFestivos: (next) => {
+      festivos = next;
       if (open) paintPanel();
     },
     repaint: () => {

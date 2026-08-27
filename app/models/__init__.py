@@ -22,6 +22,7 @@ from app.models.turnos_uso import TurnoUso
 from app.models.vacaciones_disponibles import VacacionesDisponibles
 from app.models.homeoffice_tomados import HomeOfficeTomados
 from app.models.homeoffice_reglas_area import HomeOfficeReglaArea
+from app.models.dias_festivos import DiaFestivo
 from app.models.empleados_tress import EmpleadoTress
 from app.models.incidencias_tress import IncidenciaTress
 from app.models.solicitudes import Solicitud, SolicitudAprobacion

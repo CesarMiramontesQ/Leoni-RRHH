@@ -349,3 +349,17 @@ export async function putAlcanceEquipo(
   }
   return (await res.json()) as AlcanceEquipo;
 }
+
+// ── Días festivos (lectura pública) ──────────────────────────────────────────
+
+export type DiaFestivoPublico = { fecha: string; descripcion: string };
+export type DiasFestivosPublicosResponse = { anio: number; items: DiaFestivoPublico[] };
+
+/** Festivos activos del año (`levelup_dias_festivos`). Cualquier usuario autenticado. */
+export async function getDiasFestivosPublicos(anio: number): Promise<DiasFestivosPublicosResponse> {
+  const res = await fetchWithAuth(`/api/v1/solicitudes/dias-festivos?anio=${anio}`);
+  if (!res.ok) {
+    throw new Error(`No se pudieron consultar los días festivos (${res.status}).`);
+  }
+  return (await res.json()) as DiasFestivosPublicosResponse;
+}

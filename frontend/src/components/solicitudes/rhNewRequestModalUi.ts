@@ -11,8 +11,10 @@ import {
   esRangoPaternidadValido,
   fechasOrdenValidas,
   MENSAJE_DEFUNCION_TRES_DIAS,
+  MENSAJE_HOME_OFFICE_FESTIVO,
   MENSAJE_HOME_OFFICE_FIN_DE_SEMANA,
   MENSAJE_HOME_OFFICE_MES_LIMITE,
+  MENSAJE_VACACIONES_FESTIVO_EXTREMO,
   MENSAJE_ANTICIPACION_MINIMA,
   fechaInicioCumpleAnticipacion,
   tipoRequiereAnticipacionMinima,
@@ -24,6 +26,7 @@ import {
   resumirRangoSinDescansos,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
 import type { DescansosLoadState } from "../../solicitudes/rh/descansosEmpleado.ts";
+import { festivosEnRango } from "../../solicitudes/rh/diasFestivos.ts";
 import {
   buildDescansosFeedback,
   tipoRequiereCalendarioDescansos,
@@ -452,6 +455,8 @@ export type RhNewRequestFormParams = {
   descansosState?: DescansosLoadState;
   descansosError?: string;
   fechasDescansoExcluidas?: readonly string[];
+  /** Festivos de la planta dentro del rango (vacaciones): no se descuentan. */
+  fechasFestivasExcluidas?: readonly string[];
   /** Texto corto bajo el rango de fechas cuando aplica la anticipación mínima. */
   anticipacionHint?: string;
 };
@@ -586,8 +591,9 @@ export function buildFormHtml(p: RhNewRequestFormParams): string {
         p.descansosState ?? "idle",
         p.descansosError ?? "",
         p.fechasDescansoExcluidas ?? [],
+        p.fechasFestivasExcluidas ?? [],
       )
-    : buildDescansosFeedback("ready", "", []);
+    : buildDescansosFeedback("ready", "", [], p.fechasFestivasExcluidas ?? []);
   const pickerInicio = (invalid: boolean) =>
     buildWorkdayDatePickerHtml({
       inputId: "rh-nr-inicio",
@@ -908,6 +914,7 @@ export function buildRhDescansosEffectiveSummaryHtml(
   fechaInicio: string,
   fechaFin: string,
   descansos: ReadonlySet<string>,
+  festivos: ReadonlySet<string> = new Set(),
 ): string {
   if (
     (tipo !== "incapacidad_interna" && tipo !== "vacaciones") ||
@@ -921,7 +928,22 @@ export function buildRhDescansosEffectiveSummaryHtml(
     fechaFin,
     descansos,
   ).fechasExcluidas;
-  return buildDescansosFeedback("ready", "", fechasExcluidas).effectiveSummaryHtml;
+  const fechasFestivas =
+    tipo === "vacaciones"
+      ? festivosEnRango(fechaInicio, fechaFin, festivos).filter((f) => !descansos.has(f))
+      : [];
+  return buildDescansosFeedback("ready", "", fechasExcluidas, fechasFestivas)
+    .effectiveSummaryHtml;
+}
+
+/** Descansos ∪ festivos: lo que no cuenta como día de vacaciones. */
+function exclusionesVacaciones(
+  tipo: string,
+  descansos: ReadonlySet<string>,
+  festivos: ReadonlySet<string>,
+): ReadonlySet<string> {
+  if (tipo !== "vacaciones" || festivos.size === 0) return descansos;
+  return new Set([...descansos, ...festivos]);
 }
 
 export function computeRhModalFormUi(
@@ -946,13 +968,16 @@ export function computeRhModalFormUi(
   descansos: ReadonlySet<string> = new Set(),
   /** ISO de la primera fecha permitida (anticipación mínima); `null` = sin restricción (RH). */
   fechaMinimaIso: string | null = null,
+  /** Festivos de la planta (solo pesan en vacaciones y home office). */
+  festivos: ReadonlySet<string> = new Set(),
 ): RhModalComputedUi {
   const usaDiasLaboralesAdmin =
     empleadoEsAdministrativo === true &&
     (tipo === "vacaciones" || tipo === "permiso_sin_goce_sueldo");
+  const exclusiones = exclusionesVacaciones(tipo, descansos, festivos);
   const rangoDescansos =
     (tipo === "incapacidad_interna" || tipo === "vacaciones") && descansosState === "ready"
-      ? resumirRangoSinDescansos(fechaInicio, fechaFin, descansos)
+      ? resumirRangoSinDescansos(fechaInicio, fechaFin, exclusiones)
       : null;
   const dias =
     tipo === "vacaciones" && descansosState === "ready"
@@ -960,7 +985,7 @@ export function computeRhModalFormUi(
           fechaInicio,
           fechaFin,
           usaDiasLaboralesAdmin,
-          descansos,
+          exclusiones,
         )
       : rangoDescansos
         ? rangoDescansos.fechasEfectivas.length
@@ -973,8 +998,15 @@ export function computeRhModalFormUi(
     tipoRequiereAnticipacionMinima(tipo) &&
     fechaInicio.trim() !== "" &&
     !fechaInicioCumpleAnticipacion(fechaInicio, fechaMinimaIso);
-  const fechaInInvalid = (bothDates && !fechasOk) || anticipacionIncumplida;
-  const fechaFinInvalid = bothDates && !fechasOk;
+  const vacacionesInicioFestivo =
+    tipo === "vacaciones" && fechaInicio.trim() !== "" && festivos.has(fechaInicio);
+  const vacacionesFinFestivo =
+    tipo === "vacaciones" && fechaFin.trim() !== "" && festivos.has(fechaFin);
+  const homeOfficeFestivo =
+    tipo === "home_office" && fechaInicio.trim() !== "" && festivos.has(fechaInicio);
+  const fechaInInvalid =
+    (bothDates && !fechasOk) || anticipacionIncumplida || vacacionesInicioFestivo || homeOfficeFestivo;
+  const fechaFinInvalid = (bothDates && !fechasOk) || vacacionesFinFestivo;
   const vacacionesAdminFinDeSemana =
     tipo === "vacaciones" &&
     empleadoEsAdministrativo === true &&
@@ -1057,6 +1089,12 @@ export function computeRhModalFormUi(
   } else if (anticipacionIncumplida) {
     resumenState = "error";
     resumenHint = MENSAJE_ANTICIPACION_MINIMA;
+  } else if (vacacionesInicioFestivo || vacacionesFinFestivo) {
+    resumenState = "error";
+    resumenHint = MENSAJE_VACACIONES_FESTIVO_EXTREMO;
+  } else if (homeOfficeFestivo) {
+    resumenState = "error";
+    resumenHint = MENSAJE_HOME_OFFICE_FESTIVO;
   } else if (bothDates && dias <= 0 && !vacacionesAdminFinDeSemana && !permisoSinGoceAdminFinDeSemana) {
     resumenState = "error";
     resumenHint = "El rango debe incluir al menos un día calendario.";
@@ -1141,6 +1179,9 @@ export function computeRhModalFormUi(
     !homeOfficeMesOcupado &&
     descansosListos &&
     !anticipacionIncumplida &&
+    !vacacionesInicioFestivo &&
+    !vacacionesFinFestivo &&
+    !homeOfficeFestivo &&
     !(tipo === "vacaciones" && contextoVac != null && dias > contextoVac);
 
   return {
@@ -1168,6 +1209,7 @@ export function applyRhModalLiveFeedback(
   contextoHoPuedeSolicitarMes: boolean | null = null,
   descansosState: DescansosLoadState = "ready",
   descansos: ReadonlySet<string> = new Set(),
+  festivos: ReadonlySet<string> = new Set(),
 ): void {
   /** Empleado fijo: portal o corrección (hidden sin buscador). */
   const selfMode =
@@ -1202,6 +1244,8 @@ export function applyRhModalLiveFeedback(
     homeOfficeMesOcupado ? false : contextoHoPuedeSolicitarMes,
     descansosState,
     descansos,
+    null,
+    festivos,
   );
 
   const fiRoot = fi.closest("[data-workday-date-picker]") as HTMLElement | null;
@@ -1248,6 +1292,7 @@ export function applyRhModalLiveFeedback(
       fi.value,
       ff.value,
       descansos,
+      festivos,
     );
   }
 

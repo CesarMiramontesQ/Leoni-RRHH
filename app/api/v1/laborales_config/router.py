@@ -5,13 +5,19 @@ self-service y el middleware de módulos RH no lo bloquearía. Aquí manda el m�
 `laborales-configuracion` (Permisos RH) vía `role_checker(["operativo"])`.
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import role_checker
 from app.models.empleados import Empleado
 from app.schemas.laborales_config import (
+    DiaFestivoCreate,
+    DiaFestivoGuardadoResponse,
+    DiaFestivoUpdate,
+    DiasFestivosCargaOficialesRequest,
+    DiasFestivosCargaOficialesResponse,
+    DiasFestivosListResponse,
     HomeOfficeReglaAreaItem,
     HomeOfficeReglaAreaUpdate,
     HomeOfficeReglasAreaListResponse,
@@ -48,4 +54,56 @@ async def update_home_office_regla_area(
 ):
     return await svc.actualizar_regla_home_office(
         area_id, body, current_user, ip_address=_client_ip(request)
+    )
+
+
+# ── Días festivos ────────────────────────────────────────────────────────────
+
+
+@router.get("/dias-festivos", response_model=DiasFestivosListResponse)
+async def list_dias_festivos(
+    anio: int = Query(..., ge=2000, le=2100),
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: LaboralesConfigService = Depends(_svc),
+):
+    """Festivos del año (activos y apagados) para la sección de configuración."""
+    return await svc.listar_dias_festivos(anio)
+
+
+@router.post("/dias-festivos", response_model=DiaFestivoGuardadoResponse, status_code=201)
+async def create_dia_festivo(
+    body: DiaFestivoCreate,
+    request: Request,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: LaboralesConfigService = Depends(_svc),
+):
+    return await svc.crear_dia_festivo(body, current_user, ip_address=_client_ip(request))
+
+
+@router.post(
+    "/dias-festivos/cargar-oficiales",
+    response_model=DiasFestivosCargaOficialesResponse,
+)
+async def cargar_dias_festivos_oficiales(
+    body: DiasFestivosCargaOficialesRequest,
+    request: Request,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: LaboralesConfigService = Depends(_svc),
+):
+    """Inserta los festivos LFT (art. 74) del año que falten; no toca los existentes."""
+    return await svc.cargar_festivos_oficiales(
+        body.anio, current_user, ip_address=_client_ip(request)
+    )
+
+
+@router.put("/dias-festivos/{festivo_id}", response_model=DiaFestivoGuardadoResponse)
+async def update_dia_festivo(
+    festivo_id: int,
+    body: DiaFestivoUpdate,
+    request: Request,
+    current_user: Empleado = Depends(role_checker(["operativo"])),
+    svc: LaboralesConfigService = Depends(_svc),
+):
+    return await svc.actualizar_dia_festivo(
+        festivo_id, body, current_user, ip_address=_client_ip(request)
     )

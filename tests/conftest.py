@@ -925,6 +925,21 @@ async def make_homeoffice_regla_area(
     return regla
 
 
+async def make_dia_festivo(
+    db: AsyncSession,
+    *,
+    fecha: date,
+    descripcion: str = "Festivo de prueba",
+    activo: bool = True,
+):
+    from app.models.dias_festivos import DiaFestivo
+
+    festivo = DiaFestivo(fecha=fecha, descripcion=descripcion, activo=activo)
+    db.add(festivo)
+    await db.flush()
+    return festivo
+
+
 async def make_empleado_home_office(
     db: AsyncSession,
     *,

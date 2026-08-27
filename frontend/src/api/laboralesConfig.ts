@@ -1,6 +1,6 @@
 /**
- * Configuración laborales (`/api/v1/laborales-config`): reglas de home office por área.
- * Solo RH con el módulo `laborales-configuracion`.
+ * Configuración laborales (`/api/v1/laborales-config`): reglas de home office por área
+ * y días festivos de la planta. Solo RH con el módulo `laborales-configuracion`.
  */
 import { fetchWithAuth } from "./http.ts";
 
@@ -76,6 +76,78 @@ export async function guardarHomeOfficeReglaArea(
   });
   await throwIfNotOk(res);
   return (await res.json()) as HomeOfficeReglaAreaItem;
+}
+
+// ── Días festivos ────────────────────────────────────────────────────────────
+
+export type DiaFestivoItem = {
+  id: number;
+  /** ISO yyyy-mm-dd */
+  fecha: string;
+  descripcion: string;
+  activo: boolean;
+  actualizado_en: string | null;
+  actualizado_por: string | null;
+};
+
+export type DiasFestivosListResponse = { anio: number; items: DiaFestivoItem[]; total: number };
+
+export type DiaFestivoGuardadoResponse = {
+  item: DiaFestivoItem;
+  /** Solicitudes vivas de vacaciones/HO que incluyen la fecha. No se recalculan. */
+  solicitudes_afectadas: number;
+};
+
+export type DiasFestivosCargaOficialesResponse = {
+  anio: number;
+  agregados: DiaFestivoItem[];
+  omitidos: number;
+};
+
+const FESTIVOS = "/api/v1/laborales-config/dias-festivos";
+
+export async function getDiasFestivos(anio: number): Promise<DiasFestivosListResponse> {
+  const res = await fetchWithAuth(`${FESTIVOS}?anio=${anio}`);
+  await throwIfNotOk(res);
+  return (await res.json()) as DiasFestivosListResponse;
+}
+
+export async function crearDiaFestivo(body: {
+  fecha: string;
+  descripcion: string;
+}): Promise<DiaFestivoGuardadoResponse> {
+  const res = await fetchWithAuth(FESTIVOS, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  await throwIfNotOk(res);
+  return (await res.json()) as DiaFestivoGuardadoResponse;
+}
+
+export async function actualizarDiaFestivo(
+  id: number,
+  body: { descripcion: string; activo: boolean },
+): Promise<DiaFestivoGuardadoResponse> {
+  const res = await fetchWithAuth(`${FESTIVOS}/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  await throwIfNotOk(res);
+  return (await res.json()) as DiaFestivoGuardadoResponse;
+}
+
+export async function cargarDiasFestivosOficiales(
+  anio: number,
+): Promise<DiasFestivosCargaOficialesResponse> {
+  const res = await fetchWithAuth(`${FESTIVOS}/cargar-oficiales`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ anio }),
+  });
+  await throwIfNotOk(res);
+  return (await res.json()) as DiasFestivosCargaOficialesResponse;
 }
 
 export function laboralesConfigErrorMessage(error: unknown, fallback: string): string {
