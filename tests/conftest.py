@@ -863,3 +863,76 @@ async def empleado_director(db):
 @pytest_asyncio.fixture
 async def empleado_gerente(db):
     return await make_empleado(db, rol="gerente", nombre="Sofía Ruiz")
+
+
+async def make_area(
+    db: AsyncSession,
+    *,
+    descripcion: str = "Área Test",
+    area_id: int | None = None,
+    estatus_id: int = 1,
+):
+    """Área de Bono (catálogo externo, solo lectura en prod) para pruebas."""
+    import uuid
+
+    from app.models.catalogos import Area
+
+    area = Area(
+        area_id=area_id if area_id is not None else abs(hash(str(uuid.uuid4()))) % 900000 + 100000,
+        descripcion=descripcion,
+        estatus_id=estatus_id,
+    )
+    db.add(area)
+    await db.flush()
+    return area
+
+
+async def make_homeoffice_regla_area(
+    db: AsyncSession,
+    *,
+    area_id: int,
+    dias_permitidos: int = 1,
+    periodo_semanas: int = 1,
+    activo: bool = True,
+):
+    from app.models.homeoffice_reglas_area import HomeOfficeReglaArea
+
+    regla = HomeOfficeReglaArea(
+        area_id=area_id,
+        dias_permitidos=dias_permitidos,
+        periodo_semanas=periodo_semanas,
+        activo=activo,
+    )
+    db.add(regla)
+    await db.flush()
+    return regla
+
+
+async def make_empleado_home_office(
+    db: AsyncSession,
+    *,
+    dias_permitidos: int = 1,
+    periodo_semanas: int = 1,
+    regla_activa: bool = True,
+    con_regla: bool = True,
+    **kwargs,
+):
+    """Empleado Administrativo asignado a un área con regla de home office.
+
+    Es el mínimo para que HO sea elegible: clasificación A + área con regla activa.
+    """
+    cl_admin = await make_clasificacion_administrativo(db)
+    area = await make_area(db)
+    if con_regla:
+        await make_homeoffice_regla_area(
+            db,
+            area_id=area.area_id,
+            dias_permitidos=dias_permitidos,
+            periodo_semanas=periodo_semanas,
+            activo=regla_activa,
+        )
+    kwargs.setdefault("rol", "empleado")
+    empleado = await make_empleado(db, clasificacion_id=cl_admin.clasificacion_id, **kwargs)
+    empleado.area_id = area.area_id
+    await db.flush()
+    return empleado

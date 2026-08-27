@@ -50,6 +50,7 @@ const REGLAS: ReadonlyArray<{ match: (hash: string) => boolean; titulo: string }
   { match: (h) => h.startsWith("#/horas-extra/solicitud"), titulo: "Solicitud de horas extra" },
   { match: (h) => h.startsWith("#/nominas/horas-extra/aprobaciones"), titulo: "Aprobación de Horas Extra" },
   { match: (h) => h.startsWith("#/nominas/horas-extra"), titulo: "Horas Extra" },
+  { match: (h) => h.startsWith("#/laborales/configuracion"), titulo: "Configuración laborales" },
   { match: (h) => h.startsWith("#/laborales"), titulo: "Laborales" },
   { match: (h) => h.startsWith("#/comedor/accesos"), titulo: "Comedor" },
   { match: (h) => h.startsWith("#/level-up/evaluacion-360/empleados"), titulo: "Empleados · Evaluación 360°" },

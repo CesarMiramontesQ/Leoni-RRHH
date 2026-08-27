@@ -152,6 +152,17 @@ Layered architecture: **router → service → repository → models/schemas**
   `dbo.GET_SALDOS_VACACION` es `DatosAnalisisVacacionesRepository.get_kpis_ciclo`, y solo
   la hace ese sync. Empleado sin fila ⇒ dashboards degradan a «—» y crear vacaciones se
   bloquea con 503.
+- **Regla de home office = por área, configurable por RH.** Ya no hay «un HO por mes»
+  hardcodeado: `levelup_homeoffice_reglas_area` guarda «N días cada M semanas» por
+  `area_id` y RH la edita en `#/laborales/configuracion` (módulo `laborales-configuracion`,
+  API `/api/v1/laborales-config`, fuera de `/api/v1/solicitudes` porque ese prefijo es
+  self-service y el middleware no lo bloquearía). Elegible = clasificación Administrativo
+  **y** área con regla activa; sin cualquiera de las dos, el modal ni ofrece el tipo y el
+  backend rechaza. El cupo se cuenta en bloques **fijos** de semanas ISO
+  (`app/utils/homeoffice_periodo.bloque_semanas`, lunes–domingo, `(semana-1)//M`), no en
+  ventana móvil ni por mes. Siguen hardcodeados «un día por solicitud» y «solo L–V». La
+  regla del área **no se muestra** al empleado (mensajes genéricos); un cambio de regla
+  aplica solo a solicitudes nuevas. Las filas no se borran: se apagan con `activo`.
 - **Home office tomado = caché en Bono.** Ninguna carga de página cuenta días de home
   office en DATOS_ANALISIS: la fuente única de lectura es `levelup_homeoffice_tomados`
   (una fila por empleado y año calendario), que escribe

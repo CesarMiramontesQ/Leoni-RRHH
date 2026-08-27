@@ -148,6 +148,7 @@ export type ShellNavKey =
   | "horas-extra-aprobaciones"
   | "horas-extra-solicitud"
   | "conciliacion"
+  | "laborales-configuracion"
   | "nominas-ajustes";
 
 type NavItemDef = {

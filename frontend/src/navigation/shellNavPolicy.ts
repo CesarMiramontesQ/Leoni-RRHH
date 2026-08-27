@@ -43,6 +43,7 @@ const RH_NAV_LANDING_ORDER: readonly RhNavLandingEntry[] = [
   { itemId: "incidencias", hash: "#/incidencias" },
   { itemId: "faltas-retardos", hash: "#/faltas-retardos" },
   { itemId: "viajes-laborales", hash: "#/viajes-laborales" },
+  { itemId: "laborales-configuracion", hash: "#/laborales/configuracion" },
   { itemId: "actas", hash: "#/actas" },
   { itemId: "comedor", hash: "#/comedor" },
   { itemId: "reportes", hash: "#/comedor/reporte" },
@@ -149,6 +150,7 @@ export type AppShellNavItemId =
   | "actas"
   | "faltas-retardos"
   | "viajes-laborales"
+  | "laborales-configuracion"
   | "comedor"
   | "comedor-menu"
   | "comedor-planear"
@@ -261,7 +263,8 @@ export function usesSupervisorRoutePolicy(rol: string | null): boolean {
   return rol === "supervisor" || rol === "gerente";
 }
 
-const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama"]);
+// Configuración laborales: parámetros de negocio, solo RH operativo (o módulo asignado).
+const RH_ONLY_NAV_IDS: ReadonlySet<AppShellNavItemId> = new Set(["organigrama", "laborales-configuracion"]);
 
 const METRICAS_NAV_ROLES: ReadonlySet<string> = new Set([OPERATIVO_NAV_ROL, "gerente", "supervisor"]);
 
@@ -420,6 +423,7 @@ export function supervisorMayAccessHash(hash: string): boolean {
   if (h.startsWith("#/comedor/reporte")) return false;
   if (h.startsWith("#/reportes")) return false;
   if (h.startsWith("#/viajes-laborales")) return false;
+  if (h.startsWith("#/laborales/configuracion")) return false;
   if (h.startsWith("#/pdi-gestion")) return true;
   if (h.startsWith("#/evaluaciones")) return true;
   if (h.startsWith("#/cumplimiento/historial-objetivo")) return true;

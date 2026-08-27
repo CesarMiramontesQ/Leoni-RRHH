@@ -143,26 +143,22 @@ class SolicitudRepository(BaseRepository[Solicitud]):
         result = await self.db.execute(select(func.count(Solicitud.id)).where(and_(*filters)))
         return int(result.scalar_one() or 0)
 
-    async def count_home_office_activos_en_mes(
+    async def count_home_office_activos_en_rango(
         self,
         *,
         empleado_id: int,
-        year: int,
-        month: int,
+        desde: date,
+        hasta: date,
         estados_activos: list[str],
         exclude_solicitud_id: int | None = None,
     ) -> int:
-        """Cuenta solicitudes HO activas del empleado con fecha_inicio en el mes dado."""
-        from calendar import monthrange
-
-        first_day = date(year, month, 1)
-        last_day = date(year, month, monthrange(year, month)[1])
+        """Cuenta solicitudes HO activas del empleado con fecha_inicio en [desde, hasta]."""
         filters = [
             Solicitud.empleado_id == empleado_id,
             Solicitud.tipo == "home_office",
             Solicitud.estado.in_(estados_activos),
-            Solicitud.fecha_inicio >= first_day,
-            Solicitud.fecha_inicio <= last_day,
+            Solicitud.fecha_inicio >= desde,
+            Solicitud.fecha_inicio <= hasta,
         ]
         if exclude_solicitud_id is not None:
             filters.append(Solicitud.id != exclude_solicitud_id)

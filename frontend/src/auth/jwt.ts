@@ -372,3 +372,16 @@ export function canAccessNominasAjustesPage(): boolean {
     blockDirector: true,
   });
 }
+
+/**
+ * Configuración laborales (`#/laborales/configuracion`): exclusiva de RH. La ve el
+ * admin RH en Modo RH (operativo) y quien tenga el módulo `laborales-configuracion`
+ * otorgado desde Permisos RH; supervisor, gerente, director y empleado no.
+ */
+export function canAccessLaboralesConfiguracionPage(): boolean {
+  return canAccessRhAssignedModule("laborales-configuracion", {
+    blockGestorTeam: true,
+    blockEmpleado: true,
+    blockDirector: true,
+  });
+}

@@ -129,8 +129,9 @@ export { getEmpleadoVista360 } from "./vista360.ts";
 
 export type EmpleadoHomeOfficeDisponibilidad = {
   empleado_id: number;
-  anio: number;
-  mes: number;
+  /** Administrativo y con regla de HO activa en su área. false ⇒ no se ofrece el tipo. */
+  elegible: boolean;
+  /** HO activos en el periodo de la regla que contiene la fecha consultada. */
   dias_usados: number;
   puede_solicitar: boolean;
 };
