@@ -158,6 +158,8 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let contextoEmpleadoSel: number | null = null;
   let contextoHoText = "";
   let contextoHoPuedeSolicitarMes: boolean | null = null;
+  /** Elegibilidad de HO por área (backend). Junto con la clasificación decide si se ofrece. */
+  let contextoHoElegible: boolean | null = null;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let lastSearchQ = "";
   let empleadoSearchQ = "";
@@ -194,7 +196,9 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   }
 
   function puedeMostrarHomeOffice(): boolean {
-    return empleadoEsAdministrativo === true;
+    // AND: Administrativo y área con regla de HO activa. Si falta cualquiera, el tipo
+    // no aparece; el backend rechaza con el mismo criterio aunque se fuerce la petición.
+    return empleadoEsAdministrativo === true && contextoHoElegible === true;
   }
 
   function asegurarTipoSolicitudPermitido(): void {
@@ -355,6 +359,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     contextoEmpleadoSel = empleadoId;
     contextoHoText = ctx.homeOfficeResumen;
     contextoHoPuedeSolicitarMes = ctx.homeOfficePuedeSolicitarMes;
+    contextoHoElegible = ctx.homeOfficeElegible;
     asegurarTipoSolicitudPermitido();
     updateInfoCard();
     applyRhModalLiveFeedback(
@@ -1183,7 +1188,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         if (tipo === "home_office" || tipo === "permiso_sin_goce_sueldo" || tipo === "defuncion") {
           const esAdmin = await resolverEmpleadoEsAdministrativo(empleado_id);
           empleadoEsAdministrativo = esAdmin;
-          if (tipo === "home_office" && !esAdmin) {
+          if (tipo === "home_office" && (!esAdmin || contextoHoElegible !== true)) {
             showError(MSG_HOME_OFFICE_SOLO_ADMINISTRATIVO);
             return;
           }

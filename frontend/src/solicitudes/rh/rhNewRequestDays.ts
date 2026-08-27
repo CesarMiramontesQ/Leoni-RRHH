@@ -307,13 +307,14 @@ export const MENSAJE_HOME_OFFICE_FIN_DE_SEMANA =
   "Home Office solo puede solicitarse en días entre semana (lunes a viernes).";
 
 export const MENSAJE_HOME_OFFICE_SOLO_ADMINISTRATIVO =
-  "Home Office solo está disponible para colaboradores con clasificación Administrativo.";
+  "Home Office no está disponible para este colaborador: requiere clasificación Administrativo y que su área tenga regla de home office configurada.";
 
 export const MENSAJE_HOME_OFFICE_UN_DIA =
   "Home Office solo permite solicitar un día (fecha inicio y fin iguales).";
 
+/** La regla del área (días/periodo) no se muestra al empleado: el mensaje es genérico. */
 export const MENSAJE_HOME_OFFICE_MES_LIMITE =
-  "Ya existe una solicitud de Home Office activa en el mes seleccionado. Solo se permite un día por mes.";
+  "Ya existe una solicitud de Home Office activa en el periodo permitido para el área.";
 
 export const HOME_OFFICE_RESUMEN_BASE =
-  "Home Office: un solo día por solicitud y máximo uno por mes calendario. Solo colaboradores administrativos, entre semana (lunes a viernes).";
+  "Home Office: un solo día por solicitud, entre semana (lunes a viernes). La frecuencia permitida depende del área del colaborador.";
