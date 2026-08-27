@@ -14,7 +14,6 @@ import {
   vista360EstadisticasSkeletonHtml,
 } from "../components/vista360/incidenciasMetricasCards.ts";
 import { escapeHtml } from "../components/vista360/html.ts";
-import { vista360CompetenciasCardHtml } from "../components/vista360/progressBar.ts";
 import { vista360ProfileHeaderHtml } from "../components/vista360/profileHeader.ts";
 import { bindVista360RegistrosTablas } from "../components/vista360/bindVista360Registros.ts";
 import {
@@ -31,7 +30,6 @@ import {
   type ResumenEmpleadoApi,
 } from "../api/evaluacion360.ts";
 import { getHistorialEmpleado, type HistorialObjetivoEmpleadoApi } from "../api/historialObjetivo.ts";
-import { vista360TimelineHtml } from "../components/vista360/timeline.ts";
 import { loadEmpleadoVista360, type EmpleadoIncidenciasMetricas } from "../hooks/useVista360.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import {
@@ -47,7 +45,6 @@ import {
 } from "../ui/uiTokens.ts";
 import {
   antiguedadAniosMeses,
-  buildTimelineItems,
   formatActaLine,
   formatFechaIngreso,
   formatSolicitudLine,
@@ -55,7 +52,6 @@ import {
 } from "../utils/vista360Domain.ts";
 
 const VISTA360_TAB_IDS: Vista360TabId[] = [
-  "resumen",
   "incidencias",
   "historial",
   "beneficios",
@@ -70,11 +66,11 @@ const VISTA360_TAB_IDS: Vista360TabId[] = [
 /** Lee `?tab=` del hash `#/empleados/{id}?tab=historial`. */
 export function parseVista360InitialTabFromHash(hash: string): Vista360TabId {
   const q = hash.indexOf("?");
-  if (q < 0) return "resumen";
+  if (q < 0) return "incidencias";
   const params = new URLSearchParams(hash.slice(q + 1));
   const t = params.get("tab");
   if (t && (VISTA360_TAB_IDS as readonly string[]).includes(t)) return t as Vista360TabId;
-  return "resumen";
+  return "incidencias";
 }
 
 const iconUser = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-5" aria-hidden="true"><path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
@@ -637,18 +633,6 @@ function renderVista360Content(
 
   const tabs = vista360TabsHtml(activeTab);
 
-  const timelineItems = buildTimelineItems(data);
-  const timeline = vista360TimelineHtml(timelineItems);
-
-  const competencias = `
-    <aside class="rounded-2xl border border-border/80 bg-gradient-to-b from-white to-slate-50/60 p-5 shadow-sm ring-1 ring-slate-900/5">
-      <h3 class="text-sm font-semibold text-text-primary">Competencias</h3>
-      <div class="mt-4">${vista360CompetenciasCardHtml([])}</div>
-      <a href="#/evaluaciones/empleado/${data.usuario.id}"
-        class="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-leoni-blue transition hover:bg-leoni-blue/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-leoni-blue focus-visible:ring-offset-2">
-        Ver evaluación completa</a>
-    </aside>`;
-
   const panel = (id: Vista360TabId, inner: string): string => {
     const hidden = id !== activeTab;
     return `
@@ -661,15 +645,6 @@ function renderVista360Content(
         ${hidden ? "hidden" : ""}
       >${inner}</div>`;
   };
-
-  const resumenInner = `
-    <div class="grid grid-cols-1 gap-5 lg:grid-cols-12">
-      <section class="rounded-2xl border border-border/80 bg-gradient-to-b from-white to-slate-50/60 p-5 shadow-sm ring-1 ring-slate-900/5 lg:col-span-7">
-        <h3 class="text-sm font-semibold text-text-primary">Últimas actividades</h3>
-        <div class="mt-4">${timeline}</div>
-      </section>
-      <div class="lg:col-span-5">${competencias}</div>
-    </div>`;
 
   const historialInner = `
     <div class="rounded-2xl border border-border/80 bg-white p-5 shadow-sm sm:p-6">
@@ -699,7 +674,6 @@ function renderVista360Content(
   const planDesarrolloInner = renderPlanDesarrolloPanel();
 
   const panels =
-    panel("resumen", resumenInner) +
     panel("incidencias", renderVista360TablaMount("incidencias")) +
     panel("historial", historialInner) +
     panel("beneficios", beneficiosInner) +
@@ -789,7 +763,7 @@ export function mountEmployeeVista360(
   signal: AbortSignal,
   opts?: { initialTab?: Vista360TabId },
 ): void {
-  const initialTab: Vista360TabId = opts?.initialTab ?? "resumen";
+  const initialTab: Vista360TabId = opts?.initialTab ?? "incidencias";
   if (!canAccessEmpleadosPage()) {
     mountAppShell(container, {
       pageTitle: "Vista 360",

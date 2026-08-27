@@ -3,7 +3,6 @@ import { escapeHtml } from "./html.ts";
 export type Vista360TableTabId = "incidencias" | "actas" | "registros-comedor";
 
 export type Vista360TabId =
-  | "resumen"
   | Vista360TableTabId
   | "historial"
   | "beneficios"
@@ -13,7 +12,6 @@ export type Vista360TabId =
   | "historial_objetivo";
 
 const TABS: { id: Vista360TabId; label: string }[] = [
-  { id: "resumen", label: "Resumen" },
   { id: "incidencias", label: "Incidencias" },
   { id: "historial", label: "Historial" },
   { id: "beneficios", label: "Beneficios" },
