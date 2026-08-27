@@ -70,8 +70,7 @@ vi.mock("../api/faltasRetardos.ts", () => ({
   }),
 }));
 vi.mock("../api/incidencias.ts", () => ({
-  fetchAllIncidenciasForExport: async () => [],
-  getIncidenciasRows: async () => [],
+  fetchIncidenciasListPage: async () => ({ items: [], total: 0, page: 1, page_size: 1 }),
 }));
 let rolActual = "empleado";
 

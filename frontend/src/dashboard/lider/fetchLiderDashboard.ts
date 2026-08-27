@@ -1,11 +1,11 @@
 import { getSolicitudesRows } from "../../api/solicitudes.ts";
-import { fetchAllIncidenciasForExport, getIncidenciasRows } from "../../api/incidencias.ts";
+import { fetchIncidenciasListPage } from "../../api/incidencias.ts";
 import { getComedorEquipoReservasMes, type ComedorEquipoReservaApiItem } from "../../api/comedor.ts";
 import { getEmpleadosResumen } from "../../api/empleados.ts";
 import { getFaltasRetardosEstadisticas } from "../../api/faltasRetardos.ts";
 import { fetchDashboardKpis } from "../../api/dashboardKpis.ts";
 import { getEmpleadoIdFromAccessToken, getEffectiveGestorNavRol } from "../../auth/jwt.ts";
-import { emptyRhIncidenciaListFilters, type RhIncidenciaTablaFila } from "../../incidencias/rh/types.ts";
+import { emptyRhIncidenciaListFilters } from "../../incidencias/rh/types.ts";
 import { rhIsoLocalDate, rhWeekdayByStart } from "../rh/calendarMonthGrid.ts";
 import { emptyLiderDashboardPayload } from "./mock.ts";
 import { buildLiderIncidenciasTressChart } from "./buildLiderIncidenciasTressChart.ts";
@@ -191,11 +191,6 @@ function formatApprovalDateRange(startIso: string, endIso: string): string {
   return `${fmt(startIso)} - ${fmt(endIso)}`;
 }
 
-/** Incidencias “activas” para KPI (no cerradas), según filas ya filtradas por rol en API. */
-function countIncidenciasActivas(filas: RhIncidenciaTablaFila[]): number {
-  return filas.reduce((n, r) => (r.estado !== "cerrado" ? n + 1 : n), 0);
-}
-
 /**
  * Dashboard de supervisor/gerente:
  * construye el calendario de equipo con solicitudes propias+equipo (API scoped por rol).
@@ -221,9 +216,12 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
   try {
     // API `/api/v1/solicitudes` admite máximo `limit=100`.
     const mealMonths = monthsCoveredByIsoRange(rangeStartIso, rangeEndIso);
-    const incidenciasPromise = esGerente
-      ? fetchAllIncidenciasForExport(emptyRhIncidenciaListFilters()).catch(() => [] as RhIncidenciaTablaFila[])
-      : getIncidenciasRows(100).catch(() => [] as RhIncidenciaTablaFila[]);
+    // Tarjeta «Incidencias activas» (Seguridad y Calidad): solo hace falta el total del
+    // listado con el alcance del rol. No paginar filas: en un gerente con cientos de
+    // colaboradores eso eran 14+ requests en serie de 10 filas antes de pintar nada.
+    const incidenciasPromise = fetchIncidenciasListPage(emptyRhIncidenciaListFilters(), 1, 1)
+      .then((p) => p.total)
+      .catch(() => 0);
     // Retardos del año en el alcance del líder. Sale del mismo endpoint que alimenta la
     // página Incidencias, así que la tarjeta no puede contradecir a esa pantalla.
     const retardosPromise = getFaltasRetardosEstadisticas({
@@ -249,7 +247,7 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
       mealRowsByMonth,
       empleadosResumen,
       kpis,
-      incidenciasFilas,
+      incidenciasTotal,
       teamRetardos,
       incidenciasEquipo,
     ] = await Promise.all([
@@ -310,7 +308,7 @@ export async function fetchLiderDashboard(target?: CalendarMonthFetchTarget): Pr
       empleadosResumen != null
         ? Math.max(0, (empleadosResumen.colaboradores_total ?? 0) - 1)
         : fallbackTeamCount;
-    const teamActiveIncidents = countIncidenciasActivas(incidenciasFilas);
+    const teamActiveIncidents = incidenciasTotal;
     const esLiderConGraficas = role === "supervisor" || esGerente;
     const supervisorIncidenciasChart =
       esLiderConGraficas && incidenciasEquipo

@@ -229,6 +229,10 @@ class Settings(BaseSettings):
     def SEED_RH_PERMISOS_ADMIN_EMPLEADO_IDS(self) -> List[int]:
         return self._parse_estado_ids(self.seed_rh_permisos_admin_empleado_ids_env, [])
 
+    # Request por encima de este umbral se registra como «lenta» (WARNING) en
+    # el logger `app.request_timing`.
+    SLOW_REQUEST_MS: int = 1000
+
     # App
     APP_ENV: str = "development"
     APP_HOST: str = "0.0.0.0"
