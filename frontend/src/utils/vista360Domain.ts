@@ -1,50 +1,11 @@
 import type { UsuarioListItem } from "../api/usuarios.ts";
-import type { ActaBrief, SolicitudBrief, UsuarioVista360, UsuarioVista360Usuario } from "../api/vista360.ts";
-
-export type TimelineItem = {
-  title: string;
-  subtitle: string;
-  atIso: string;
-};
+import type { ActaBrief, SolicitudBrief, UsuarioVista360Usuario } from "../api/vista360.ts";
 
 export function usuarioToListItem(u: UsuarioVista360Usuario): UsuarioListItem {
   return {
     ...u,
     lider_nombre: null,
   };
-}
-
-export function buildTimelineItems(data: UsuarioVista360): TimelineItem[] {
-  const raw: { t: number; title: string; subtitle: string; atIso: string }[] = [];
-
-  for (const s of data.solicitudes_recientes) {
-    raw.push({
-      t: Date.parse(s.created_at),
-      title: `Solicitud: ${s.tipo}`,
-      subtitle: `Estado: ${s.estado}`,
-      atIso: s.created_at,
-    });
-  }
-  for (const i of data.incidencias_activas) {
-    const estatusTxt = i.estatus_id === null ? "Sin estatus" : `Estatus ${i.estatus_id}`;
-    raw.push({
-      t: Date.parse(i.created_at),
-      title: `Incidencia: ${i.tipo}`,
-      subtitle: estatusTxt,
-      atIso: i.created_at,
-    });
-  }
-  for (const a of data.actas_firmadas) {
-    raw.push({
-      t: Date.parse(a.created_at),
-      title: "Acta administrativa firmada",
-      subtitle: `Estado: ${a.estado}`,
-      atIso: a.created_at,
-    });
-  }
-
-  raw.sort((a, b) => b.t - a.t);
-  return raw.map(({ title, subtitle, atIso }) => ({ title, subtitle, atIso }));
 }
 
 const fmtDate = new Intl.DateTimeFormat("es-MX", {
