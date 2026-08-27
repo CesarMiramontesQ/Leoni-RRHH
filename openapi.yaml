@@ -1695,26 +1695,78 @@ components:
 
     HomeOfficeDisponibilidadResponse:
       type: object
+      description: >
+        Elegibilidad y cupo de Home Office para una fecha. No expone la regla del área
+        (días/periodo): el empleado solo ve si puede o no.
       required:
         - empleado_id
-        - anio
-        - mes
+        - elegible
         - dias_usados
         - puede_solicitar
       properties:
         empleado_id:
           type: integer
-        anio:
-          type: integer
-        mes:
-          type: integer
-          minimum: 1
-          maximum: 12
+        elegible:
+          type: boolean
+          description: Administrativo y con regla de HO activa en su área. false ⇒ el tipo HO no se ofrece.
         dias_usados:
           type: integer
           minimum: 0
+          description: HO activos en el bloque de semanas ISO de la regla que contiene la fecha.
         puede_solicitar:
           type: boolean
+
+    HomeOfficeReglaAreaItem:
+      type: object
+      required: [area_id, area_descripcion, activo]
+      properties:
+        area_id:
+          type: integer
+        area_descripcion:
+          type: string
+        dias_permitidos:
+          type: integer
+          nullable: true
+          description: null ⇒ el área no tiene regla capturada.
+        periodo_semanas:
+          type: integer
+          nullable: true
+        activo:
+          type: boolean
+        actualizado_en:
+          type: string
+          format: date-time
+          nullable: true
+        actualizado_por:
+          type: string
+          nullable: true
+
+    HomeOfficeReglasAreaListResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HomeOfficeReglaAreaItem"
+        total:
+          type: integer
+
+    HomeOfficeReglaAreaUpdate:
+      type: object
+      required: [dias_permitidos, periodo_semanas]
+      properties:
+        dias_permitidos:
+          type: integer
+          minimum: 1
+          maximum: 5
+        periodo_semanas:
+          type: integer
+          minimum: 1
+          maximum: 4
+        activo:
+          type: boolean
+          default: true
 
     UsuarioVista360Response:
       type: object
@@ -9026,6 +9078,63 @@ paths:
         "422":
           description: Empleados inexistentes, inactivos o ya autorizados
 
+  /api/v1/laborales-config/home-office/areas:
+    get:
+      tags: [Configuración laborales]
+      summary: Reglas de Home Office por área (todas las áreas activas, con o sin regla)
+      operationId: laborales_config_home_office_areas_list
+      description: >
+        Requiere el módulo RH `laborales-configuracion` (role_checker operativo).
+        Las áreas inactivas de Bono no se listan.
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de áreas con su regla
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeOfficeReglasAreaListResponse"
+        "403":
+          description: Sin módulo `laborales-configuracion`
+
+  /api/v1/laborales-config/home-office/areas/{area_id}:
+    put:
+      tags: [Configuración laborales]
+      summary: Crear o actualizar la regla de Home Office de un área
+      operationId: laborales_config_home_office_area_put
+      description: >
+        Upsert; la fila no se borra, se apaga con `activo`. Auditado como
+        `LABORALES_CONFIG_HO_REGLA_AREA_UPDATED` (módulo `laborales_config`). Aplica solo a
+        solicitudes nuevas.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: area_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomeOfficeReglaAreaUpdate"
+      responses:
+        "200":
+          description: Regla guardada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeOfficeReglaAreaItem"
+        "403":
+          description: Sin módulo `laborales-configuracion`
+        "404":
+          description: Área inexistente o inactiva
+        "422":
+          description: Valores fuera de rango
+
   /api/v1/nominas/ajustes/horas-extra/aprobadores:
     get:
       tags: [Nóminas]
@@ -9270,7 +9379,7 @@ paths:
   /api/v1/empleados/{empleado_id}/home-office/disponibilidad:
     get:
       tags: [Empleados]
-      summary: Disponibilidad de Home Office en el mes calendario
+      summary: Elegibilidad y disponibilidad de Home Office en la fecha
       operationId: empleados_home_office_disponibilidad_get
       security:
         - BearerAuth: []
@@ -9283,7 +9392,7 @@ paths:
         - name: fecha
           in: query
           required: true
-          description: Fecha de referencia (mes calendario a validar)
+          description: Fecha de referencia (bloque de semanas de la regla del área a validar)
           schema:
             type: string
             format: date
@@ -9295,7 +9404,7 @@ paths:
             type: integer
       responses:
         "200":
-          description: Indica si puede solicitar HO en el mes
+          description: Indica si es elegible y si puede solicitar HO en la fecha
           content:
             application/json:
               schema:
