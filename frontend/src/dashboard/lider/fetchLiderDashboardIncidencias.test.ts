@@ -24,8 +24,7 @@ vi.mock("../../api/empleados.ts", () => ({ getEmpleadosResumen: async () => null
 vi.mock("../../api/dashboardKpis.ts", () => ({ fetchDashboardKpis: async () => null }));
 // Seguridad y Calidad sigue alimentando la tarjeta «Incidencias activas», que no cambia.
 vi.mock("../../api/incidencias.ts", () => ({
-  fetchAllIncidenciasForExport: async () => [],
-  getIncidenciasRows: async () => [],
+  fetchIncidenciasListPage: async () => ({ items: [], total: 0, page: 1, page_size: 1 }),
 }));
 vi.mock("../../auth/jwt.ts", () => ({
   getEmpleadoIdFromAccessToken: () => "77",
