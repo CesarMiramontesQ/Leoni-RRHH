@@ -186,15 +186,19 @@ class UsuarioService:
         activo: bool | None = None,
         solo_sin_lider: bool = False,
         solo_sin_email: bool = False,
+        solo_contratos_por_vencer: bool = False,
     ) -> UsuarioPageResponse:
         self._require_rh_only(current_user)
         estados = settings.ESTADOS_ACTIVOS_IDS
         solo_sl = bool(solo_sin_lider)
         solo_se = bool(solo_sin_email)
+        solo_c = bool(solo_contratos_por_vencer)
+        hoy_contrato = date.today() if solo_c else None
         admin_ids: list[int] | None = None
         if solo_se:
             admin_ids = await self._clasificacion_administrativo_ids()
-        if solo_sl or solo_se:
+        # Los tres KPIs cuentan solo activos: al filtrar por tarjeta se fuerza ese modo.
+        if solo_sl or solo_se or solo_c:
             modo: ModoEstadoListado = "activos"
         elif activo is True:
             modo = "activos"
@@ -212,6 +216,8 @@ class UsuarioService:
             solo_sin_lider=solo_sl,
             solo_sin_email=solo_se,
             clasificacion_admin_ids=admin_ids,
+            solo_contrato_por_vencer=solo_c,
+            hoy_contrato=hoy_contrato,
         )
         items = await self.repo.list_page(
             offset,
@@ -224,6 +230,8 @@ class UsuarioService:
             solo_sin_lider=solo_sl,
             solo_sin_email=solo_se,
             clasificacion_admin_ids=admin_ids,
+            solo_contrato_por_vencer=solo_c,
+            hoy_contrato=hoy_contrato,
         )
         return UsuarioPageResponse(
             items=[self._to_list_item(u) for u in items],

@@ -246,6 +246,39 @@ async def test_resumen_rh_sin_email_administrativo_no_infla_por_cross_join(
 
 
 @pytest.mark.asyncio
+async def test_list_empleados_rh_solo_contratos_por_vencer_lee_cache_tress(
+    client: AsyncClient, db, empleado_rh
+):
+    """La tarjeta «Contratos por vencer» de RH filtra con el mismo criterio que el KPI."""
+    from datetime import date, timedelta
+
+    from tests.conftest import make_empleado_tress
+
+    hoy = date.today()
+    por_vencer = await make_empleado(db, rol="empleado", estado_id=1, no_empleado=7000301)
+    await make_empleado_tress(db, 7000301, contrato_dias=90, fecha_vencimiento_contrato=hoy + timedelta(days=20))
+    lejano = await make_empleado(db, rol="empleado", estado_id=1, no_empleado=7000302)
+    await make_empleado_tress(db, 7000302, contrato_dias=90, fecha_vencimiento_contrato=hoy + timedelta(days=45))
+    indefinido = await make_empleado(db, rol="empleado", estado_id=1, no_empleado=7000303)
+    await make_empleado_tress(db, 7000303, contrato_dias=0)
+    baja = await make_empleado(db, rol="empleado", estado_id=2, no_empleado=7000304)
+    await make_empleado_tress(db, 7000304, contrato_dias=90, fecha_vencimiento_contrato=hoy + timedelta(days=5))
+    await db.commit()
+
+    headers = await auth_headers(client, empleado_rh)
+    r = await client.get(
+        "/api/v1/empleados",
+        params={"solo_contratos_por_vencer": "true", "page_size": 100},
+        headers=headers,
+    )
+    assert r.status_code == 200
+    ids = {item["id"] for item in r.json()["items"]}
+    assert por_vencer.id in ids
+    assert lejano.id not in ids and indefinido.id not in ids and baja.id not in ids
+    assert r.json()["total"] == 1
+
+
+@pytest.mark.asyncio
 async def test_list_empleados_rh_solo_sin_email_administrativo(
     client: AsyncClient, db, empleado_rh
 ):

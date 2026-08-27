@@ -42,7 +42,8 @@ export function applyKpiTarjetaClick(
   opts: ApplyKpiTarjetaClickOpts,
 ): ApplyKpiTarjetaClickResult {
   if (opts.isRhAdmin) {
-    if (kind === "sin-lider" || kind === "sin-email") {
+    // Las tres tarjetas de RH filtran la tabla y son mutuamente excluyentes.
+    if (kind === "sin-lider" || kind === "sin-email" || kind === "contratos") {
       if (state.kpi_tarjeta_activa === kind) {
         state.kpi_tarjeta_activa = "";
       } else {

@@ -220,6 +220,7 @@ function filtrosActivos(state: State, rh: boolean, liderUi: boolean): boolean {
   if (rh && state.activo_rh) return true;
   if (rh && kpiFiltrarSinLider(state)) return true;
   if (rh && kpiFiltrarSinEmail(state)) return true;
+  if (rh && kpiFiltrarContratos(state)) return true;
   if (liderUi) {
     if (state.estatus_lider) return true;
     if (kpiFiltrarContratos(state)) return true;
@@ -245,6 +246,7 @@ function buildEmpleadosListParams(state: State, isRhAdmin: boolean, kpiGestionEq
     ...(isRhAdmin ? { activo: parseActivoRh(state.activo_rh) } : {}),
     ...(isRhAdmin && kpiFiltrarSinLider(state) ? { solo_sin_lider: true } : {}),
     ...(isRhAdmin && kpiFiltrarSinEmail(state) ? { solo_sin_email: true } : {}),
+    ...(isRhAdmin && kpiFiltrarContratos(state) ? { solo_contratos_por_vencer: true } : {}),
   };
   if (!kpiGestionEquipo || isRhAdmin) return base;
   if (kpiFiltrarContratos(state)) base.solo_contratos_por_vencer = true;
@@ -350,13 +352,18 @@ const RH_EMPLEADOS_KPI_CARD_SHELL =
   "flex min-h-[10.5rem] flex-col rounded-[14px] border p-5 shadow-[0_8px_22px_rgba(15,23,42,0.06)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.1)]";
 
 type LiderKpiResaltado = { resaltarEquipo: boolean; resaltarContratos: boolean };
-type RhKpiResaltado = { resaltarSinLider: boolean; resaltarSinEmail: boolean };
+type RhKpiResaltado = { resaltarSinLider: boolean; resaltarSinEmail: boolean; resaltarContratos: boolean };
 
 function rhKpiUiDesdeState(s: State): RhKpiResaltado {
   return {
     resaltarSinLider: kpiFiltrarSinLider(s),
     resaltarSinEmail: kpiFiltrarSinEmail(s),
+    resaltarContratos: kpiFiltrarContratos(s),
   };
+}
+
+function kpiRhContratosCardRing(on: boolean): string {
+  return on ? " ring-2 ring-orange-400/55 ring-offset-2 ring-offset-white" : "";
 }
 
 function kpiRhSinLiderCardRing(on: boolean): string {
@@ -481,6 +488,7 @@ function renderKpis(
   const sinEmailResaltar = (r.sin_email_administrativo ?? 0) > 0;
   const ringSinLiderFiltro = rhKpi ? kpiRhSinLiderCardRing(rhKpi.resaltarSinLider) : "";
   const ringSinEmailFiltro = rhKpi ? kpiRhSinEmailCardRing(rhKpi.resaltarSinEmail) : "";
+  const ringContratosFiltro = rhKpi ? kpiRhContratosCardRing(rhKpi.resaltarContratos) : "";
   const titleKpi = "text-[13px] font-bold leading-tight text-[#475569]";
   const numEmpleados = `${KPI_NUM_CLS} text-emerald-900`;
   const numSinLider = `${KPI_NUM_CLS} ${sinLiderResaltar ? "text-amber-900" : "text-[#0c2340]"}`;
@@ -506,16 +514,16 @@ function renderKpis(
         </p>
         <p class="${KPI_MICRO_CLS} mt-auto pt-2">Personal en estados activos</p>
       </article>
-      <article class="${RH_EMPLEADOS_KPI_CARD_SHELL} bg-linear-to-br from-white to-amber-50/80${bordeContratosRh}">
+      <button type="button" data-emp-kpi="contratos" aria-pressed="${rhKpi?.resaltarContratos ? "true" : "false"}" class="group flex w-full flex-col text-left ${RH_EMPLEADOS_KPI_CARD_SHELL} bg-linear-to-br from-white to-amber-50/80${rhKpi?.resaltarContratos ? "" : bordeContratosRh}${ringContratosFiltro}">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Contratos por vencer</h2>
           ${kpiMetricIconBox("contrato", svgKpiContratoCalendario())}
         </div>
         <p class="${kpiNumContratosRhCls}">${escapeHtml(String(nContratosPv))}</p>
-        <p class="${KPI_SUB_CLS}">Activos con fin de contrato en los próximos 30 días</p>
+        <p class="${KPI_SUB_CLS}">Activos con fin de contrato en los próximos 30 días (nómina)</p>
         ${estadoContratosRh}
-        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Comparación vs mes anterior: no disponible</p>
-      </article>
+        <p class="${KPI_MICRO_CLS} mt-auto pt-2">Clic para filtrar la tabla · otra vez para quitar</p>
+      </button>
       <button type="button" data-emp-kpi="sin-lider" aria-pressed="${rhKpi?.resaltarSinLider ? "true" : "false"}" class="group flex w-full flex-col text-left ${RH_EMPLEADOS_KPI_CARD_SHELL} border-amber-200/55 bg-linear-to-br from-white to-amber-50/95${sinLiderResaltar && !rhKpi?.resaltarSinLider && !rhKpi?.resaltarSinEmail ? " ring-2 ring-amber-300/45 ring-offset-2 ring-offset-white" : ""}${ringSinLiderFiltro}">
         <div class="flex items-start justify-between gap-3">
           <h2 class="${titleKpi}">Sin Líder Asignado</h2>

@@ -143,7 +143,7 @@ async def list_empleados(
     ),
     solo_contratos_por_vencer: bool = Query(
         False,
-        description="Solo supervisor/gerente: filtra por contrato en ventana 30 días",
+        description="Contrato por vencer en 30 días según la caché de TRESS (mismo criterio que el KPI)",
     ),
     solo_sin_lider: bool = Query(
         False,
@@ -169,6 +169,7 @@ async def list_empleados(
             activo=activo,
             solo_sin_lider=solo_sin_lider,
             solo_sin_email=solo_sin_email,
+            solo_contratos_por_vencer=solo_contratos_por_vencer,
         )
     if estatus is not None and estatus.strip():
         v = estatus.strip().lower()
