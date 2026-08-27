@@ -254,7 +254,10 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       .querySelector("#rh-nr-inicio")
       ?.closest("[data-workday-date-picker]")
       ?.querySelector("[data-wd-trigger]") as HTMLButtonElement | null;
-    trigger?.focus();
+    // El picker queda debajo de «Disponibilidad»: un focus con scroll abría el
+    // modal a media altura. El foco va al campo, pero la vista se queda arriba.
+    trigger?.focus({ preventScroll: true });
+    modalBody.scrollTop = 0;
   }
 
   function showError(msg: string): void {
