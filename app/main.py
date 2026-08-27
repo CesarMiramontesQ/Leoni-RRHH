@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.middleware import (
+    RequestTimingMiddleware,
     RhModulePermissionMiddleware,
     SupervisorRestrictedRoutesMiddleware,
     VistaRolPermissionMiddleware,
@@ -539,6 +540,8 @@ app.add_middleware(RhModulePermissionMiddleware)
 # Vistas apagadas por el admin RH para un rol base: 403 antes del router, para que
 # entrar por URL directa tampoco funcione.
 app.add_middleware(VistaRolPermissionMiddleware)
+# El más externo: mide la request completa, incluidos los tres middlewares de arriba.
+app.add_middleware(RequestTimingMiddleware)
 
 # ── Exception Handlers ────────────────────────────────────────
 def _validation_errors_json_safe(errors: list) -> list:
