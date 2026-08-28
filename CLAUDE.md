@@ -322,6 +322,23 @@ Layered architecture: **router → service → repository → models/schemas**
   prellenado en mañana, `rhNewRequestDays.fechaMinimaSolicitudIso`) y la apaga solo en
   `pageRole === "operativo"`. En tests, `conftest` congela `business_today` del servicio en
   2026-01-05 (autouse) porque las fechas literales de la suite ya son pasado.
+- **Días festivos = lista propia de Bono, por planta, capturada por RH.**
+  `levelup_dias_festivos` (fecha UNIQUE, descripción, `activo`) se edita en la sección
+  «Días festivos» de `#/laborales/configuracion` (mismo módulo `laborales-configuracion`,
+  API `/api/v1/laborales-config/dias-festivos`, auditoría `laborales_config`). No es espejo
+  de TRESS (`TU_FESTIVO` es un flag del turno, no un calendario) y no hay sync. El botón
+  «Cargar festivos de ley» inserta los LFT art. 74 (`app/utils/dias_festivos_lft.py`) que
+  falten, sin tocar los existentes. Efecto, **solo en solicitudes nuevas** (y reenvíos
+  tras `changes_requested`), sin exención para RH: en **vacaciones** un festivo no puede
+  ser inicio ni fin (422) y dentro del rango no descuenta (`_contar_dias_vacaciones_rango`
+  une descansos ∪ festivos antes de `fechas_efectivas_en_rango`; un festivo que cae en
+  descanso se excluye una sola vez, no se recorre); en **home office** la fecha se rechaza.
+  Permisos con/sin goce lo ignoran a propósito (son días LFT y `avanzar_hasta_reunir_dias`
+  desplazaría el permiso). Nada se recalcula hacia atrás: el POST/PUT devuelve
+  `solicitudes_afectadas` solo para advertir. El calendario del modal los lee de
+  `GET /api/v1/solicitudes/dias-festivos?anio=` (self-service), los cachea por año
+  (`solicitudes/rh/diasFestivos.ts`) y los pinta en rosa con su descripción; el conteo
+  del modal espeja al backend en `computeRhModalFormUi`.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
 - **Alcance del listado de solicitudes del gerente = preferencia propia, solo visualización.**
   `levelup_empleados_config.profundidad_equipo` (NULL = todo el subárbol, 1..3 = niveles

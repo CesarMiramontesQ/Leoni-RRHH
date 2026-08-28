@@ -837,6 +837,21 @@ Vertical line con circulos por paso: completed (emerald), current (accent outlin
 
 **Skeleton**: `animate-pulse` con `bg-slate-200` (headers) y `bg-slate-100` (body). Helper `skeletonBlock(opts?: { className?; label? })` en `uiTokens.ts`: surface con `animate-pulse`, `aria-busy="true"` y `<span class="sr-only">` con el label (default "Cargando…"); usa `RH_LISTADO_SURFACE` salvo que `className` la sustituya.
 
+### 8.16b Calendario de solicitudes: días no seleccionables
+
+`workdayDatePicker.ts` distingue por causa; cada una lleva color y leyenda propios para que
+el empleado entienda por qué un día no cuenta:
+
+| Causa | Celda | Leyenda |
+|---|---|---|
+| Descanso del empleado | `bg-amber-100 text-amber-900 ring-amber-200/90 line-through` | «Días en ámbar = descanso» |
+| Festivo de la planta | `bg-rose-100 text-rose-900 ring-rose-200/90 line-through` (+ `title` con la descripción) | «Días en rosa = festivo» |
+| Fin de semana (admin) / antes de `minDate` / mes sin cargar | `text-slate-300/70 opacity-45` | texto en `text-slate-400` |
+
+El festivo manda sobre el descanso en la misma fecha. Los resúmenes bajo el rango usan el
+banner Warning (ámbar) para descansos y `border-rose-200 bg-rose-50 text-rose-900` para
+festivos; rosa se reserva a este uso (no es Error ni Danger).
+
 ### 8.17 Alert / Banner
 
 | Tipo | Border | Background | Text |

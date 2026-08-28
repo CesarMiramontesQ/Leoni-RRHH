@@ -67,6 +67,7 @@ export function buildDescansosFeedback(
   state: DescansosLoadState,
   error: string,
   fechasExcluidas: readonly string[],
+  fechasFestivas: readonly string[] = [],
 ): { loadHtml: string; effectiveSummaryHtml: string } {
   const loadHtml =
     state === "loading"
@@ -76,12 +77,22 @@ export function buildDescansosFeedback(
             error || "No se pudieron consultar los descansos. Intenta de nuevo.",
           )}</p>`
         : "";
-  const effectiveSummaryHtml =
+  const descansosHtml =
     fechasExcluidas.length > 0
       ? `<p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Se excluirán por descanso: ${escapeHtml(
           fechasExcluidas.join(", "),
         )}.</p>`
       : "";
+  const festivosHtml =
+    fechasFestivas.length > 0
+      ? `<p class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">No se descontarán por festivo: ${escapeHtml(
+          fechasFestivas.join(", "),
+        )}.</p>`
+      : "";
+  const effectiveSummaryHtml =
+    descansosHtml && festivosHtml
+      ? `<div class="space-y-2">${descansosHtml}${festivosHtml}</div>`
+      : descansosHtml || festivosHtml;
   return { loadHtml, effectiveSummaryHtml };
 }
 

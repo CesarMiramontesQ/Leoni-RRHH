@@ -329,6 +329,12 @@ export const SOLICITUD_DIAS_ANTICIPACION_MINIMA = 1;
 export const MENSAJE_ANTICIPACION_MINIMA =
   "Se solicita con al menos un día de anticipación: hoy y fechas pasadas no están disponibles.";
 
+/** Espejo de `MSG_FESTIVO_EXTREMO_VACACIONES` / `MSG_FESTIVO_HOME_OFFICE` del backend. */
+export const MENSAJE_VACACIONES_FESTIVO_EXTREMO =
+  "Las vacaciones no pueden iniciar ni terminar en un día festivo.";
+
+export const MENSAJE_HOME_OFFICE_FESTIVO = "Home Office no puede solicitarse en un día festivo.";
+
 export function tipoRequiereAnticipacionMinima(tipo: string): boolean {
   return tipo === "vacaciones" || tipo === "home_office";
 }

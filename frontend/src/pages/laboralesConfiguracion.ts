@@ -1,7 +1,8 @@
 /**
  * Configuración laborales (`#/laborales/configuracion`): parámetros de negocio que
- * antes vivían hardcodeados. Hoy tiene una sola sección, «Home office»: la regla
- * «N días cada M semanas» por área. La estructura queda lista para más secciones.
+ * antes vivían hardcodeados. Dos secciones: «Home office» (regla «N días cada M
+ * semanas» por área, en este archivo) y «Días festivos» (`diasFestivosSection.ts`,
+ * montada en su propio host para que un repintado no pise a la otra).
  *
  * Se listan TODAS las áreas activas de Bono (con o sin regla) para que RH vea de un
  * vistazo quién tiene y quién no. Al guardar una fila se actualiza solo esa fila en el
@@ -15,6 +16,7 @@ import {
   type HomeOfficeReglaAreaItem,
 } from "../api/laboralesConfig.ts";
 import { canAccessLaboralesConfiguracionPage } from "../auth/jwt.ts";
+import { mountDiasFestivosSection } from "../components/laborales/diasFestivosSection.ts";
 import { showEmpleadosToast } from "../components/empleados/toast.ts";
 import { mountAppShell } from "../layouts/appShell.ts";
 import { renderLaboralesBackBar } from "../navigation/laboralesBackLink.ts";
@@ -30,6 +32,7 @@ import {
 import { escapeHtml } from "../ui/uiUtils.ts";
 
 const ROOT_ID = "laborales-config-root";
+const FESTIVOS_ROOT_ID = "laborales-config-festivos";
 const DIAS_MAX = 5;
 const PERIODO_MAX = 4;
 
@@ -213,6 +216,7 @@ function renderPage(state: State): string {
           <p class="mt-1 text-sm text-text-secondary">Reglas de negocio del módulo Laborales que administra RH.</p>
         </header>
         <div id="${ROOT_ID}">${renderPanel(state)}</div>
+        <div id="${FESTIVOS_ROOT_ID}" class="mt-5"></div>
       </div>
     </div>`;
 }
@@ -370,4 +374,6 @@ export function mountLaboralesConfiguracion(container: HTMLElement, signal: Abor
   );
 
   void load();
+  const festivosHost = main.querySelector<HTMLElement>(`#${FESTIVOS_ROOT_ID}`);
+  if (festivosHost) mountDiasFestivosSection(festivosHost, signal);
 }

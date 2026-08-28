@@ -61,6 +61,7 @@ from app.models.empleados_rh import ensure_rh_config
 from app.models.solicitudes import Solicitud
 from app.repositories.comedor_repository import ComedorAccesoRepository
 from app.repositories.empleado_repository import EmpleadoRepository
+from app.repositories.dias_festivos_repository import DiasFestivosRepository
 from app.repositories.homeoffice_reglas_area_repository import HomeOfficeReglasAreaRepository
 from app.repositories.solicitud_repository import (
     SolicitudAprobacionRepository,
@@ -357,6 +358,16 @@ MSG_ANTICIPACION_MINIMA = (
     "Las solicitudes de vacaciones y home office deben registrarse con al menos "
     "un día de anticipación: la fecha de inicio no puede ser hoy ni una fecha pasada."
 )
+
+
+# Días festivos (`levelup_dias_festivos`, capturados por RH): bloquean inicio y fin de
+# vacaciones y la fecha de home office, y no descuentan días si caen dentro del rango.
+# Sin exención para RH: un festivo no lo trabaja nadie. Permisos con/sin goce no los
+# consideran a propósito (son días LFT; nómina ya sabe tratarlos).
+MSG_FESTIVO_EXTREMO_VACACIONES = (
+    "Las vacaciones no pueden iniciar ni terminar en un día festivo."
+)
+MSG_FESTIVO_HOME_OFFICE = "Home Office no puede solicitarse en un día festivo."
 
 
 def _validar_anticipacion_minima(tipo: str, fecha_inicio: date, scope_rol: str) -> None:
@@ -673,6 +684,12 @@ class SolicitudService:
 
     # ── Crear ────────────────────────────────────────────────────────────────
 
+    async def _festivos_en_rango(self, fecha_inicio: date, fecha_fin: date) -> set[date]:
+        """Festivos activos (`levelup_dias_festivos`) dentro del rango, para toda la planta."""
+        return await DiasFestivosRepository(self.db).fechas_activas_en_rango(
+            fecha_inicio, fecha_fin
+        )
+
     async def _contar_dias_vacaciones_rango(
         self,
         empleado_id: int,
@@ -681,7 +698,9 @@ class SolicitudService:
         *,
         validar_inicio_no_descanso: bool = False,
     ) -> int:
-        """Cuenta días de vacaciones excluyendo descansos del turno (y fines de semana si admin)."""
+        """Cuenta días de vacaciones excluyendo descansos del turno y festivos de la
+        planta (y fines de semana si admin). Con ``validar_inicio_no_descanso`` además
+        rechaza inicio en descanso y inicio/fin en festivo."""
         empleado = await self.empleado_repo.get_with_clasificacion(empleado_id)
         if empleado is None:
             raise DomainValidationError(detail="Empleado no encontrado.")
@@ -692,11 +711,17 @@ class SolicitudService:
             fecha_fin=fecha_fin,
         )
         descansos_set = set(descansos)
-        if validar_inicio_no_descanso and fecha_inicio in descansos_set:
-            raise DomainValidationError(
-                detail="La fecha inicial no puede ser un día de descanso."
-            )
-        efectivo = fechas_efectivas_en_rango(fecha_inicio, fecha_fin, descansos)
+        festivos = await self._festivos_en_rango(fecha_inicio, fecha_fin)
+        if validar_inicio_no_descanso:
+            if fecha_inicio in descansos_set:
+                raise DomainValidationError(
+                    detail="La fecha inicial no puede ser un día de descanso."
+                )
+            if fecha_inicio in festivos or fecha_fin in festivos:
+                raise DomainValidationError(detail=MSG_FESTIVO_EXTREMO_VACACIONES)
+        efectivo = fechas_efectivas_en_rango(
+            fecha_inicio, fecha_fin, descansos_set | festivos
+        )
         if empleado_es_administrativo(empleado):
             if rango_incluye_fin_de_semana(fecha_inicio, fecha_fin):
                 raise DomainValidationError(
@@ -816,7 +841,7 @@ class SolicitudService:
             raise DomainValidationError(
                 detail=(
                     "El rango debe incluir al menos un día de vacaciones "
-                    "(excluyendo descansos del turno)."
+                    "(excluyendo descansos del turno y días festivos)."
                 )
             )
         if disponible <= 0:
@@ -904,6 +929,8 @@ class SolicitudService:
                     "(lunes a viernes)."
                 )
             )
+        if fecha_inicio in await self._festivos_en_rango(fecha_inicio, fecha_inicio):
+            raise DomainValidationError(detail=MSG_FESTIVO_HOME_OFFICE)
         if not puede:
             raise DomainValidationError(detail=self.MSG_HOME_OFFICE_CUPO)
 

@@ -45,6 +45,12 @@ import {
   tipoRequiereCalendarioDescansos,
   type DescansosLoadState,
 } from "../../solicitudes/rh/descansosEmpleado.ts";
+import {
+  anioDeIso,
+  createDiasFestivosCache,
+  festivosEnRango,
+  tipoAplicaFestivos,
+} from "../../solicitudes/rh/diasFestivos.ts";
 import { fetchRhEmpleadoRequestContext } from "../../solicitudes/rh/rhNewRequestEmployeeContext.ts";
 import {
   enviarRhNuevaSolicitud,
@@ -192,10 +198,20 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
   let solicitudSubjectSupervisor: SupervisorSolicitudSujeto = "personal";
   const renderCycle = createRenderCycleController(options.signal);
   const descansosController = createDescansosEmpleadoController();
+  const festivosCache = createDiasFestivosCache();
   const contextoRequestSequence = createLatestRequestSequence();
 
   function descansosCargados(): Set<string> {
     return descansosController.getLoadedDates();
+  }
+
+  /** Festivos de la planta, solo para los tipos donde pesan (vacaciones y home office). */
+  function festivosCargados(): ReadonlySet<string> {
+    return tipoAplicaFestivos(tipo) ? festivosCache.getSet() : new Set<string>();
+  }
+
+  function festivosMapa(): ReadonlyMap<string, string> {
+    return tipoAplicaFestivos(tipo) ? festivosCache.getMap() : new Map<string, string>();
   }
 
   const showSupervisorSujeto =
@@ -349,6 +365,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       contextoHoPuedeSolicitarMes,
       estadoDescansosActual(),
       descansosCargados(),
+      festivosCargados(),
     );
   }
 
@@ -392,6 +409,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       contextoHoPuedeSolicitarMes,
       estadoDescansosActual(),
       descansosCargados(),
+      festivosCargados(),
     );
     return true;
   }
@@ -622,6 +640,12 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       fechaFin
         ? resumirRangoSinDescansos(fechaInicioEff, fechaFin, descansos)
         : null;
+    const festivosExcluidos =
+      tipo === "vacaciones" && fechaInicioEff && fechaFin
+        ? festivosEnRango(fechaInicioEff, fechaFin, festivosCargados()).filter(
+            (f) => !descansos.has(f),
+          )
+        : [];
     const ui = computeRhModalFormUi(
       tipo,
       contextoVac,
@@ -636,6 +660,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       descansosState,
       descansos,
       fechaMinimaParaTipo(tipo),
+      festivosCargados(),
     );
     const itemsParaSelector = listaEmpleadosParaSelector();
     const selectedItem = selectedEmpleadoItemFromId(selectedEmpleadoId);
@@ -687,6 +712,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       descansosState,
       descansosError: descansosController.getError(),
       fechasDescansoExcluidas: resumenDescansos?.fechasExcluidas ?? [],
+      fechasFestivasExcluidas: festivosExcluidos,
       anticipacionHint: fechaMinimaParaTipo(tipo) ? MENSAJE_ANTICIPACION_MINIMA : undefined,
     });
     bindFormInteractions();
@@ -697,6 +723,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       contextoHoPuedeSolicitarMes,
       estadoDescansosActual(),
       descansosCargados(),
+      festivosCargados(),
     );
   }
 
@@ -1019,6 +1046,9 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       const dates = requiereDescansos ? descansosCargados() : new Set<string>();
       inicioHandle?.setBlockedDates(dates);
       finHandle?.setBlockedDates(dates);
+      const festivos = festivosMapa();
+      inicioHandle?.setFestivos(festivos);
+      finHandle?.setFestivos(festivos);
       if (requiereDescansos) {
         const loadedMonths = descansosController.getLoadedMonths();
         inicioHandle?.setLoadedMonths(loadedMonths);
@@ -1043,11 +1073,19 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
       refreshLiveFormState();
     }
 
+    async function cargarFestivosAnios(...anios: number[]): Promise<void> {
+      if (!tipoAplicaFestivos(tipo)) return;
+      await festivosCache.ensureAnios(...anios);
+      if (renderSignal.aborted) return;
+      syncDescansosDom();
+    }
+
     async function cargarMes(
       year: number,
       monthIndex: number,
       handle: WorkdayDatePickerHandle | null,
     ): Promise<void> {
+      void cargarFestivosAnios(year);
       if (!tipoRequiereCalendarioDescansos(tipo)) return;
       if (!readFormSnapshot().selectedEmpleadoId) return;
       const request = descansosController.loadVisibleMonths(year, monthIndex);
@@ -1135,6 +1173,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         onChange: () => void onFechaInicioChange(),
         minDate: fechaMinimaParaTipo(tipo),
         blockedDates: blockedForPicker,
+        festivos: festivosMapa(),
         ...(requiereDescansosPicker
           ? { loadedMonths: descansosController.getLoadedMonths() }
           : {}),
@@ -1147,6 +1186,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         onChange: () => void onFechaFinChange(),
         minDate: fechaMinimaParaTipo(tipo),
         blockedDates: blockedForPicker,
+        festivos: festivosMapa(),
         ...(requiereDescansosPicker
           ? { loadedMonths: descansosController.getLoadedMonths() }
           : {}),
@@ -1158,6 +1198,17 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
     if (requiereDescansosPicker && readFormSnapshot().selectedEmpleadoId.trim()) {
       const now = new Date();
       void cargarMes(now.getFullYear(), now.getMonth(), inicioHandle);
+    }
+    {
+      // Festivos: este año y el siguiente, más el año de las fechas ya capturadas
+      // (corrección de una solicitud). Independientes del empleado.
+      const hoyAnio = new Date().getFullYear();
+      const anios = new Set<number>([hoyAnio, hoyAnio + 1]);
+      for (const v of [inicio?.value, fin?.value]) {
+        const a = v ? anioDeIso(v) : null;
+        if (a != null) anios.add(a);
+      }
+      void cargarFestivosAnios(...anios);
     }
 
     motivo?.addEventListener("input", refreshLiveFormState, { signal: renderSignal });
@@ -1445,6 +1496,7 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
               contextoHoPuedeSolicitarMes,
               estadoDescansosActual(),
               descansosCargados(),
+              festivosCargados(),
             );
           }
         }

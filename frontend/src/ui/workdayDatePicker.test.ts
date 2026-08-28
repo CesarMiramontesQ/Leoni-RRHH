@@ -123,3 +123,34 @@ describe("workdayDatePicker — fecha mínima", () => {
     expect(html).not.toContain("Días en ámbar = descanso del empleado");
   });
 });
+
+describe("workdayDatePicker — festivos", () => {
+  it("renderiza el festivo bloqueado, con su descripción y color propio", () => {
+    const html = buildWorkdayDatePickerMonthHtml({
+      year: 2026,
+      monthIndex: 8,
+      selected: "",
+      blockWeekends: false,
+      blockedDates: new Set(["2026-09-16"]),
+      festivos: new Map([["2026-09-16", "Día de la Independencia"]]),
+    });
+    const day = html.match(/<button[\s\S]*?data-wd-day="2026-09-16"[\s\S]*?<\/button>/)?.[0] ?? "";
+    expect(day).toContain("disabled");
+    expect(day).toContain('title="Festivo: Día de la Independencia"');
+    expect(day).toContain("bg-rose-100");
+    // El festivo manda sobre el descanso en la misma fecha.
+    expect(day).not.toContain("bg-amber-100");
+    expect(html).toContain("Días en rosa = festivo de la planta");
+  });
+
+  it("sin festivos no muestra la leyenda", () => {
+    const html = buildWorkdayDatePickerMonthHtml({
+      year: 2026,
+      monthIndex: 8,
+      selected: "",
+      blockWeekends: false,
+      festivos: new Map(),
+    });
+    expect(html).not.toContain("Días en rosa");
+  });
+});

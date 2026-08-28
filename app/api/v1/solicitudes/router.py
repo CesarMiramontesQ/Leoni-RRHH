@@ -21,6 +21,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, get_rh_ui_mode, role_checker
 from app.models.empleados import Empleado
 from app.schemas import PaginatedResponse
+from app.schemas.laborales_config import DiasFestivosPublicosResponse
 from app.schemas.solicitudes import (
     AlcanceEquipoResponse,
     AlcanceEquipoUpdate,
@@ -31,6 +32,7 @@ from app.schemas.solicitudes import (
     SolicitudResponse,
     SolicitudSolicitarCambiosBody,
 )
+from app.services.laborales_config_service import LaboralesConfigService
 from app.services.solicitud_service import SolicitudService
 
 router = APIRouter(prefix="/api/v1/solicitudes", tags=["Solicitudes"])
@@ -70,6 +72,17 @@ async def create_solicitud(
         background_tasks=background_tasks,
         rh_ui_mode=rh_ui_mode,
     )
+
+
+# Festivos activos del año: los lee cualquier autenticado para pintar el calendario
+# del modal. Va bajo /solicitudes (self-service) y antes de /{solicitud_id}.
+@router.get("/dias-festivos", response_model=DiasFestivosPublicosResponse)
+async def list_dias_festivos_publicos(
+    anio: int = Query(..., ge=2000, le=2100),
+    current_user: Empleado = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await LaboralesConfigService(db).listar_dias_festivos_publicos(anio)
 
 
 # Preferencia self-service del gerente: cuántos niveles baja el listado de su

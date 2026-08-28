@@ -1876,6 +1876,121 @@ components:
           type: boolean
           default: true
 
+    DiaFestivoItem:
+      type: object
+      required: [id, fecha, descripcion, activo]
+      properties:
+        id:
+          type: integer
+        fecha:
+          type: string
+          format: date
+        descripcion:
+          type: string
+          maxLength: 120
+        activo:
+          type: boolean
+        actualizado_en:
+          type: string
+          format: date-time
+          nullable: true
+        actualizado_por:
+          type: string
+          nullable: true
+
+    DiasFestivosListResponse:
+      type: object
+      required: [anio, items, total]
+      properties:
+        anio:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiaFestivoItem"
+        total:
+          type: integer
+
+    DiaFestivoCreate:
+      type: object
+      required: [fecha, descripcion]
+      properties:
+        fecha:
+          type: string
+          format: date
+        descripcion:
+          type: string
+          minLength: 1
+          maxLength: 120
+
+    DiaFestivoUpdate:
+      type: object
+      required: [descripcion, activo]
+      properties:
+        descripcion:
+          type: string
+          minLength: 1
+          maxLength: 120
+        activo:
+          type: boolean
+
+    DiaFestivoGuardadoResponse:
+      type: object
+      required: [item, solicitudes_afectadas]
+      description: >
+        Festivo guardado más cuántas solicitudes vivas (vacaciones/home office en
+        pending, changes_requested o approved) incluyen la fecha. No se recalculan; el
+        número es solo para advertir a RH. Vale 0 si el festivo queda apagado.
+      properties:
+        item:
+          $ref: "#/components/schemas/DiaFestivoItem"
+        solicitudes_afectadas:
+          type: integer
+
+    DiasFestivosCargaOficialesRequest:
+      type: object
+      required: [anio]
+      properties:
+        anio:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+
+    DiasFestivosCargaOficialesResponse:
+      type: object
+      required: [anio, agregados, omitidos]
+      properties:
+        anio:
+          type: integer
+        agregados:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiaFestivoItem"
+        omitidos:
+          type: integer
+          description: Fechas de ley que ya existían (activas o apagadas) y no se tocaron.
+
+    DiaFestivoPublico:
+      type: object
+      required: [fecha, descripcion]
+      properties:
+        fecha:
+          type: string
+          format: date
+        descripcion:
+          type: string
+
+    DiasFestivosPublicosResponse:
+      type: object
+      required: [anio, items]
+      properties:
+        anio:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiaFestivoPublico"
+
     UsuarioVista360Response:
       type: object
       required:
@@ -9268,6 +9383,124 @@ paths:
         "422":
           description: Valores fuera de rango
 
+  /api/v1/laborales-config/dias-festivos:
+    get:
+      tags: [Configuración laborales]
+      summary: Días festivos de la planta de un año (activos y apagados)
+      operationId: laborales_config_dias_festivos_list
+      description: >
+        Lista propia de Bono (`levelup_dias_festivos`), no espejo de TRESS. Requiere el
+        módulo RH `laborales-configuracion`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: anio
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+      responses:
+        "200":
+          description: Festivos del año
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiasFestivosListResponse"
+        "403":
+          description: Sin módulo `laborales-configuracion`
+    post:
+      tags: [Configuración laborales]
+      summary: Agregar un día festivo
+      operationId: laborales_config_dias_festivos_create
+      description: >
+        Una fecha solo puede tener un festivo (409 si ya existe, aunque esté apagado).
+        Auditado como `LABORALES_CONFIG_DIA_FESTIVO_CREATED` (módulo `laborales_config`).
+        Aplica solo a solicitudes nuevas.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiaFestivoCreate"
+      responses:
+        "201":
+          description: Festivo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiaFestivoGuardadoResponse"
+        "403":
+          description: Sin módulo `laborales-configuracion`
+        "409":
+          description: Ya existe un festivo en esa fecha
+        "422":
+          description: Descripción vacía o fecha inválida
+
+  /api/v1/laborales-config/dias-festivos/cargar-oficiales:
+    post:
+      tags: [Configuración laborales]
+      summary: Cargar los festivos de ley (LFT art. 74) de un año
+      operationId: laborales_config_dias_festivos_cargar_oficiales
+      description: >
+        Inserta, activos, los festivos LFT del año que aún no existan; las fechas ya
+        capturadas (activas o apagadas) se respetan tal cual. Cada alta se audita como
+        `LABORALES_CONFIG_DIA_FESTIVO_CREATED`.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiasFestivosCargaOficialesRequest"
+      responses:
+        "200":
+          description: Resultado de la carga
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiasFestivosCargaOficialesResponse"
+        "403":
+          description: Sin módulo `laborales-configuracion`
+
+  /api/v1/laborales-config/dias-festivos/{festivo_id}:
+    put:
+      tags: [Configuración laborales]
+      summary: Editar descripción o apagar/encender un festivo
+      operationId: laborales_config_dias_festivos_update
+      description: >
+        La fecha no se edita (crea otro festivo y apaga este). Las filas no se borran.
+        Auditado como `LABORALES_CONFIG_DIA_FESTIVO_UPDATED`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: festivo_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DiaFestivoUpdate"
+      responses:
+        "200":
+          description: Festivo guardado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiaFestivoGuardadoResponse"
+        "403":
+          description: Sin módulo `laborales-configuracion`
+        "404":
+          description: Festivo inexistente
+
   /api/v1/contratos:
     get:
       tags: [Contratos]
@@ -9871,6 +10104,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HTTPValidationError"
+
+  /api/v1/solicitudes/dias-festivos:
+    get:
+      tags: [Solicitudes]
+      summary: Festivos activos de un año para el calendario de solicitudes
+      operationId: solicitudes_dias_festivos_publicos
+      description: >-
+        Lectura para cualquier usuario autenticado (self-service). Son los días que el
+        modal pinta en rosa: no pueden ser inicio ni fin de vacaciones, no se descuentan
+        del saldo si caen dentro del rango y no admiten home office. Solo `activo = true`.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: anio
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+      responses:
+        "200":
+          description: Festivos activos del año
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiasFestivosPublicosResponse"
+        "401":
+          description: Sin sesión
 
   /api/v1/solicitudes/me/alcance-equipo:
     get:
