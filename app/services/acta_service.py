@@ -922,10 +922,9 @@ class ActaService:
         if rol in ("rh", "gerente", "director"):
             return
         if rol == "supervisor":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+            ids = await self.empleado_repo.get_ids_subarbol(
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
             )
-            ids = {e.id for e in subordinados}
             if empleado_id in ids or empleado_id == current_user.id:
                 return
             raise ForbiddenError(detail="No tienes acceso a este empleado")
@@ -1023,11 +1022,11 @@ class ActaService:
         if rol in ("director", "rh"):
             items, next_cursor = await self.repo.list_paginated(cursor=cursor, limit=limit)
             total = await self.repo.count()
-        elif rol == "gerente":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+        elif rol in ("gerente", "supervisor"):
+            equipo = await self.empleado_repo.get_ids_subarbol(
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
             )
-            ids = [e.id for e in subordinados] + [current_user.id]
+            ids = list(equipo) + [current_user.id]
             items, next_cursor = await self.repo.list_paginated(
                 cursor=cursor,
                 limit=limit,
@@ -1108,11 +1107,11 @@ class ActaService:
         emp_filters: list = []
         if rol in ("director", "rh"):
             pass
-        elif rol == "gerente":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+        elif rol in ("gerente", "supervisor"):
+            equipo = await self.empleado_repo.get_ids_subarbol(
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
             )
-            ids = [e.id for e in subordinados] + [current_user.id]
+            ids = list(equipo) + [current_user.id]
             emp_filters = [ActaAdministrativa.empleado_id.in_(ids)]
         else:
             emp_filters = [ActaAdministrativa.empleado_id == current_user.id]

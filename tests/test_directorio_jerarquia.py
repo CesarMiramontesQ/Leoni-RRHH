@@ -1,5 +1,5 @@
 # tests/test_directorio_jerarquia.py
-"""Directorio según rol: gerente ve subárbol completo; supervisor solo reportes directos."""
+"""Directorio según rol: gerente y supervisor ven su subárbol completo."""
 
 import pytest
 from httpx import AsyncClient
@@ -42,7 +42,7 @@ async def test_directorio_gerente_cuenta_subarbol_completo(client: AsyncClient, 
 
 
 @pytest.mark.asyncio
-async def test_directorio_supervisor_cuenta_solo_directos(client: AsyncClient, db):
+async def test_directorio_supervisor_cuenta_subarbol(client: AsyncClient, db):
     gerente = await make_empleado(db, rol="gerente", nombre="Ger2", empleado_id=91011, no_empleado=7000041)
     sup = await make_empleado(
         db,
@@ -68,4 +68,4 @@ async def test_directorio_supervisor_cuenta_solo_directos(client: AsyncClient, d
         headers=headers,
     )
     assert response.status_code == 200
-    assert response.json()["total"] == 2
+    assert response.json()["total"] == 2  # sup + emp (el gerente está arriba, no abajo)

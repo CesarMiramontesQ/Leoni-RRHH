@@ -340,6 +340,16 @@ Layered architecture: **router → service → repository → models/schemas**
   (`solicitudes/rh/diasFestivos.ts`) y los pinta en rosa con su descripción; el conteo
   del modal espeja al backend en `computeRhModalFormUi`.
 - `app/middleware/` — Custom middleware (supervisor route restrictions)
+- **Supervisor y gerente ven todo su subárbol.** Ningún scope de gestor se queda en
+  reportes directos: `empleado_ids_en_alcance`, `empleado_ids_scope_por_modulo` y
+  `equipo_empleado_ids_comedor` (`app/core/data_scope.py`) resuelven `supervisor` y
+  `gerente` con `get_ids_subarbol(..., atravesar_inactivos=True)`, y lo mismo hacen las
+  ramas propias de solicitudes, vacaciones, incidencias, faltas-retardos, viajes y actas.
+  El supervisor también **aprueba/rechaza** solicitudes de cualquier nivel de su subárbol
+  (`_puede_actuar_jerarquia_solicitud`, `empleado_en_subarbol`). Caso que motivó el
+  cambio: 4755 → 552 → 2652 (supervisor) no veía a 4755. Quedan a propósito en «jefe
+  directo» Metas y Ciclo de desempeño (`_resolve_scope` de sus routers), que ahí es el
+  mismo criterio para gerente.
 - **Alcance del listado de solicitudes del gerente = preferencia propia, solo visualización.**
   `levelup_empleados_config.profundidad_equipo` (NULL = todo el subárbol, 1..3 = niveles
   bajo el gerente) la edita el propio gerente con el select «Mostrar» de la sección
@@ -349,7 +359,7 @@ Layered architecture: **router → service → repository → models/schemas**
   detalle, la aprobación y las notificaciones siguen con el subárbol completo, así que
   una solicitud fuera del alcance se sigue abriendo desde su deep-link. Solo scope
   efectivo `gerente`: un gerente con módulo RH de solicitudes se eleva a global y no ve
-  el select; supervisor sigue en reportes directos y no tiene la opción. El recorrido
+  el select; supervisor ve también todo su subárbol pero no tiene la opción. El recorrido
   del gerente pasa `atravesar_inactivos=True` (un líder de baja no esconde a su gente,
   igual que Horas Extra).
 

@@ -197,7 +197,7 @@ function rowMatchesSupervisorId(row: RhSolicitudTablaFila, empleadoDirId: number
 
 /**
  * Separa solicitudes personales vs equipo para supervisor/gerente.
- * El API ya acota por rol (supervisor: reportes directos; gerente: subárbol jerárquico).
+ * El API ya acota por rol (supervisor y gerente: subárbol jerárquico completo).
  */
 function splitPersonalAndTeamRows(
   allRows: RhSolicitudTablaFila[],
