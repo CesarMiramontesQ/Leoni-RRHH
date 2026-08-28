@@ -91,15 +91,9 @@ class IncidenciaService:
         scope = effective_data_scope_for_module(current_user, "incidencias", rh_ui_mode)
         if scope in ("director", "rh"):
             return []
-        if scope == "supervisor":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
-            )
-            ids = [e.id for e in subordinados] + [current_user.id]
-            return [Incidencia.empleado_id.in_(ids)]
-        if scope == "gerente":
+        if scope in ("supervisor", "gerente"):
             equipo = await self.empleado_repo.get_ids_subarbol(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
             )
             ids = list(equipo) + [current_user.id]
             return [Incidencia.empleado_id.in_(ids)]
@@ -311,10 +305,10 @@ class IncidenciaService:
             raise NotFoundError(entidad="Empleado", id=data.empleado_id)
 
         if rol in ("gerente", "supervisor"):
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+            equipo = await self.empleado_repo.get_ids_subarbol(
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
             )
-            permitidos = {e.id for e in subordinados} | {current_user.id}
+            permitidos = set(equipo) | {current_user.id}
             if data.empleado_id not in permitidos:
                 raise ForbiddenError(
                     detail="No puedes registrar incidencias para empleados fuera de tu equipo"

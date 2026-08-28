@@ -200,10 +200,10 @@ async def test_crear_solicitud_gerente_fuera_de_su_subarbol_retorna_403(
 
 
 @pytest.mark.asyncio
-async def test_crear_solicitud_supervisor_para_subordinado_indirecto_retorna_403(
+async def test_crear_solicitud_supervisor_para_subordinado_indirecto_retorna_201(
     client: AsyncClient, db,
 ):
-    """El supervisor sigue limitado a reportes directos."""
+    """El supervisor alcanza todo su subárbol, igual que el gerente."""
     supervisor = await make_empleado(db, rol="supervisor", email="sol002f_sup@leoni.test")
     medio = await make_empleado(
         db, rol="empleado", email="sol002f_medio@leoni.test", lider_id=supervisor.empleado_id
@@ -216,7 +216,8 @@ async def test_crear_solicitud_supervisor_para_subordinado_indirecto_retorna_403
     payload = {**SOLICITUD_VACACIONES, "empleado_id": nieto.id}
     response = await client.post("/api/v1/solicitudes", json=payload, headers=headers)
 
-    assert response.status_code == 403
+    assert response.status_code == 201, response.text
+    assert response.json()["empleado_id"] == nieto.id
 
 
 # ---------------------------------------------------------------------------

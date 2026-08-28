@@ -10,9 +10,9 @@ Flujo de estados:
   pending → changes_requested  (via solicitar_cambios_solicitud — aprobador)
   changes_requested → pending  (via requisitor_actualizar_y_reenviar — solo el solicitante)
 
-Jerarquia supervisor/gerente: una sola aprobacion o rechazo valido basta (supervisor directo O gerente
-de linea o gerente con el solicitante en su subarbol jerarquico, en cualquier orden; no hay segunda
-etapa obligatoria).
+Jerarquia supervisor/gerente: una sola aprobacion o rechazo valido basta (supervisor o gerente con el
+solicitante en su subarbol jerarquico, o gerente de linea, en cualquier orden; no hay segunda etapa
+obligatoria).
 
 Al aprobar: estado `approved`, registro de aprobacion, push a TRESS y notificacion
 in-app al requisitor. Vacaciones, home office y goce FJ usan INSERT SQL sincrono;
@@ -309,21 +309,21 @@ def _puede_actuar_jerarquia_solicitud(
     primer_gerente_id: int | None,
     current_user_id: int,
     current_user_empleado_id: int,
-    empleado_en_subarbol_gerente: bool = False,
+    empleado_en_subarbol: bool = False,
 ) -> bool:
     """
-    Supervisor directo o gerente (de linea o con el solicitante en su subarbol) pueden decidir.
+    Supervisor o gerente pueden decidir cuando el solicitante está en su subárbol
+    (directo o a varios niveles); el gerente además cuando es el gerente de línea.
     ``lider_empleado_id`` es el ``empleado_id`` del jefe inmediato del solicitante.
     """
-    if (
-        rol == "supervisor"
-        and lider_empleado_id is not None
-        and lider_empleado_id == current_user_empleado_id
+    if rol == "supervisor" and (
+        (lider_empleado_id is not None and lider_empleado_id == current_user_empleado_id)
+        or empleado_en_subarbol
     ):
         return True
     if rol == "gerente" and (
         (primer_gerente_id is not None and primer_gerente_id == current_user_id)
-        or empleado_en_subarbol_gerente
+        or empleado_en_subarbol
     ):
         return True
     return False
@@ -386,11 +386,11 @@ class SolicitudService:
         self.comedor_acceso_repo = ComedorAccesoRepository(db)
         self.db = db
 
-    async def _empleado_en_subarbol_gerente(
-        self, gerente_empleado_id: int, empleado_local_id: int
+    async def _empleado_en_subarbol(
+        self, lider_empleado_id: int, empleado_local_id: int
     ) -> bool:
         equipo = await self.empleado_repo.get_ids_subarbol(
-            gerente_empleado_id, settings.ESTADOS_ACTIVOS_IDS
+            lider_empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
         )
         return empleado_local_id in equipo
 
@@ -403,17 +403,15 @@ class SolicitudService:
     ) -> bool:
         primer_g = await self.empleado_repo.get_primer_gerente_en_cadena(emp.id)
         en_subarbol = False
-        if rol == "gerente":
-            en_subarbol = await self._empleado_en_subarbol_gerente(
-                current_user.empleado_id, emp.id
-            )
+        if rol in ("supervisor", "gerente"):
+            en_subarbol = await self._empleado_en_subarbol(current_user.empleado_id, emp.id)
         return _puede_actuar_jerarquia_solicitud(
             rol=rol,
             lider_empleado_id=emp.lider_id,
             primer_gerente_id=primer_g.id if primer_g else None,
             current_user_id=current_user.id,
             current_user_empleado_id=current_user.empleado_id,
-            empleado_en_subarbol_gerente=en_subarbol,
+            empleado_en_subarbol=en_subarbol,
         )
 
     async def _cancelar_reservas_comedor_si_vacaciones_aprobadas(
@@ -566,23 +564,13 @@ class SolicitudService:
             items, next_cursor = await self.repo.list_paginated(cursor=cursor, limit=limit)
             total = await self.repo.count()
 
-        elif scope_rol == "supervisor":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
-            )
-            ids = [e.id for e in subordinados] + [current_user.id]
-            items, next_cursor = await self.repo.list_by_equipo(
-                empleado_ids=ids, cursor=cursor, limit=limit
-            )
-            total = await self.repo.count(
-                filters=[Solicitud.empleado_id.in_(ids)]
-            )
-
-        elif scope_rol == "gerente":
-            # Alcance de visualización elegido por el gerente (None = todo el
-            # subárbol). Solo acota el listado: el detalle y la aprobación siguen
-            # usando el subárbol completo. Un líder intermedio dado de baja no
-            # esconde a su gente (mismo criterio que Horas Extra).
+        elif scope_rol in ("supervisor", "gerente"):
+            # Supervisor y gerente ven todo su subárbol. `profundidad_equipo` es el
+            # alcance de visualización elegido por el gerente (None = todo el
+            # subárbol; el supervisor no lo edita y viaja en None). Solo acota el
+            # listado: el detalle y la aprobación siguen usando el subárbol
+            # completo. Un líder intermedio dado de baja no esconde a su gente
+            # (mismo criterio que Horas Extra).
             equipo = await self.empleado_repo.get_ids_subarbol(
                 current_user.empleado_id,
                 settings.ESTADOS_ACTIVOS_IDS,
@@ -664,16 +652,9 @@ class SolicitudService:
             pass
         elif solicitud.empleado_id == current_user.id:
             pass
-        elif scope_rol == "supervisor":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
-            )
-            ids = {e.id for e in subordinados}
-            if solicitud.empleado_id not in ids:
-                raise ForbiddenError(detail="No tienes acceso a esta solicitud")
-        elif scope_rol == "gerente":
+        elif scope_rol in ("supervisor", "gerente"):
             equipo = await self.empleado_repo.get_ids_subarbol(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
             )
             if solicitud.empleado_id not in equipo:
                 raise ForbiddenError(detail="No tienes acceso a esta solicitud")
@@ -1012,8 +993,8 @@ class SolicitudService:
             return target
 
         if scope_rol in ("gerente", "supervisor"):
-            # Misma fuente que el buscador de empleados del modal: supervisor =
-            # reportes directos, gerente = todo su subárbol activo. Si esto y el
+            # Misma fuente que el buscador de empleados del modal: supervisor y
+            # gerente = todo su subárbol activo. Si esto y el
             # buscador divergieran, el modal ofrecería colaboradores para los que
             # el POST responde 403.
             permitidos = await empleado_ids_scope_por_modulo(
@@ -1462,8 +1443,8 @@ class SolicitudService:
             )
 
         raise ForbiddenError(
-            detail="No tienes permiso para aprobar esta solicitud. Solo el supervisor directo, "
-            "el gerente de linea, RH o director pueden aprobarla."
+            detail="No tienes permiso para aprobar esta solicitud. Solo un supervisor o gerente "
+            "de tu línea, RH o director pueden aprobarla."
         )
 
     # ── Rechazar ─────────────────────────────────────────────────────────────
@@ -1496,8 +1477,8 @@ class SolicitudService:
                 current_user=current_user,
             ):
                 raise ForbiddenError(
-                    detail="No tienes permiso para rechazar esta solicitud. Solo el supervisor directo, "
-                    "el gerente de linea, RH o director pueden rechazarla."
+                    detail="No tienes permiso para rechazar esta solicitud. Solo un supervisor o gerente "
+                    "de tu línea, RH o director pueden rechazarla."
                 )
 
         datos_antes = {"estado": solicitud.estado}

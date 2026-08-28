@@ -368,13 +368,6 @@ class EmpleadoRepository(BaseRepository[Empleado]):
         )
         return list(result.scalars().all())
 
-    async def get_subordinados_directos_ids(self, lider_empleado_id: int) -> list[int]:
-        """IDs locales de reportes directos (``lider_id`` = ``empleado_id`` del jefe)."""
-        result = await self.db.execute(
-            select(Empleado.id).where(Empleado.lider_id == lider_empleado_id)
-        )
-        return [row[0] for row in result.all()]
-
     async def get_ids_subarbol_sin_filtro_estado(self, lider_empleado_id: int) -> set[int]:
         """Subárbol bajo ``lider_empleado_id`` (cualquier estado); retorna IDs locales."""
         collected: set[int] = set()

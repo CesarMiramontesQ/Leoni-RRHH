@@ -82,14 +82,9 @@ class ViajesLaboralesService:
         )
         if scope in ("director", "rh"):
             return None
-        if scope == "supervisor":
-            subordinados = await self.empleado_repo.get_subordinados(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
-            )
-            return [e.empleado_id for e in subordinados] + [current_user.empleado_id]
-        if scope == "gerente":
+        if scope in ("supervisor", "gerente"):
             equipo = await self.empleado_repo.get_ids_subarbol(
-                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+                current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
             )
             return list(equipo) + [current_user.empleado_id]
         return [current_user.empleado_id]

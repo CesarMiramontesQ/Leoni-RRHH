@@ -25,7 +25,7 @@ async def test_scope_gerente_incluye_subarbol(db: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_scope_supervisor_solo_reportes_directos(db: AsyncSession):
+async def test_scope_supervisor_solo_su_subarbol(db: AsyncSession):
     gerente = await make_empleado(db, rol="gerente", email="inc_jer2_g@leoni.test")
     supervisor = await make_empleado(
         db, rol="supervisor", email="inc_jer2_s@leoni.test", lider_id=gerente.empleado_id

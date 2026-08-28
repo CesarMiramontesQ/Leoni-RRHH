@@ -58,17 +58,16 @@ async def empleado_ids_en_alcance(
         return None
     if scope == "empleado":
         return [user.id]
-    if scope == "supervisor":
-        if alcance_todos_los_estados:
-            directos = await empleado_repo.get_subordinados_directos_ids(user.empleado_id)
-            return directos + [user.id]
-        subordinados = await empleado_repo.get_subordinados(user.empleado_id, estados)
-        return [e.id for e in subordinados] + [user.id]
-    if scope == "gerente":
+    if scope in ("supervisor", "gerente"):
+        # Supervisor y gerente ven todo su subárbol. Un líder intermedio de baja
+        # no esconde a su gente (mismo criterio que Horas Extra y el listado de
+        # solicitudes del gerente).
         if alcance_todos_los_estados:
             subarbol = await empleado_repo.get_ids_subarbol_sin_filtro_estado(user.empleado_id)
         else:
-            subarbol = await empleado_repo.get_ids_subarbol(user.empleado_id, estados)
+            subarbol = await empleado_repo.get_ids_subarbol(
+                user.empleado_id, estados, atravesar_inactivos=True
+            )
         return list(subarbol) + [user.id]
     return [user.id]
 
@@ -89,8 +88,7 @@ async def empleado_ids_scope_por_modulo(
     usuario tiene ``module_key`` otorgado) para decidir:
     - ``None`` si el scope efectivo es ``"director"`` o ``"rh"`` (universo,
       sin restricción).
-    - supervisor → reportes directos (``get_subordinados``) + él mismo.
-    - gerente → subárbol completo (``get_ids_subarbol``) + él mismo.
+    - supervisor / gerente → subárbol completo (``get_ids_subarbol``) + él mismo.
     - resto (empleado base) → solo ``[current_user.empleado_id]``.
 
     Recibe ``empleado_repo`` (no ``db``) para que el caller controle la
@@ -100,14 +98,9 @@ async def empleado_ids_scope_por_modulo(
     scope = effective_data_scope_for_module(current_user, module_key, rh_ui_mode)
     if scope in ("director", "rh"):
         return None
-    if scope == "supervisor":
-        subordinados = await empleado_repo.get_subordinados(
-            current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
-        )
-        return [e.empleado_id for e in subordinados] + [current_user.empleado_id]
-    if scope == "gerente":
+    if scope in ("supervisor", "gerente"):
         equipo = await empleado_repo.get_ids_subarbol(
-            current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+            current_user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
         )
         return list(equipo) + [current_user.empleado_id]
     return [current_user.empleado_id]
@@ -120,15 +113,10 @@ async def equipo_empleado_ids_comedor(
 ) -> set[int]:
     """Subconjunto de empleados para consultas de comedor de equipo."""
     scope = effective_data_scope_rol(user, rh_ui_mode)
-    if scope == "supervisor":
-        subordinados = await empleado_repo.get_subordinados(
-            user.empleado_id, settings.ESTADOS_ACTIVOS_IDS
+    if scope in ("supervisor", "gerente"):
+        ids = await empleado_repo.get_ids_subarbol(
+            user.empleado_id, settings.ESTADOS_ACTIVOS_IDS, atravesar_inactivos=True
         )
-        ids = {e.id for e in subordinados}
-        ids.add(user.id)
-        return ids
-    if scope == "gerente":
-        ids = await empleado_repo.get_ids_subarbol(user.empleado_id, settings.ESTADOS_ACTIVOS_IDS)
         ids.add(user.id)
         return ids
     return set()
