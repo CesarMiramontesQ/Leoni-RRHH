@@ -36,6 +36,8 @@ import {
   esRangoMatrimonioValido,
   esRangoPaternidadValido,
   rangoIncluyeFinDeSemana,
+  tipoRequiereUnaSemana,
+  validarRangoUnaSemana,
   resumirRangoSinDescansos,
   sumarDiasIso,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
@@ -1348,6 +1350,13 @@ export function mountRhNewRequestModal(host: HTMLElement, options: RhNewRequestM
         if (!fechasOrdenValidas(fecha_inicio, fecha_fin)) {
           showError("La fecha de fin no puede ser anterior a la fecha de inicio.");
           return;
+        }
+        if (tipoRequiereUnaSemana(tipo)) {
+          const cruzaSemana = validarRangoUnaSemana(fecha_inicio, fecha_fin);
+          if (cruzaSemana) {
+            showError(cruzaSemana);
+            return;
+          }
         }
         if (
           (tipo === "incapacidad_interna" || tipo === "vacaciones") &&
