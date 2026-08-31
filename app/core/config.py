@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_EXPIRE_DAYS: int = 7
+    # 0 = desactivado. Producción debe fijar 120 (docker-compose.prod.yml).
+    SESSION_IDLE_TIMEOUT_SECONDS: int = 0
 
     # SMTP
     SMTP_HOST: str = "localhost"

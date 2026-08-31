@@ -1,4 +1,5 @@
-import { getRememberMePreference, setSession } from "../auth/session.ts";
+import { setSession } from "../auth/session.ts";
+import { consumeIdleLogoutNotice } from "../auth/sessionIdle.ts";
 import { loadRhModulePermissions, resetRhModulePermissions } from "../auth/rhModulePermissions.ts";
 import { loadVistasRol, resetVistasRol } from "../auth/vistaRolPermissions.ts";
 import { resolveRhInitialHash } from "../navigation/shellNavPolicy.ts";
@@ -80,24 +81,11 @@ export function mountLogin(container: HTMLElement): void {
             </div>
           </div>
 
-          <div class="flex items-center gap-3">
-            <div class="flex h-6 shrink-0 items-center">
-              <div class="relative grid size-4 place-items-center">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  name="remember-me"
-                  class="peer login-page-checkbox col-start-1 row-start-1 forced-colors:appearance-auto"
-                />
-                <svg viewBox="0 0 14 14" fill="none"
-                     class="pointer-events-none col-start-1 row-start-1 size-3.5 stroke-white opacity-0 transition-opacity duration-150 peer-checked:opacity-100 peer-disabled:stroke-gray-950/25 motion-reduce:transition-none">
-                  <path d="M3 8L6 11L11 3.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </div>
-            </div>
-            <label for="remember-me" class="block cursor-pointer text-sm/6 text-slate-800 select-none">
-              Recordarme
-            </label>
+          <div id="idle-notice"
+               role="status"
+               aria-live="polite"
+               class="login-page-notice hidden">
+            Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.
           </div>
 
           <div id="error-msg"
@@ -137,15 +125,16 @@ export function mountLogin(container: HTMLElement): void {
 
   const form = container.querySelector<HTMLFormElement>("#login-form")!;
   const errorEl = container.querySelector<HTMLDivElement>("#error-msg")!;
+  const idleNotice = container.querySelector<HTMLDivElement>("#idle-notice")!;
   const btn = form.querySelector<HTMLButtonElement>("button[type=submit]")!;
-  const rememberCheckbox = container.querySelector<HTMLInputElement>("#remember-me");
-  if (rememberCheckbox) {
-    rememberCheckbox.checked = getRememberMePreference();
+  if (consumeIdleLogoutNotice()) {
+    idleNotice.classList.remove("hidden");
   }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     errorEl.classList.add("hidden");
+    idleNotice.classList.add("hidden");
     btn.disabled = true;
     btn.setAttribute("aria-busy", "true");
     btn.textContent = "Verificando…";
@@ -172,12 +161,10 @@ export function mountLogin(container: HTMLElement): void {
         access_token: string;
         refresh_token: string;
       };
-      const remember =
-        container.querySelector<HTMLInputElement>("#remember-me")?.checked ?? false;
-      setSession(
-        { access_token: body.access_token, refresh_token: body.refresh_token },
-        remember,
-      );
+      setSession({
+        access_token: body.access_token,
+        refresh_token: body.refresh_token,
+      });
       resetNotificacionesResumen();
       resetRhModulePermissions();
       resetVistasRol();

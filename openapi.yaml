@@ -164,6 +164,15 @@ components:
           type: string
           default: bearer
 
+    SessionPolicyResponse:
+      type: object
+      required: [idle_timeout_seconds]
+      properties:
+        idle_timeout_seconds:
+          type: integer
+          minimum: 0
+          description: Segundos sin actividad del usuario antes de cerrar sesión. 0 desactiva el idle.
+
     RefreshRequest:
       type: object
       required: [refresh_token]
@@ -8247,6 +8256,24 @@ paths:
           description: Error de lectura/inserción en proceso de sincronización
 
   # ── Autenticacion ───────────────────────────────────
+  /api/v1/auth/session-policy:
+    get:
+      tags: [Autenticacion]
+      summary: Política de sesión (idle timeout)
+      description: >-
+        Timeout de inactividad para el cliente. Público (sin JWT).
+        0 = desactivado. El access JWT no se acorta; el cliente cierra sesión
+        y llama a POST /logout para invalidar el JTI.
+      operationId: auth_session_policy
+      security: []
+      responses:
+        "200":
+          description: Política de idle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionPolicyResponse"
+
   /api/v1/auth/login:
     post:
       tags: [Autenticacion]

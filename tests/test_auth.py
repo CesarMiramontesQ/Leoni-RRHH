@@ -529,3 +529,35 @@ def test_verify_password_bcrypt_y_texto_plano():
     assert verify_password("  RH-01  ", "RH-01")
 
     assert not verify_password("x", "$2b$12$PLACEHOLDER_NO_VALIDO_COMO_BCRYPT")
+
+
+# ---------------------------------------------------------------------------
+# Política de idle: GET público, default 0 (local), prod 120
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_session_policy_sin_auth_retorna_idle_timeout(client: AsyncClient):
+    response = await client.get("/api/v1/auth/session-policy")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["idle_timeout_seconds"] == 0
+
+
+@pytest.mark.asyncio
+async def test_session_policy_respeta_env_cero(client: AsyncClient, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "SESSION_IDLE_TIMEOUT_SECONDS", 0)
+    response = await client.get("/api/v1/auth/session-policy")
+    assert response.status_code == 200
+    assert response.json()["idle_timeout_seconds"] == 0
+
+
+@pytest.mark.asyncio
+async def test_session_policy_respeta_ciento_veinte(client: AsyncClient, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "SESSION_IDLE_TIMEOUT_SECONDS", 120)
+    response = await client.get("/api/v1/auth/session-policy")
+    assert response.status_code == 200
+    assert response.json()["idle_timeout_seconds"] == 120

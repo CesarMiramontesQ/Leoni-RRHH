@@ -44,6 +44,7 @@ import {
   type RhNavKey,
 } from "../navigation/rhNav.ts";
 import { clearAuth } from "../auth/session.ts";
+import { signOutToLogin } from "../auth/sessionIdleWatch.ts";
 import { tituloDesdeHash } from "../navigation/pageTitles.ts";
 import {
   marcarNotificacionLeida,
@@ -849,11 +850,7 @@ export function mountAppShell(container: HTMLElement, options: AppShellOptions):
       options.onSignOut();
       return;
     }
-    clearAuth();
-    void import("../shellRouter.ts").then(({ abortAuthenticatedShell }) => {
-      abortAuthenticatedShell();
-      void import("../pages/login.ts").then(({ mountLogin }) => mountLogin(container));
-    });
+    void signOutToLogin(container, "manual");
   }, { signal });
 
   const notifWrapper = container.querySelector<HTMLElement>("#app-shell-notifications-wrapper");

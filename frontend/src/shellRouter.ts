@@ -60,6 +60,7 @@ import { mountMisEncuestas } from "./pages/misEncuestas.ts";
 import { mountMisEncuestasRh } from "./pages/misEncuestasRh.ts";
 import { mountMisMetas } from "./pages/misMetas.ts";
 import { mountAppShell, type ShellNavKey } from "./layouts/appShell.ts";
+import { startSessionIdleWatch, stopSessionIdleWatch } from "./auth/sessionIdleWatch.ts";
 import { errorState, RH_LISTADO_PAGE_OUTER } from "./ui/uiTokens.ts";
 import { schedulePageScrollReset, shouldResetScrollOnRoute } from "./navigation/resetPageScroll.ts";
 import { destroyAllCharts } from "./charts/index.ts";
@@ -99,6 +100,7 @@ let routeAbort: AbortController | null = null;
 
 /** Detiene listeners de hash (p. ej. al cerrar sesión). */
 export function abortAuthenticatedShell(): void {
+  stopSessionIdleWatch();
   routeAbort?.abort();
   routeAbort = null;
 }
@@ -542,4 +544,5 @@ export function mountAuthenticatedShell(container: HTMLElement): void {
     { signal },
   );
   go();
+  void startSessionIdleWatch(container, signal);
 }
