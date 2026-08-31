@@ -339,6 +339,39 @@ export function tipoRequiereAnticipacionMinima(tipo: string): boolean {
   return tipo === "vacaciones" || tipo === "home_office";
 }
 
+/**
+ * Una solicitud = una semana (lun–dom): TRESS registra un movimiento por semana, así
+ * que el rango no puede cruzar de domingo a lunes. Espejo de
+ * `_validar_solicitud_una_semana` en `app/services/solicitud_service.py`; sin exención
+ * para RH. Los tipos de goce quedan fuera (se registran en Incidencias, donde el rango
+ * sí se trocea al escribir a TRESS).
+ */
+export function tipoRequiereUnaSemana(tipo: string): boolean {
+  return tipo === "vacaciones" || tipo === "home_office" || tipo === "permiso_sin_goce_sueldo";
+}
+
+function isoToFechaEs(iso: string): string {
+  const dt = parseLocalDate(iso);
+  if (!dt) return iso;
+  const d = String(dt.getDate()).padStart(2, "0");
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  return `${d}/${m}/${dt.getFullYear()}`;
+}
+
+/** `null` si el rango cabe en una semana; mensaje con el corte sugerido si la cruza. */
+export function validarRangoUnaSemana(fechaInicio: string, fechaFin: string): string | null {
+  if (!fechasOrdenValidas(fechaInicio, fechaFin)) return null;
+  const tramos = partirTramoPorSemanas({ fechaInicio, fechaFin });
+  if (tramos.length <= 1) return null;
+  const sugerencia = tramos
+    .map((t) => `del ${isoToFechaEs(t.fechaInicio)} al ${isoToFechaEs(t.fechaFin)}`)
+    .join(" y ");
+  return (
+    "La solicitud abarca más de una semana y TRESS solo acepta un registro por " +
+    `semana (lunes a domingo). Captura una solicitud por semana: ${sugerencia}.`
+  );
+}
+
 /** Primera fecha seleccionable (ISO) a partir de `hoyIso`. */
 export function fechaMinimaSolicitudIso(hoyIso: string): string {
   return sumarDiasIso(hoyIso, SOLICITUD_DIAS_ANTICIPACION_MINIMA);

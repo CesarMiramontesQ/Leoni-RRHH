@@ -33,6 +33,7 @@ from app.core.rh_ui_mode import (
     rh_tiene_alcance_gestor,
 )
 from app.utils.business_time import business_today
+from app.utils.calendar_weeks import split_calendar_weeks
 from app.utils.clasificacion_empleado import empleado_es_administrativo
 from app.utils.homeoffice_periodo import bloque_semanas
 from app.utils.vacaciones_fechas import (
@@ -376,6 +377,48 @@ def _validar_anticipacion_minima(tipo: str, fecha_inicio: date, scope_rol: str) 
         return
     if fecha_inicio < business_today() + timedelta(days=DIAS_ANTICIPACION_MINIMA):
         raise DomainValidationError(detail=MSG_ANTICIPACION_MINIMA)
+
+
+# Una solicitud = una semana (lun–dom): TRESS registra un movimiento por semana, así que
+# el rango no puede cruzar de domingo a lunes. Sin exención por scope (la restricción es
+# de nómina, no de política). Los permisos con goce quedan fuera: se registran en
+# Incidencias, donde el rango sí se trocea por semana al escribir a TRESS.
+_TIPOS_UNA_SEMANA = frozenset({"vacaciones", "home_office", "permiso_sin_goce_sueldo"})
+
+
+def _validar_solicitud_una_semana(
+    tipo: str,
+    fecha_inicio: date,
+    fecha_fin: date,
+    *,
+    al_aprobar: bool = False,
+) -> None:
+    """Rechaza rangos que crucen de semana. Con `al_aprobar` cambia la instrucción del
+    mensaje: la solicitud en vuelo debe rechazarse y recapturarse por semana."""
+    if tipo not in _TIPOS_UNA_SEMANA or fecha_fin < fecha_inicio:
+        return
+    tramos = split_calendar_weeks(fecha_inicio, fecha_fin)
+    if len(tramos) <= 1:
+        return
+    sugerencia = " y ".join(
+        f"del {_format_fecha_es(inicio)} al {_format_fecha_es(fin)}"
+        for inicio, fin in tramos
+    )
+    if al_aprobar:
+        raise DomainValidationError(
+            detail=(
+                "Esta solicitud abarca más de una semana y TRESS solo acepta un "
+                "registro por semana (lunes a domingo), por lo que no puede aprobarse. "
+                f"Recházala y captura una solicitud por semana: {sugerencia}."
+            )
+        )
+    raise DomainValidationError(
+        detail=(
+            "La solicitud abarca más de una semana y TRESS solo acepta un registro "
+            "por semana (lunes a domingo). Captura una solicitud por semana: "
+            f"{sugerencia}."
+        )
+    )
 
 
 class SolicitudService:
@@ -1037,6 +1080,7 @@ class SolicitudService:
         fecha_inicio = data.fecha_inicio
         fecha_fin = data.fecha_fin
         _validar_anticipacion_minima(data.tipo, fecha_inicio, scope_rol)
+        _validar_solicitud_una_semana(data.tipo, fecha_inicio, fecha_fin)
         if data.tipo == "home_office":
             await self._validar_creacion_home_office(
                 empleado_id=target.id,
@@ -1172,6 +1216,14 @@ class SolicitudService:
         current_user: Empleado,
         background_tasks: BackgroundTasks,
     ) -> SolicitudResponse:
+        # Red de seguridad para solicitudes capturadas antes de la regla de una semana:
+        # nunca escribir en TRESS un registro que cruce de semana.
+        _validar_solicitud_una_semana(
+            solicitud.tipo,
+            solicitud.fecha_inicio,
+            solicitud.fecha_fin,
+            al_aprobar=True,
+        )
         datos_antes = {"estado": solicitud.estado, "nivel_actual": solicitud.nivel_actual}
         no_empleado_solicitante = solicitud.empleado.no_empleado
 
@@ -1679,6 +1731,7 @@ class SolicitudService:
             data.fecha_inicio,
             effective_data_scope_for_module(current_user, "solicitudes", rh_ui_mode),
         )
+        _validar_solicitud_una_semana(solicitud.tipo, data.fecha_inicio, data.fecha_fin)
 
         duplicado = await self.repo.count(
             filters=[

@@ -10082,6 +10082,11 @@ paths:
         Vacaciones y home office exigen anticipación mínima: `fecha_inicio` debe ser
         al menos mañana (zona America/Mexico_City); hoy o una fecha pasada responde 422.
         Solo RH (scope global del módulo de solicitudes) queda exento.
+
+        Una solicitud = una semana: el rango no puede cruzar de domingo a lunes porque
+        TRESS registra un movimiento por semana (lunes a domingo). Aplica a vacaciones,
+        home office y permiso sin goce, sin exención para RH; el 422 sugiere el corte
+        exacto por semana.
       operationId: solicitudes_create
       security:
         - BearerAuth: []
@@ -10223,6 +10228,11 @@ paths:
     put:
       tags: [Solicitudes]
       summary: Aprobar solicitud
+      description: >
+        Una solicitud de vacaciones, home office o permiso sin goce cuyo rango cruce de
+        semana (lunes a domingo) no puede aprobarse (422): TRESS registra un movimiento
+        por semana. Aplica a solicitudes capturadas antes de la regla; deben rechazarse
+        y recapturarse una por semana.
       operationId: solicitudes_approve
       security:
         - BearerAuth: []
@@ -10307,7 +10317,8 @@ paths:
       description: >
         Solo el creador puede usar este endpoint. Solo funciona en estado changes_requested.
         Vacaciones y home office aplican la misma anticipación mínima que en la creación
-        (`fecha_inicio` ≥ mañana; RH exento).
+        (`fecha_inicio` ≥ mañana; RH exento). El rango tampoco puede cruzar de semana
+        (lunes a domingo): mismo 422 con corte sugerido que en la creación.
       operationId: solicitudes_revision
       security:
         - BearerAuth: []

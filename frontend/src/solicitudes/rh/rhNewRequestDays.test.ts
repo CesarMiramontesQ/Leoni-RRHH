@@ -12,6 +12,8 @@ import {
   rangoIncluyeFinDeSemana,
   resumirRangoSinDescansos,
   sumarDiasIso,
+  tipoRequiereUnaSemana,
+  validarRangoUnaSemana,
 } from "./rhNewRequestDays.ts";
 
 describe("rhNewRequestDays — vacaciones administrativas", () => {
@@ -121,5 +123,33 @@ describe("rhNewRequestDays — vacaciones administrativas", () => {
         new Set(["2026-07-14", "2026-07-15"]),
       ).fechasEfectivas,
     ).toEqual([]);
+  });
+});
+
+describe("rhNewRequestDays — una solicitud por semana (lun–dom)", () => {
+  it("acepta rangos dentro de una misma semana, incluido el domingo final", () => {
+    expect(validarRangoUnaSemana("2026-05-05", "2026-05-08")).toBeNull();
+    expect(validarRangoUnaSemana("2026-05-04", "2026-05-10")).toBeNull();
+    expect(validarRangoUnaSemana("2026-05-06", "2026-05-06")).toBeNull();
+  });
+
+  it("rechaza rangos que cruzan de semana y sugiere el corte exacto", () => {
+    const msg = validarRangoUnaSemana("2026-05-06", "2026-05-12");
+    expect(msg).not.toBeNull();
+    expect(msg).toContain("por semana");
+    expect(msg).toContain("del 06/05/2026 al 10/05/2026");
+    expect(msg).toContain("del 11/05/2026 al 12/05/2026");
+  });
+
+  it("ignora rangos incompletos o con orden inválido (los reportan otras reglas)", () => {
+    expect(validarRangoUnaSemana("", "2026-05-12")).toBeNull();
+    expect(validarRangoUnaSemana("2026-05-12", "2026-05-06")).toBeNull();
+  });
+
+  it("aplica a los tipos self-service y no a los de goce", () => {
+    expect(tipoRequiereUnaSemana("vacaciones")).toBe(true);
+    expect(tipoRequiereUnaSemana("home_office")).toBe(true);
+    expect(tipoRequiereUnaSemana("permiso_sin_goce_sueldo")).toBe(true);
+    expect(tipoRequiereUnaSemana("defuncion")).toBe(false);
   });
 });

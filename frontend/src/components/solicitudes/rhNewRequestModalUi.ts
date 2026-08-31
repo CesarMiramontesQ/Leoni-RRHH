@@ -23,6 +23,8 @@ import {
   MENSAJE_PERMISO_SIN_GOCE_ADMIN_FIN_DE_SEMANA,
   MENSAJE_VACACIONES_ADMIN_FIN_DE_SEMANA,
   rangoIncluyeFinDeSemana,
+  tipoRequiereUnaSemana,
+  validarRangoUnaSemana,
   resumirRangoSinDescansos,
 } from "../../solicitudes/rh/rhNewRequestDays.ts";
 import type { DescansosLoadState } from "../../solicitudes/rh/descansosEmpleado.ts";
@@ -1007,6 +1009,10 @@ export function computeRhModalFormUi(
   const fechaInInvalid =
     (bothDates && !fechasOk) || anticipacionIncumplida || vacacionesInicioFestivo || homeOfficeFestivo;
   const fechaFinInvalid = (bothDates && !fechasOk) || vacacionesFinFestivo;
+  const rangoCruzaSemanaMsg =
+    tipoRequiereUnaSemana(tipo) && bothDates && fechasOk
+      ? validarRangoUnaSemana(fechaInicio, fechaFin)
+      : null;
   const vacacionesAdminFinDeSemana =
     tipo === "vacaciones" &&
     empleadoEsAdministrativo === true &&
@@ -1095,6 +1101,9 @@ export function computeRhModalFormUi(
   } else if (homeOfficeFestivo) {
     resumenState = "error";
     resumenHint = MENSAJE_HOME_OFFICE_FESTIVO;
+  } else if (rangoCruzaSemanaMsg) {
+    resumenState = "error";
+    resumenHint = rangoCruzaSemanaMsg;
   } else if (bothDates && dias <= 0 && !vacacionesAdminFinDeSemana && !permisoSinGoceAdminFinDeSemana) {
     resumenState = "error";
     resumenHint = "El rango debe incluir al menos un día calendario.";
@@ -1178,6 +1187,7 @@ export function computeRhModalFormUi(
     !homeOfficeSinAdministrativo &&
     !homeOfficeMesOcupado &&
     descansosListos &&
+    rangoCruzaSemanaMsg == null &&
     !anticipacionIncumplida &&
     !vacacionesInicioFestivo &&
     !vacacionesFinFestivo &&

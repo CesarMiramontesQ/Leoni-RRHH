@@ -118,14 +118,14 @@ async def test_crear_vacaciones_rechaza_inicio_en_descanso(client: AsyncClient, 
     with patch(
         "app.services.solicitud_service.obtener_descansos_bono",
         new_callable=AsyncMock,
-        return_value=[date(2026, 7, 19), date(2026, 7, 20)],
+        return_value=[date(2026, 7, 20), date(2026, 7, 21)],
     ):
         res = await client.post(
             "/api/v1/solicitudes",
             json={
                 "tipo": "vacaciones",
-                "fecha_inicio": "2026-07-19",
-                "fecha_fin": "2026-07-21",
+                "fecha_inicio": "2026-07-20",
+                "fecha_fin": "2026-07-22",
                 "comentarios": "test",
             },
             headers=headers,
@@ -152,18 +152,18 @@ async def test_crear_vacaciones_descuenta_solo_dias_efectivos(
     )
     headers = await auth_headers(client, emp)
 
-    # Rango 18-21 jul: 19-20 descanso → 2 días efectivos = saldo exacto
+    # Rango 20-23 jul: 21-22 descanso → 2 días efectivos = saldo exacto
     with patch(
         "app.services.solicitud_service.obtener_descansos_bono",
         new_callable=AsyncMock,
-        return_value=[date(2026, 7, 19), date(2026, 7, 20)],
+        return_value=[date(2026, 7, 21), date(2026, 7, 22)],
     ):
         res = await client.post(
             "/api/v1/solicitudes",
             json={
                 "tipo": "vacaciones",
-                "fecha_inicio": "2026-07-18",
-                "fecha_fin": "2026-07-21",
+                "fecha_inicio": "2026-07-20",
+                "fecha_fin": "2026-07-23",
                 "comentarios": "test",
             },
             headers=headers,

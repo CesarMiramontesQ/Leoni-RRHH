@@ -449,7 +449,7 @@ async def test_crear_solicitud_empalme_contra_cancelada_o_rechazada_201(
         "/api/v1/solicitudes",
         json={
             "tipo": "vacaciones",
-            "fecha_inicio": "2026-07-05",
+            "fecha_inicio": "2026-07-06",
             "fecha_fin": "2026-07-08",
             "comentarios": "Reintento tras cancelación/rechazo",
         },
@@ -484,7 +484,7 @@ async def test_crear_solicitud_permiso_sin_goce_administrativo_rechaza_fin_de_se
         json={
             "tipo": "permiso_sin_goce_sueldo",
             "fecha_inicio": "2026-05-08",
-            "fecha_fin": "2026-05-11",
+            "fecha_fin": "2026-05-09",
             "empleado_id": subordinado.id,
             "motivo": "Permiso personal",
         },
@@ -543,7 +543,7 @@ async def test_crear_solicitud_vacaciones_administrativo_rechaza_fin_de_semana(
         json={
             "tipo": "vacaciones",
             "fecha_inicio": "2026-05-08",
-            "fecha_fin": "2026-05-11",
+            "fecha_fin": "2026-05-09",
             "comentarios": "Incluye fin de semana",
         },
         headers=headers,

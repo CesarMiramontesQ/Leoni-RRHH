@@ -322,6 +322,20 @@ Layered architecture: **router → service → repository → models/schemas**
   prellenado en mañana, `rhNewRequestDays.fechaMinimaSolicitudIso`) y la apaga solo en
   `pageRole === "operativo"`. En tests, `conftest` congela `business_today` del servicio en
   2026-01-05 (autouse) porque las fechas literales de la suite ya son pasado.
+- **Una solicitud = una semana (lun–dom).** TRESS registra un movimiento por semana, así
+  que ninguna solicitud de vacaciones, home office o permiso sin goce puede cruzar de
+  domingo a lunes: `_validar_solicitud_una_semana` (`solicitud_service`, tipos en
+  `_TIPOS_UNA_SEMANA`, semanas con `app/utils/calendar_weeks.split_calendar_weeks`)
+  rechaza con 422 al crear, al reenviar
+  tras `changes_requested` y **al aprobar** (`_aprobar_final_con_tress`, red de seguridad
+  para solicitudes en vuelo capturadas antes de la regla: se rechazan y se recapturan por
+  semana, nunca se trocean). **Sin exención para RH**: la restricción es técnica de
+  nómina, no de política. Solo se prohíbe el cruce — varias solicitudes disjuntas en la
+  misma semana son válidas. El mensaje sugiere el corte exacto por semana. El modal la
+  espeja (`rhNewRequestDays.validarRangoUnaSemana` / `tipoRequiereUnaSemana`, hint y
+  `canSubmit` en `computeRhModalFormUi`, guard en el submit). Los permisos con goce
+  quedan fuera a propósito: entran por Incidencias, donde el rango sí se trocea por
+  semana al escribir a TRESS (`partir_tramos_por_semanas`).
 - **Días festivos = lista propia de Bono, por planta, capturada por RH.**
   `levelup_dias_festivos` (fecha UNIQUE, descripción, `activo`) se edita en la sección
   «Días festivos» de `#/laborales/configuracion` (mismo módulo `laborales-configuracion`,
