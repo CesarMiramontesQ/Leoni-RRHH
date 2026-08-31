@@ -743,6 +743,8 @@ Ambos pares viven en `uiTokens.ts`. `FORM_SELECT` se usa dentro de un wrapper `r
 
 Open/close: toggle entre `hidden` y `flex`. Cerrar con Escape, click overlay, o boton close.
 
+**Aviso de sesión inactiva:** modal estándar (overlay `z-[80]`, `MODAL_PANEL` `max-w-md`, un solo `BTN_PRIMARY` «Sigo aquí»). Aparece a los 90 s de idle (quedan 30 s de los 120). Countdown en `tabular-nums`. Input del usuario o el botón reinician el reloj. No hay cierre por overlay sin actividad: cualquier pointer/teclado ya cuenta como actividad. Tras expirar, login muestra `.login-page-notice` (tokens warning), no el error rojo.
+
 ### 8.9 Tabs
 
 ```html

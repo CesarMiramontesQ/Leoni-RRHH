@@ -18,6 +18,8 @@
  * fila ni se saltan ninguna.
  */
 
+import { pauseIdleDuring } from "../../auth/sessionIdlePause.ts";
+
 /** Lo que necesita esta descarga de una página; el resto de la respuesta no le importa. */
 export type PaginaRegistros<T> = {
   items: readonly T[];
@@ -56,6 +58,13 @@ const MAX_PAGINAS_POR_DEFECTO = 400;
 export async function fetchTodosLosRegistrosReporte<T>(
   fetchPagina: FetchPagina<T>,
   opciones: OpcionesDescarga = {},
+): Promise<T[]> {
+  return pauseIdleDuring(() => descargarTodosLosRegistrosReporte(fetchPagina, opciones));
+}
+
+async function descargarTodosLosRegistrosReporte<T>(
+  fetchPagina: FetchPagina<T>,
+  opciones: OpcionesDescarga,
 ): Promise<T[]> {
   const pageSize = opciones.pageSize ?? PAGE_SIZE_POR_DEFECTO;
   const concurrencia = Math.max(1, opciones.concurrencia ?? CONCURRENCIA_POR_DEFECTO);

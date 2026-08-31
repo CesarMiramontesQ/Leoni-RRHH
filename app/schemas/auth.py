@@ -18,3 +18,7 @@ class TokenPayload(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class SessionPolicyResponse(BaseModel):
+    idle_timeout_seconds: int

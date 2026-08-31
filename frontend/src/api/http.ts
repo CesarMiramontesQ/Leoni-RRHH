@@ -1,5 +1,6 @@
 import { getAccessToken, getRefreshToken, updateAccessToken } from "../auth/session.ts";
 import { getRhUiModeHeaderValue } from "../auth/rhUiMode.ts";
+import { pauseIdleDuring } from "../auth/sessionIdlePause.ts";
 
 /** Renueva el access token con el refresh guardado en sesión (p. ej. al abrir la app). */
 export async function refreshAccessTokenSession(): Promise<boolean> {
@@ -34,10 +35,25 @@ export function isAbortError(e: unknown): boolean {
   return e instanceof DOMException ? e.name === "AbortError" : (e as { name?: string })?.name === "AbortError";
 }
 
+export type FetchWithAuthOptions = {
+  /** Pausa el idle hasta que termina (exports / descargas largas). El polling no lo usa. */
+  pauseIdle?: boolean;
+};
+
 /**
  * fetch con Bearer; ante 401 intenta un refresh y reintenta una vez.
  */
-export async function fetchWithAuth(url: string, init: RequestInit = {}): Promise<Response> {
+export async function fetchWithAuth(
+  url: string,
+  init: RequestInit = {},
+  opts: FetchWithAuthOptions = {},
+): Promise<Response> {
+  const run = (): Promise<Response> => fetchWithAuthOnce(url, init);
+  if (opts.pauseIdle) return pauseIdleDuring(run);
+  return run();
+}
+
+async function fetchWithAuthOnce(url: string, init: RequestInit): Promise<Response> {
   const doFetch = (): Promise<Response> => {
     const token = getAccessToken();
     const headers = new Headers(init.headers);

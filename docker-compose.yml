@@ -36,6 +36,7 @@ services:
       # cada peticion que toque TRESS cuando no responde.
       DATOS_ANALISIS_DB_CONNECT_TIMEOUT: ${DATOS_ANALISIS_DB_CONNECT_TIMEOUT:-5}
       TRESS_ESCRITURA_BLOQUEADA: ${TRESS_ESCRITURA_BLOQUEADA:-false}
+      SESSION_IDLE_TIMEOUT_SECONDS: ${SESSION_IDLE_TIMEOUT_SECONDS:-0}
       APP_ENV: development
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e4b}

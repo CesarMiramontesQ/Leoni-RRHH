@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, role_checker
 from app.core.security import decode_token
 from app.models.empleados import Empleado
-from app.schemas.auth import RefreshRequest, TokenResponse
+from app.schemas.auth import RefreshRequest, SessionPolicyResponse, TokenResponse
 from app.schemas.empleados import EmpleadoResponse
 from app.services.auth_service import (
     authenticate_user,
@@ -18,6 +19,12 @@ from app.services.auth_service import (
 )
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Autenticacion"])
+
+
+@router.get("/session-policy", response_model=SessionPolicyResponse)
+async def session_policy():
+    """Timeout de inactividad para el cliente. Público: 0 = desactivado."""
+    return SessionPolicyResponse(idle_timeout_seconds=max(0, settings.SESSION_IDLE_TIMEOUT_SECONDS))
 
 
 @router.post("/login", response_model=TokenResponse)

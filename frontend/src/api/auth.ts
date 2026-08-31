@@ -36,6 +36,28 @@ async function readErrorDetail(res: Response): Promise<string> {
   return raw || res.statusText || "Error";
 }
 
+export type SessionPolicy = {
+  idle_timeout_seconds: number;
+};
+
+/** Timeout de inactividad (público; 0 = desactivado). */
+export async function getSessionPolicy(): Promise<SessionPolicy> {
+  const res = await fetch("/api/v1/auth/session-policy");
+  if (!res.ok) {
+    throw { status: res.status, detail: await readErrorDetail(res) } satisfies AuthFetchError;
+  }
+  return (await res.json()) as SessionPolicy;
+}
+
+/** Invalida el access token actual en el servidor. Falla silencioso si ya no hay sesión. */
+export async function logoutSession(): Promise<void> {
+  try {
+    await fetchWithAuth("/api/v1/auth/logout", { method: "POST" });
+  } catch {
+    /* el cliente limpia igual */
+  }
+}
+
 /** Perfil del usuario autenticado (incluye clasificación para reglas de solicitudes). */
 export async function getAuthMe(): Promise<AuthMeResponse> {
   const res = await fetchWithAuth("/api/v1/auth/me");
