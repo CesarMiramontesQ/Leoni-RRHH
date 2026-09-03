@@ -25,6 +25,7 @@ services:
       BONO_DB_USER: ${BONO_DB_USER}
       BONO_DB_PASSWORD: ${BONO_DB_PASSWORD}
       BONO_DB_ENGINE: ${BONO_DB_ENGINE:-postgresql}
+      BONO_MIRROR_DB_NAME: ${BONO_MIRROR_DB_NAME:-}
       # SQL Server datos-analisis (solo lectura; vacío = deshabilitado)
       DATOS_ANALISIS_DB_HOST: ${DATOS_ANALISIS_DB_HOST:-}
       DATOS_ANALISIS_DB_PORT: ${DATOS_ANALISIS_DB_PORT:-1433}

@@ -81,7 +81,7 @@ def _patch_engines(da_repo, bono_repo, *, bono_engine: MagicMock | None = None):
             return_value=da_engine,
         ),
         patch(
-            "app.services.sync_ausencias_fi_service.BonoProductividadReadClient.create_read_engine",
+            "app.services.sync_ausencias_fi_service.BonoProductividadReadClient.create_mirror_engine",
             return_value=bono_engine,
         ),
         patch(
@@ -447,7 +447,7 @@ async def test_sync_semana_anterior_resuelve_rango(db):
             return_value=da_engine,
         ),
         patch(
-            "app.services.sync_ausencias_fi_service.BonoProductividadReadClient.create_read_engine",
+            "app.services.sync_ausencias_fi_service.BonoProductividadReadClient.create_mirror_engine",
             return_value=bono_engine,
         ),
         patch(
@@ -490,7 +490,7 @@ async def test_sync_semana_anterior_sin_catalogo(db):
         resolve_rango_semana_anterior=AsyncMock(return_value=None),
     )
     with patch(
-        "app.services.sync_ausencias_fi_service.BonoProductividadReadClient.create_read_engine",
+        "app.services.sync_ausencias_fi_service.BonoProductividadReadClient.create_mirror_engine",
         return_value=bono_engine,
     ), patch(
         "app.services.sync_ausencias_fi_service.BonoImportadasHistoricoRepository",
