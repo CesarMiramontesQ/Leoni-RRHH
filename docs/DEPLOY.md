@@ -257,6 +257,20 @@ corre en el scheduler del backend:
 sync_ausencias_fi_re — miércoles 08:30, America/Mexico_City
 ```
 
+Si la app corre contra una BD de prueba (`BONO_DB_NAME=prueba_bono`) y el mirror
+debe seguir escribiendo `importadas_historico` en `bono_productividad`, añade en
+`.env` (mismo host/usuario/contraseña de `BONO_DB_*`):
+
+```
+BONO_MIRROR_DB_NAME=bono_productividad
+```
+
+Vacío o ausente = el job escribe en `BONO_DB_NAME`. El de las 10:00
+(`sync_incidencias_tress`) no usa este override. Tras cambiarlo: reconstruir/
+reiniciar el backend. En el log de la corrida debe aparecer
+`Mirror importadas_historico → bono_productividad`. Al volver a prod, quita la
+variable.
+
 No hay migración ni tabla nueva: **basta con reconstruir y reiniciar el backend** para que
 quede registrado. Como el cambio también toca el frontend (el botón desaparece), el release
 necesita los dos builds:

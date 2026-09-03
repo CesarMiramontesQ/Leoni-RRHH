@@ -139,10 +139,17 @@ class SyncAusenciasService:
     ) -> SyncAusenciasStats:
         """Mirror de la semana anterior a ``hoy`` (APP_TIMEZONE por defecto)."""
         dia = hoy or _hoy_app()
-        bono_engine = BonoProductividadReadClient.create_read_engine()
+        bono_engine = BonoProductividadReadClient.create_mirror_engine()
         if bono_engine is None:
             raise ServiceUnavailableError(
                 "BONO_DB_* no configurado; no se puede sincronizar importadas_historico"
+            )
+        mirror = (settings.BONO_MIRROR_DB_NAME or "").strip()
+        if mirror:
+            logger.info(
+                "Mirror importadas_historico → %s (app=%s)",
+                mirror,
+                settings.BONO_DB_NAME,
             )
         try:
             bono_repo = BonoImportadasHistoricoRepository(bono_engine)
@@ -193,7 +200,7 @@ class SyncAusenciasService:
                 "DATOS_ANALISIS_DB_* no configurado; no se puede leer dbo.AUSENCIA"
             )
         if bono_engine is None:
-            bono_engine = BonoProductividadReadClient.create_read_engine()
+            bono_engine = BonoProductividadReadClient.create_mirror_engine()
         if bono_engine is None:
             await da_engine.dispose()
             raise ServiceUnavailableError(

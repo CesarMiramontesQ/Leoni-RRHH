@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     BONO_DB_USER: str = ""
     BONO_DB_PASSWORD: str = ""
     BONO_DB_ENGINE: str = "postgresql"
+    # Opcional. Vacío = el mirror FI/RE (miércoles 08:30) escribe en BONO_DB_NAME.
+    # Si la app corre contra una BD de prueba y importadas_historico debe seguir
+    # en bono_productividad: BONO_MIRROR_DB_NAME=bono_productividad. Reusa host,
+    # puerto, usuario y contraseña de BONO_DB_*.
+    BONO_MIRROR_DB_NAME: str = ""
 
     @model_validator(mode="after")
     def _armar_database_url(self) -> "Settings":
